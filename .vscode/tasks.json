@@ -131,7 +131,7 @@
     {
       "label": "Server: Test",
       "type": "shell",
-      "command": "npm test",
+      "command": "npm run test:pipeline",
       "options": {
         "cwd": "${workspaceFolder}/server"
       },

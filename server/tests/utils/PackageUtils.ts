@@ -1,4 +1,5 @@
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import {
@@ -10,6 +11,8 @@ import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
+export const TEST_MEDIA_FILE_MD5 = "d41d8cd98f00b204e9800998ecf8427e.png";
+
 export class PackageUtils {
   constructor() {
     //
@@ -18,7 +21,8 @@ export class PackageUtils {
   public createTestPackageData(
     author: ShortUserInfo,
     includeFinalRound: boolean = true,
-    additionalSimpleQuestions: number = 0
+    additionalSimpleQuestions: number = 0,
+    includeMediaQuestionFiles: boolean = false
   ): PackageDTO {
     const rounds = [
       {
@@ -41,6 +45,18 @@ export class PackageUtils {
                 answerText: "Simple answer",
                 answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
                 showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
+                questionFiles: includeMediaQuestionFiles
+                  ? [
+                      {
+                        file: {
+                          md5: TEST_MEDIA_FILE_MD5,
+                          type: PackageFileType.IMAGE
+                        },
+                        displayTime: null,
+                        order: 0
+                      }
+                    ]
+                  : undefined,
                 isHidden: false
               } satisfies PackageQuestionDTO,
               {

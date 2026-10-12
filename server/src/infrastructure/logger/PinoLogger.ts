@@ -20,7 +20,8 @@ export type CustomLevel = keyof typeof customLevels;
 type CustomLogger = pino.Logger<CustomLevel>;
 type ClosableLogStream = pino.DestinationStream & {
   end: () => void;
-  once: (event: "close" | "finish" | "error", listener: () => void) => unknown;
+  once: (event: "close" | "finish" | "error", listener: (error?: Error) => void) => unknown;
+  off: (event: "close" | "finish" | "error", listener: (error?: Error) => void) => unknown;
   flushSync?: () => void;
   closed?: boolean;
   destroyed?: boolean;
@@ -181,7 +182,17 @@ export class PinoLogger implements ILogger {
       closePromises.push(this.closeStream(stream, true));
     }
 
-    await Promise.all(closePromises);
+    const results = await Promise.allSettled(closePromises);
+    const failures = results
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .map((result) => result.reason as Error);
+
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        `Logger close failed: ${failures.map((error) => error.message).join("; ")}`
+      );
+    }
   }
 
   private initTerminalLogger(config: LoggerConfig): void {
@@ -245,18 +256,43 @@ export class PinoLogger implements ILogger {
       return;
     }
 
-    await new Promise<void>((resolve) => {
-      const finish = (): void => {
-        resolve();
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const cleanup = (): void => {
+        stream.off("close", onClose);
+        stream.off("finish", onFinish);
+        stream.off("error", onError);
+      };
+      const finish = (error?: Error): void => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        cleanup();
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      };
+      const onClose = (): void => finish();
+      const onFinish = (): void => finish();
+      const onError = (error?: Error): void => {
+        finish(error ?? new Error("Log stream failed while closing"));
       };
 
-      stream.once("close", finish);
+      stream.once("close", onClose);
       if (!waitForClose) {
-        stream.once("finish", finish);
+        stream.once("finish", onFinish);
       }
-      stream.once("error", finish);
+      stream.once("error", onError);
 
-      stream.end();
+      try {
+        stream.end();
+      } catch (error) {
+        finish(error instanceof Error ? error : new Error(String(error)));
+      }
     });
   }
 

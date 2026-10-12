@@ -18,6 +18,8 @@ Do not start with code for broad decisions. First collect context, read the righ
 - Redis/runtime: `.agents/skills/backend-redis-cache-change/SKILL.md`, `.agents/skills/backend-runtime-event/SKILL.md`.
 - Package/editor: `.agents/skills/package-editor-change/SKILL.md`, package specs.
 - Validation: `.agents/skills/project-assurance/SKILL.md`, `docs/agent/03-verification-matrix.md`.
+- Backend E2E writing: `.agents/skills/backend-e2e/SKILL.md`, `server/tests/e2e/README.md`; execution: `.agents/skills/backend-test-runner/SKILL.md`.
+- Media bugs: `server/docs/media-download-sync.md`; trace server coordination and client preparation/reveal separately before attributing a fix.
 - Docs: `.agents/skills/docs-upkeep/SKILL.md`, `docs/agent/02-source-of-truth.md`, `docs/agent/04-docs-drift-policy.md`.
 
 ## Plan shape

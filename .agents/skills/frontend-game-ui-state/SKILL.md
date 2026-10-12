@@ -64,9 +64,23 @@ Do not add a visible gameplay control without role/phase/disabled-reason behavio
 4. Prefer controller-owned state over widget-local hidden state for game flow.
 5. Add UI with existing project patterns: `WatchingWidget`, `watchValue`, `getIt`, theme helpers, localization.
 6. Add/adjust localization keys and regenerate when needed.
-7. If server payload is insufficient, stop and update backend/OpenAPI/client generation instead of inventing client-only guesses.
+7. If server payload is insufficient, identify the missing contract and obtain scope/behavior approval before expanding into backend/OpenAPI changes; do not invent client-only guesses.
 8. Keep mobile/desktop behavior in mind, especially for buzzer/timers.
 9. Add tests where practical or document manual scenario coverage.
+
+## Media-specific checks
+
+Read the current contract and known client gaps in `server/docs/media-download-sync.md`.
+Trace `QUESTION_DATA` through `GameLobbyController`, `GameQuestionController`,
+and the text/image/audio/video widgets. Receiving file links is not permission
+to reveal content. Local media preparation and server readiness are separate
+conditions; loading UI must not accidentally reveal text while hiding only media.
+
+For a media fix, verify that the ACK follows actual preparation (including image
+load callbacks), no-file ACKs are immediate, playback/reveal waits for the barrier,
+and stale loads or callbacks cannot affect a replacement question after reconnect
+or clear. Showman/spectators do not block the server barrier. Include a delayed
+load regression; backend E2E with simulated ACKs cannot prove these client rules.
 
 ## Buzzer-specific rules
 

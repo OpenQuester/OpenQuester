@@ -145,8 +145,6 @@ Events you may see:
 
 ## Timer expirations
 
-### <a id="media-download-timeout"></a> Media download timeout expires
-
 ### <a id="media-all-downloaded"></a> All players downloaded media (transition to showing)
 
 Server behavior:
@@ -157,6 +155,8 @@ Events:
 
 - `media-download-status` with a non-null `timer`
 
+### <a id="media-download-timeout"></a> Media download timeout expires
+
 Server behavior:
 
 - Forces all active players to `mediaDownloaded = true`
@@ -165,6 +165,10 @@ Server behavior:
 Events:
 
 - `media-download-status` with `playerId = SYSTEM_PLAYER_ID` and a `timer`
+
+Readiness here is forced, not proof of completed file transfers. Both paths
+follow the [media coordination contract](../media-download-sync.md); neither
+emits a second question-data reveal event.
 
 ### <a id="showing-timeout"></a> Showing timer expires (question was not answered)
 

@@ -1,168 +1,113 @@
-# Media Download Synchronization Feature
+# Media download coordination
 
-## Overview
-This feature ensures fair gameplay by tracking when players have downloaded media content for questions. The game displays visual indicators on player cards showing the download status of each player.
+This is the implementation reference for the normal-question path in a regular
+round. Secret, stake, and final questions have separate transitions; do not
+apply this handshake to them without inspecting their handlers.
 
-## Event Flow Diagram
+The server coordinates **reported readiness**, not file transfers. Receiving
+`QUESTION_DATA`, entering `MEDIA_DOWNLOADING`, downloading bytes, and revealing
+content are separate events. Backend coordination alone does not guarantee
+that Flutter waits for downloads or hides question content.
 
-```
-┌─────────────┐                     ┌─────────────┐                     ┌─────────────┐
-│   Player 1  │                     │   Server    │                     │   Player 2  │
-└──────┬──────┘                     └──────┬──────┘                     └──────┬──────┘
-       │                                   │                                   │
-       │  1. Showman picks question        │                                   │
-       │ ─────────────────────────────────>│                                   │
-       │                                   │                                   │
-       │  2. QUESTION_DATA event           │  2. QUESTION_DATA event           │
-       │ <─────────────────────────────────┤──────────────────────────────────>│
-       │    (mediaDownloaded: false)       │    (mediaDownloaded: false)       │
-       │                                   │                                   │
-       │  3. Download/Load media           │                                   │  3. Download/Load media
-       │     ⏳                            │                                   │     ⏳
-       │                                   │                                   │
-       │  4. MEDIA_DOWNLOADED              │                                   │
-       │ ─────────────────────────────────>│                                   │
-       │                                   │                                   │
-       │  5. MEDIA_DOWNLOAD_STATUS         │  5. MEDIA_DOWNLOAD_STATUS         │
-       │ <─────────────────────────────────┤──────────────────────────────────>│
-       │    (player1: true, allReady: false)  (player1: true, allReady: false) │
-       │                                   │                                   │
-       │  UI: ✓ Player 1                   │                                   │  UI: ✓ Player 1
-       │      ⏳ Player 2                  │                                   │      ⏳ Player 2
-       │                                   │                                   │
-       │                                   │  6. MEDIA_DOWNLOADED              │
-       │                                   │ <─────────────────────────────────│
-       │                                   │                                   │
-       │  7. MEDIA_DOWNLOAD_STATUS         │  7. MEDIA_DOWNLOAD_STATUS         │
-       │ <─────────────────────────────────┤──────────────────────────────────>│
-       │    (player2: true, allReady: true)   (player2: true, allReady: true)  │
-       │                                   │                                   │
-       │  UI: ✓ Player 1                   │                                   │  UI: ✓ Player 1
-       │      ✓ Player 2                   │                                   │      ✓ Player 2
-       │                                   │                                   │
-       │  8. Start media playback          │                                   │  8. Start media playback
-       │     ▶️                            │                                   │     ▶️
-       │                                   │                                   │
+## Current Socket.IO contract
 
-Legend:
-✓ = Green check (downloaded)
-⏳ = Orange downloading icon
-▶️ = Media playback starts after all players ready
-```
+Namespace: `/games`. Wire names are lowercase kebab-case; the uppercase names
+below refer to backend enum members. Public metadata and payload schemas live
+in [OpenAPI](../../openapi/schema.json).
 
-## How It Works
+| Step | Direction / event | State and payload |
+| --- | --- | --- |
+| Pick | Client → server `QUESTION_PICK` | Input `{ questionId }`; existing role/phase validation applies. |
+| Deliver data | Server → game clients `QUESTION_DATA` | Role-filtered question data, including file links, and the media timer. Persisted phase is `MEDIA_DOWNLOADING`; readiness flags are reset. Showman-only answers are not sent to players/spectators. |
+| Partial readiness | Client → server `MEDIA_DOWNLOADED`, then server → game `MEDIA_DOWNLOAD_STATUS` | No application payload is required for the command. Status includes `playerId`, `mediaDownloaded: true`, `allPlayersReady: false`, `timer: null`. The existing media timer remains active. |
+| Last required readiness | Same command/status pair | The last active player's ACK completes readiness, enters `SHOWING`, and supplies the question timer in the status. |
+| Timeout | Server → game `MEDIA_DOWNLOAD_STATUS` | Forces active players ready, enters `SHOWING`, and starts the question timer. Status uses `playerId: -1` (`SYSTEM_PLAYER_ID`) and `allPlayersReady: true`; it does not prove successful downloads. |
 
-### Backend (Server)
+Only `PlayerRole.PLAYER` participants with `PlayerGameStatus.IN_GAME` belong
+to the readiness barrier. Showman and spectators may report readiness but do
+not block it. Leaving/disconnecting/restriction can change the active set; use
+the existing departure flow rather than inventing additional required roles.
 
-1. **Player State Tracking**
-   - Added `mediaDownloaded` field to `PlayerDTO` and `Player` entity
-   - Tracks whether each player has downloaded the current question's media
+Regular questions without files still enter the same backend handshake.
+Clients immediately ACK when `questionFiles ?? []` is empty; the backend does
+not auto-skip the phase merely because there are no files.
 
-2. **Socket.IO Events**
-   - `MEDIA_DOWNLOADED`: Sent by client when media download completes
-   - `MEDIA_DOWNLOAD_STATUS`: Broadcast to all clients with player's download status
+There is **no inbound preload `QUESTION_PICK`**, and completing readiness does
+**not** produce a second `QUESTION_DATA`. Initial data delivery provides links
+and content; it is not a server instruction to reveal/play it immediately.
 
-3. **Event Flow**
-   - When a question is picked, all players' `mediaDownloaded` status is reset to `false`
-   - Client downloads/loads media and sends `MEDIA_DOWNLOADED` event
-   - Server broadcasts `MEDIA_DOWNLOAD_STATUS` to all clients with `allPlayersReady` flag
-   - All clients update their UI to show which players have downloaded media
-   - When `allPlayersReady` is `true`, clients start media playback synchronously
+Here ACK means the application command `MEDIA_DOWNLOADED`, not a Socket.IO
+callback acknowledgement or proof that an action reached the Redis queue.
 
-### Frontend (Client)
+## Phase guards, duplicate ACKs, and timers
 
-1. **Media Download Detection**
-   - After media (video/audio/image) is loaded, client sends `MEDIA_DOWNLOADED` event
-   - For questions without media, event is sent immediately
-   - Media is prepared but NOT played until all players are ready
+- After authentication/player validation, an ACK outside `MEDIA_DOWNLOADING`
+  is a successful no-op: no readiness change, save/timer mutation, or status
+  broadcast. This includes late ACKs during `SHOWING`.
+- Repeated ACKs while still in the media phase can produce repeated status
+  broadcasts. Do not document them as universally deduplicated. ACKs queued
+  after completion are covered by the phase guard.
+- Selection starts `MEDIA_DOWNLOAD_TIMEOUT`; partial status `timer: null`
+  means no replacement timer, not that the running media timer was removed.
+- Readiness completion or timeout starts `GAME_QUESTION_ANSWER_TIME`.
+- An ACK has no question identifier. The phase guard is not a general guarantee
+  against a delayed client callback landing in a later question's media phase.
 
-2. **Synchronized Playback**
-   - Client waits for `allPlayersReady` signal from server
-   - Only when all active players have downloaded media does playback start
-   - Ensures fair gameplay where all players see content simultaneously
+## Client obligations and known gaps
 
-3. **Visual Indicators**
-   - Orange downloading icon: Player is still downloading media
-   - Green check icon: Player has downloaded media
-   - Indicators only shown when active question has media
+Intended behavior: prepare the current question's media, ACK after preparation
+(or immediately for no files), and keep content/playback gated until the
+server completes readiness. Timeout is a fallback, not download verification.
 
-4. **State Management**
-   - Player download status is stored in game state
-   - Status is reset when new question is picked
-   - UI reactively updates based on status changes
+Static inspection at backend PR #441 revision `8348d429` found these unresolved
+client gaps; this documentation update does not fix them:
 
-## Files Modified
+Rechecked at `ef7d56d6`; tracked separately in
+[Fix premature question reveal and image readiness ACK (#445)](https://github.com/OpenQuester/OpenQuester/issues/445).
+The issue contains slow-media verification steps and required controller/widget coverage;
+source inspection is not a manual UI reproduction.
 
-### Backend
-- `src/domain/enums/SocketIOEvents.ts` - Added new event enums
-  ```typescript
-  MEDIA_DOWNLOADED = "media-downloaded",      // Client -> Server
-  MEDIA_DOWNLOAD_STATUS = "media-download-status",  // Server -> All Clients
-  ```
-- `src/domain/types/dto/game/player/PlayerDTO.ts` - Added mediaDownloaded field
-- `src/domain/entities/game/Player.ts` - Added media download tracking
-- `src/presentation/controllers/io/SocketActionMap.ts` - Maps `MEDIA_DOWNLOADED` to `GameActionType.MEDIA_DOWNLOADED`
-- `src/application/usecases/game/MediaDownloadedUseCase.ts` - Marks the player as ready and returns save/broadcast mutations
-- `src/application/config/ActionHandlerConfig.ts` - Registers the media downloaded use case
-- `src/domain/logic/question/MediaDownloadLogic.ts` - Checks whether all active players are ready
-- `src/domain/types/socket/events/game/MediaDownloadStatusEventPayload.ts` - Event payload type
-  ```typescript
-  interface MediaDownloadStatusBroadcastData {
-    playerId: number;
-    mediaDownloaded: boolean;
-    allPlayersReady: boolean;
-  }
-  ```
-- OpenAPI schema - Updated media download event contract
+- `GameLobbyController._onQuestionPick` handles `QUESTION_DATA` and immediately
+  calls `_showQuestion()`. `GameQuestionLayout` renders question text without a
+  readiness condition, even though media widgets have waiting UI.
+- `GameQuestionController._onQuestionChange` excludes images from the awaited
+  media preparation block but still sends the common readiness ACK afterward.
+  `onImageLoaded` sends another ACK later. Thus image readiness can be reported
+  before the image is loaded.
+- Consequently, neither a ready flag nor a green backend suite establishes
+  actual byte completion, hidden text, or synchronized visible playback.
 
-### Frontend
-- `client/lib/src/features/game_question/controllers/game_question_controller.dart` - Send media downloaded event
-  - Calls `notifyMediaDownloaded()` after media loads or immediately if no media
-- `client/lib/src/features/game_lobby/controllers/game_lobby_controller.dart` - Handle status events
-  - `notifyMediaDownloaded()` - Emits MEDIA_DOWNLOADED event to server
-  - `_onMediaDownloadStatus()` - Updates player state when receiving status broadcasts using `MediaDownloadStatusEventPayload` model
-- `client/lib/src/features/game_lobby/view/game_lobby_player.dart` - Visual indicators
-  - `_MediaDownloadIndicator` widget shows download status icons
-- `openapi/dart_sdk/lib/src/models/media_download_status_event_payload.dart` - Event payload model (temporary manual implementation)
-  - This file should be replaced when running `./oqhelper gen_files` (from client directory) to regenerate the full SDK from OpenAPI schema
+Before marking these gaps resolved, inspect and test the controller and widget
+paths together with delayed media preparation, question replacement, and
+reconnect. Distinguish source inspection from a reproduced Flutter scenario.
 
-## API Usage Examples
+Client source paths (repository-relative):
 
-### Client-Side (Dart/Flutter)
-```dart
-// Emit media downloaded event (done automatically by GameQuestionController)
-socket?.emit(SocketIOGameSendEvents.mediaDownloaded.json!);
+- `client/apps/client/lib/src/features/game_lobby/controllers/game_lobby_controller.dart`
+- `client/apps/client/lib/src/features/game_question/controllers/game_question_controller.dart`
+- `client/apps/client/lib/src/features/game_question/view/game_question_layout.dart`
+- `client/apps/client/lib/src/features/game_question/view/game_question_file.dart`
 
-// Listen for status updates (handled in GameLobbyController)
-socket?.on(SocketIOGameReceiveEvents.mediaDownloadStatus.json!, (data) {
-  final statusData = MediaDownloadStatusEventPayload.fromJson(
-    data as Map<String, dynamic>,
-  );
-  // Access typed fields
-  final playerId = statusData.playerId;
-  final mediaDownloaded = statusData.mediaDownloaded;
-  final allPlayersReady = statusData.allPlayersReady;
-  // Update UI
-});
-```
+## Backend implementation and verification
 
-### Server-Side (TypeScript)
-```typescript
-// The use case automatically:
-// 1. Marks player as downloaded
-// 2. Checks if all players are ready
-// 3. Broadcasts status to all clients
-await gameActionExecutor.submitAction(mediaDownloadedAction);
+Backend source paths (repository-relative):
 
-// Reset status when new question is picked
-MediaDownloadLogic.resetAllPlayerStatus(game);
-```
+- `server/src/application/usecases/question/QuestionPickUseCase.ts`
+- `server/src/application/services/socket/SocketActionHooks.ts`
+- `server/src/application/usecases/game/MediaDownloadedUseCase.ts`
+- `server/src/domain/logic/question/MediaDownloadLogic.ts`
+- `server/src/domain/state-machine/handlers/regular-round/ChoosingToMediaDownloadingHandler.ts`
+- `server/src/domain/state-machine/handlers/regular-round/MediaDownloadingToShowingHandler.ts`
+- `server/src/application/services/timer/TimerExpirationService.ts`
+- `server/src/domain/types/socket/events/game/MediaDownloadStatusEventPayload.ts`
 
-## Future Enhancements
+Follow the [E2E README](../tests/e2e/README.md) for test writing and commands.
+Transport cases use real sockets/Redis/PostgreSQL, supply file metadata, and
+simulate client ACKs. They assert the media phase and active timer **before any
+ACK**, partial readiness, completion/timeout, and exact relevant event counts.
+A correct `QUESTION_DATA` with an already-`SHOWING` state must fail.
 
-The current implementation provides visual feedback but doesn't enforce waiting. Potential enhancements:
-
-1. **Timeout Implementation**: Add a 10-second timeout after which the question proceeds regardless of download status
-2. **Content Hiding**: Don't show question content until all players are ready (or timeout)
-3. **Progress Indicators**: Show download progress percentage instead of just status
-4. **Skip Option**: Allow showman to skip waiting for specific players
+Controlled helper self-tests prove assertions reject injected defects; they
+are not evidence of backend health. Backend transport tests prove coordination,
+not Flutter downloading, content hiding, or playback. Keep those evidence
+boundaries explicit in bug reports and release claims.

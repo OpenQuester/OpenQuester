@@ -10,6 +10,11 @@ The generated Dart client package lives in `client/packages/openapi/`. It is gen
 
 Contract changes are cross-layer changes. Treat them as backend + schema + generated client + app usage work unless the task explicitly scopes otherwise.
 
+Descriptions and `x-socket-io` metadata may be corrected without changing runtime
+DTO shapes. State that distinction and whether generation was run; do not
+manually patch generated comments. Schema validation proves document structure,
+not handler compatibility, event sequencing, actual downloads, or visible UI.
+
 ## When to update `schema.json`
 
 Update the schema when any of these change:
@@ -67,6 +72,12 @@ Socket.IO contract metadata belongs in `x-socket-io` and related schemas. Keep e
 - `server/src/domain/enums/GameActionType.ts` where applicable
 - `server/src/presentation/controllers/io/SocketActionMap.ts`
 - generated Dart event/model usage in `client/packages/openapi/` and app code
+
+For media, use `server/docs/media-download-sync.md` as the implementation
+reference. Preserve the current `question-pick` → `question-data` → readiness
+status handshake; do not describe an unmerged preload/reveal protocol as current.
+Readiness may be client-reported or timeout-forced and is not proof of downloaded
+bytes. Known client bugs belong in the implementation reference, not new wire fields.
 
 For game-changing socket events, also read:
 

@@ -11,8 +11,8 @@
     "clean": "rm -rf dist/*",
     "build:dev": "tsup --watch",
     "build": "npm run clean && tsc --noEmit && tsup",
-    "test": "jest --detectOpenHandles",
-    "test:pipeline": "jest --detectOpenHandles > /dev/null",
+    "test": "npm run test:pipeline --",
+    "test:pipeline": "node ./scripts/test/runPipelineTests.mjs",
     "lint": "eslint ./",
     "format": "prettier --write ."
   },

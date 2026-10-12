@@ -1,13 +1,6 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
-import request from "supertest";
+import { createHttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { Repository } from "typeorm";
 
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
@@ -18,7 +11,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import {
   PackageQuestionDTO,
-  PackageQuestionSubType,
+  PackageQuestionSubType
 } from "domain/types/dto/package/PackageQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
@@ -27,43 +20,34 @@ import { QuestionFinishEventPayload } from "domain/types/socket/events/game/Ques
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import {
   StakeBidSubmitOutputData,
-  StakeBidType,
+  StakeBidType
 } from "domain/types/socket/events/game/StakeQuestionEventData";
 import {
   AnswerSubmittedBroadcastData,
-  AnswerSubmittedInputData,
+  AnswerSubmittedInputData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import {
   GameClientSocket,
   GameTestSetup,
-  SocketGameTestUtils,
+  SocketGameTestUtils
 } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 describe("Stake Question Zero Price Answer Tests", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
 
-  async function createZeroPriceStakePackage(
-    user: User,
-    cookie: string
-  ): Promise<number> {
+  async function createZeroPriceStakePackage(user: User, cookie: string): Promise<number> {
     const packageData: PackageDTO = {
       title: "Zero Price Stake Test Package",
       description: "A package for testing zero price stake questions",
       ageRestriction: AgeRestriction.NONE,
       author: {
         id: user.id,
-        username: user.username,
+        username: user.username
       },
       language: "en",
       logo: null,
@@ -91,7 +75,7 @@ describe("Stake Question Zero Price Answer Tests", () => {
                   answerDelay: 5000,
                   showAnswerDuration: 5000,
                   maxPrice: 1,
-                  isHidden: false,
+                  isHidden: false
                 } satisfies PackageQuestionDTO,
                 {
                   type: PackageQuestionType.STAKE,
@@ -103,25 +87,23 @@ describe("Stake Question Zero Price Answer Tests", () => {
                   answerDelay: 5000,
                   showAnswerDuration: 5000,
                   maxPrice: 1,
-                  isHidden: false,
-                } satisfies PackageQuestionDTO,
-              ],
-            },
-          ],
-        },
-      ],
+                  isHidden: false
+                } satisfies PackageQuestionDTO
+              ]
+            }
+          ]
+        }
+      ]
     };
 
-    const packageRes = await request(app)
+    const packageRes = await createHttpTestClient(suite.serverUrl)
       .post("/v1/packages")
       .set("Cookie", cookie)
       .send({ content: packageData });
 
     if (packageRes.status !== 200) {
       throw new Error(
-        `Failed to create package: ${packageRes.status} - ${JSON.stringify(
-          packageRes.body
-        )}`
+        `Failed to create package: ${packageRes.status} - ${JSON.stringify(packageRes.body)}`
       );
     }
 
@@ -131,12 +113,11 @@ describe("Stake Question Zero Price Answer Tests", () => {
   async function setupZeroPriceStakeTest(): Promise<{
     setup: GameTestSetup;
     stakeQuestionId: number;
-    cleanup: () => Promise<void>;
   }> {
     const {
       socket: showmanSocket,
       user: showmanUser,
-      cookie,
+      cookie
     } = await utils.createGameClient(app, userRepo);
 
     const packageId = await createZeroPriceStakePackage(showmanUser, cookie);
@@ -146,20 +127,16 @@ describe("Stake Question Zero Price Answer Tests", () => {
       packageId: packageId,
       isPrivate: false,
       ageRestriction: AgeRestriction.NONE,
-      maxPlayers: 10,
+      maxPlayers: 10
     };
 
-    const gameRes = await request(app)
+    const gameRes = await createHttpTestClient(suite.serverUrl)
       .post("/v1/games")
       .set("Cookie", cookie)
       .send(gameData);
 
     if (gameRes.status !== 200) {
-      throw new Error(
-        `Failed to create game: ${gameRes.status} - ${JSON.stringify(
-          gameRes.body
-        )}`
-      );
+      throw new Error(`Failed to create game: ${gameRes.status} - ${JSON.stringify(gameRes.body)}`);
     }
 
     const createdGame = gameRes.body;
@@ -184,7 +161,7 @@ describe("Stake Question Zero Price Answer Tests", () => {
       playerSockets,
       spectatorSockets: [],
       showmanUser,
-      playerUsers,
+      playerUsers
     };
 
     await utils.startGame(showmanSocket);
@@ -194,17 +171,11 @@ describe("Stake Question Zero Price Answer Tests", () => {
 
     await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
-    const stakeQuestionId = await utils.getQuestionIdByType(
-      gameId,
-      PackageQuestionType.STAKE
-    );
+    const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
     return {
       setup,
-      stakeQuestionId,
-      cleanup: async () => {
-        await utils.cleanupGameClients(setup);
-      },
+      stakeQuestionId
     };
   }
 
@@ -214,24 +185,20 @@ describe("Stake Question Zero Price Answer Tests", () => {
   ): Promise<void> {
     const { showmanSocket, playerSockets } = setup;
 
-    playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
-      questionId: stakeQuestionId,
-    });
-
-    await utils.waitForEvent(
+    const stakeQuestionPickedPromise = suite.currentScenario.waitForEvent(
       showmanSocket,
       SocketIOGameEvents.STAKE_QUESTION_PICKED
     );
+    suite.currentScenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_PICK, {
+      questionId: stakeQuestionId
+    });
 
-    const biddingResult = await handleZeroPriceBidding(
-      showmanSocket,
-      playerSockets
-    );
+    await stakeQuestionPickedPromise;
+
+    const biddingResult = await handleZeroPriceBidding(showmanSocket, playerSockets);
 
     if (!biddingResult.biddingCompleted) {
-      throw new Error(
-        "Failed to complete zero price stake question bidding phase"
-      );
+      throw new Error("Failed to complete zero price stake question bidding phase");
     }
 
     const gameState = await utils.getGameState(setup.gameId);
@@ -239,13 +206,9 @@ describe("Stake Question Zero Price Answer Tests", () => {
     if (biddingResult.hasWinner) {
       expect(gameState?.questionState).toBe(QuestionState.ANSWERING);
       expect(gameState?.stakeQuestionData?.biddingPhase).toBe(false);
-      expect(gameState?.stakeQuestionData?.winnerPlayerId).toBe(
-        biddingResult.winnerPlayerId
-      );
+      expect(gameState?.stakeQuestionData?.winnerPlayerId).toBe(biddingResult.winnerPlayerId);
     } else {
-      throw new Error(
-        "Expected a winner for zero price stake question with valid bid"
-      );
+      throw new Error("Expected a winner for zero price stake question with valid bid");
     }
   }
 
@@ -257,124 +220,109 @@ describe("Stake Question Zero Price Answer Tests", () => {
     hasWinner: boolean;
     winnerPlayerId?: number;
   }> {
-    try {
-      playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 1,
+    const player0BidPromise = suite.currentScenario.waitForEvent<StakeBidSubmitOutputData>(
+      showmanSocket,
+      SocketIOGameEvents.STAKE_BID_SUBMIT,
+      2000
+    );
+    suite.currentScenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+      bidType: StakeBidType.NORMAL,
+      bidAmount: 1
+    });
+
+    const player0BidResult = await player0BidPromise;
+
+    if (!player0BidResult.isPhaseComplete) {
+      const player1BidPromise = suite.currentScenario.waitForEvent<StakeBidSubmitOutputData>(
+        showmanSocket,
+        SocketIOGameEvents.STAKE_BID_SUBMIT,
+        2000
+      );
+      suite.currentScenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        bidType: StakeBidType.PASS,
+        bidAmount: null
       });
 
-      const player0BidResult =
-        await utils.waitForEvent<StakeBidSubmitOutputData>(
+      const player1BidResult = await player1BidPromise;
+
+      if (!player1BidResult.isPhaseComplete) {
+        const player2BidPromise = suite.currentScenario.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT,
           2000
         );
-
-      if (!player0BidResult.isPhaseComplete) {
-        playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        suite.currentScenario.actor(playerSockets[2]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.PASS,
-          bidAmount: null,
+          bidAmount: null
         });
 
-        const player1BidResult =
-          await utils.waitForEvent<StakeBidSubmitOutputData>(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT,
-            2000
-          );
-
-        if (!player1BidResult.isPhaseComplete) {
-          playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.PASS,
-            bidAmount: null,
-          });
-
-          await utils.waitForEvent<StakeBidSubmitOutputData>(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT,
-            2000
-          );
-        }
+        await player2BidPromise;
       }
-
-      const game = await utils.getGameFromGameService(playerSockets[0].gameId!);
-      const biddingCompleted = !game?.gameState.stakeQuestionData?.biddingPhase;
-      const winnerPlayerId = game?.gameState.stakeQuestionData?.winnerPlayerId;
-      const hasWinner = winnerPlayerId !== null && winnerPlayerId !== undefined;
-
-      return {
-        biddingCompleted,
-        hasWinner,
-        winnerPlayerId: winnerPlayerId || undefined,
-      };
-    } catch {
-      return { biddingCompleted: false, hasWinner: false };
     }
+
+    const game = await utils.getGameFromGameService(playerSockets[0].gameId!);
+    const biddingCompleted = !game?.gameState.stakeQuestionData?.biddingPhase;
+    const winnerPlayerId = game?.gameState.stakeQuestionData?.winnerPlayerId;
+    const hasWinner = winnerPlayerId !== null && winnerPlayerId !== undefined;
+
+    return {
+      biddingCompleted,
+      hasWinner,
+      winnerPlayerId: winnerPlayerId || undefined
+    };
   }
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    if (cleanup) {
-      await cleanup();
-    }
-    await testEnv.teardown();
+    await suite?.stop();
   });
 
   describe("Zero Price Stake Question Answer Scenarios", () => {
     it("should finish question when correct answer is submitted", async () => {
-      const {
-        setup,
-        stakeQuestionId,
-        cleanup: testCleanup,
-      } = await setupZeroPriceStakeTest();
-      const { showmanSocket, playerSockets } = setup;
+      await suite.scenario(async (scenario) => {
+        const { setup, stakeQuestionId } = await setupZeroPriceStakeTest();
+        const { showmanSocket, playerSockets } = setup;
 
-      try {
         await completeZeroPriceStakeBidding(setup, stakeQuestionId);
 
-        playerSockets[0].emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
-          answerText: "Test answer",
-        } as AnswerSubmittedInputData);
-
-        await utils.waitForEvent<AnswerSubmittedBroadcastData>(
+        const answerSubmittedPromise = scenario.waitForEvent<AnswerSubmittedBroadcastData>(
           showmanSocket,
           SocketIOGameEvents.ANSWER_SUBMITTED
         );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+          answerText: "Test answer"
+        } as AnswerSubmittedInputData);
 
-        const answerResultPromise = utils.waitForEvent(
+        await answerSubmittedPromise;
+
+        const answerResultPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.ANSWER_RESULT
         );
 
-        const showAnswerPromise = utils.waitForEvent(
+        const showAnswerPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.ANSWER_SHOW_START
         );
 
-        const questionFinishPromise =
-          utils.waitForEvent<QuestionFinishEventPayload>(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_FINISH
-          );
+        const questionFinishPromise = scenario.waitForEvent<QuestionFinishEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_FINISH
+        );
 
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 100,
-          answerType: AnswerResultType.CORRECT,
+          answerType: AnswerResultType.CORRECT
         });
 
         await answerResultPromise;
@@ -390,90 +338,75 @@ describe("Stake Question Zero Price Answer Tests", () => {
         const gameState = await utils.getGameState(setup.gameId);
         expect(gameState?.questionState).toBe(QuestionState.CHOOSING);
         expect(gameState?.currentQuestion).toBeNull();
-      } finally {
-        await testCleanup();
-      }
+      });
     });
 
     it("should continue showing question when wrong answer is submitted", async () => {
-      const {
-        setup,
-        stakeQuestionId,
-        cleanup: testCleanup,
-      } = await setupZeroPriceStakeTest();
-      const { showmanSocket, playerSockets } = setup;
+      await suite.scenario(async (scenario) => {
+        const { setup, stakeQuestionId } = await setupZeroPriceStakeTest();
+        const { showmanSocket, playerSockets } = setup;
 
-      try {
         await completeZeroPriceStakeBidding(setup, stakeQuestionId);
 
-        playerSockets[0].emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
-          answerText: "Wrong answer",
-        } as AnswerSubmittedInputData);
-
-        await utils.waitForEvent<AnswerSubmittedBroadcastData>(
+        const answerSubmittedPromise = scenario.waitForEvent<AnswerSubmittedBroadcastData>(
           showmanSocket,
           SocketIOGameEvents.ANSWER_SUBMITTED
         );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+          answerText: "Wrong answer"
+        } as AnswerSubmittedInputData);
 
-        const answerShowStartPromise = utils.waitForEvent(
+        await answerSubmittedPromise;
+
+        const answerShowStartPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.ANSWER_SHOW_START
         );
-
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-          scoreResult: -100,
-          answerType: AnswerResultType.WRONG,
-        });
-
-        await utils.waitForEvent(
+        const answerResultPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.ANSWER_RESULT
         );
+
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: -100,
+          answerType: AnswerResultType.WRONG
+        });
+
+        await answerResultPromise;
         await answerShowStartPromise;
 
         const gameState = await utils.getGameState(setup.gameId);
         expect(gameState?.questionState).toBe(QuestionState.SHOWING_ANSWER);
         expect(gameState?.currentQuestion).toBeNull();
         expect(gameState?.answeringPlayer).toBeNull();
-      } finally {
-        await testCleanup();
-      }
+      });
     });
 
     it("should treat skip as give up (wrong answer) during stake question answering phase", async () => {
-      const {
-        setup,
-        stakeQuestionId,
-        cleanup: testCleanup,
-      } = await setupZeroPriceStakeTest();
-      const { playerSockets, showmanSocket } = setup;
+      await suite.scenario(async (scenario) => {
+        const { setup, stakeQuestionId } = await setupZeroPriceStakeTest();
+        const { playerSockets, showmanSocket } = setup;
 
-      try {
         await completeZeroPriceStakeBidding(setup, stakeQuestionId);
 
         // Listen for answer result
-        const answerResultPromise =
-          utils.waitForEvent<QuestionAnswerResultEventPayload>(
-            showmanSocket,
-            SocketIOGameEvents.ANSWER_RESULT
-          );
+        const answerResultPromise = scenario.waitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
 
         // Emit skip (give up)
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
         const answerResult = await answerResultPromise;
 
         // Skip on stake question is treated as wrong answer (give up)
-        expect(answerResult.answerResult.answerType).toBe(
-          AnswerResultType.WRONG
-        );
+        expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
 
         // Game should transition to SHOWING_ANSWER
         const gameState = await utils.getGameState(setup.gameId);
         expect(gameState?.questionState).toBe(QuestionState.SHOWING_ANSWER);
-      } finally {
-        await testCleanup();
-      }
+      });
     });
   });
 });

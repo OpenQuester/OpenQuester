@@ -7,10 +7,15 @@ import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp, createTestAppRuntime } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { waitForHttpListeningOrStartupFailure } from "tests/e2e/harness/HttpTestWait";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
+import { runAndWaitForSocketHandler } from "tests/e2e/harness/SocketTestWait";
 
 interface ServerTestHarnessOptions {
   apiPort?: number;
   startupRecoveryEnabled?: boolean;
+  apiStartupTimeoutMs?: number;
+  apiShutdownTimeoutMs?: number;
+  httpListenTimeoutMs?: number;
 }
 
 type TestAppBootstrap = Awaited<ReturnType<typeof bootstrapTestApp>>;
@@ -93,7 +98,7 @@ export class ServerTestHarness {
       await waitForHttpListeningOrStartupFailure({
         httpServer: testApp.httpServer,
         initPromise,
-        timeoutMs: TEST_HARNESS_HTTP_LISTEN_TIMEOUT_MS
+        timeoutMs: options.httpListenTimeoutMs ?? TEST_HARNESS_HTTP_LISTEN_TIMEOUT_MS
       });
       started = true;
       return new ServerTestHarness(testEnvironment, testApp, envSnapshot, initPromise);
@@ -148,6 +153,20 @@ export class ServerTestHarness {
     return this._initPromise;
   }
 
+  /**
+   * Clears per-test Redis state only after every client from the previous test
+   * has disconnected. This makes a forgotten client fail before state reset
+   * can hide the leak or contaminate the next case.
+   */
+  public async resetState(): Promise<void> {
+    const connectedSockets = await this._settleDisconnectingSockets();
+    if (connectedSockets.length > 0) {
+      throw createLeakedSocketError(connectedSockets, "resetting test state");
+    }
+
+    await this.testEnvironment.clearRedis();
+  }
+
   public waitForSocketDisconnect(
     namespaceName: string,
     socketId: string,
@@ -187,6 +206,17 @@ export class ServerTestHarness {
     });
   }
 
+  public runAndWaitForSocketHandler(
+    namespace: string,
+    socketId: string,
+    event: string,
+    operation: () => void
+  ): Promise<void> {
+    const socket = this.testApp.io.of(namespace).sockets.get(socketId);
+    if (!socket) throw new Error(`Server socket "${socketId}" is missing from "${namespace}"`);
+    return runAndWaitForSocketHandler(socket, event, operation, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
+  }
+
   public stop(): Promise<void> {
     if (!this._stopPromise) {
       this._stopPromise = this._stopInternal();
@@ -197,10 +227,10 @@ export class ServerTestHarness {
 
   private async _stopInternal(): Promise<void> {
     const cleanupErrors: Error[] = [];
-    const connectedSockets = this._collectConnectedSockets();
+    const connectedSockets = await this._settleDisconnectingSockets();
 
     if (connectedSockets.length > 0) {
-      cleanupErrors.push(createLeakedSocketError(connectedSockets));
+      cleanupErrors.push(createLeakedSocketError(connectedSockets, "stopping the harness"));
     }
 
     try {
@@ -215,6 +245,26 @@ export class ServerTestHarness {
     }
 
     throwIfFailed("ServerTestHarness cleanup failed", cleanupErrors);
+  }
+
+  private async _settleDisconnectingSockets(): Promise<ConnectedSocketDiagnostic[]> {
+    const connectedSockets = this._collectConnectedSockets();
+    if (connectedSockets.length === 0) {
+      return [];
+    }
+
+    await Promise.allSettled(
+      connectedSockets.map((socket) =>
+        this.waitForSocketDisconnect(
+          socket.namespace,
+          socket.socketId,
+          "harness-cleanup",
+          TEST_TIMEOUTS.RESOURCE_CLEANUP_TIMEOUT_MS
+        )
+      )
+    );
+
+    return this._collectConnectedSockets();
   }
 
   private _collectConnectedSockets(): ConnectedSocketDiagnostic[] {
@@ -330,7 +380,7 @@ function restoreEnvValue(key: string, value: string | undefined): void {
   process.env[key] = value;
 }
 
-function createLeakedSocketError(sockets: ConnectedSocketDiagnostic[]): Error {
+function createLeakedSocketError(sockets: ConnectedSocketDiagnostic[], operation: string): Error {
   const details = sockets
     .map(
       (socket) =>
@@ -340,8 +390,8 @@ function createLeakedSocketError(sockets: ConnectedSocketDiagnostic[]): Error {
     .join("; ");
 
   return new Error(
-    "Connected Socket.IO clients remained before ServerTestHarness.stop(); " +
-      "tests must close their Socket.IO clients before stopping the harness. " +
+    `Connected Socket.IO clients remained before ${operation}; ` +
+      "tests must close their Socket.IO clients before harness cleanup or state reset. " +
       `Sockets: ${details}`
   );
 }

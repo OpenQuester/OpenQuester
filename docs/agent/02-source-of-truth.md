@@ -4,7 +4,13 @@ This document prevents agent hallucinations caused by conflicting instructions.
 
 ## Priority order
 
-When sources disagree, use this order:
+This is an evidence-routing order for describing the repository, not permission
+to override the user's instructions or redefine a bug as correct behavior.
+Current code establishes what runs; tests establish only what their assertions
+exercise. Product targets and approved decisions establish what should happen.
+Keep disagreements explicit until resolved within the task's authorized scope.
+
+When sources disagree about the current implementation, inspect in this order:
 
 1. Current code and tests in the target branch.
 2. Nearest scoped `AGENTS.md` for the edited path.
@@ -34,6 +40,10 @@ Do not silently choose the convenient source. If the difference matters, update 
 | Socket action workflow | `.agents/skills/backend-socket-action/SKILL.md` |
 | HTTP API workflow | `.agents/skills/backend-http-api/SKILL.md` |
 | Backend rule workflow | `.agents/skills/backend-rules/SKILL.md` |
+| Backend test execution | `.agents/skills/backend-test-runner/SKILL.md` |
+| Backend transport E2E writing/lifecycle | `.agents/skills/backend-e2e/SKILL.md` + `server/tests/e2e/README.md` |
+| Backend smoke-test workflow | `.agents/skills/backend-smoke-tests/SKILL.md` |
+| Media coordination and client gaps | `server/docs/media-download-sync.md` |
 | Frontend game UI workflow | `.agents/skills/frontend-game-ui-state/SKILL.md` |
 | Package editor workflow | `.agents/skills/package-editor-change/SKILL.md` |
 | Documentation upkeep | `.agents/skills/docs-upkeep/SKILL.md` |

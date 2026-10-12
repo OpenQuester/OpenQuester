@@ -90,7 +90,7 @@ export class GameValidator {
 
   public static validateChatMessage(data: ChatMessageInputData) {
     const schema = Joi.object<ChatMessageInputData>({
-      message: Joi.string().required().min(1).max(255)
+      message: Joi.string().trim().required().min(1).max(255)
     });
 
     return this._validate<ChatMessageInputData>(data, schema);

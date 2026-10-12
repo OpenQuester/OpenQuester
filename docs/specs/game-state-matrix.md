@@ -30,7 +30,8 @@ Names in code may differ. Use nearby enums/types as the implementation source of
 |---|---|---|---|---|---|
 | Lobby | Configure/start game | Ready/unready, choose slot/role if allowed | Join/watch | “Waiting for players”, “Only showman can start”, “Package missing” | ready state, role badges, copied link toast |
 | Choosing | Choose theme/question | Waiting for question choice | Watching choice | “Only showman/current player can choose”, “Question already played” | chosen cell highlight, phase transition |
-| Showing question | Continue/watch media readiness | Wait until buzzer ready or media loaded | Watching question | “Button locked until question/media is ready”, “You joined after question started” | media readiness indicators, timer visible |
+| Media downloading | Observe preparation; showman readiness does not block | Prepare media, then report readiness | Observe preparation; spectator readiness does not block | “Waiting for media”, “Waiting for active players” | media timer, per-player readiness; content should remain gated |
+| Showing question | Continue/watch question | Wait until buzzer ready | Watching question | “Button locked until question is ready”, “You joined after question started” | question timer, role-aware controls |
 | Ready to buzz | Observe/prepare to judge | Press buzzer | Watching who buzzes | “You already answered”, “You are skipped”, “Spectators cannot answer” | Ready state, keyboard hint, pulse/sound when active |
 | Answering | Mark correct/wrong/skip | Answer if selected, otherwise wait | Watching active answerer | “Another player is answering” | active player highlight, answer prompt |
 | Reviewing answer | Correct/wrong/score result | Waiting for showman decision | Watching review | “Only showman can mark answer” | score delta, correct/wrong result, next phase |
@@ -43,6 +44,21 @@ Names in code may differ. Use nearby enums/types as the implementation source of
 | Paused/reconnecting | Resume or wait | Reconnecting/waiting | Reconnecting/waiting | “Game paused”, “Connection lost” | reconnect banner, restored state |
 
 ## Required frontend behavior
+
+### Media: current protocol vs product target
+
+The normal regular-question wire flow is `QUESTION_PICK` → `QUESTION_DATA`
+(links/content and media timer) → client readiness ACKs → `MEDIA_DOWNLOAD_STATUS`
+completion and `SHOWING`. No-file questions use immediate client ACKs. The
+barrier includes active players only, not showman/spectators; a timeout forces
+completion without proving downloads. There is no second data/reveal event.
+
+Content hiding is a product requirement, not a claim about current Flutter.
+The [media coordination reference](../../server/docs/media-download-sync.md)
+records the known early image ACK and ungated text paths and owns detailed
+protocol semantics. Backend transport tests do not establish this UI target.
+
+### Per-phase checks
 
 When changing gameplay UI, make sure the affected phase has:
 

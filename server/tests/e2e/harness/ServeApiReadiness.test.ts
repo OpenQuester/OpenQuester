@@ -14,10 +14,7 @@ import { SOCKET_GAME_NAMESPACE, SOCKET_ROOT_NAMESPACE } from "domain/constants/s
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { fetchJson, fetchWithTimeout } from "tests/e2e/harness/HttpTestClient";
-import {
-  disconnectSocket,
-  waitForSocketConnection
-} from "tests/e2e/harness/SocketTestWait";
+import { disconnectSocket, waitForSocketConnection } from "tests/e2e/harness/SocketTestWait";
 import {
   createClientSocket,
   expectSocketDoesNotConnect,
@@ -38,40 +35,43 @@ import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 const httpRequestTimeoutMs = 2000;
 const serviceUnavailableStatus = 503;
 
+interface ReadinessCleanupSocket {
+  readonly socket: ClientSocket;
+  readonly namespace: string;
+}
+
+type ReadinessCleanupHarness = Pick<
+  ServerTestHarness,
+  "serverUrl" | "stop" | "waitForSocketDisconnect"
+>;
+
+interface ReadinessCleanupOptions {
+  readonly sockets: readonly ReadinessCleanupSocket[];
+  readonly harness?: ReadinessCleanupHarness;
+  readonly releaseStartupGates?: readonly (() => void)[];
+  readonly disconnectClient?: typeof disconnectSocket;
+  readonly restoreMocks?: () => void;
+}
+
 describe("ServeApi readiness admission", () => {
   let harness: ServerTestHarness | undefined;
-  const sockets: Array<{ socket: ClientSocket; namespace: string }> = [];
+  const sockets: ReadinessCleanupSocket[] = [];
+  const startupGateReleases: Array<() => void> = [];
 
   afterEach(async () => {
     const currentHarness = harness;
-
-    for (const { socket, namespace } of sockets.splice(0)) {
-      const socketId = socket.id;
-      await disconnectSocket(socket, {
-        client: "readiness-cleanup",
-        namespace,
-        serverUrl: currentHarness?.serverUrl ?? "unknown",
-        timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
-      });
-      if (currentHarness && socketId) {
-        await currentHarness.waitForSocketDisconnect(
-          namespace,
-          socketId,
-          "readiness-cleanup",
-          TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
-        );
-      }
-    }
-
     harness = undefined;
-    await currentHarness?.stop();
 
-    jest.restoreAllMocks();
+    await cleanupReadinessResources({
+      sockets: sockets.splice(0),
+      harness: currentHarness,
+      releaseStartupGates: startupGateReleases.splice(0)
+    });
   });
 
   it("keeps HTTP and Socket.IO application traffic out until startup preparation completes", async () => {
     const permissionEntered = createControlledPromise();
-    const releasePermission = createControlledPromise();
+    const releasePermission = createStartupGate();
     const packageSearchSpy = jest.spyOn(PackageService.prototype, "searchPackages");
     const actionSubmitSpy = jest.spyOn(GameActionExecutor.prototype, "submitAction");
 
@@ -146,7 +146,7 @@ describe("ServeApi readiness admission", () => {
 
   it("does not start runtime services after shutdown is requested during initialization", async () => {
     const permissionEntered = createControlledPromise();
-    const releasePermission = createControlledPromise();
+    const releasePermission = createStartupGate();
     const events: string[] = [];
     const pubSubSpy = jest.spyOn(RedisPubSubService.prototype, "initKeyExpirationHandling");
     const cronSpy = jest.spyOn(CronSchedulerService.prototype, "initialize");
@@ -230,9 +230,9 @@ describe("ServeApi readiness admission", () => {
 
   it("keeps failed startup not ready and reports pending Socket.IO admission failure", async () => {
     const permissionEntered = createControlledPromise();
-    const releasePermission = createControlledPromise<void>();
+    const releasePermission = createStartupGate();
     const metricsStopEntered = createControlledPromise();
-    const releaseMetricsStop = createControlledPromise();
+    const releaseMetricsStop = createStartupGate();
     const startupFailure = new Error("permission bootstrap failed intentionally");
     const events: string[] = [];
     const originalClose: IOServer["close"] = IOServer.prototype.close;
@@ -338,7 +338,7 @@ describe("ServeApi readiness admission", () => {
 
   it("aggregates startup failure and rollback cleanup failure with retained causes", async () => {
     const permissionEntered = createControlledPromise();
-    const releasePermission = createControlledPromise<void>();
+    const releasePermission = createStartupGate();
     const startupFailure = new Error("permission bootstrap failed before rollback");
     const cleanupFailure = new Error("metrics cleanup failed during rollback");
 
@@ -407,7 +407,7 @@ describe("ServeApi readiness admission", () => {
 
   it("keeps single-instance restart recovery before readiness", async () => {
     const cleanupEntered = createControlledPromise();
-    const releaseCleanup = createControlledPromise();
+    const releaseCleanup = createStartupGate();
     const events: string[] = [];
 
     jest
@@ -458,4 +458,157 @@ describe("ServeApi readiness admission", () => {
     expect(sessionCleanupSpy).toHaveBeenCalledTimes(1);
     expect(events).toEqual(["cleanup-start", "cleanup-end", "ready"]);
   });
+
+  it("aggregates every cleanup failure and restores mocks after harness stop", async () => {
+    const firstDisconnectFailure = new Error("first client disconnect failed");
+    const secondDisconnectFailure = new Error("second client disconnect failed");
+    const serverDisconnectFailure = new Error("server disconnect wait failed");
+    const harnessStopFailure = new Error("harness stop failed");
+    const restoreFailure = new Error("mock restore failed");
+    const events: string[] = [];
+    const firstSocket = { id: "socket-1" } as ClientSocket;
+    const secondSocket = { id: "socket-2" } as ClientSocket;
+    const disconnectClient = jest
+      .fn<typeof disconnectSocket>()
+      .mockImplementationOnce(async () => {
+        events.push("disconnect-1");
+        throw firstDisconnectFailure;
+      })
+      .mockImplementationOnce(async () => {
+        events.push("disconnect-2");
+        throw secondDisconnectFailure;
+      });
+    const waitForSocketDisconnect = jest
+      .fn<ReadinessCleanupHarness["waitForSocketDisconnect"]>()
+      .mockImplementationOnce(async () => {
+        events.push("server-wait-1");
+        throw serverDisconnectFailure;
+      })
+      .mockImplementationOnce(async () => {
+        events.push("server-wait-2");
+      });
+    const stop = jest.fn<ReadinessCleanupHarness["stop"]>().mockImplementation(async () => {
+      events.push("harness-stop");
+      throw harnessStopFailure;
+    });
+    const restoreMocks = jest.fn(() => {
+      events.push("restore-mocks");
+      throw restoreFailure;
+    });
+
+    const error = await getRejectedError(
+      cleanupReadinessResources({
+        sockets: [
+          { socket: firstSocket, namespace: SOCKET_ROOT_NAMESPACE },
+          { socket: secondSocket, namespace: SOCKET_GAME_NAMESPACE }
+        ],
+        harness: {
+          serverUrl: "http://readiness.test",
+          stop,
+          waitForSocketDisconnect
+        },
+        disconnectClient,
+        restoreMocks
+      })
+    );
+    const aggregate = requireAggregateError(error);
+
+    expect(events).toEqual([
+      "disconnect-1",
+      "server-wait-1",
+      "disconnect-2",
+      "server-wait-2",
+      "harness-stop",
+      "restore-mocks"
+    ]);
+    expect(getAggregateErrors(aggregate).map((failure) => (failure as Error).cause)).toEqual([
+      firstDisconnectFailure,
+      serverDisconnectFailure,
+      secondDisconnectFailure,
+      harnessStopFailure,
+      restoreFailure
+    ]);
+  });
+
+  function createStartupGate(): ReturnType<typeof createControlledPromise<void>> {
+    const gate = createControlledPromise<void>();
+    startupGateReleases.push(() => gate.resolve());
+    return gate;
+  }
 });
+
+async function cleanupReadinessResources(options: ReadinessCleanupOptions): Promise<void> {
+  const failures: Error[] = [];
+  const disconnectClient = options.disconnectClient ?? disconnectSocket;
+  const restoreMocks = options.restoreMocks ?? (() => jest.restoreAllMocks());
+
+  try {
+    for (const release of options.releaseStartupGates ?? []) {
+      await collectReadinessCleanupFailure(failures, "Startup gate release", release);
+    }
+
+    for (const { socket, namespace } of options.sockets) {
+      const socketId = socket.id;
+      await collectReadinessCleanupFailure(
+        failures,
+        `Client socket disconnect (namespace=${namespace}, socketId=${socketId ?? "unknown"})`,
+        async () => {
+          await disconnectClient(socket, {
+            client: "readiness-cleanup",
+            namespace,
+            serverUrl: options.harness?.serverUrl ?? "unknown",
+            timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
+          });
+        }
+      );
+
+      if (options.harness && socketId) {
+        await collectReadinessCleanupFailure(
+          failures,
+          `Server socket disconnect (namespace=${namespace}, socketId=${socketId})`,
+          async () => {
+            await options.harness?.waitForSocketDisconnect(
+              namespace,
+              socketId,
+              "readiness-cleanup",
+              TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
+            );
+          }
+        );
+      }
+    }
+
+    if (options.harness) {
+      await collectReadinessCleanupFailure(failures, "Harness stop", async () => {
+        await options.harness?.stop();
+      });
+    }
+  } finally {
+    await collectReadinessCleanupFailure(failures, "Jest mock restoration", () => {
+      restoreMocks();
+    });
+  }
+
+  if (failures.length === 1) {
+    throw failures[0];
+  }
+  if (failures.length > 1) {
+    throw new AggregateError(
+      failures,
+      `ServeApi readiness cleanup failed: ${failures.map((failure) => failure.message).join("; ")}`
+    );
+  }
+}
+
+async function collectReadinessCleanupFailure(
+  failures: Error[],
+  label: string,
+  action: () => void | Promise<void>
+): Promise<void> {
+  try {
+    await action();
+  } catch (error) {
+    const cause = error instanceof Error ? error : new Error(String(error));
+    failures.push(new Error(`${label} failed: ${cause.message}`, { cause }));
+  }
+}

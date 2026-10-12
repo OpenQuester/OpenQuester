@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, afterEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
@@ -16,60 +9,39 @@ import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameN
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { TestUtils } from "tests/utils/TestUtils";
 
 describe("SocketIOTimers", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let socketUtils: SocketGameTestUtils;
   let testUtils: TestUtils;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    socketUtils = new SocketGameTestUtils(serverUrl);
-    testUtils = new TestUtils(app, userRepo, serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    socketUtils = suite.utils;
+    testUtils = suite.testUtils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      if (cleanup) await cleanup();
-      await testEnv.teardown();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
   describe("Standard Round Timers", () => {
     it("should handle answer timer expiration with wrong answer", async () => {
-      const setup = await socketUtils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0
-      );
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async () => {
+        const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      try {
         // Start game and pick a question
         await socketUtils.startGame(showmanSocket);
         await socketUtils.pickQuestion(showmanSocket, undefined, playerSockets);
@@ -85,12 +57,11 @@ describe("SocketIOTimers", () => {
         expect(answeringState!.timer).toBeDefined();
 
         // Set up event listener for answer result
-        const answerResultPromise =
-          socketUtils.waitForEvent<QuestionAnswerResultEventPayload>(
-            playerSockets[0],
-            SocketIOGameEvents.ANSWER_RESULT,
-            1000
-          );
+        const answerResultPromise = socketUtils.waitForEvent<QuestionAnswerResultEventPayload>(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_RESULT,
+          1000
+        );
 
         // Expire the timer to trigger automatic wrong answer
         await testUtils.expireTimerAndWaitForAction(
@@ -104,29 +75,20 @@ describe("SocketIOTimers", () => {
         // Verify the auto-timeout resulted in wrong answer
         expect(answerResult).toBeDefined();
         expect(answerResult.answerResult).toBeDefined();
-        expect(answerResult.answerResult.answerType).toBe(
-          AnswerResultType.WRONG
-        );
+        expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
         expect(answerResult.answerResult.result).toBeLessThan(0);
 
         // Verify game state left ANSWERING and answering player is cleared
         const finalState = await socketUtils.getGameState(gameId);
         expect(finalState!.answeringPlayer).toBeNull();
-      } finally {
-        await socketUtils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should handle showing timer expiration leading to next round", async () => {
-      const setup = await socketUtils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0
-      );
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async () => {
+        const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      try {
         // Start game
         await socketUtils.startGame(showmanSocket);
 
@@ -177,13 +139,11 @@ describe("SocketIOTimers", () => {
 
         // Verify game state after first timer expiration
         const showingAnswerState = await socketUtils.getGameState(gameId);
-        expect(showingAnswerState!.questionState).toBe(
-          QuestionState.SHOWING_ANSWER
-        );
+        expect(showingAnswerState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
 
         // Verify all questions are now marked as played (including the current one)
-        const allPlayed = showingAnswerState!.currentRound!.themes.every(
-          (theme) => theme.questions.every((q) => q.isPlayed)
+        const allPlayed = showingAnswerState!.currentRound!.themes.every((theme) =>
+          theme.questions.every((q) => q.isPlayed)
         );
         expect(allPlayed).toBe(true);
 
@@ -192,12 +152,11 @@ describe("SocketIOTimers", () => {
         expect(showingAnswerState!.timer!.durationMs).toBeGreaterThan(0);
 
         // Set up event listener for next round BEFORE expiring timer
-        const nextRoundPromise =
-          socketUtils.waitForEvent<GameNextRoundEventPayload>(
-            playerSockets[0],
-            SocketIOGameEvents.NEXT_ROUND,
-            2000
-          );
+        const nextRoundPromise = socketUtils.waitForEvent<GameNextRoundEventPayload>(
+          playerSockets[0],
+          SocketIOGameEvents.NEXT_ROUND,
+          2000
+        );
 
         // Expire SHOWING_ANSWER timer - this should trigger round progression
         await testUtils.expireTimerAndWaitForAction(
@@ -213,21 +172,14 @@ describe("SocketIOTimers", () => {
         expect(nextRound.gameState).toBeDefined();
         expect(nextRound.gameState.currentRound).toBeDefined();
         expect(nextRound.gameState.currentRound!.order).toBeGreaterThan(0);
-      } finally {
-        await socketUtils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should handle showing timer expiration with question finish", async () => {
-      const setup = await socketUtils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0
-      );
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async () => {
+        const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      try {
         // Start game and pick a question to get to SHOWING state
         await socketUtils.startGame(showmanSocket);
         await socketUtils.pickQuestion(showmanSocket, undefined, playerSockets);
@@ -256,9 +208,7 @@ describe("SocketIOTimers", () => {
         const finalState = await socketUtils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
         expect(finalState!.currentQuestion).toBeNull();
-      } finally {
-        await socketUtils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 });

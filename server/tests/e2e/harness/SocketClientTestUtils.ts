@@ -1,13 +1,11 @@
 import { io as createSocket, type Socket as ClientSocket } from "socket.io-client";
 
-import { waitForSocketConnection } from "tests/e2e/harness/SocketTestWait";
+import { connectSocket } from "tests/e2e/harness/SocketTestWait";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
-export function createClientSocket(
-  serverUrl: string,
-  namespace: string = ""
-): ClientSocket {
+export function createClientSocket(serverUrl: string, namespace: string = ""): ClientSocket {
   return createSocket(`${serverUrl}${namespace}`, {
+    autoConnect: false,
     forceNew: true,
     reconnection: false,
     timeout: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS,
@@ -15,17 +13,20 @@ export function createClientSocket(
   });
 }
 
-export async function connectRootSocket(
-  serverUrl: string,
-  client: string
-): Promise<ClientSocket> {
+export async function connectRootSocket(serverUrl: string, client: string): Promise<ClientSocket> {
   const socket = createClientSocket(serverUrl);
 
-  await waitForSocketConnection(socket, {
-    client,
-    serverUrl,
-    timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
-  });
+  try {
+    await connectSocket(socket, {
+      client,
+      serverUrl,
+      timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
+    });
+  } catch (error) {
+    socket.close();
+    socket.removeAllListeners();
+    throw error;
+  }
 
   return socket;
 }
@@ -73,6 +74,13 @@ export async function expectSocketDoesNotConnect(
 
     socket.once("connect", onConnect);
     socket.once("connect_error", onConnectError);
+
+    try {
+      socket.connect();
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
   });
 }
 
@@ -117,5 +125,12 @@ export async function waitForSocketConnectError(
 
     socket.once("connect", onConnect);
     socket.once("connect_error", onConnectError);
+
+    try {
+      socket.connect();
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
   });
 }

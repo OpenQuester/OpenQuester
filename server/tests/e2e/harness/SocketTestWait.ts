@@ -1,4 +1,61 @@
 import { type Socket } from "socket.io-client";
+import { type Socket as ServerSocket } from "socket.io";
+import { createControlledPromise, withTimeout } from "tests/e2e/harness/TestPromiseUtils";
+
+/**
+ * Observes the real dispatcher for a silent transport no-op (no response or enqueue).
+ * This is a causal boundary, not a replacement for client-visible assertions.
+ */
+export async function runAndWaitForSocketHandler(
+  socket: ServerSocket,
+  event: string,
+  operation: () => void,
+  timeoutMs: number
+): Promise<void> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error("Socket handler timeout must be a positive finite number");
+  }
+  const handlers = socket.listeners(event);
+  if (!socket.connected || handlers.length !== 1) {
+    throw new Error(
+      `Expected one connected server handler for "${event}" on socket "${socket.id}"`
+    );
+  }
+  const original = handlers[0];
+  const completed = createControlledPromise<void>();
+  const observed = (...args: unknown[]): void => {
+    try {
+      void Promise.resolve(original.apply(socket, args)).then(
+        () => completed.resolve(),
+        (error: unknown) => completed.reject(error)
+      );
+    } catch (error) {
+      completed.reject(error);
+    }
+  };
+  const onDisconnect = (): void =>
+    completed.reject(new Error(`Socket "${socket.id}" disconnected during "${event}"`));
+  // Own rejection before operation(), which may synchronously fail or disconnect.
+  const completion = withTimeout(
+    completed.promise,
+    timeoutMs,
+    `server handler "${event}" on socket "${socket.id}"`
+  );
+  void completion.catch(() => undefined);
+  try {
+    socket.off(event, original);
+    socket.on(event, observed);
+    socket.once("disconnect", onDisconnect);
+    operation();
+    await completion;
+  } finally {
+    completed.resolve();
+    await Promise.allSettled([completion]);
+    socket.off("disconnect", onDisconnect);
+    socket.off(event, observed);
+    socket.on(event, original);
+  }
+}
 
 interface SocketWaitContext {
   client: string;
@@ -14,6 +71,18 @@ interface SocketEventWaitContext extends SocketWaitContext {
 export async function waitForSocketConnection(
   socket: Socket,
   context: SocketWaitContext
+): Promise<void> {
+  await waitForSocketConnectionInternal(socket, context, false);
+}
+
+export async function connectSocket(socket: Socket, context: SocketWaitContext): Promise<void> {
+  await waitForSocketConnectionInternal(socket, context, true);
+}
+
+async function waitForSocketConnectionInternal(
+  socket: Socket,
+  context: SocketWaitContext,
+  startConnection: boolean
 ): Promise<void> {
   if (socket.connected) {
     return;
@@ -55,6 +124,14 @@ export async function waitForSocketConnection(
 
     socket.once("connect", onConnect);
     socket.once("connect_error", onConnectError);
+
+    if (startConnection) {
+      try {
+        socket.connect();
+      } catch (error) {
+        onConnectError(error instanceof Error ? error : new Error(String(error)));
+      }
+    }
   });
 }
 
@@ -116,10 +193,7 @@ export async function waitForSocketEvent(
   });
 }
 
-export async function disconnectSocket(
-  socket: Socket,
-  context: SocketWaitContext
-): Promise<void> {
+export async function disconnectSocket(socket: Socket, context: SocketWaitContext): Promise<void> {
   if (!socket.connected) {
     socket.disconnect();
     if (socket.connected) {
@@ -128,9 +202,26 @@ export async function disconnectSocket(
     return;
   }
 
-  const disconnected = waitForSocketDisconnectEvent(socket, context);
-  socket.disconnect();
-  await disconnected;
+  const controller = new AbortController();
+  const disconnected = waitForSocketDisconnectEvent(socket, context, controller.signal);
+  void disconnected.catch(() => undefined);
+
+  try {
+    socket.disconnect();
+  } catch (error) {
+    controller.abort();
+    await Promise.allSettled([disconnected]);
+    throw new Error(`Socket.IO client disconnect failed ${buildSocketContext(socket, context)}`, {
+      cause: error instanceof Error ? error : new Error(String(error))
+    });
+  }
+
+  try {
+    await disconnected;
+  } finally {
+    controller.abort();
+    await Promise.allSettled([disconnected]);
+  }
 
   if (socket.connected) {
     throw buildSocketDisconnectStateError(socket, context);
@@ -139,7 +230,8 @@ export async function disconnectSocket(
 
 async function waitForSocketDisconnectEvent(
   socket: Socket,
-  context: SocketWaitContext
+  context: SocketWaitContext,
+  signal?: AbortSignal
 ): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const event = "disconnect";
@@ -147,6 +239,7 @@ async function waitForSocketDisconnectEvent(
     const cleanup = (): void => {
       clearTimeout(timeout);
       socket.off(event, onDisconnect);
+      signal?.removeEventListener("abort", onAbort);
     };
 
     const onDisconnect = (): void => {
@@ -154,12 +247,23 @@ async function waitForSocketDisconnectEvent(
       resolve();
     };
 
+    const onAbort = (): void => {
+      cleanup();
+      reject(new Error(`Socket.IO disconnect wait aborted ${buildSocketContext(socket, context)}`));
+    };
+
     const timeout = setTimeout(() => {
       cleanup();
       reject(buildSocketDisconnectTimeoutError(socket, context));
     }, context.timeoutMs);
 
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+
     socket.once(event, onDisconnect);
+    signal?.addEventListener("abort", onAbort, { once: true });
   });
 }
 

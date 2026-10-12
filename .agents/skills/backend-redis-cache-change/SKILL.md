@@ -31,6 +31,11 @@ Use this skill when changing server state stored in Redis or cache-backed servic
 - Keep derived state cleanup visible.
 - Use batching helpers when several Redis writes must stay together.
 - Preserve game action ordering.
+- Successful atomic enqueue is the acceptance boundary; queue drain alone does
+  not prove that a client command arrived. Use the E2E accepted-action probe.
+- Test resets are destructive: verify the test endpoint/database and preserve
+  the existing fail-closed Redis isolation checks. Never aim test cleanup at
+  shared/deployed Redis or bypass those guards to obtain a test result.
 - Do not let cache misses change business behavior unexpectedly.
 
 ## Implementation steps

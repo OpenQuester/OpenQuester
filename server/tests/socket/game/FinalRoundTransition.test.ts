@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, afterEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
@@ -16,14 +9,11 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
 import {
-  GameTestSetup,
-  SocketGameTestUtils,
+  type GameTestSetup,
+  SocketGameTestUtils
 } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 // Helper function to verify final round data in game state
 function verifyFinalRoundData(gameState: GameStateDTO) {
@@ -89,82 +79,67 @@ function verifyPlayerQuestionData(gameState: GameStateDTO) {
 }
 
 describe("Final Round Transition Test", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
-  async function cleanupTestSetup(setup: GameTestSetup): Promise<void> {
-    await utils.disconnectAndCleanup(setup.showmanSocket);
-    await Promise.all(
-      setup.playerSockets.map((socket) => utils.disconnectAndCleanup(socket))
-    );
-    await Promise.all(
-      setup.spectatorSockets.map((socket) => utils.disconnectAndCleanup(socket))
-    );
+  async function completeAllButLastQuestion(setup: GameTestSetup): Promise<number> {
+    const questionIds = await utils.getAllAvailableQuestionIds(setup.gameId);
+    expect(questionIds.length).toBeGreaterThan(0);
+
+    for (const questionId of questionIds.slice(0, -1)) {
+      await utils.pickAndCompleteQuestion(setup.showmanSocket, setup.playerSockets, questionId);
+    }
+
+    return questionIds[questionIds.length - 1];
   }
 
   it("should transition to final round with proper initialization", async () => {
-    /**
-     * Tests the basic final round transition mechanics:
-     * - Final round transition occurs after all regular round questions are completed
-     * - Final round data is properly initialized with correct state
-     * - Basic structure validation
-     */
-    const setup = await utils.setupGameTestEnvironment(
-      userRepo,
-      app,
-      2, // 2 players
-      0, // 0 spectators
-      true // include final round
-    );
-
-    const { showmanSocket, gameId } = setup;
-
-    try {
-      await utils.startGame(showmanSocket);
-
-      // Set up listener for final round transition
-      const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
-        showmanSocket,
-        SocketIOGameEvents.NEXT_ROUND,
-        2000
+    await suite.scenario(async (scenario) => {
+      /**
+       * Tests the basic final round transition mechanics:
+       * - Final round transition occurs after all regular round questions are completed
+       * - Final round data is properly initialized with correct state
+       * - Basic structure validation
+       */
+      const setup = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        2, // 2 players
+        0, // 0 spectators
+        true // include final round
       );
 
-      // Complete all questions in the regular round to trigger transition
-      const currentRoundQuestionCount =
-        await utils.getCurrentRoundQuestionCount(gameId);
-      for (let i = 0; i < currentRoundQuestionCount; i++) {
-        await utils.pickAndCompleteQuestion(showmanSocket, setup.playerSockets);
-      }
+      const { showmanSocket } = setup;
+
+      await utils.startGame(showmanSocket);
+
+      const lastQuestionId = await completeAllButLastQuestion(setup);
+
+      // Set up listener for final round transition
+      const nextRoundPromise = scenario.waitForEvent<GameNextRoundEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.NEXT_ROUND
+      );
+
+      // Complete the final question in the regular round to trigger transition
+      await utils.pickAndCompleteQuestion(showmanSocket, setup.playerSockets, lastQuestionId);
 
       // Verify final round transition
       const gameState = (await nextRoundPromise).gameState;
@@ -174,73 +149,42 @@ describe("Final Round Transition Test", () => {
       expect(gameState.currentRound).toBeDefined();
       expect(gameState.currentRound!.type).toBe(PackageRoundType.FINAL);
       expect(gameState.currentRound!.themes.length).toBe(3);
-    } finally {
-      await cleanupTestSetup(setup);
-    }
+    });
   });
 
   it("should handle final round transition via explicit progression", async () => {
-    /**
-     * Tests explicit next round progression to final round
-     */
-    const setup = await utils.setupGameTestEnvironment(
-      userRepo,
-      app,
-      2,
-      0,
-      true
-    );
-    try {
+    await suite.scenario(async (scenario) => {
+      /**
+       * Tests explicit next round progression to final round
+       */
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true);
       await utils.startGame(setup.showmanSocket);
 
-      const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
+      const nextRoundPromise = scenario.waitForEvent<GameNextRoundEventPayload>(
         setup.showmanSocket,
-        SocketIOGameEvents.NEXT_ROUND,
-        2000
+        SocketIOGameEvents.NEXT_ROUND
       );
 
       await utils.progressToNextRound(setup.showmanSocket);
       const gameState = (await nextRoundPromise).gameState;
       verifyFinalRoundData(gameState);
-    } finally {
-      await cleanupTestSetup(setup);
-    }
+    });
   });
 
   it("should handle final round transition via answering last question correctly", async () => {
-    /**
-     * Tests final round transition when last question is answered correctly
-     */
-    const setup = await utils.setupGameTestEnvironment(
-      userRepo,
-      app,
-      2,
-      0,
-      true
-    );
-    try {
+    await suite.scenario(async (scenario) => {
+      /**
+       * Tests final round transition when last question is answered correctly
+       */
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true);
       await utils.startGame(setup.showmanSocket);
 
-      const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
+      const lastQuestionId = await completeAllButLastQuestion(setup);
+
+      const nextRoundPromise = scenario.waitForEvent<GameNextRoundEventPayload>(
         setup.showmanSocket,
         SocketIOGameEvents.NEXT_ROUND
       );
-
-      // Get all available questions ordered by their order field
-      const allQuestionIds = await utils.getAllAvailableQuestionIds(
-        setup.gameId
-      );
-      const questionsToSkip = allQuestionIds.slice(0, -1); // All but the last
-      const lastQuestionId = allQuestionIds[allQuestionIds.length - 1];
-
-      // Skip all but the last question by their specific IDs
-      for (const questionId of questionsToSkip) {
-        await utils.pickAndCompleteQuestion(
-          setup.showmanSocket,
-          setup.playerSockets,
-          questionId
-        );
-      }
 
       // Answer the specific last question correctly
       await utils.pickAndCompleteQuestion(
@@ -252,94 +196,72 @@ describe("Final Round Transition Test", () => {
 
       const gameState = (await nextRoundPromise).gameState;
       verifyFinalRoundData(gameState);
-    } finally {
-      await cleanupTestSetup(setup);
-    }
+    });
   });
 
   it("should handle final round transition via skipping last question", async () => {
-    /**
-     * Tests final round transition when last question is skipped
-     */
-    const setup = await utils.setupGameTestEnvironment(
-      userRepo,
-      app,
-      2,
-      0,
-      true
-    );
-    try {
+    await suite.scenario(async (scenario) => {
+      /**
+       * Tests final round transition when last question is skipped
+       */
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true);
       await utils.startGame(setup.showmanSocket);
 
-      const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
+      const lastQuestionId = await completeAllButLastQuestion(setup);
+
+      const nextRoundPromise = scenario.waitForEvent<GameNextRoundEventPayload>(
         setup.showmanSocket,
-        SocketIOGameEvents.NEXT_ROUND,
-        15000
+        SocketIOGameEvents.NEXT_ROUND
       );
 
-      // Skip all questions to trigger natural progression
-      const currentRoundQuestionCount =
-        await utils.getCurrentRoundQuestionCount(setup.gameId);
-      for (let i = 0; i < currentRoundQuestionCount; i++) {
-        await utils.pickAndCompleteQuestion(
-          setup.showmanSocket,
-          setup.playerSockets
-        );
-      }
+      // Skip the final question to trigger natural progression
+      await utils.pickAndCompleteQuestion(setup.showmanSocket, setup.playerSockets, lastQuestionId);
 
       const gameState = (await nextRoundPromise).gameState;
       verifyFinalRoundData(gameState);
-    } finally {
-      await cleanupTestSetup(setup);
-    }
+    });
   });
 
   it("should provide role-based question visibility in final round", async () => {
-    /**
-     * Core test for the main requirement:
-     * - Showman receives complete question data including text and answers
-     * - Players receive only theme metadata with no question data
-     * - Explicit verification of question content, answer content, and files
-     */
-    const setup = await utils.setupGameTestEnvironment(
-      userRepo,
-      app,
-      2, // 2 players
-      0, // 0 spectators
-      true // include final round
-    );
+    await suite.scenario(async (scenario) => {
+      /**
+       * Core test for the main requirement:
+       * - Showman receives complete question data including text and answers
+       * - Players receive only theme metadata with no question data
+       * - Explicit verification of question content, answer content, and files
+       */
+      const setup = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        2, // 2 players
+        0, // 0 spectators
+        true // include final round
+      );
 
-    const { showmanSocket, playerSockets } = setup;
+      const { showmanSocket, playerSockets } = setup;
 
-    try {
       await utils.startGame(showmanSocket);
 
+      const lastQuestionId = await completeAllButLastQuestion(setup);
+
       // Set up promises for both showman and player
-      const showmanNextRoundPromise =
-        utils.waitForEvent<GameNextRoundEventPayload>(
-          showmanSocket,
-          SocketIOGameEvents.NEXT_ROUND,
-          15000
-        );
+      const showmanNextRoundPromise = scenario.waitForEvent<GameNextRoundEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.NEXT_ROUND
+      );
 
-      const playerNextRoundPromise =
-        utils.waitForEvent<GameNextRoundEventPayload>(
-          playerSockets[0],
-          SocketIOGameEvents.NEXT_ROUND,
-          15000
-        );
+      const playerNextRoundPromise = scenario.waitForEvent<GameNextRoundEventPayload>(
+        playerSockets[0],
+        SocketIOGameEvents.NEXT_ROUND
+      );
 
-      // Trigger final round transition
-      const currentRoundQuestionCount =
-        await utils.getCurrentRoundQuestionCount(setup.gameId);
-      for (let i = 0; i < currentRoundQuestionCount; i++) {
-        await utils.pickAndCompleteQuestion(showmanSocket, setup.playerSockets);
-      }
+      // Trigger final round transition with the final regular-round question
+      await utils.pickAndCompleteQuestion(showmanSocket, setup.playerSockets, lastQuestionId);
 
       // Get both game states
       const [showmanGameState, playerGameState] = await Promise.all([
         showmanNextRoundPromise.then((payload) => payload.gameState),
-        playerNextRoundPromise.then((payload) => payload.gameState),
+        playerNextRoundPromise.then((payload) => payload.gameState)
       ]);
 
       // Verify basic final round setup for both
@@ -361,8 +283,6 @@ describe("Final Round Transition Test", () => {
         expect(showmanTheme.name).toBe(playerTheme.name);
         expect(showmanTheme.order).toBe(playerTheme.order);
       }
-    } finally {
-      await cleanupTestSetup(setup);
-    }
+    });
   });
 });

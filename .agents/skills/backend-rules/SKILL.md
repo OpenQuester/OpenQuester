@@ -34,6 +34,10 @@ Reusable rules belong close to the domain model. Orchestration belongs in applic
 ## Implementation steps
 
 1. Identify the rule or invariant being changed.
+   Distinguish observed implementation, intended product behavior, and the
+   public wire contract. Ask the user if the intended rule is ambiguous; do not
+   infer it from a failing test or a roadmap row. A test-only task does not
+   authorize game-rule fixes.
 2. Locate the existing entity, logic helper, validator, or use case that owns it.
 3. Keep reusable or non-trivial rules in `domain/`.
 4. Keep persistence, timers, and broadcasts in application/use-case mutation flow.
@@ -70,6 +74,10 @@ npm run build
 ```
 
 Run focused tests for the changed rule. For game-state behavior, prefer integration-style tests with Redis/PostgreSQL available. Do not use `setTimeout` for timer tests; use `TestUtils.expireTimer()`.
+
+Use `backend-smoke-tests` for a boundary regression and `backend-e2e` when writing
+transport coverage. A unit test of the rule alone does not prove event delivery
+or the client's visible behavior.
 
 ## Handoff checklist
 

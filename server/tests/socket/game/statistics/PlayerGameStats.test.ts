@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, afterEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { container } from "tsyringe";
 import { Repository } from "typeorm";
@@ -13,53 +6,41 @@ import { Repository } from "typeorm";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import {
+  type PlayerKickBroadcastData,
+  type PlayerRoleChangeBroadcastData
+} from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import {
   GameClientSocket,
-  SocketGameTestUtils,
+  SocketGameTestUtils
 } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 describe("Player Game Statistics Tests", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
   let playerGameStatsRepository: PlayerGameStatsRepository;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
 
     playerGameStatsRepository = container.resolve(PlayerGameStatsRepository);
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   /**
@@ -70,22 +51,12 @@ describe("Player Game Statistics Tests", () => {
     playerId: number,
     timeout: number = 5000
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        socket.removeListener(SocketIOGameEvents.PLAYER_KICKED, handler);
-        reject(new Error("Timeout waiting for PLAYER_KICKED event"));
-      }, timeout);
-
-      const handler = (data: any) => {
-        if (data.playerId === playerId) {
-          clearTimeout(timeoutId);
-          socket.removeListener(SocketIOGameEvents.PLAYER_KICKED, handler);
-          resolve();
-        }
-      };
-
-      socket.on(SocketIOGameEvents.PLAYER_KICKED, handler);
-    });
+    await suite.currentScenario.waitForEventMatching<PlayerKickBroadcastData>(
+      socket,
+      SocketIOGameEvents.PLAYER_KICKED,
+      (data) => data.playerId === playerId,
+      timeout
+    );
   }
 
   /**
@@ -97,37 +68,24 @@ describe("Player Game Statistics Tests", () => {
     expectedRole: PlayerRole,
     timeout: number = 5000
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        socket.removeListener(SocketIOGameEvents.PLAYER_ROLE_CHANGE, handler);
-        reject(new Error("Timeout waiting for PLAYER_ROLE_CHANGE event"));
-      }, timeout);
-
-      const handler = (data: any) => {
-        if (data.playerId === playerId && data.newRole === expectedRole) {
-          clearTimeout(timeoutId);
-          socket.removeListener(SocketIOGameEvents.PLAYER_ROLE_CHANGE, handler);
-          resolve();
-        }
-      };
-
-      socket.on(SocketIOGameEvents.PLAYER_ROLE_CHANGE, handler);
-    });
+    await suite.currentScenario.waitForEventMatching<PlayerRoleChangeBroadcastData>(
+      socket,
+      SocketIOGameEvents.PLAYER_ROLE_CHANGE,
+      (data) => data.playerId === playerId && data.newRole === expectedRole,
+      timeout
+    );
   }
 
   describe("Player Session Initialization", () => {
     it("should initialize player session in Redis when player joins game", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      await suite.scenario(async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
 
-      try {
         const gameId = setup.gameId;
         const playerId = setup.playerUsers[0].id;
 
         // Verify session was created in Redis
-        const sessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const sessionData = await playerGameStatsRepository.getStats(gameId, playerId);
 
         expect(sessionData).toBeTruthy();
         expect(sessionData!.gameId).toBe(gameId);
@@ -144,60 +102,44 @@ describe("Player Game Statistics Tests", () => {
         const now = new Date();
         const timeDiff = now.getTime() - joinedAt.getTime();
         expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should not initialize session for spectators", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 1);
+      await suite.scenario(async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 1);
 
-      try {
         const gameId = setup.gameId;
 
         // Since we don't have spectator user info in setup, create one manually
-        const { user: spectatorUser } = await utils.createGameClient(
-          app,
-          userRepo
-        );
+        const { user: spectatorUser } = await utils.createGameClient(app, userRepo);
 
         // Verify no session was created for spectator
-        const sessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          spectatorUser.id
-        );
+        const sessionData = await playerGameStatsRepository.getStats(gameId, spectatorUser.id);
 
         expect(sessionData).toBeNull();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 
   describe("Player Session Finalization", () => {
     it("should update leftAt timestamp when player leaves game", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      await suite.scenario(async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
 
-      try {
         const gameId = setup.gameId;
         const playerId = setup.playerUsers[0].id;
         const playerSocket = setup.playerSockets[0];
 
         // Verify initial session has no leftAt
-        const initialSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const initialSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(initialSessionData!.leftAt).toBe("");
 
         // Leave the game (this already waits for the LEAVE event)
         await utils.leaveGame(playerSocket);
 
         // Verify session now has leftAt timestamp
-        const finalSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const finalSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(finalSessionData).toBeTruthy();
         expect(finalSessionData!.leftAt).not.toBe("");
 
@@ -206,42 +148,34 @@ describe("Player Game Statistics Tests", () => {
         const now = new Date();
         const timeDiff = now.getTime() - leftAt.getTime();
         expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should update leftAt timestamp when player is kicked", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
 
-      try {
         const gameId = setup.gameId;
         const playerId = setup.playerUsers[0].id;
         const showmanSocket = setup.showmanSocket;
 
         // Verify initial session has no leftAt
-        const initialSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const initialSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(initialSessionData!.leftAt).toBe("");
 
         // Wait for the kick event to be processed and then check stats
         const kickPromise = waitForPlayerKick(showmanSocket, playerId);
 
         // Kick the player
-        showmanSocket.emit(SocketIOGameEvents.PLAYER_KICKED, {
-          playerId: playerId,
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.PLAYER_KICKED, {
+          playerId: playerId
         });
 
         // Wait for the kick event to be processed
         await kickPromise;
 
         // Verify session now has leftAt timestamp
-        const finalSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const finalSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(finalSessionData).toBeTruthy();
         expect(finalSessionData!.leftAt).not.toBe("");
 
@@ -250,24 +184,19 @@ describe("Player Game Statistics Tests", () => {
         const now = new Date();
         const timeDiff = now.getTime() - leftAt.getTime();
         expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should update leftAt timestamp when player role changes from player to spectator", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
 
-      try {
         const gameId = setup.gameId;
         const playerId = setup.playerUsers[0].id;
         const showmanSocket = setup.showmanSocket;
 
         // Verify initial session has no leftAt
-        const initialSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const initialSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(initialSessionData!.leftAt).toBe("");
 
         // Wait for the role change event to be processed
@@ -278,19 +207,16 @@ describe("Player Game Statistics Tests", () => {
         );
 
         // Change player role to spectator
-        showmanSocket.emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           newRole: PlayerRole.SPECTATOR,
-          playerId: playerId,
+          playerId: playerId
         });
 
         // Wait for the role change event to be processed
         await roleChangePromise;
 
         // Verify session now has leftAt timestamp
-        const finalSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const finalSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(finalSessionData).toBeTruthy();
         expect(finalSessionData!.leftAt).not.toBe("");
 
@@ -299,26 +225,21 @@ describe("Player Game Statistics Tests", () => {
         const now = new Date();
         const timeDiff = now.getTime() - leftAt.getTime();
         expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 
   describe("Full Player Session Lifecycle", () => {
     it("should track complete player session from join to leave", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      await suite.scenario(async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
 
-      try {
         const gameId = setup.gameId;
         const playerId = setup.playerUsers[0].id;
         const playerSocket = setup.playerSockets[0];
 
         // Step 1: Verify session initialization
-        const initialSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const initialSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(initialSessionData).toBeTruthy();
         expect(initialSessionData!.gameId).toBe(gameId);
         expect(initialSessionData!.userId).toBe(playerId.toString());
@@ -331,10 +252,7 @@ describe("Player Game Statistics Tests", () => {
         await utils.leaveGame(playerSocket);
 
         // Step 3: Verify session finalization
-        const finalSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const finalSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(finalSessionData).toBeTruthy();
         expect(finalSessionData!.leftAt).not.toBe("");
 
@@ -355,29 +273,21 @@ describe("Player Game Statistics Tests", () => {
         expect(finalSessionData!.questionsAnswered).toBe("0");
         expect(finalSessionData!.correctAnswers).toBe("0");
         expect(finalSessionData!.wrongAnswers).toBe("0");
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should handle multiple players with independent sessions", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      await suite.scenario(async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
 
-      try {
         const gameId = setup.gameId;
         const player1Id = setup.playerUsers[0].id;
         const player2Id = setup.playerUsers[1].id;
         const player1Socket = setup.playerSockets[0];
 
         // Verify both players have sessions
-        const player1SessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          player1Id
-        );
-        const player2SessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          player2Id
-        );
+        const player1SessionData = await playerGameStatsRepository.getStats(gameId, player1Id);
+        const player2SessionData = await playerGameStatsRepository.getStats(gameId, player2Id);
 
         expect(player1SessionData).toBeTruthy();
         expect(player2SessionData).toBeTruthy();
@@ -388,72 +298,57 @@ describe("Player Game Statistics Tests", () => {
         await utils.leaveGame(player1Socket);
 
         // Verify player 1 session is finalized but player 2 session is still active
-        const finalPlayer1SessionData =
-          await playerGameStatsRepository.getStats(gameId, player1Id);
-        const continuedPlayer2SessionData =
-          await playerGameStatsRepository.getStats(gameId, player2Id);
+        const finalPlayer1SessionData = await playerGameStatsRepository.getStats(gameId, player1Id);
+        const continuedPlayer2SessionData = await playerGameStatsRepository.getStats(
+          gameId,
+          player2Id
+        );
 
         expect(finalPlayer1SessionData!.leftAt).not.toBe("");
         expect(continuedPlayer2SessionData!.leftAt).toBe("");
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 
   describe("Player Session Rejoin and Role Change Clearing", () => {
     it("should clear leftAt timestamp when player rejoins after leaving", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      await suite.scenario(async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
 
-      try {
         const gameId = setup.gameId;
         const playerId = setup.playerUsers[0].id;
         const playerSocket = setup.playerSockets[0];
 
         // Verify initial session has no leftAt
-        const initialSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const initialSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(initialSessionData!.leftAt).toBe("");
 
         // Player leaves
         await utils.leaveGame(playerSocket);
 
         // Verify leftAt is set
-        const leftSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const leftSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(leftSessionData!.leftAt).not.toBe("");
 
         // Player rejoins the same game as player role
         await utils.joinGame(playerSocket, gameId, PlayerRole.PLAYER);
 
         // Verify leftAt is cleared after rejoin
-        const rejoinedSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const rejoinedSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(rejoinedSessionData!.leftAt).toBe("");
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should clear leftAt when player changes back to PLAYER after being spectator", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
 
-      try {
         const gameId = setup.gameId;
         const playerId = setup.playerUsers[0].id;
         const showmanSocket = setup.showmanSocket;
 
         // Verify initial session has no leftAt
-        const initialSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const initialSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(initialSessionData!.leftAt).toBe("");
 
         // Change player role to spectator (this should set leftAt)
@@ -463,18 +358,15 @@ describe("Player Game Statistics Tests", () => {
           PlayerRole.SPECTATOR
         );
 
-        showmanSocket.emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           newRole: PlayerRole.SPECTATOR,
-          playerId: playerId,
+          playerId: playerId
         });
 
         await roleChangeToSpectatorPromise;
 
         // Verify leftAt is now set (because they are no longer a player)
-        const spectatorSessionData = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const spectatorSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(spectatorSessionData!.leftAt).not.toBe("");
 
         // Change back to player role (this should clear leftAt)
@@ -484,30 +376,27 @@ describe("Player Game Statistics Tests", () => {
           PlayerRole.PLAYER
         );
 
-        showmanSocket.emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           newRole: PlayerRole.PLAYER,
-          playerId: playerId,
+          playerId: playerId
         });
 
         await roleChangeToPlayerPromise;
 
         // Verify leftAt is cleared after becoming player again
-        const backToPlayerSessionData =
-          await playerGameStatsRepository.getStats(gameId, playerId);
+        const backToPlayerSessionData = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(backToPlayerSessionData!.leftAt).toBe("");
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 
   describe("Player Answer Statistics Tracking", () => {
     it("should increment correct answers and questions answered when player answers correctly", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
-      const { playerSockets, showmanSocket, gameId } = setup;
-      const playerId = setup.playerUsers[0].id;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+        const { playerSockets, showmanSocket, gameId } = setup;
+        const playerId = setup.playerUsers[0].id;
 
-      try {
         // Start the game
         await utils.startGame(showmanSocket);
 
@@ -515,38 +404,28 @@ describe("Player Game Statistics Tests", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Get initial stats before answering
-        const initialStats = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
-        const initialQuestionsAnswered = parseInt(
-          initialStats!.questionsAnswered || "0"
-        );
-        const initialCorrectAnswers = parseInt(
-          initialStats!.correctAnswers || "0"
-        );
+        const initialStats = await playerGameStatsRepository.getStats(gameId, playerId);
+        const initialQuestionsAnswered = parseInt(initialStats!.questionsAnswered || "0");
+        const initialCorrectAnswers = parseInt(initialStats!.correctAnswers || "0");
         const initialWrongAnswers = parseInt(initialStats!.wrongAnswers || "0");
 
-        playerSockets[0].on("error", (err) => {
-          console.error("Player socket error:", err);
-        });
         // Player answers the question
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
         // Showman marks answer as correct
-        const answerResultPromise = utils.waitForEvent(
+        const answerResultPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.ANSWER_RESULT
         );
 
-        const answerShowStartPromise = utils.waitForEvent(
+        const answerShowStartPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.ANSWER_SHOW_START
         );
 
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 100,
-          answerType: AnswerResultType.CORRECT,
+          answerType: AnswerResultType.CORRECT
         });
 
         await answerResultPromise;
@@ -554,30 +433,21 @@ describe("Player Game Statistics Tests", () => {
         await utils.skipShowAnswer(showmanSocket);
 
         // Verify statistics were updated correctly
-        const updatedStats = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const updatedStats = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(updatedStats).toBeTruthy();
-        expect(parseInt(updatedStats!.questionsAnswered)).toBe(
-          initialQuestionsAnswered + 1
-        );
-        expect(parseInt(updatedStats!.correctAnswers)).toBe(
-          initialCorrectAnswers + 1
-        );
+        expect(parseInt(updatedStats!.questionsAnswered)).toBe(initialQuestionsAnswered + 1);
+        expect(parseInt(updatedStats!.correctAnswers)).toBe(initialCorrectAnswers + 1);
         expect(parseInt(updatedStats!.wrongAnswers)).toBe(initialWrongAnswers); // Should remain unchanged
         expect(parseInt(updatedStats!.currentScore)).toBeGreaterThan(0); // Score should increase
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should increment wrong answers and questions answered when player answers incorrectly", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
-      const { playerSockets, showmanSocket, gameId } = setup;
-      const playerId = setup.playerUsers[0].id;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+        const { playerSockets, showmanSocket, gameId } = setup;
+        const playerId = setup.playerUsers[0].id;
 
-      try {
         // Start the game
         await utils.startGame(showmanSocket);
 
@@ -585,16 +455,9 @@ describe("Player Game Statistics Tests", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Get initial stats before answering
-        const initialStats = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
-        const initialQuestionsAnswered = parseInt(
-          initialStats!.questionsAnswered || "0"
-        );
-        const initialCorrectAnswers = parseInt(
-          initialStats!.correctAnswers || "0"
-        );
+        const initialStats = await playerGameStatsRepository.getStats(gameId, playerId);
+        const initialQuestionsAnswered = parseInt(initialStats!.questionsAnswered || "0");
+        const initialCorrectAnswers = parseInt(initialStats!.correctAnswers || "0");
         const initialWrongAnswers = parseInt(initialStats!.wrongAnswers || "0");
         const initialScore = parseInt(initialStats!.currentScore || "0");
 
@@ -602,63 +465,40 @@ describe("Player Game Statistics Tests", () => {
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
         // Showman marks answer as wrong
-        const answerResultPromise = utils.waitForEvent(
+        const answerResultPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.ANSWER_RESULT
         );
 
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: -100,
-          answerType: AnswerResultType.WRONG,
+          answerType: AnswerResultType.WRONG
         });
 
         await answerResultPromise;
 
         // Verify statistics were updated correctly
-        const updatedStats = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const updatedStats = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(updatedStats).toBeTruthy();
-        expect(parseInt(updatedStats!.questionsAnswered)).toBe(
-          initialQuestionsAnswered + 1
-        );
-        expect(parseInt(updatedStats!.correctAnswers)).toBe(
-          initialCorrectAnswers
-        ); // Should remain unchanged
-        expect(parseInt(updatedStats!.wrongAnswers)).toBe(
-          initialWrongAnswers + 1
-        );
+        expect(parseInt(updatedStats!.questionsAnswered)).toBe(initialQuestionsAnswered + 1);
+        expect(parseInt(updatedStats!.correctAnswers)).toBe(initialCorrectAnswers); // Should remain unchanged
+        expect(parseInt(updatedStats!.wrongAnswers)).toBe(initialWrongAnswers + 1);
         expect(parseInt(updatedStats!.currentScore)).toBe(initialScore - 100); // Score should decrease
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should track multiple answers correctly for single player", async () => {
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        2,
-        1,
-        false,
-        2
-      );
-      const { playerSockets, showmanSocket, gameId } = setup;
-      const playerId = setup.playerUsers[0].id;
+      await suite.scenario(async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1, false, 2);
+        const { playerSockets, showmanSocket, gameId } = setup;
+        const playerId = setup.playerUsers[0].id;
 
-      try {
         // Start the game
         await utils.startGame(showmanSocket);
 
         // Get initial stats
-        const initialStats = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
-        let questionsAnswered = parseInt(
-          initialStats!.questionsAnswered || "0"
-        );
+        const initialStats = await playerGameStatsRepository.getStats(gameId, playerId);
+        let questionsAnswered = parseInt(initialStats!.questionsAnswered || "0");
         let correctAnswers = parseInt(initialStats!.correctAnswers || "0");
         let wrongAnswers = parseInt(initialStats!.wrongAnswers || "0");
 
@@ -723,34 +563,20 @@ describe("Player Game Statistics Tests", () => {
         );
 
         // Verify final statistics: 3 total, 2 correct, 1 wrong
-        const finalStats = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
-        expect(parseInt(finalStats!.questionsAnswered)).toBe(
-          questionsAnswered + 1
-        );
+        const finalStats = await playerGameStatsRepository.getStats(gameId, playerId);
+        expect(parseInt(finalStats!.questionsAnswered)).toBe(questionsAnswered + 1);
         expect(parseInt(finalStats!.correctAnswers)).toBe(correctAnswers + 1);
         expect(parseInt(finalStats!.wrongAnswers)).toBe(wrongAnswers);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should track statistics independently for multiple players", async () => {
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        3,
-        1,
-        false,
-        2
-      );
-      const { playerSockets, showmanSocket, gameId } = setup;
-      const player1Id = setup.playerUsers[0].id;
-      const player2Id = setup.playerUsers[1].id;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1, false, 2);
+        const { playerSockets, showmanSocket, gameId } = setup;
+        const player1Id = setup.playerUsers[0].id;
+        const player2Id = setup.playerUsers[1].id;
 
-      try {
         // Start the game
         await utils.startGame(showmanSocket);
 
@@ -770,77 +596,58 @@ describe("Player Game Statistics Tests", () => {
         );
 
         // Player 2 answers incorrectly - using manual flow to avoid timeout
-        await utils.pickQuestion(
-          showmanSocket,
-          simpleQuestions[1].id,
-          playerSockets
-        );
+        await utils.pickQuestion(showmanSocket, simpleQuestions[1].id, playerSockets);
 
         await utils.answerQuestion(playerSockets[1], showmanSocket);
 
-        const answerResultPromise2 = utils.waitForEvent(
+        const answerResultPromise2 = scenario.waitForEvent(
           playerSockets[1],
           SocketIOGameEvents.ANSWER_RESULT
         );
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: -50,
-          answerType: AnswerResultType.WRONG,
+          answerType: AnswerResultType.WRONG
         });
         await answerResultPromise2;
 
         // ANSWER_RESULT is emitted after the stat update; other players can still answer.
         // Verify Player 1 stats (1 correct, 0 wrong)
-        const player1Stats = await playerGameStatsRepository.getStats(
-          gameId,
-          player1Id
-        );
+        const player1Stats = await playerGameStatsRepository.getStats(gameId, player1Id);
         expect(parseInt(player1Stats!.questionsAnswered)).toBe(1);
         expect(parseInt(player1Stats!.correctAnswers)).toBe(1);
         expect(parseInt(player1Stats!.wrongAnswers)).toBe(0);
 
         // Verify Player 2 stats (0 correct, 1 wrong)
-        const player2Stats = await playerGameStatsRepository.getStats(
-          gameId,
-          player2Id
-        );
+        const player2Stats = await playerGameStatsRepository.getStats(gameId, player2Id);
         expect(parseInt(player2Stats!.questionsAnswered)).toBe(1);
         expect(parseInt(player2Stats!.correctAnswers)).toBe(0);
         expect(parseInt(player2Stats!.wrongAnswers)).toBe(1);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 
   describe("Skip Answer Handling", () => {
     it("should not count skipped questions as wrong answers", async () => {
-      // Use 1 player so SKIP immediately transitions to SHOWING_ANSWER
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1, // 1 player - SKIP will go to SHOWING_ANSWER immediately
-        1,
-        false,
-        2
-      );
-      const { playerSockets, showmanSocket, gameId } = setup;
-      const playerId = setup.playerUsers[0].id;
+      await suite.scenario(async (scenario) => {
+        // Use 1 player so SKIP immediately transitions to SHOWING_ANSWER
+        const setup = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          1, // 1 player - SKIP will go to SHOWING_ANSWER immediately
+          1,
+          false,
+          2
+        );
+        const { playerSockets, showmanSocket, gameId } = setup;
+        const playerId = setup.playerUsers[0].id;
 
-      try {
         // Start the game
         await utils.startGame(showmanSocket);
 
         // Get initial stats
-        const initialStats = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
-        const initialQuestionsAnswered = parseInt(
-          initialStats!.questionsAnswered || "0"
-        );
-        const initialCorrectAnswers = parseInt(
-          initialStats!.correctAnswers || "0"
-        );
+        const initialStats = await playerGameStatsRepository.getStats(gameId, playerId);
+        const initialQuestionsAnswered = parseInt(initialStats!.questionsAnswered || "0");
+        const initialCorrectAnswers = parseInt(initialStats!.correctAnswers || "0");
         const initialWrongAnswers = parseInt(initialStats!.wrongAnswers || "0");
 
         const simpleQuestionId = await utils.getQuestionIdByType(
@@ -849,66 +656,46 @@ describe("Player Game Statistics Tests", () => {
         );
 
         // Pick and display a question
-        await utils.pickQuestion(
-          showmanSocket,
-          simpleQuestionId,
-          playerSockets
-        );
+        await utils.pickQuestion(showmanSocket, simpleQuestionId, playerSockets);
 
         // Player answers the question
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-        const showAnswerStartPromise = utils.waitForEvent(
+        const showAnswerStartPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.ANSWER_SHOW_START
         );
 
         // Showman marks answer as skip (0x)
-        const answerResultPromise = utils.waitForEvent(
+        const answerResultPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.ANSWER_RESULT
         );
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 0,
-          answerType: AnswerResultType.SKIP,
+          answerType: AnswerResultType.SKIP
         });
         await answerResultPromise;
         await showAnswerStartPromise;
         await utils.skipShowAnswer(showmanSocket);
 
         // Verify statistics: questions answered increased, but wrong answers did not
-        const updatedStats = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const updatedStats = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(updatedStats).toBeTruthy();
-        expect(parseInt(updatedStats!.questionsAnswered)).toBe(
-          initialQuestionsAnswered + 1
-        );
+        expect(parseInt(updatedStats!.questionsAnswered)).toBe(initialQuestionsAnswered + 1);
         // Should remain unchanged
-        expect(parseInt(updatedStats!.correctAnswers)).toBe(
-          initialCorrectAnswers
-        );
+        expect(parseInt(updatedStats!.correctAnswers)).toBe(initialCorrectAnswers);
         // Should remain unchanged for SKIP
         expect(parseInt(updatedStats!.wrongAnswers)).toBe(initialWrongAnswers);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should handle mixed answer types correctly", async () => {
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        2,
-        1,
-        false,
-        2
-      );
-      const { playerSockets, showmanSocket, gameId } = setup;
-      const playerId = setup.playerUsers[0].id;
+      await suite.scenario(async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1, false, 2);
+        const { playerSockets, showmanSocket, gameId } = setup;
+        const playerId = setup.playerUsers[0].id;
 
-      try {
         // Start the game
         await utils.startGame(showmanSocket);
 
@@ -944,16 +731,11 @@ describe("Player Game Statistics Tests", () => {
         );
 
         // Verify final statistics: 2 questions, 1 correct, 0 wrong, 0 skip counted as wrong
-        const finalStats = await playerGameStatsRepository.getStats(
-          gameId,
-          playerId
-        );
+        const finalStats = await playerGameStatsRepository.getStats(gameId, playerId);
         expect(parseInt(finalStats!.questionsAnswered)).toBe(2);
         expect(parseInt(finalStats!.correctAnswers)).toBe(1);
         expect(parseInt(finalStats!.wrongAnswers)).toBe(0);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 });

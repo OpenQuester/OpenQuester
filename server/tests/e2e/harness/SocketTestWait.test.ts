@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "@jest/globals";
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
+import { EventEmitter } from "events";
 import { io as createSocket, type Socket as ClientSocket } from "socket.io-client";
 
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
@@ -64,6 +65,29 @@ describe("SocketTestWait", () => {
 
     harness = undefined;
     await currentHarness?.stop();
+  });
+
+  it("cancels the armed disconnect wait when the client disconnect call throws", async () => {
+    const disconnectFailure = new Error("client disconnect failed");
+    const fakeSocket = Object.assign(new EventEmitter(), {
+      id: "throwing-socket",
+      connected: true,
+      disconnect: jest.fn(() => {
+        throw disconnectFailure;
+      })
+    });
+    const socket = fakeSocket as unknown as ClientSocket;
+
+    const disconnect = disconnectSocket(socket, {
+      client: "throwing-client",
+      namespace: "/",
+      serverUrl: "http://socket.test",
+      timeoutMs: shortTimeoutMs
+    });
+
+    await expect(disconnect).rejects.toThrow("Socket.IO client disconnect failed");
+    await expect(disconnect).rejects.toMatchObject({ cause: disconnectFailure });
+    expect(fakeSocket.listenerCount("disconnect")).toBe(0);
   });
 
   it("includes event, timeout, client, socket id, connection state, and URL in timeout errors", async () => {

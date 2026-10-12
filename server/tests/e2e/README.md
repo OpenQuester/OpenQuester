@@ -1,14 +1,306 @@
 # E2E Test Lifecycle Rules
 
-- Use `ServerTestHarness` for new E2E suites that need a running server.
+Agent writing workflow: [backend-e2e skill](../../../.agents/skills/backend-e2e/SKILL.md).
+This README remains the canonical reference for test APIs and lifecycle rules.
+
+## Choose the right layer
+
+| Test behavior                                                                              | Writing mechanism                                                                                            |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| REST endpoints: users, permissions, mute, packages, search, admin logs                     | `ServerTestHarness` + `createHttpTestClient(harness.serverUrl)`                                              |
+| Gameplay and hybrid HTTP/Socket.IO behavior, including user notifications and game updates | `SocketGameTestSuite` + `suite.scenario(...)` + `GameScenario` assertions                                    |
+| Dedicated media coordination scenarios                                                     | `withMediaDownloadFlow(...)`, which owns a `GameScenario` and its assertions                                 |
+| Queue/repository/database/logger internals and harness self-tests                          | Focused unit/integration helpers appropriate to the component; do not pretend these are client E2E scenarios |
+
+The migration covers backend transport E2Es. It does not turn pure domain tests or infrastructure
+self-tests into gameplay scenarios, and it does not add Flutter/browser E2E coverage.
+
+## Shared lifecycle
+
+- Use `ServerTestHarness` for E2E suites that need a running server, either directly for HTTP or
+  through `SocketGameTestSuite` for realtime scenarios.
 - Exercise the real HTTP and Socket.IO transports through `serverUrl`.
 - All async waits must be named and bounded.
 - Timeout failures must include the operation or event, timeout duration, and actor/socket context.
 - Close Socket.IO clients before stopping the harness.
+- After each transport scenario, call `harness.resetState()` only after flow/client cleanup; it
+  rejects leaked sockets before clearing Redis so one case cannot contaminate the next.
 - Cleanup failures must fail the test run; do not catch and only log them.
+- Internal integration tests that call `bootstrapTestApp` directly must finish with
+  `teardownTestAppResources(cleanup, testEnv)`, which closes the app before its shared Redis,
+  database, and logger environment and preserves failures from both stages.
+- Use `runAndWaitForEvent` when a multi-step operation is expected to produce a terminal event; it
+  arms the listener first and cancels that wait if an earlier step fails.
+- A terminal timeout must not hide a prerequisite failure from that operation. The terminal keeps
+  its original deadline; the operation has that requested budget plus one shared event-wait budget
+  to settle and report its own failure first. A late terminal event still fails, and a hung
+  operation fails its named operation deadline.
+- Await every event assertion. The shared event utility observes and cancels unfinished waits before
+  client cleanup so a primary failure cannot leak listeners, timers, or secondary timeout noise.
+  Lint rejects floating or unused waits, and the transport policy rejects explicit `void` escapes.
+- `GameScenario` owns complete assertion promises and their settled outcomes. `EventJournal` only
+  records and waits; direct journal usage is restricted to infrastructure self-tests, not transport
+  suites. Do not add a second assertion-outcome owner or a separate journal wrapper.
 - Do not use direct sleeps for readiness, event delivery, or cleanup.
 - Do not copy lifecycle setup or teardown code into individual suites.
 - Do not add production hot-path instrumentation solely to support tests.
 - Use port `0` for new isolated lifecycle tests unless a fixed-port failure path is under test.
-- The event journal/scenario DSL belongs to a later phase.
-- Do not migrate existing game tests in this phase.
+- Local test Redis defaults to `127.0.0.1:6380` through `server/compose.yml`. GitHub Actions uses
+  its Redis service explicitly through `TEST_REDIS_PORT=6379`.
+- PostgreSQL and Redis are required for transport E2E suites. Run focused checks through
+  `npm run test:pipeline -- path/to/test.ts --runInBand`.
+
+## HTTP test rules
+
+- Start the harness with `{ apiPort: 0 }`; always use its resolved `serverUrl`, never an environment
+  port guess or `supertest(app)`.
+- Create `http = createHttpTestClient(harness.serverUrl)` in `beforeEach`. The stateless client
+  supports `.get`, `.post`, `.put`, `.patch`, `.delete`, `.head`, and `.options`, followed by the
+  existing `.query`, `.set`, `.send`, and `.expect` request assertions.
+- Every request has a deadline covering both response headers and the complete response body.
+  Transport errors name the HTTP method and URL. Do not disable deadlines to hide a stalled request.
+- Supply authentication explicitly with `.set("Cookie", cookie)`. The client does not retain a
+  cookie jar: logging in as an admin must not accidentally authenticate a later guest request.
+- Await each request and assert its status and relevant response fields. Keep persistence checks
+  when they prove a separate observable effect; do not replace HTTP calls with controller calls.
+- Per-case database fixtures remain suite-owned; finish them before `harness.resetState()`. Call
+  `await harness?.stop()` in `afterAll`, including after partial setup failure.
+- HTTP actions inside a realtime scenario use the same bounded client. Arm the corresponding
+  scenario event expectation before the HTTP mutation.
+
+## Scenario and journal rules
+
+- Wrap each gameplay or hybrid test body in `await suite.scenario(async (scenario) => { ... })`. The
+  wrapper finishes successful scenarios, aborts failed ones, and preserves assertion/disposal
+  failures. Use `await suite?.reset()` in `afterEach` and `await suite?.stop()` in `afterAll`.
+- Obtain actors with `scenario.actor(socket, optionalLabel)` and issue commands through
+  `scenario.actor(socket).emit(...)`. Actor identity belongs to a socket connection; reconnecting
+  creates a new generation instead of letting old events satisfy new assertions.
+- Suite-owned clients are attached to the active scenario automatically. Attach any separately
+  created relevant actor socket before emitting commands.
+- Use `scenario.waitForEvent`, `waitForEventMatching`, `waitForNoEvent`, `emitAndWaitForEvent`, and
+  `runAndWaitForEvent` for bounded expectations. Event waits inspect only records after
+  registration; an older event with the same name cannot satisfy a new wait.
+- Shared game-flow helpers route their internal waits through the active scenario too; using a
+  helper does not opt out of journal-backed assertions or failure ownership.
+- Use `ScenarioAssertions` for exact broadcasts, counts, history, and state assertions. Use
+  `scenario.collectEvents` or `collectSocketEvents` for bounded multi-event collections instead of
+  copied `.on`, `.once`, or timer-based collectors.
+- Use `scenario.mark()` before a burst of commands when assertions should only inspect new events.
+- For queued-action history/state checks, follow: **mark → arm accepted-action probe and event waits
+  → emit → await them together → drain → make exact history/state assertions**. Do not use queue
+  drain to prove an action was accepted before its atomic enqueue is observed.
+- An accepted action is one whose atomic Redis queue enqueue completed successfully. It is not
+  merely an entry into `GameActionExecutor.submitAction`.
+- Predicate event expectations by actor/payload when the event can be broadcast more than once.
+- Journal predicates must be synchronous so record matching remains ordered and waiter registration
+  cannot race a payload scan.
+- Use `scenario.assert.broadcast(...)` when every actor must receive the same server event.
+- Use `scenario.assert.expectOutboundCommandCount(...)` to prove command bursts were actually sent.
+- Use exact journal snapshots only after accepted actions, queue, and lock have drained; snapshots
+  do not poll or provide synchronization.
+- Negative assertions name their recipients: `noInbound({ actor, ... })` or
+  `noInboundMany({ actors, ... })`. Groups must be non-empty and contain unique, scenario-owned
+  actors. Never filter recipients by `socket.connected`: an unexpected disconnect must fail.
+- For a command-related negative check, register recipients and mark **before** the command, arm
+  positive waits/acceptance, emit, await acceptance and processing, then start the negative check
+  with that original mark. It inspects both command history and a full post-completion delivery
+  window. A negative promise that expired while the command was still running proves nothing
+  about the rest of the command.
+- Use the actual causal boundary: accepted enqueue plus drain for queued actions; HTTP response,
+  sender error, or confirmed allowed delivery for direct actions. The silent repeated `LEAVE`
+  no-op has neither a response nor an enqueue: `suite.runAndWaitForSocketHandler(...)` observes
+  completion of the original server listener, with a deadline and listener restoration. It does
+  not replace client assertions or introduce a production acknowledgement.
+- Live positive and negative waits require a connected actor from the current connection generation.
+  Disconnect, connect error, or replacement rejects its pending waits (and a group's aggregate). For
+  history after disconnect, use `records`/snapshot, not a live wait.
+- Arm an expected `disconnect` before triggering it; the journal records that event before rejecting
+  the actor's other waits. Negative windows default to 100 ms, but an explicit positive, finite
+  `durationMs` is observed in full, not truncated to the default.
+- Scenario tests may emit bursts, such as duplicate or concurrent media-download commands, and
+  assert the resulting journal history afterwards.
+- Actor labels are unique. `scenario.actor(...)` manages reconnect generations; do not manually
+  register a replacement using an existing label.
+- The suite wrapper ends a successful scenario with `scenario.finish()`. It waits for every tracked
+  event, aggregate, derived validation, state assertion, and accepted-action count, so a forgotten
+  promise cannot make the test pass.
+- The suite wrapper ends a scenario whose primary test body already failed with `scenario.abort()`.
+  Abort cancels pending waits before socket cleanup without replacing the primary failure with
+  derivative cancellation errors.
+- Track the complete derived or aggregate expectation, not only its underlying event wait.
+  Accepted-action probe waits created by `GameScenario` are tracked automatically.
+
+### Short examples (inside a scenario)
+
+Positive action with a validated payload; track the `.then` result too:
+
+```ts
+const after = scenario.mark();
+const probe = scenario.createAcceptedActionProbe({ gameId, actionType });
+const accepted = probe.waitForCount(1);
+const received = scenario.trackExpectation(
+  scenario.assert.inbound({ actor, event, afterSequence: after, timeoutMs: 1500 })
+    .then(({ args: [payload] }) => expect(payload).toEqual(expected)),
+  "validated action response"
+);
+actor.emit(command, input);
+await Promise.all([accepted, received]);
+await scenario.assert.waitForActionsComplete({ gameId });
+scenario.assert.expectDirectedEventCount({ actor, direction: "inbound", event, afterSequence: after, expectedCount: 1 });
+```
+
+Negative and group assertions use explicit recipients, the pre-command mark, and a causal boundary:
+
+```ts
+const after = scenario.mark();
+const accepted = scenario.createAcceptedActionProbe({ gameId, actionType }).waitForCount(1);
+actor.emit(command, input);
+await accepted;
+await scenario.assert.waitForActionsComplete({ gameId });
+await scenario.assert.noInbound({ actor, event: "error", afterSequence: after, durationMs: 200 });
+
+const privateRecipients = [showman, spectator];
+const beforeMessage = scenario.mark();
+const delivered = scenario.assert.inbound({ actor: allowedRecipient, event: "private-message", afterSequence: beforeMessage, timeoutMs: 1500 });
+player.emit(command, input);
+await delivered; // Direct action: actual allowed delivery, not a fabricated Redis acceptance.
+await scenario.assert.noInboundMany({ actors: privateRecipients, event: "private-message", afterSequence: beforeMessage, durationMs: 100 });
+```
+
+Expected disconnect is a positive event. Other live waits on that actor must fail:
+
+```ts
+const after = scenario.mark();
+const disconnected = scenario.assert.inbound({ actor, event: "disconnect", afterSequence: after, timeoutMs: 1500 });
+actor.disconnect();
+await disconnected;
+expect(scenario.assert.records({ actor, event: "disconnect", afterSequence: after })).toHaveLength(1);
+// For subsequent live assertions, use only the explicitly planned remaining actors.
+// After reconnect: scenario.actor(socket) supplies the new connection generation.
+```
+
+Concurrent commands are emitted before awaiting earlier replies. Compare sets when independent
+sockets have no required mutual order:
+
+```ts
+const players = playerSockets.map((socket) => scenario.actor(socket));
+const accepted = players.map((actor) => scenario.createAcceptedActionProbe({
+  gameId, actionType: GameActionType.LEAVE, socketId: actor.socketId
+}).waitForCount(1));
+const leaves = scenario.collectEvents<GameLeaveBroadcastData>(showmanSocket, SocketIOGameEvents.LEAVE, players.length);
+for (const socket of playerSockets) scenario.actor(socket).emit(SocketIOGameEvents.LEAVE);
+await Promise.all(accepted);
+const received = await leaves.promise;
+await scenario.assert.waitForActionsComplete({ gameId });
+expect(leaves.count()).toBe(players.length);
+expect(received.map(({ user }) => user).sort((a, b) => a - b)).toEqual(expectedPlayerIds.slice().sort((a, b) => a - b));
+```
+
+FIFO tests control enqueue order under a held lock, then release and send the last real command
+to trigger processing. Release alone does not drain the queue. Confirm acceptance of the entire
+burst, including that last command, before drain/count/state checks. Keep lock cleanup in `finally`.
+Queue suites are split into `queue/ConcurrentGameplayCommands.test.ts`, `queue/RegularRoundQueue.test.ts`,
+and `queue/FinalRoundQueue.test.ts` under `tests/socket/game/`; lock/cleanup self-tests live in
+`tests/socket/game/utils/QueueTestHelpers.test.ts` and have no transport-policy exemption by describe name.
+
+## Flow helper rules
+
+- Use small flow helpers, such as `MediaDownloadFlow`, only after a pattern repeats.
+- Flow helpers should express domain actions and assertions; they must not hide important scenario
+  intent.
+- Keep setup/cleanup in the helper when it removes noise from scenario tests.
+- Flow wrappers must call `finish()` only after a successful callback and `abort()` after a callback
+  failure.
+- A flow helper must surface cleanup failures. If both the scenario and cleanup fail, preserve both
+  errors in one aggregate.
+
+## Current media protocol and coverage boundary
+
+The contract follows [media download synchronization](../../docs/media-download-sync.md):
+outgoing `QUESTION_PICK` produces incoming `QUESTION_DATA` containing question/file data and the
+media timer. Before **any** readiness ACK, tests assert persisted `MEDIA_DOWNLOADING` and its active
+timer. A correct data payload with an already `SHOWING` state must fail; data arrival alone is not
+proof of the readiness barrier.
+
+Partial player ACKs produce `MEDIA_DOWNLOAD_STATUS` with `allPlayersReady: false` and `timer: null`;
+the active media timer remains. The final active player's ACK (or media timeout) completes readiness,
+produces the question timer in the status, and enters `SHOWING`. Showman and spectators do not block
+readiness. No-file questions use the same backend handshake, with immediate simulated client ACKs.
+There is no inbound preload `QUESTION_PICK`, nor a second `QUESTION_DATA` on readiness completion.
+
+Dedicated scenarios preserve duplicate, concurrent, leave, disconnect, kick, restriction, stale
+timeout, and queue behavior. Shared payload checks compare common fields and file links; showman-only
+answers are checked separately, never by requiring different roles' full payloads to be equal.
+Controlled infrastructure self-tests prove that omitted phases, files, or correct timers fail the
+same helper that accepts a correct flow. Those self-tests are not evidence of backend health.
+
+Media tests supply file metadata and simulate clients sending `MEDIA_DOWNLOADED`. They verify server
+coordination, event order, readiness gating, and timers. They do not download file bytes, execute
+Flutter media loading, or prove that the UI hides or plays media at the right time. Those claims
+require client-side coverage. Actual game-rule uncertainty must be resolved with the user.
+
+The media synchronization reference also records known Flutter gaps (early image
+ACKs and ungated question text). A green backend suite must not be reported as
+closing those client bugs; the follow-up is [frontend issue #445](https://github.com/OpenQuester/OpenQuester/issues/445).
+ACKs outside `MEDIA_DOWNLOADING`, including late ACKs
+after `SHOWING`, must neither mutate readiness nor broadcast status.
+
+## Static contract checks
+
+`tests/e2e/contracts/SocketActionContracts.test.ts` is a fast wiring guard for the socket action map
+and handler registration. It complements, but does not replace, real Socket.IO transport E2E
+coverage.
+
+`tests/e2e/contracts/SocketGameTransportPolicy.test.ts` keeps migrated gameplay suites on the shared
+scenario/lifecycle and rejects copied bootstrap/cleanup, warn-and-skip branches, and hand-written
+event timers. TypeScript AST checks recognize Jest aliases, modifier chains, array and tagged-template
+`each` cases without matching comments/string fixtures. Focused, skipped, todo, and failing definitions
+are rejected across backend tests. Concurrent definitions are also rejected in gameplay, HTTP,
+hybrid, and dedicated media suites because they share transport state/lifecycle.
+Each gameplay/hybrid callback must return or await its `suite.scenario(...)` wrapper as its entire
+body; dedicated media uses `withMediaDownloadFlow(...)`. Put setup and assertions inside that wrapper,
+not beside it or inside an uncalled nested function.
+
+Lifecycle and direct-journal restrictions also cover hybrid and dedicated media suites; direct
+journal access is forbidden in HTTP transport cases too. AST lifecycle checks ignore comments
+and string fixtures. These guards cannot prove game semantics or the causal order of arbitrary
+asynchronous code: runtime assertions and controlled-defect regressions provide that evidence.
+
+`tests/e2e/contracts/HttpTransportPolicy.test.ts` keeps HTTP and hybrid endpoint suites on their
+harness/scenario lifecycle and rejects direct unbounded HTTP requests and guessed server ports.
+Transport imports automatically classify new endpoint suites, or fail the classification check if
+they do not use a known transport lifecycle. Genuine infrastructure self-tests have explicit
+exceptions in `TransportSuitePolicy.ts`; adding an endpoint test to that list is not a migration.
+
+`tests/e2e/contracts/TestLifecyclePolicy.test.ts` keeps internal direct test-app callers on the
+ordered teardown helper and rejects teardown failures that are caught and only logged.
+
+## CI evidence and repeatability
+
+Run from `server/`, starting with infrastructure and then the affected transport
+cases. These are the same focused selectors used by the backend CI job:
+
+```bash
+npm run test:pipeline -- tests/e2e/scenario tests/e2e/contracts tests/socket/game/utils tests/e2e/harness/SocketClientTestUtils.test.ts tests/e2e/flows/media-download/MediaDownloadFlow.test.ts --runInBand
+npm run test:pipeline -- tests/e2e/flows/MediaDownloadScenario.test.ts tests/e2e/flows/MediaDownloadEdgeScenario.test.ts tests/socket/game/queue tests/user/UserNotificationRooms.test.ts tests/socket/game/question/ChoiceQuestionFlow.test.ts --runInBand
+```
+
+For broader backend changes, follow with lint/build and `npm run test:pipeline`.
+Pure documentation/metadata changes do not require real transport reruns. Do not
+claim an unrun transport/UI check from a passing schema or helper self-test.
+
+The backend job shows infrastructure self-tests, high-risk transport cases, and the full suite as
+separate steps. All retain their failure exit status. Its artifact contains the tested checkout's
+`commit.txt` and Jest JSON for every pass, including failed tests and open-handle evidence.
+
+Dispatch the `Test` workflow on the PR branch with `backend_reliability=true` to perform five
+consecutive high-risk passes and two full passes on one checkout. Every pass runs and has its own JSON;
+this is a repeatability check, not retry-until-green. Any failed pass keeps the step/job red. That
+backend-only dispatch does not run unrelated client checks.
+
+Classify failures by full test title, expected/actual behavior, environment/infra/test-expectation/
+backend-rule mismatch, whether the behavior was reached, and why it is fixed here or retained.
+An old red CI count is not an allowlist. Local missing PostgreSQL/Redis or log-write permissions are
+environment failures, never evidence of broken game rules. Controlled self-tests cannot replace a
+real transport run.

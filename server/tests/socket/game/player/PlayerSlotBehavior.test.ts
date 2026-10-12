@@ -1,59 +1,33 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 describe("Player Slot Behavior", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
   let userRepo: Repository<User>;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
-    userRepo = testEnv.getDatabase().getRepository(User);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    utils = suite.utils;
+    userRepo = suite.userRepo;
+  });
+
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
-  });
-
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+    await suite?.stop();
   });
 
   describe("Slot Preservation on Reconnect", () => {
@@ -66,14 +40,15 @@ describe("Player Slot Behavior", () => {
      * Current behavior: Player gets first available slot (may differ from original)
      */
     it("should preserve original slot when player reconnects without targetSlot", async () => {
-      // 1. Setup game with showman and player
-      const { socket: showmanSocket, gameId } =
-        await utils.createGameWithShowman(app, userRepo);
+      await suite.scenario(async () => {
+        // 1. Setup game with showman and player
+        const { gameId } = await utils.createGameWithShowman(app, userRepo);
 
-      try {
         // 2. Create player and join with specific slot
-        const { socket: playerSocket, user: playerUser } =
-          await utils.createGameClient(app, userRepo);
+        const { socket: playerSocket, user: playerUser } = await utils.createGameClient(
+          app,
+          userRepo
+        );
         const targetSlot = 2;
 
         // Join with specific target slot
@@ -85,9 +60,7 @@ describe("Player Slot Behavior", () => {
         );
 
         // Verify player got assigned the requested slot
-        const playerInGame = gameData.players.find(
-          (p: PlayerDTO) => p.meta.id === playerUser.id
-        );
+        const playerInGame = gameData.players.find((p: PlayerDTO) => p.meta.id === playerUser.id);
         expect(playerInGame).toBeDefined();
         expect(playerInGame!.slot).toBe(targetSlot);
 
@@ -95,8 +68,10 @@ describe("Player Slot Behavior", () => {
         await utils.disconnectAndCleanup(playerSocket);
 
         // 4. Player reconnects without specifying targetSlot
-        const { socket: reconnectedSocket } =
-          await utils.createSocketForExistingUser(app, playerUser.id);
+        const { socket: reconnectedSocket } = await utils.createSocketForExistingUser(
+          app,
+          playerUser.id
+        );
 
         const reconnectGameData = await utils.joinGameWithSlotAndData(
           reconnectedSocket,
@@ -111,49 +86,35 @@ describe("Player Slot Behavior", () => {
         );
         expect(reconnectedPlayer).toBeDefined();
         expect(reconnectedPlayer!.slot).toBe(targetSlot);
-
-        await utils.disconnectAndCleanup(reconnectedSocket);
-      } finally {
-        await utils.disconnectAndCleanup(showmanSocket);
-      }
+      });
     });
 
     it("should get first available slot when original slot is taken during reconnect", async () => {
-      // 1. Setup game with showman
-      const { socket: showmanSocket, gameId } =
-        await utils.createGameWithShowman(app, userRepo);
+      await suite.scenario(async () => {
+        // 1. Setup game with showman
+        const { gameId } = await utils.createGameWithShowman(app, userRepo);
 
-      try {
         // 2. Create first player and join with specific slot
-        const { socket: playerSocket1, user: playerUser1 } =
-          await utils.createGameClient(app, userRepo);
+        const { socket: playerSocket1, user: playerUser1 } = await utils.createGameClient(
+          app,
+          userRepo
+        );
         const originalSlot = 1;
 
-        await utils.joinGameWithSlot(
-          playerSocket1,
-          gameId,
-          PlayerRole.PLAYER,
-          originalSlot
-        );
+        await utils.joinGameWithSlot(playerSocket1, gameId, PlayerRole.PLAYER, originalSlot);
 
         // 3. First player disconnects
         await utils.disconnectAndCleanup(playerSocket1);
 
         // 4. Second player joins and takes the same slot
-        const { socket: playerSocket2 } = await utils.createGameClient(
-          app,
-          userRepo
-        );
-        await utils.joinGameWithSlot(
-          playerSocket2,
-          gameId,
-          PlayerRole.PLAYER,
-          originalSlot
-        );
+        const { socket: playerSocket2 } = await utils.createGameClient(app, userRepo);
+        await utils.joinGameWithSlot(playerSocket2, gameId, PlayerRole.PLAYER, originalSlot);
 
         // 5. First player reconnects without targetSlot (original slot is now taken)
-        const { socket: reconnectedSocket } =
-          await utils.createSocketForExistingUser(app, playerUser1.id);
+        const { socket: reconnectedSocket } = await utils.createSocketForExistingUser(
+          app,
+          playerUser1.id
+        );
 
         const reconnectGameData = await utils.joinGameWithSlotAndData(
           reconnectedSocket,
@@ -170,98 +131,72 @@ describe("Player Slot Behavior", () => {
         expect(reconnectedPlayer!.slot).not.toBeNull();
         // Should get first available slot which is 0 (since slot 1 is taken)
         expect(reconnectedPlayer!.slot).toBe(0);
-
-        await utils.disconnectAndCleanup(reconnectedSocket);
-        await utils.disconnectAndCleanup(playerSocket2);
-      } finally {
-        await utils.disconnectAndCleanup(showmanSocket);
-      }
+      });
     });
 
     it("should throw error when reconnecting player cannot get any slot (game full)", async () => {
-      // 1. Setup game with showman
-      const { socket: showmanSocket, gameId } =
-        await utils.createGameWithShowman(app, userRepo);
+      await suite.scenario(async (scenario) => {
+        // 1. Setup game with showman
+        const { gameId } = await utils.createGameWithShowman(app, userRepo);
 
-      try {
         // Get game to determine max players
         const game = await utils.getGameFromGameService(gameId);
         const maxPlayers = game.maxPlayers;
 
         // 2. Create first player, join and disconnect
-        const { socket: playerSocket1, user: playerUser1 } =
-          await utils.createGameClient(app, userRepo);
+        const { socket: playerSocket1, user: playerUser1 } = await utils.createGameClient(
+          app,
+          userRepo
+        );
         await utils.joinGame(playerSocket1, gameId, PlayerRole.PLAYER);
         await utils.disconnectAndCleanup(playerSocket1);
 
         // 3. Fill all slots with other players
         const otherPlayerSockets = [];
         for (let i = 0; i < maxPlayers; i++) {
-          const { socket: otherSocket } = await utils.createGameClient(
-            app,
-            userRepo
-          );
-          await utils.joinGameWithSlot(
-            otherSocket,
-            gameId,
-            PlayerRole.PLAYER,
-            i
-          );
+          const { socket: otherSocket } = await utils.createGameClient(app, userRepo);
+          await utils.joinGameWithSlot(otherSocket, gameId, PlayerRole.PLAYER, i);
           otherPlayerSockets.push(otherSocket);
         }
 
         // 4. First player tries to reconnect (all slots are taken)
-        const { socket: reconnectedSocket } =
-          await utils.createSocketForExistingUser(app, playerUser1.id);
-
-        // 5. Expect error when joining without targetSlot
-        const errorPromise = utils.waitForEvent(
-          reconnectedSocket,
-          SocketIOEvents.ERROR,
-          3000
+        const { socket: reconnectedSocket } = await utils.createSocketForExistingUser(
+          app,
+          playerUser1.id
         );
 
-        reconnectedSocket.emit(SocketIOGameEvents.JOIN, {
+        // 5. Expect error when joining without targetSlot
+        const errorPromise = scenario.waitForEvent(reconnectedSocket, SocketIOEvents.ERROR, 3000);
+
+        scenario.actor(reconnectedSocket).emit(SocketIOGameEvents.JOIN, {
           gameId,
           role: PlayerRole.PLAYER,
-          targetSlot: null,
+          targetSlot: null
         });
 
         const error = await errorPromise;
         expect(error.message).toContain("game is full");
-
-        await utils.disconnectAndCleanup(reconnectedSocket);
-        for (const socket of otherPlayerSockets) {
-          await utils.disconnectAndCleanup(socket);
-        }
-      } finally {
-        await utils.disconnectAndCleanup(showmanSocket);
-      }
+      });
     });
   });
 
   describe("SHOWMAN Role with targetSlot", () => {
     it("should ignore targetSlot when joining as SHOWMAN", async () => {
-      // 1. Create a game with a player first (need someone other than showman in game)
-      const {
-        socket: showmanSocket,
-        gameId,
-        user: showmanUser,
-      } = await utils.createGameWithShowman(app, userRepo);
+      await suite.scenario(async () => {
+        // 1. Create a game with a player first (need someone other than showman in game)
+        const {
+          socket: showmanSocket,
+          gameId,
+          user: showmanUser
+        } = await utils.createGameWithShowman(app, userRepo);
 
-      try {
         // Add a player to keep the game alive when showman leaves
-        const { socket: playerSocket } = await utils.createGameClient(
-          app,
-          userRepo
-        );
+        const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
         await utils.joinGame(playerSocket, gameId, PlayerRole.PLAYER);
 
         // 2. Verify initial showman has no slot assigned (slot should be null)
         const game = await utils.getGameFromGameService(gameId);
-        const showmanPlayer = game.players.find(
-          (p) => p.meta.id === showmanUser.id
-        );
+        const showmanPlayer = game.players.find((p) => p.meta.id === showmanUser.id);
 
         expect(showmanPlayer).toBeDefined();
         expect(showmanPlayer!.role).toBe(PlayerRole.SHOWMAN);
@@ -271,8 +206,10 @@ describe("Player Slot Behavior", () => {
         await utils.leaveGame(showmanSocket);
 
         // 4. Create another user to join as showman with targetSlot
-        const { socket: newShowmanSocket, user: newShowmanUser } =
-          await utils.createGameClient(app, userRepo);
+        const { socket: newShowmanSocket, user: newShowmanUser } = await utils.createGameClient(
+          app,
+          userRepo
+        );
 
         const gameData = await utils.joinGameWithSlotAndData(
           newShowmanSocket,
@@ -288,19 +225,14 @@ describe("Player Slot Behavior", () => {
         expect(newShowmanPlayer).toBeDefined();
         expect(newShowmanPlayer!.role).toBe(PlayerRole.SHOWMAN);
         expect(newShowmanPlayer!.slot).toBeNull();
-
-        await utils.disconnectAndCleanup(newShowmanSocket);
-        await utils.disconnectAndCleanup(playerSocket);
-      } finally {
-        await utils.disconnectAndCleanup(showmanSocket);
-      }
+      });
     });
 
     it("should ignore targetSlot when changing role to SHOWMAN", async () => {
-      // 1. Setup game with showman and player
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      await suite.scenario(async (scenario) => {
+        // 1. Setup game with showman and player
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
 
-      try {
         const playerUserId = setup.playerUsers[0].id;
 
         // Get player's current slot
@@ -314,29 +246,25 @@ describe("Player Slot Behavior", () => {
         await utils.leaveGame(setup.showmanSocket);
 
         // 3. Player tries to become showman
-        const roleChangePromise = utils.waitForEvent(
+        const roleChangePromise = scenario.waitForEvent(
           setup.playerSockets[0],
           SocketIOGameEvents.PLAYER_ROLE_CHANGE,
           3000
         );
 
-        setup.playerSockets[0].emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+        scenario.actor(setup.playerSockets[0]).emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           playerId: playerUserId,
-          newRole: PlayerRole.SHOWMAN,
+          newRole: PlayerRole.SHOWMAN
         });
 
         const roleData = await roleChangePromise;
 
         // 4. Verify player is now showman with null slot
-        const updatedPlayer = roleData.players.find(
-          (p: PlayerDTO) => p.meta.id === playerUserId
-        );
+        const updatedPlayer = roleData.players.find((p: PlayerDTO) => p.meta.id === playerUserId);
         expect(updatedPlayer).toBeDefined();
         expect(updatedPlayer!.role).toBe(PlayerRole.SHOWMAN);
         expect(updatedPlayer!.slot).toBeNull();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 });

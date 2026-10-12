@@ -14,9 +14,6 @@ export const TEST_TIMEOUTS = {
   ACTION_QUEUE_WAIT_MS: 500,
   ACTION_QUEUE_POLL_INTERVAL_MS: 25,
 
-  // Redis/keyspace wait helper
-  REDIS_EXPIRY_WAIT_MS: 100,
-
   // Cleanup delays
   TEST_CLEANUP_DRAIN_MS: 25,
 
@@ -25,6 +22,8 @@ export const TEST_TIMEOUTS = {
   PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS: 200,
 
   // Test infra defaults for workers/db/redis
+  POSTGRES_LIFECYCLE_TIMEOUT_MS: 3000,
+  RESOURCE_CLEANUP_TIMEOUT_MS: 3000,
   TEST_DB_NAME_PREFIX: "test_db",
   TEST_REDIS_DB_BASE: 1,
   TEST_REDIS_DB_FALLBACK: 0,
@@ -34,8 +33,7 @@ export const TEST_TIMEOUTS = {
 export const TEST_WORKER_ID = process.env.JEST_WORKER_ID || "1";
 
 export const getTestDbName = (): string => {
-  const baseName = process.env.TEST_DB_NAME_PREFIX ?? TEST_TIMEOUTS.TEST_DB_NAME_PREFIX;
-  return `${baseName}_${TEST_WORKER_ID}`;
+  return `${TEST_TIMEOUTS.TEST_DB_NAME_PREFIX}_${TEST_WORKER_ID}`;
 };
 
 export const getTestApiPort = (): number => {

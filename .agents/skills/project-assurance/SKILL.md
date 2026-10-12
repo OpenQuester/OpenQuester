@@ -42,6 +42,11 @@ For broad validation work, do not start by moving files. First map:
 
 ## E2E/refactor workflow
 
+For backend transport work, use `.agents/skills/backend-e2e/SKILL.md` and
+`server/tests/e2e/README.md`; the README owns scenario APIs and lifecycle rules.
+Use `backend-test-runner` for execution and failure attribution. Keep this skill
+focused on validation strategy rather than duplicating those instructions.
+
 1. Inventory current checks and helpers.
 2. Define target validation pyramid for the feature area.
 3. Create a small migration plan before moving many files.
@@ -49,6 +54,17 @@ For broad validation work, do not start by moving files. First map:
 5. Avoid making E2E the only coverage for business rules.
 6. Add docs for how to run the new layer.
 7. Update verification matrix if command structure changes.
+
+For every critical claim, name the boundary exercised and the defect that would
+make the test fail. Changed infrastructure needs a correct-flow self-test and
+a controlled-defect regression, followed by real transport coverage where
+applicable. A helper self-test is not backend-health evidence; backend ACK tests
+are not file-download or Flutter reveal/playback evidence.
+
+Preserve case coverage through migrations, keep every transport category under
+policy checks, and retain real failure exit codes and commit-bound artifacts.
+Do not make existing failures pass by changing product rules without authority,
+weakening assertions, filtering disconnected actors, or skipping cases.
 
 ## Common failure modes
 

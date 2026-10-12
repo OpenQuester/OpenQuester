@@ -57,6 +57,20 @@ Do not directly mutate game state from presentation. Do not directly emit Socket
 
 Only use `directExecution: true` for actions that never mutate game state. Chat-style non-mutating actions are the model example.
 
+## Trace the actual contract
+
+Inspect emitters and consumers, not just matching event names. Distinguish a
+client command, application-level readiness ACK, server broadcast, and queue
+acceptance; none implies a Socket.IO callback acknowledgement unless implemented.
+Define wrong-phase behavior before applying mutations or broadcasts. Preserve
+role-filtered payloads rather than expecting every recipient's full data to match.
+
+For media work, read `server/docs/media-download-sync.md`: data delivery is not
+readiness completion or proof of visible playback. Do not add an inbound preload
+`QUESTION_PICK`, require showman readiness, or invent a no-file auto-skip without
+an explicitly approved contract change. Use `backend-e2e` for transport regression
+coverage and inspect Flutter too before claiming a user-visible media fix.
+
 ## Implementation steps
 
 1. Define or update socket event enum.
@@ -124,7 +138,7 @@ npm run build
 For behavior changes, add/run focused Jest tests. For full confidence with infra available:
 
 ```bash
-npm test
+npm run test:pipeline
 ```
 
 If client contract changes, from `client/`:

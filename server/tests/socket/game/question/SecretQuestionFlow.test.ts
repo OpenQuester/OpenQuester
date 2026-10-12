@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
@@ -18,55 +18,39 @@ import {
   SecretQuestionTransferInputData
 } from "domain/types/socket/game/SecretQuestionTransferData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { TestUtils } from "tests/utils/TestUtils";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
 
 describe("Secret Question Flow Tests", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
   let testUtils: TestUtils;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
-    testUtils = new TestUtils(app, userRepo, serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
+    testUtils = suite.testUtils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
   describe("Secret Question Basic Flow", () => {
     it("should handle secret question with ANY transfer type - invalid self-transfer then valid transfer", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      try {
         // Start game
         await utils.startGame(showmanSocket);
 
@@ -81,13 +65,14 @@ describe("Secret Question Flow Tests", () => {
         expect(secretQuestion!.id).toBeGreaterThan(0);
 
         // Set up event listeners for secret question events
-        const secretQuestionPickedPromise = utils.waitForEvent<SecretQuestionPickedBroadcastData>(
-          playerSockets[0],
-          SocketIOGameEvents.SECRET_QUESTION_PICKED
-        );
+        const secretQuestionPickedPromise =
+          scenario.waitForEvent<SecretQuestionPickedBroadcastData>(
+            playerSockets[0],
+            SocketIOGameEvents.SECRET_QUESTION_PICKED
+          );
 
         // Pick the secret question
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: secretQuestion!.id
         });
 
@@ -105,10 +90,10 @@ describe("Secret Question Flow Tests", () => {
         expect(transferState!.secretQuestionData!.pickerPlayerId).toBe(setup.showmanUser.id);
 
         // Set up listeners for transfer error (showman cannot transfer to themselves - invalid target)
-        const errorPromise = utils.waitForEvent(showmanSocket, "error");
+        const errorPromise = scenario.waitForEvent(showmanSocket, "error");
 
         // Showman (picker) tries to transfer question to themselves (should fail - invalid target)
-        showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
           targetPlayerId: setup.showmanUser.id // Self-transfer attempt by showman (picker)
         } satisfies SecretQuestionTransferInputData);
 
@@ -124,18 +109,18 @@ describe("Secret Question Flow Tests", () => {
         expect(stillTransferState!.secretQuestionData).toBeDefined();
 
         // Now transfer to a valid player target (should succeed)
-        const transferBroadcastPromise = utils.waitForEvent<SecretQuestionTransferBroadcastData>(
+        const transferBroadcastPromise = scenario.waitForEvent<SecretQuestionTransferBroadcastData>(
           showmanSocket,
           SocketIOGameEvents.SECRET_QUESTION_TRANSFER
         );
 
-        const questionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        const questionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
           playerSockets[0],
           SocketIOGameEvents.QUESTION_DATA
         );
 
         // Showman transfers question to player[0] (should work)
-        showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
           targetPlayerId: setup.playerUsers[0].id
         } satisfies SecretQuestionTransferInputData);
 
@@ -159,18 +144,22 @@ describe("Secret Question Flow Tests", () => {
         expect(showingState!.secretQuestionData).toBeDefined();
         expect(showingState!.currentQuestion).toBeDefined();
 
-        const showAnswerStartPromise = utils.waitForEvent(
+        const showAnswerStartPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.ANSWER_SHOW_START
         );
+        const answerResultPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
 
         // Showman gives answer result
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 300,
           answerType: AnswerResultType.CORRECT
         });
 
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT);
+        await answerResultPromise;
 
         await showAnswerStartPromise;
         await utils.skipShowAnswer(showmanSocket);
@@ -179,18 +168,16 @@ describe("Secret Question Flow Tests", () => {
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.CHOOSING);
         expect(finalState!.secretQuestionData).toBeNull();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should treat answering player skip as give up with wrong answer broadcast", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
-      const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
-      const answeringPlayerSocket = playerSockets[0];
-      const spectatorSocket = spectatorSockets[0];
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+        const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
+        const answeringPlayerSocket = playerSockets[0];
+        const spectatorSocket = spectatorSockets[0];
 
-      try {
         await utils.startGame(showmanSocket);
 
         const secretQuestion = await utils.findQuestionByType(
@@ -200,21 +187,20 @@ describe("Secret Question Flow Tests", () => {
         );
         expect(secretQuestion).toBeDefined();
 
-        const pickedPromise = utils.waitForEvent<SecretQuestionPickedBroadcastData>(
+        const pickedPromise = scenario.waitForEvent<SecretQuestionPickedBroadcastData>(
           showmanSocket,
           SocketIOGameEvents.SECRET_QUESTION_PICKED
         );
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: secretQuestion!.id
         });
         await pickedPromise;
 
-        const questionDataPromise =
-          utils.waitForEvent<GameQuestionDataEventPayload>(
-            answeringPlayerSocket,
-            SocketIOGameEvents.QUESTION_DATA
-          );
-        showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+        const questionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          answeringPlayerSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
           targetPlayerId: setup.playerUsers[0].id
         } satisfies SecretQuestionTransferInputData);
         await questionDataPromise;
@@ -224,32 +210,41 @@ describe("Secret Question Flow Tests", () => {
         expect(answeringState!.answeringPlayer).toBe(setup.playerUsers[0].id);
 
         const answerResultPromises = [
-          utils.waitForEvent<QuestionAnswerResultEventPayload>(
+          scenario.waitForEvent<QuestionAnswerResultEventPayload>(
             showmanSocket,
             SocketIOGameEvents.ANSWER_RESULT
           ),
-          utils.waitForEvent<QuestionAnswerResultEventPayload>(
+          scenario.waitForEvent<QuestionAnswerResultEventPayload>(
             answeringPlayerSocket,
             SocketIOGameEvents.ANSWER_RESULT
           ),
-          utils.waitForEvent<QuestionAnswerResultEventPayload>(
+          scenario.waitForEvent<QuestionAnswerResultEventPayload>(
             playerSockets[1],
             SocketIOGameEvents.ANSWER_RESULT
           ),
-          utils.waitForEvent<QuestionAnswerResultEventPayload>(
+          scenario.waitForEvent<QuestionAnswerResultEventPayload>(
             spectatorSocket,
             SocketIOGameEvents.ANSWER_RESULT
           )
         ];
-        const noQuestionSkipPromise = utils.waitForNoEvent(
-          showmanSocket,
-          SocketIOGameEvents.QUESTION_SKIP
-        );
+        const beforeSkip = scenario.mark();
+        const skipProbe = scenario.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.QUESTION_SKIP,
+          socketId: answeringPlayerSocket.id
+        });
 
-        answeringPlayerSocket.emit(SocketIOGameEvents.QUESTION_SKIP, {});
+        scenario.actor(answeringPlayerSocket).emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
         const answerResults = await Promise.all(answerResultPromises);
-        await noQuestionSkipPromise;
+        await skipProbe.waitForCount(1);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        await scenario.assert.noInbound({
+          actor: scenario.actor(showmanSocket),
+          event: SocketIOGameEvents.QUESTION_SKIP,
+          afterSequence: beforeSkip,
+          durationMs: 100
+        });
 
         const expectedPenalty = -Math.max(1, secretQuestion!.price ?? 1);
         for (const answerResult of answerResults) {
@@ -264,17 +259,15 @@ describe("Secret Question Flow Tests", () => {
         expect(finalState!.answeringPlayer).toBeNull();
         expect(finalState!.timer).toBeNull();
         expect(finalState!.secretQuestionData).toBeNull();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should auto-transfer on timer expiration and send personalized question data", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
-      const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
-      const spectatorSocket = spectatorSockets[0];
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+        const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
+        const spectatorSocket = spectatorSockets[0];
 
-      try {
         await utils.startGame(showmanSocket);
 
         const secretQuestion = await utils.findQuestionByType(
@@ -284,11 +277,11 @@ describe("Secret Question Flow Tests", () => {
         );
         expect(secretQuestion).toBeDefined();
 
-        const pickedPromise = utils.waitForEvent<SecretQuestionPickedBroadcastData>(
+        const pickedPromise = scenario.waitForEvent<SecretQuestionPickedBroadcastData>(
           showmanSocket,
           SocketIOGameEvents.SECRET_QUESTION_PICKED
         );
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: secretQuestion!.id
         });
         await pickedPromise;
@@ -298,33 +291,33 @@ describe("Secret Question Flow Tests", () => {
         expect(transferState!.timer).toBeDefined();
 
         const transferPromises = [
-          utils.waitForEvent<SecretQuestionTransferBroadcastData>(
+          scenario.waitForEvent<SecretQuestionTransferBroadcastData>(
             showmanSocket,
             SocketIOGameEvents.SECRET_QUESTION_TRANSFER
           ),
-          utils.waitForEvent<SecretQuestionTransferBroadcastData>(
+          scenario.waitForEvent<SecretQuestionTransferBroadcastData>(
             playerSockets[0],
             SocketIOGameEvents.SECRET_QUESTION_TRANSFER
           ),
-          utils.waitForEvent<SecretQuestionTransferBroadcastData>(
+          scenario.waitForEvent<SecretQuestionTransferBroadcastData>(
             spectatorSocket,
             SocketIOGameEvents.SECRET_QUESTION_TRANSFER
           )
         ];
         const questionDataPromises = [
-          utils.waitForEvent<GameQuestionDataEventPayload>(
+          scenario.waitForEvent<GameQuestionDataEventPayload>(
             showmanSocket,
             SocketIOGameEvents.QUESTION_DATA
           ),
-          utils.waitForEvent<GameQuestionDataEventPayload>(
+          scenario.waitForEvent<GameQuestionDataEventPayload>(
             playerSockets[0],
             SocketIOGameEvents.QUESTION_DATA
           ),
-          utils.waitForEvent<GameQuestionDataEventPayload>(
+          scenario.waitForEvent<GameQuestionDataEventPayload>(
             playerSockets[1],
             SocketIOGameEvents.QUESTION_DATA
           ),
-          utils.waitForEvent<GameQuestionDataEventPayload>(
+          scenario.waitForEvent<GameQuestionDataEventPayload>(
             spectatorSocket,
             SocketIOGameEvents.QUESTION_DATA
           )
@@ -347,9 +340,7 @@ describe("Secret Question Flow Tests", () => {
         }
         expect(new Set(transferEvents.map((event) => event.toPlayerId)).size).toBe(1);
 
-        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
-          "Secret answer"
-        );
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe("Secret answer");
         expect("answerText" in playerQuestionData.data).toBe(false);
 
         for (const questionData of questionDataEvents) {
@@ -363,18 +354,16 @@ describe("Secret Question Flow Tests", () => {
         expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
         expect(answeringState!.secretQuestionData).toBeNull();
         expect(answeringState!.answeringPlayer).toBe(transferEvents[0].toPlayerId);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should fallback to direct answering with personalized question data when only one player is eligible", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1);
-      const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
-      const playerSocket = playerSockets[0];
-      const spectatorSocket = spectatorSockets[0];
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1);
+        const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
+        const playerSocket = playerSockets[0];
+        const spectatorSocket = spectatorSockets[0];
 
-      try {
         await utils.startGame(showmanSocket);
 
         const secretQuestion = await utils.findQuestionByType(
@@ -385,30 +374,28 @@ describe("Secret Question Flow Tests", () => {
         expect(secretQuestion).toBeDefined();
 
         const questionDataPromises = [
-          utils.waitForEvent<GameQuestionDataEventPayload>(
+          scenario.waitForEvent<GameQuestionDataEventPayload>(
             showmanSocket,
             SocketIOGameEvents.QUESTION_DATA
           ),
-          utils.waitForEvent<GameQuestionDataEventPayload>(
+          scenario.waitForEvent<GameQuestionDataEventPayload>(
             playerSocket,
             SocketIOGameEvents.QUESTION_DATA
           ),
-          utils.waitForEvent<GameQuestionDataEventPayload>(
+          scenario.waitForEvent<GameQuestionDataEventPayload>(
             spectatorSocket,
             SocketIOGameEvents.QUESTION_DATA
           )
         ];
 
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: secretQuestion!.id
         });
 
         const [showmanQuestionData, playerQuestionData, spectatorQuestionData] =
           await Promise.all(questionDataPromises);
 
-        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
-          "Secret answer"
-        );
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe("Secret answer");
         expect("answerText" in playerQuestionData.data).toBe(false);
         expect("answerText" in spectatorQuestionData.data).toBe(false);
 
@@ -418,9 +405,7 @@ describe("Secret Question Flow Tests", () => {
           spectatorQuestionData
         ]) {
           expect(questionData.timer).toBeDefined();
-          expect(questionData.questionEligiblePlayers).toEqual([
-            setup.playerUsers[0].id
-          ]);
+          expect(questionData.questionEligiblePlayers).toEqual([setup.playerUsers[0].id]);
         }
 
         const answeringState = await utils.getGameState(gameId);
@@ -428,17 +413,15 @@ describe("Secret Question Flow Tests", () => {
         expect(answeringState!.answeringPlayer).toBe(setup.playerUsers[0].id);
         expect(answeringState!.secretQuestionData).toBeNull();
         expect(answeringState!.currentQuestion).toBeDefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should fallback to showing with personalized question data when no players are eligible", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 1);
-      const { showmanSocket, spectatorSockets, gameId } = setup;
-      const spectatorSocket = spectatorSockets[0];
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 1);
+        const { showmanSocket, spectatorSockets, gameId } = setup;
+        const spectatorSocket = spectatorSockets[0];
 
-      try {
         await utils.startGame(showmanSocket);
 
         const secretQuestion = await utils.findQuestionByType(
@@ -449,26 +432,24 @@ describe("Secret Question Flow Tests", () => {
         expect(secretQuestion).toBeDefined();
 
         const questionDataPromises = [
-          utils.waitForEvent<GameQuestionDataEventPayload>(
+          scenario.waitForEvent<GameQuestionDataEventPayload>(
             showmanSocket,
             SocketIOGameEvents.QUESTION_DATA
           ),
-          utils.waitForEvent<GameQuestionDataEventPayload>(
+          scenario.waitForEvent<GameQuestionDataEventPayload>(
             spectatorSocket,
             SocketIOGameEvents.QUESTION_DATA
           )
         ];
 
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: secretQuestion!.id
         });
 
         const [showmanQuestionData, spectatorQuestionData] =
           await Promise.all(questionDataPromises);
 
-        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
-          "Secret answer"
-        );
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe("Secret answer");
         expect("answerText" in spectatorQuestionData.data).toBe(false);
         expect(showmanQuestionData.timer).toBeDefined();
         expect(spectatorQuestionData.timer).toEqual(showmanQuestionData.timer);
@@ -479,17 +460,15 @@ describe("Secret Question Flow Tests", () => {
         expect(showingState!.questionState).toBe(QuestionState.SHOWING);
         expect(showingState!.secretQuestionData).toBeNull();
         expect(showingState!.currentQuestion).toBeDefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should fallback to showing when secret transfer times out after all players leave", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
-      const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
-      const spectatorSocket = spectatorSockets[0];
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+        const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
+        const spectatorSocket = spectatorSockets[0];
 
-      try {
         await utils.startGame(showmanSocket);
 
         const secretQuestion = await utils.findQuestionByType(
@@ -499,13 +478,12 @@ describe("Secret Question Flow Tests", () => {
         );
         expect(secretQuestion).toBeDefined();
 
-        const pickedPromise =
-          utils.waitForEvent<SecretQuestionPickedBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.SECRET_QUESTION_PICKED
-          );
+        const pickedPromise = scenario.waitForEvent<SecretQuestionPickedBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.SECRET_QUESTION_PICKED
+        );
 
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: secretQuestion!.id
         });
 
@@ -515,16 +493,14 @@ describe("Secret Question Flow Tests", () => {
         await utils.leaveGame(playerSockets[1]);
         await utils.waitForActionsComplete(gameId);
 
-        const showmanQuestionDataPromise =
-          utils.waitForEvent<GameQuestionDataEventPayload>(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_DATA
-          );
-        const spectatorQuestionDataPromise =
-          utils.waitForEvent<GameQuestionDataEventPayload>(
-            spectatorSocket,
-            SocketIOGameEvents.QUESTION_DATA
-          );
+        const showmanQuestionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        const spectatorQuestionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          spectatorSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
 
         await testUtils.expireTimerAndWaitForAction(
           gameId,
@@ -536,9 +512,7 @@ describe("Secret Question Flow Tests", () => {
           spectatorQuestionDataPromise
         ]);
 
-        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
-          "Secret answer"
-        );
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe("Secret answer");
         expect("answerText" in spectatorQuestionData.data).toBe(false);
         expect(showmanQuestionData.timer).toBeDefined();
         expect(spectatorQuestionData.timer).toEqual(showmanQuestionData.timer);
@@ -547,16 +521,14 @@ describe("Secret Question Flow Tests", () => {
         expect(showingState!.questionState).toBe(QuestionState.SHOWING);
         expect(showingState!.secretQuestionData).toBeNull();
         expect(showingState!.currentQuestion).toBeDefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should reject transfer to player who joined after secret question picked", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, gameId } = setup;
 
-      try {
         await utils.startGame(showmanSocket);
 
         const secretQuestion = await utils.findQuestionByType(
@@ -565,12 +537,13 @@ describe("Secret Question Flow Tests", () => {
           PackageQuestionTransferType.ANY
         );
 
-        const secretQuestionPickedPromise = utils.waitForEvent<SecretQuestionPickedBroadcastData>(
-          showmanSocket,
-          SocketIOGameEvents.SECRET_QUESTION_PICKED
-        );
+        const secretQuestionPickedPromise =
+          scenario.waitForEvent<SecretQuestionPickedBroadcastData>(
+            showmanSocket,
+            SocketIOGameEvents.SECRET_QUESTION_PICKED
+          );
 
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: secretQuestion!.id
         });
 
@@ -581,41 +554,35 @@ describe("Secret Question Flow Tests", () => {
           userRepo
         );
 
-        try {
-          await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
-          await utils.waitForActionsComplete(gameId);
+        await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
+        await utils.waitForActionsComplete(gameId);
 
-          const game = await utils.getGameFromGameService(gameId);
-          expect(game.gameState.questionEligiblePlayers?.includes(lateJoinerUser.id)).toBe(false);
+        const game = await utils.getGameFromGameService(gameId);
+        expect(game.gameState.questionEligiblePlayers?.includes(lateJoinerUser.id)).toBe(false);
 
-          const errorPromise = utils.waitForEvent<{ message: string }>(
-            showmanSocket,
-            SocketIOEvents.ERROR
-          );
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
+          showmanSocket,
+          SocketIOEvents.ERROR
+        );
 
-          showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
-            targetPlayerId: lateJoinerUser.id
-          } satisfies SecretQuestionTransferInputData);
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+          targetPlayerId: lateJoinerUser.id
+        } satisfies SecretQuestionTransferInputData);
 
-          const error = await errorPromise;
-          const errorMessage = error.message;
-          expect(errorMessage.toLowerCase()).toContain("cannot participate");
+        const error = await errorPromise;
+        const errorMessage = error.message;
+        expect(errorMessage.toLowerCase()).toContain("cannot participate");
 
-          const transferState = await utils.getGameState(gameId);
-          expect(transferState!.questionState).toBe(QuestionState.SECRET_TRANSFER);
-        } finally {
-          await utils.disconnectAndCleanup(lateJoinerSocket);
-        }
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+        const transferState = await utils.getGameState(gameId);
+        expect(transferState!.questionState).toBe(QuestionState.SECRET_TRANSFER);
+      });
     });
 
     it("should handle secret question with ANY transfer type - transfer to another player", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      try {
         // Start game
         await utils.startGame(showmanSocket);
 
@@ -625,7 +592,7 @@ describe("Secret Question Flow Tests", () => {
         expect(secretQuestion).toBeDefined();
 
         // Set up event listeners
-        const secretQuestionPickedPromise = utils.waitForEvent(
+        const secretQuestionPickedPromise = scenario.waitForEvent(
           playerSockets[1],
           SocketIOGameEvents.SECRET_QUESTION_PICKED
         );
@@ -635,18 +602,18 @@ describe("Secret Question Flow Tests", () => {
         await secretQuestionPickedPromise;
 
         // Set up listeners for transfer and question data
-        const transferBroadcastPromise = utils.waitForEvent(
+        const transferBroadcastPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.SECRET_QUESTION_TRANSFER
         );
 
-        const questionDataPromise = utils.waitForEvent(
+        const questionDataPromise = scenario.waitForEvent(
           playerSockets[1],
           SocketIOGameEvents.QUESTION_DATA
         );
 
         // Player A transfers question to Player B
-        showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
           targetPlayerId: setup.playerUsers[1].id
         });
 
@@ -656,34 +623,36 @@ describe("Secret Question Flow Tests", () => {
         expect(transferEvent.fromPlayerId).toBe(setup.showmanUser.id);
         expect(transferEvent.toPlayerId).toBe(setup.playerUsers[1].id);
 
-        const answerShowStartPromise = utils.waitForEvent(
+        const answerShowStartPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.ANSWER_SHOW_START
         );
+        const answerResultPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
 
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 300,
           answerType: AnswerResultType.CORRECT
         });
 
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT);
+        await answerResultPromise;
         await answerShowStartPromise;
         await utils.skipShowAnswer(showmanSocket);
 
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.CHOOSING);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 
   describe("Secret Question Transfer Restrictions", () => {
     it("should prevent self-transfer when transferType is EXCEPT_CURRENT", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      try {
         await utils.startGame(showmanSocket);
 
         const secretQuestion = await utils.findQuestionByType(PackageQuestionType.SECRET, gameId);
@@ -691,12 +660,12 @@ describe("Secret Question Flow Tests", () => {
         expect(secretQuestion).toBeDefined();
 
         // Pick the secret question first
-        const secretPickedPromise = utils.waitForEvent(
+        const secretPickedPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.SECRET_QUESTION_PICKED
         );
 
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: secretQuestion!.id
         });
 
@@ -719,10 +688,10 @@ describe("Secret Question Flow Tests", () => {
         );
         expect(updatedState!.secretQuestionData!.pickerPlayerId).toBe(setup.playerUsers[0].id);
 
-        const errorPromise = utils.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
+        const errorPromise = scenario.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
 
         // Player[0] (who is now the picker) tries to transfer to themselves
-        playerSockets[0].emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
           targetPlayerId: setup.playerUsers[0].id // Transfer to self (picker)
         });
 
@@ -736,13 +705,13 @@ describe("Secret Question Flow Tests", () => {
         expect(stillTransferState!.secretQuestionData).toBeDefined();
 
         // But transfer to a different player should work
-        const transferPromise = utils.waitForEvent(
+        const transferPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.SECRET_QUESTION_TRANSFER
         );
 
         // Player[0] (picker) transfers to Player[1] - this should work
-        playerSockets[0].emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
           targetPlayerId: setup.playerUsers[1].id // Transfer to different player
         });
 
@@ -751,52 +720,48 @@ describe("Secret Question Flow Tests", () => {
         expect(transfer.fromPlayerId).toBe(setup.playerUsers[0].id);
         expect(transfer.toPlayerId).toBe(setup.playerUsers[1].id);
         expect(transfer.questionId).toBe(secretQuestion!.id);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should prevent transfer to invalid players", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      try {
         await utils.startGame(showmanSocket);
 
         const secretQuestion = await utils.findQuestionByType(PackageQuestionType.SECRET, gameId);
 
         expect(secretQuestion).toBeDefined();
 
-        const secretPickedPromise = utils.waitForEvent(
+        const secretPickedPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.SECRET_QUESTION_PICKED
         );
 
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: secretQuestion!.id
         });
 
         await secretPickedPromise;
 
         // Try to transfer to non-existent player
-        const errorPromise = utils.waitForEvent(showmanSocket, "error");
+        const errorPromise = scenario.waitForEvent(showmanSocket, "error");
 
-        showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
           targetPlayerId: 99999 // Invalid player ID
         });
 
         const error = await errorPromise;
         expect(error.message).toBeDefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should not send answer data to players while sending full data to showman", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      try {
         await utils.startGame(showmanSocket);
 
         const secretQuestion = await utils.findQuestionByType(PackageQuestionType.SECRET, gameId);
@@ -804,30 +769,30 @@ describe("Secret Question Flow Tests", () => {
         expect(secretQuestion).toBeDefined();
 
         // Pick the secret question
-        const secretPickedPromise = utils.waitForEvent(
+        const secretPickedPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.SECRET_QUESTION_PICKED
         );
 
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: secretQuestion!.id
         });
 
         await secretPickedPromise;
 
         // Set up promises to capture data sent to both showman and player
-        const showmanDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        const showmanDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
           showmanSocket,
           SocketIOGameEvents.QUESTION_DATA
         );
 
-        const playerDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        const playerDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
           playerSockets[0],
           SocketIOGameEvents.QUESTION_DATA
         );
 
         // Transfer question to player
-        showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
           targetPlayerId: setup.playerUsers[0].id
         });
 
@@ -851,9 +816,7 @@ describe("Secret Question Flow Tests", () => {
         expect((playerData.data as any).answerText).toBeUndefined();
         expect((playerData.data as any).answerFiles).toBeUndefined();
         expect((playerData.data as any).answerHint).toBeUndefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 });
