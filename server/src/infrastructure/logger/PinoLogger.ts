@@ -182,7 +182,17 @@ export class PinoLogger implements ILogger {
       closePromises.push(this.closeStream(stream, true));
     }
 
-    await Promise.all(closePromises);
+    const results = await Promise.allSettled(closePromises);
+    const failures = results
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .map((result) => result.reason as Error);
+
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        `Logger close failed: ${failures.map((error) => error.message).join("; ")}`
+      );
+    }
   }
 
   private initTerminalLogger(config: LoggerConfig): void {
