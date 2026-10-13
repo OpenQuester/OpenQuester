@@ -1,6 +1,10 @@
+import { serverNow } from "@/lib/clock";
+
+import { buildContentPlan, timerElapsed } from "./contentPlan";
 import type {
   AnsweredPlayer,
   ChatMessage,
+  ContentPlan,
   FinalRoundData,
   GameJoinData,
   GameState,
@@ -10,6 +14,22 @@ import type {
   ServerEvent,
   Timer,
 } from "./protocol";
+
+/**
+ * The content timeline on screen and the clock it runs on.
+ *
+ * Question content runs on the SHOWING timer (or the answering timer of a
+ * stake/secret winner); while someone buzzed in, it freezes where it was.
+ * Answer content runs on the reveal timer.
+ */
+export interface ContentClock {
+  kind: "question" | "answer";
+  plan: ContentPlan;
+  /** Null when the position is unknown (joined mid-answer): show the end. */
+  timer: Timer | null;
+  /** Position while frozen (someone is answering). */
+  frozenAtMs: number | null;
+}
 
 /**
  * Everything the client knows about one joined game.
@@ -40,6 +60,8 @@ export interface GameSession {
    * picker. Players may then try to pick; the server decides whose turn it is.
    */
   turnUnknown: boolean;
+  /** Question or answer content timeline, when there is one to play. */
+  content: ContentClock | null;
 }
 
 export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSession {
@@ -64,6 +86,58 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
       : {},
     version: 0,
     turnUnknown: false,
+    content: contentFromSnapshot(state),
+  };
+}
+
+/** The question's own plan, or one built locally when the server sent none. */
+function questionPlan(question: Question | null, sent: ContentPlan | null | undefined) {
+  if (sent !== undefined) return sent;
+  if (!question) return null;
+  return buildContentPlan({
+    text: question.text,
+    textOrder: question.textOrder,
+    files: question.questionFiles,
+  });
+}
+
+function answerPlan(data: GameState["answerShowData"]): ContentPlan | null {
+  if (!data) return null;
+  if (data.answerContentPlan !== undefined) return data.answerContentPlan;
+  return buildContentPlan({ files: data.answerFiles });
+}
+
+/** Stake/secret winners answer directly: the content runs on their timer. */
+function isDirectAnswer(s: GameState): boolean {
+  return (
+    s.questionState === "answering" &&
+    (s.stakeQuestionData?.winnerPlayerId != null ||
+      ((s.currentQuestion?.type === "secret" || s.currentQuestion?.type === "stake") &&
+        (s.answeredPlayers ?? []).length === 0))
+  );
+}
+
+function contentFromSnapshot(s: GameState): ContentClock | null {
+  if (s.questionState === "showing_answer") {
+    const plan = answerPlan(s.answerShowData);
+    return plan ? { kind: "answer", plan, timer: s.timer, frozenAtMs: null } : null;
+  }
+  if (s.questionState === "showing" || s.questionState === "answering") {
+    const plan = questionPlan(s.currentQuestion, s.questionContentPlan);
+    if (!plan) return null;
+    const running = s.questionState === "showing" || isDirectAnswer(s);
+    return { kind: "question", plan, timer: running ? s.timer : null, frozenAtMs: null };
+  }
+  return null;
+}
+
+/** Wall-clock start for the reveal timeline (its timer is not broadcast). */
+function localTimer(durationMs: number): Timer {
+  return {
+    startedAt: new Date(serverNow()).toISOString(),
+    durationMs,
+    elapsedMs: 0,
+    resumedAt: null,
   };
 }
 
@@ -147,6 +221,7 @@ function backToChoosing(session: GameSession): GameSession {
       timer: null,
     }),
     submittedAnswer: null,
+    content: null,
     players: session.players.map((p) => ({ ...p, mediaDownloaded: false })),
   };
 }
@@ -156,6 +231,7 @@ function onQuestionData(
   data: Question,
   timer: Timer,
   eligible?: number[] | null,
+  sentPlan?: ContentPlan | null,
 ) {
   const s = session.state;
   const stake = s.stakeQuestionData;
@@ -200,11 +276,27 @@ function onQuestionData(
       questionEligiblePlayers: eligible ?? s.questionEligiblePlayers ?? null,
     }),
     submittedAnswer: newPick ? null : session.submittedAnswer,
+    content: questionContent(session, questionState, data, timer, sentPlan),
     players:
       newPick && questionState === "media_downloading"
         ? session.players.map((p) => ({ ...p, mediaDownloaded: false }))
         : session.players,
   };
+}
+
+function questionContent(
+  session: GameSession,
+  questionState: GameState["questionState"],
+  question: Question,
+  timer: Timer,
+  sentPlan: ContentPlan | null | undefined,
+): ContentClock | null {
+  // Preloading: the plan and its timer arrive with media-download-status.
+  if (questionState === "media_downloading") return null;
+  // Re-sent after a (re)join: keep the snapshot's clock unless a plan came along.
+  if (session.content?.kind === "question" && sentPlan === undefined) return session.content;
+  const plan = questionPlan(question, sentPlan);
+  return plan ? { kind: "question", plan, timer, frozenAtMs: null } : null;
 }
 
 /** Applies one server event. Pure: never mutates `session`. */
@@ -275,17 +367,23 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       };
 
     case "game-pause":
-      return patchState(session, { isPaused: true, timer: event.payload.timer ?? s.timer });
+      return {
+        ...patchState(session, { isPaused: true, timer: event.payload.timer ?? s.timer }),
+        content: retime(session.content, event.payload.timer),
+      };
 
     case "game-unpause":
-      return patchState(session, { isPaused: false, timer: event.payload.timer ?? null });
+      return {
+        ...patchState(session, { isPaused: false, timer: event.payload.timer ?? null }),
+        content: retime(session.content, event.payload.timer),
+      };
 
     case "player-ready":
     case "player-unready":
       return patchState(session, { readyPlayers: event.payload.readyPlayers });
 
     case "media-download-status": {
-      const { playerId, mediaDownloaded, allPlayersReady, timer } = event.payload;
+      const { playerId, mediaDownloaded, allPlayersReady, timer, contentPlan } = event.payload;
       let players = session.players;
       if (allPlayersReady) {
         players = players.map((p) => (p.role === "player" ? { ...p, mediaDownloaded: true } : p));
@@ -294,7 +392,12 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       }
       const next = { ...session, players };
       if (allPlayersReady && s.questionState === "media_downloading") {
-        return patchState(next, { questionState: "showing", timer: timer ?? s.timer });
+        const plan = questionPlan(s.currentQuestion, contentPlan);
+        const clock = timer ?? s.timer;
+        return {
+          ...patchState(next, { questionState: "showing", timer: clock }),
+          content: plan ? { kind: "question", plan, timer: clock, frozenAtMs: null } : null,
+        };
       }
       return next;
     }
@@ -305,6 +408,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         event.payload.data,
         event.payload.timer,
         event.payload.questionEligiblePlayers,
+        event.payload.contentPlan,
       );
 
     case "question-answer":
@@ -315,6 +419,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           timer: event.payload.timer,
         }),
         submittedAnswer: null,
+        content: freeze(session.content, s.isPaused),
       };
 
     case "answer-submitted":
@@ -342,6 +447,11 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         players,
         submittedAnswer: null,
         lastResult: { ...result, key: session.version + 1 },
+        // The server restores the showing timer: the content picks up there.
+        content:
+          reopened && session.content?.kind === "question"
+            ? { ...session.content, timer: event.payload.timer, frozenAtMs: null }
+            : session.content,
       };
     }
 
@@ -351,15 +461,26 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       if (s.currentRound?.type === "final") {
         return patchState(session, { answerShowData: data });
       }
-      return patchState(session, {
-        questionState: "showing_answer",
-        answerShowData: data,
-        answeringPlayer: null,
-        currentTurnPlayerId: data.nextTurnPlayerId ?? s.currentTurnPlayerId,
-        currentRound: markQuestionPlayed(s.currentRound, s.currentQuestion?.id),
-        skippedPlayers: null,
-        timer: null,
-      });
+      const revealPlan = answerPlan(data);
+      return {
+        ...patchState(session, {
+          questionState: "showing_answer",
+          answerShowData: data,
+          answeringPlayer: null,
+          currentTurnPlayerId: data.nextTurnPlayerId ?? s.currentTurnPlayerId,
+          currentRound: markQuestionPlayed(s.currentRound, s.currentQuestion?.id),
+          skippedPlayers: null,
+          timer: null,
+        }),
+        content: revealPlan
+          ? {
+              kind: "answer",
+              plan: revealPlan,
+              timer: localTimer(revealPlan.totalMs),
+              frozenAtMs: null,
+            }
+          : null,
+      };
     }
 
     case "answer-show-start":
@@ -617,4 +738,19 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
     default:
       return session;
   }
+}
+
+/** Stops the question timeline where it is (someone buzzed in). */
+function freeze(content: ContentClock | null, paused: boolean): ContentClock | null {
+  if (!content || content.kind !== "question" || content.frozenAtMs != null) return content;
+  return {
+    ...content,
+    frozenAtMs: content.timer ? timerElapsed(content.timer, paused) : content.plan.totalMs,
+  };
+}
+
+/** A pause/unpause re-sends the running timer; a frozen timeline stays put. */
+function retime(content: ContentClock | null, timer: Timer | null): ContentClock | null {
+  if (!content || content.frozenAtMs != null || !timer || !content.timer) return content;
+  return { ...content, timer };
 }

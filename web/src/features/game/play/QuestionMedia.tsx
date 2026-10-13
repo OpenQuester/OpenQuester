@@ -8,10 +8,11 @@ import { Spinner } from "@/ui/Spinner";
 import { VolumeIcon } from "@/ui/icons";
 
 /**
- * Question or answer media. Audio and video have no player controls: they play
- * by themselves while `playing` is true, so everybody sees and hears the same
- * thing at the same moment, and they stop while someone answers. Every file
- * sits in a fixed frame, so nothing jumps when it finishes loading.
+ * Every file of a question at once, in order. Only the showman's preview uses
+ * this; the game itself plays content one step at a time (ContentStage).
+ * Audio and video have no player controls: they play by themselves while
+ * `playing` is true, so everybody sees and hears the same thing at the same
+ * moment. Every file sits in a fixed frame, so nothing jumps when it loads.
  */
 export function QuestionMedia({ files, playing }: { files: QuestionFile[]; playing: boolean }) {
   const sorted = [...files].filter((f) => f.file.link).sort((a, b) => a.order - b.order);
@@ -28,7 +29,16 @@ export function QuestionMedia({ files, playing }: { files: QuestionFile[]; playi
 const FRAME =
   "relative mx-auto flex aspect-video max-h-[min(55dvh,560px)] 3xl:max-h-[min(58dvh,860px)] w-full items-center justify-center overflow-hidden rounded-lg border border-line";
 
-function MediaItem({ file, playing }: { file: QuestionFile; playing: boolean }) {
+export function MediaItem({
+  file,
+  playing,
+  positionMs,
+}: {
+  file: QuestionFile;
+  playing: boolean;
+  /** Where playback should be now (ms into the file), to stay in sync. */
+  positionMs?: () => number;
+}) {
   const { t } = useTranslation();
   const src = file.file.link!;
   const type = file.file.type;
@@ -88,6 +98,7 @@ function MediaItem({ file, playing }: { file: QuestionFile; playing: boolean }) 
       src={src}
       type={type === "video" ? "video" : "audio"}
       playing={playing}
+      positionMs={positionMs}
       loaded={loaded}
       onLoaded={() => setLoaded(true)}
       onFailed={() => setFailed(true)}
@@ -101,6 +112,7 @@ function Playback({
   src,
   type,
   playing,
+  positionMs,
   loaded,
   onLoaded,
   onFailed,
@@ -109,6 +121,7 @@ function Playback({
   src: string;
   type: "video" | "audio";
   playing: boolean;
+  positionMs?: () => number;
   loaded: boolean;
   onLoaded: () => void;
   onFailed: () => void;
@@ -118,6 +131,11 @@ function Playback({
   const volume = useSettings((s) => s.volume);
   const update = useSettings((s) => s.update);
   const ref = useRef<HTMLMediaElement | null>(null);
+  // Latest sync position, read when playback (re)starts.
+  const positionRef = useRef(positionMs);
+  useEffect(() => {
+    positionRef.current = positionMs;
+  });
   // Browsers block sound until the page has been tapped once. Then we play
   // muted, in sync with everyone, and offer one tap to turn the sound on.
   const [blocked, setBlocked] = useState(false);
@@ -129,6 +147,16 @@ function Playback({
     if (!playing) {
       el.pause();
       return;
+    }
+    // Joined late or resumed: jump to where everyone else is.
+    const target = positionRef.current ? positionRef.current() / 1000 : null;
+    if (target != null && Number.isFinite(target) && Math.abs(el.currentTime - target) > 1.5) {
+      const seek = () => {
+        if (Number.isFinite(el.duration) && target >= el.duration) return;
+        el.currentTime = target;
+      };
+      if (el.readyState >= 1) seek();
+      else el.addEventListener("loadedmetadata", seek, { once: true });
     }
     el.play().catch((err: unknown) => {
       if ((err as DOMException)?.name !== "NotAllowedError") return;

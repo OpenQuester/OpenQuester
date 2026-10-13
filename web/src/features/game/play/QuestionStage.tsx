@@ -7,6 +7,7 @@ import { formatScore, formatSigned } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
 
 import { useGame, useSession } from "../GameContext";
+import { ContentStage } from "./ContentStage";
 import { QuestionMedia } from "./QuestionMedia";
 
 /** Question content, the reveal, and (for the showman) the private answer panel. */
@@ -25,6 +26,12 @@ export function QuestionStage() {
   const reveal = phase === "reveal";
   const gated = phase === "media" && role !== "showman";
   const playing = phase === "showing" && !s.isPaused;
+  const content = session.content;
+  const showmanPreview = phase === "media" && role === "showman";
+  // A sequenced text appears in its own step instead of under the media.
+  const textIsStep =
+    content?.kind === "question" &&
+    content.plan.steps.some((st) => st.items.some((i) => i.kind === "text"));
   const price = s.stakeQuestionData?.highestBid ?? q?.price ?? meta?.question.price ?? null;
 
   return (
@@ -51,10 +58,23 @@ export function QuestionStage() {
             className="flex w-full max-w-[920px] flex-col items-center gap-5 oq-pop 3xl:max-w-[1280px] 4xl:max-w-[1600px]"
             key={q?.id ?? "q"}
           >
-            {q?.questionFiles && q.questionFiles.length > 0 && (
+            {showmanPreview ? (
+              <QuestionMedia files={q?.questionFiles ?? []} playing={false} />
+            ) : (
+              content?.kind === "question" && (
+                <ContentStage
+                  content={content}
+                  files={q?.questionFiles ?? []}
+                  text={q?.text}
+                  paused={s.isPaused}
+                />
+              )
+            )}
+            {/* Fallback (no timeline), the showman's preview, or a caption next to the media. */}
+            {!content && !showmanPreview && q?.questionFiles && q.questionFiles.length > 0 && (
               <QuestionMedia files={q.questionFiles} playing={playing} />
             )}
-            {q?.text && (
+            {q?.text && (showmanPreview || !textIsStep) && (
               <p
                 className="m-0 text-center font-display text-[clamp(22px,3.4vw,38px)] font-semibold 3xl:text-[clamp(40px,2.4vw,64px)] leading-tight [overflow-wrap:anywhere]"
                 data-testid="question-text"
@@ -240,8 +260,15 @@ function AnswerReveal() {
           {answerText}
         </p>
       )}
-      {data?.answerFiles && data.answerFiles.length > 0 && (
-        <QuestionMedia files={data.answerFiles} playing />
+      {session.content?.kind === "answer" ? (
+        <ContentStage
+          content={session.content}
+          files={data?.answerFiles ?? []}
+          paused={s.isPaused}
+        />
+      ) : (
+        data?.answerFiles &&
+        data.answerFiles.length > 0 && <QuestionMedia files={data.answerFiles} playing />
       )}
       <p className="m-0 text-lg text-soft 3xl:text-2xl">
         {winner

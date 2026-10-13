@@ -233,7 +233,7 @@ async function uploadFiles(uploadLinks, files) {
   }
 }
 
-/** One video, one image and one audio question: media sync and playback checks. */
+/** Video, image and audio questions plus a text → video → image sequence. */
 export async function seedMediaPackage(base, title = "Media check") {
   const cookie = await author(base);
   const clip = readFileSync(new URL("../fixtures/clip.webm", import.meta.url));
@@ -271,6 +271,14 @@ export async function seedMediaPackage(base, title = "Media check") {
                   }),
                   q(2, 300, "Which note is this?", "A", {
                     questionFiles: media(md5(clip), "audio"),
+                  }),
+                  // SIGame-style sequence: the text alone, then the clip, then the picture.
+                  q(3, 400, "Watch closely, then name the colour", "Blue", {
+                    textOrder: 0,
+                    questionFiles: [
+                      { file: { md5: md5(clip), type: "video" }, displayTime: null, order: 1 },
+                      { file: { md5: md5(png), type: "image" }, displayTime: 3000, order: 2 },
+                    ],
                   }),
                 ],
               },

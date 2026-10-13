@@ -275,11 +275,12 @@ export class GameConnection {
     const meNow = session.players.find((p) => p.meta.id === this.myId);
     if (meNow?.role !== "player") return;
     const token = ++this.mediaToken;
-    void preloadQuestionMedia(session.state.currentQuestion).then(() => {
+    void preloadQuestionMedia(session.state.currentQuestion).then((mediaDurations) => {
       if (token !== this.mediaToken || this.closed) return;
       const latest = useGameStore.getState().session;
       if (latest?.state.questionState !== "media_downloading") return;
-      this.socket?.emit("media-downloaded");
+      if (mediaDurations.length > 0) this.socket?.emit("media-downloaded", { mediaDurations });
+      else this.socket?.emit("media-downloaded");
     });
   }
 }

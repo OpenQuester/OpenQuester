@@ -89,10 +89,40 @@ export interface PackageFile {
   link?: string | null;
 }
 
+export type ContentPlacement = "screen" | "background";
+
 export interface QuestionFile {
   file: PackageFile;
   displayTime: number | null;
   order: number;
+  /** Defaults to screen. Background is audio that plays under the stage. */
+  placement?: ContentPlacement;
+  /** When false, the next item is shown together with this one. Defaults to true. */
+  waitForFinish?: boolean;
+}
+
+export interface ContentPlanItem {
+  kind: "text" | "file";
+  /** File order for file items; the question's textOrder for the text item. */
+  order: number;
+  placement: ContentPlacement;
+  durationMs: number;
+}
+
+export interface ContentStep {
+  startMs: number;
+  durationMs: number;
+  items: ContentPlanItem[];
+}
+
+/**
+ * Server-timed content timeline. The position on it is the phase timer's
+ * elapsed time, so every client shows the same step, also after a pause, an
+ * answer or a reconnect.
+ */
+export interface ContentPlan {
+  steps: ContentStep[];
+  totalMs: number;
 }
 
 export interface ChoiceAnswer {
@@ -109,6 +139,8 @@ export interface Question {
   price: number | null;
   isHidden: boolean;
   text?: string | null;
+  /** Position of the text in the content order; null keeps it as a caption. */
+  textOrder?: number | null;
   /** Showman only. */
   answerHint?: string | null;
   /** Showman only until the answer is revealed. */
@@ -139,6 +171,7 @@ export interface AnswerShowData {
   answerFiles: QuestionFile[] | null;
   answerText: string | null;
   nextTurnPlayerId: number | null;
+  answerContentPlan?: ContentPlan | null;
   answerResult?: AnsweredPlayer;
 }
 
@@ -196,6 +229,7 @@ export interface GameState {
   answeredPlayers: AnsweredPlayer[] | null;
   readyPlayers: number[] | null;
   timer: Timer | null;
+  questionContentPlan?: ContentPlan | null;
   finalRoundData?: FinalRoundData | null;
   currentTurnPlayerId?: number | null;
   skippedPlayers: number[] | null;
@@ -249,8 +283,14 @@ export interface ServerEvents {
     mediaDownloaded: boolean;
     allPlayersReady: boolean;
     timer: Timer | null;
+    contentPlan?: ContentPlan | null;
   };
-  "question-data": { data: Question; timer: Timer; questionEligiblePlayers?: number[] | null };
+  "question-data": {
+    data: Question;
+    timer: Timer;
+    questionEligiblePlayers?: number[] | null;
+    contentPlan?: ContentPlan | null;
+  };
   "question-answer": { userId: number; timer: Timer };
   "answer-submitted": { answerText: string | null };
   "answer-result": { answerResult: AnsweredPlayer; timer: Timer | null };
@@ -327,7 +367,7 @@ export interface ClientEvents {
   "next-round": undefined;
   "player-ready": undefined;
   "player-unready": undefined;
-  "media-downloaded": undefined;
+  "media-downloaded": { mediaDurations?: { md5: string; durationMs: number }[] } | undefined;
   "question-pick": { questionId: number };
   "question-answer": undefined;
   "answer-submitted": { answerText: string | null };

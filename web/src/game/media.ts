@@ -12,16 +12,29 @@ const PRELOAD_TIMEOUT_MS = 45_000;
  * says everyone is ready. Resolves even on failure: a broken file must never
  * block the game, the server's media timeout is the backstop.
  */
-export async function preloadQuestionMedia(question: Question | null | undefined): Promise<void> {
-  const files = (question?.questionFiles ?? []).filter((f) => f.file.link);
-  if (files.length === 0) return;
-  await Promise.race([
-    Promise.all(files.map(preloadFile)),
-    new Promise<void>((resolve) => window.setTimeout(resolve, PRELOAD_TIMEOUT_MS)),
-  ]);
+export interface MediaDuration {
+  md5: string;
+  durationMs: number;
 }
 
-function preloadFile(file: QuestionFile): Promise<void> {
+/**
+ * Also reads each audio/video length: the server uses the longest report to
+ * time the question's content steps, so a clip plays to its end.
+ */
+export async function preloadQuestionMedia(
+  question: Question | null | undefined,
+): Promise<MediaDuration[]> {
+  const files = (question?.questionFiles ?? []).filter((f) => f.file.link);
+  if (files.length === 0) return [];
+  const durations: MediaDuration[] = [];
+  await Promise.race([
+    Promise.all(files.map((f) => preloadFile(f, durations))),
+    new Promise<void>((resolve) => window.setTimeout(resolve, PRELOAD_TIMEOUT_MS)),
+  ]);
+  return durations;
+}
+
+function preloadFile(file: QuestionFile, durations: MediaDuration[]): Promise<void> {
   const url = file.file.link!;
   return new Promise<void>((resolve) => {
     if (file.file.type === "image") {
@@ -41,6 +54,9 @@ function preloadFile(file: QuestionFile): Promise<void> {
     el.muted = true;
     const done = () => {
       el.oncanplaythrough = el.onerror = null;
+      if (Number.isFinite(el.duration) && el.duration > 0) {
+        durations.push({ md5: file.file.md5, durationMs: Math.round(el.duration * 1000) });
+      }
       resolve();
     };
     el.oncanplaythrough = done;

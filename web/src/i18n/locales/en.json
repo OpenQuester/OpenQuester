@@ -384,7 +384,10 @@
     "mediaLoading": "Loading…",
     "audioPlaying": "Listen",
     "audioWaiting": "The audio plays when the question opens",
-    "enableSound": "Tap to turn the sound on"
+    "enableSound": "Tap to turn the sound on",
+    "step": "Part {{current}} of {{total}}",
+    "stepsLabel": "Question parts",
+    "recap": "Question: {{text}}"
   },
   "showman": {
     "panel": "Only you can see this",
@@ -825,6 +828,7 @@
       "textPlaceholder": "What players see and the showman reads out",
       "questionMedia": "Shown with the question",
       "questionMediaHelp": "Drop images, audio or video here. A question needs text or media.",
+      "textFirst": "Show the text first, then each file one at a time",
       "answer": "Correct answer",
       "answerHelp": "Players see this after the showman judges.",
       "hint": "Hint for the showman",
