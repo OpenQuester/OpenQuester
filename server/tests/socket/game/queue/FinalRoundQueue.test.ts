@@ -3,7 +3,7 @@ import { container } from "tsyringe";
 
 import { GameActionLockService } from "application/services/lock/GameActionLockService";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
-import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
+import { FinalAnswerLossReason, FinalAnswerType } from "domain/enums/FinalRoundTypes";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -27,6 +27,11 @@ import {
   releaseHeldGameLock
 } from "tests/socket/game/utils/QueueTestHelpers";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
+import {
+  expectFinalReviews,
+  expectPersistedFinalAnswers,
+  type FinalReviewExpectation
+} from "tests/socket/game/utils/FinalRoundTestAssertions";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { TestUtils } from "tests/utils/TestUtils";
@@ -509,12 +514,6 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(eventOrder(showmanEvents)).toEqual(expectedDrainEventOrder);
           expect(eventOrder(spectatorEvents)).toEqual(expectedDrainEventOrder);
 
-          const timeoutAnswers = [showmanEvents[0], showmanEvents[2]].map(
-            (event) => event.data as FinalAnswerSubmitOutputData
-          );
-          const timeoutAutoLosses = [showmanEvents[1], showmanEvents[3]].map(
-            (event) => event.data as SocketIOFinalAutoLossEventPayload
-          );
           const expectedTimeoutAnswers = [
             { playerId: playerUsers[1].id },
             { playerId: playerUsers[2].id }
@@ -524,25 +523,30 @@ describe("Game Lock and Queue Mechanics", () => {
             reason: FinalAnswerLossReason.TIMEOUT
           }));
 
-          expect(timeoutAnswers).toEqual(expectedTimeoutAnswers);
-          expect(timeoutAutoLosses).toEqual(expectedTimeoutAutoLosses);
-
-          const submitEnd = showmanEvents[4].data as FinalSubmitEndEventData;
-          expect(submitEnd.phase).toBe(FinalRoundPhase.ANSWERING);
-          expect(submitEnd.nextPhase).toBe(FinalRoundPhase.REVIEWING);
-          expect(submitEnd.allReviews).toHaveLength(3);
-          expect(submitEnd.allReviews?.map((review) => review.answerText)).toEqual(
-            expect.arrayContaining(["Answered before queued timer", "", ""])
-          );
-          expect(showmanEvents[5].data).toEqual({
-            playerId: playerUsers[0].id,
-            newScore: drainTriggerScore
-          } satisfies PlayerScoreChangeBroadcastData);
+          const expectedReviews: FinalReviewExpectation[] = playerUsers.map((player, index) => ({
+            playerId: player.id,
+            answerText: index === 0 ? "Answered before queued timer" : "",
+            isCorrect: index === 0 ? null : false,
+            answerType: index === 0 ? FinalAnswerType.PENDING : FinalAnswerType.AUTO_LOSS
+          }));
+          for (const events of [showmanEvents, spectatorEvents]) {
+            expect([events[0].data, events[2].data]).toEqual(expectedTimeoutAnswers);
+            expect([events[1].data, events[3].data]).toEqual(expectedTimeoutAutoLosses);
+            const submitEnd = events[4].data as FinalSubmitEndEventData;
+            expect(submitEnd.phase).toBe(FinalRoundPhase.ANSWERING);
+            expect(submitEnd.nextPhase).toBe(FinalRoundPhase.REVIEWING);
+            expectFinalReviews(submitEnd.allReviews, expectedReviews);
+            expect(events[5].data).toEqual({
+              playerId: playerUsers[0].id,
+              newScore: drainTriggerScore
+            } satisfies PlayerScoreChangeBroadcastData);
+          }
           expect(durationMs).toBeLessThanOrEqual(QUEUE_DRAIN_BUDGET_MS);
 
           const finalState = await testUtils.getGameState(gameId);
           expect(finalState.questionState).toBe(QuestionState.REVIEWING);
           expect(finalState.finalRoundData?.phase).toBe(FinalRoundPhase.REVIEWING);
+          expectPersistedFinalAnswers(finalState.finalRoundData?.answers, expectedReviews);
 
           const finalGame = await utils.getGameFromGameService(gameId);
           const scoredPlayer = finalGame.players.find(

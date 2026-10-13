@@ -248,6 +248,14 @@ after `SHOWING`, must neither mutate readiness nor broadcast status.
 
 ## Static contract checks
 
+Permission cases must establish the valid game phase and payload before testing a role guard,
+then check the exact rejection, accepted-action completion, absence of broadcasts, and unchanged
+persisted state/scores. Statistics cases must assert the identity and role of the actor actually
+joined to the game. Final timeout reviews compare exact per-player text, correctness, and answer
+type for each recipient, plus persisted answers; `arrayContaining` does not enforce duplicate
+multiplicity. `FinalRoundTestAssertions.test.ts` keeps correct-flow and controlled-corruption
+checks for those shared assertions, independently of real transport verification.
+
 `tests/e2e/contracts/SocketActionContracts.test.ts` is a fast wiring guard for the socket action map
 and handler registration. It complements, but does not replace, real Socket.IO transport E2E
 coverage.

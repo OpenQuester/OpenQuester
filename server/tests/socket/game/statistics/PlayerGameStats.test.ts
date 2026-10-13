@@ -106,16 +106,19 @@ describe("Player Game Statistics Tests", () => {
     });
 
     it("should not initialize session for spectators", async () => {
-      await suite.scenario(async () => {
+      await suite.scenario(async (scenario) => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 1);
 
         const gameId = setup.gameId;
-
-        // Since we don't have spectator user info in setup, create one manually
-        const { user: spectatorUser } = await utils.createGameClient(app, userRepo);
+        const spectatorId = await utils.getUserIdFromSocket(setup.spectatorSockets[0]);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        const game = await utils.getGameFromGameService(gameId);
+        expect(game.getPlayer(spectatorId, { fetchDisconnected: false })?.role).toBe(
+          PlayerRole.SPECTATOR
+        );
 
         // Verify no session was created for spectator
-        const sessionData = await playerGameStatsRepository.getStats(gameId, spectatorUser.id);
+        const sessionData = await playerGameStatsRepository.getStats(gameId, spectatorId);
 
         expect(sessionData).toBeNull();
       });
