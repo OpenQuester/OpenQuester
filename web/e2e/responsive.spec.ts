@@ -83,6 +83,14 @@ test.describe("layout on this device", () => {
       expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.right).toBeLessThanOrEqual(viewport.width);
     }
+
+    // A missing media file is reported, not shown as an empty question.
+    await page.getByTestId("board-cell").first().click();
+    await expect(page.getByTestId("media-failed")).toBeVisible({ timeout: 20_000 });
+    await expect(host.page.getByTestId("media-failed")).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await shot(host.page, `broken-media-showman`);
+    await shot(page, `broken-media-${test.info().project.name}`);
     await host.context.close();
   });
 });

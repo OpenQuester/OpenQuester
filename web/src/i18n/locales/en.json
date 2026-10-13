@@ -283,7 +283,8 @@
     "spectate": "Switch to spectator",
     "leave": "Leave game",
     "skipReveal": "Skip the answer",
-    "managePlayers": "Manage players"
+    "managePlayers": "Manage players",
+    "hostShort": "Host"
   },
   "keys": {
     "space": "Space"
@@ -346,7 +347,14 @@
     "noRiskHelp": "No risk: a wrong answer costs nothing",
     "options": "Answer options",
     "optionsSoon": "Answer options appear in a moment…",
-    "showmanPreview": "Only you can see this until every player has loaded it."
+    "showmanPreview": "Only you can see this until every player has loaded it.",
+    "mediaFailed": {
+      "image": "Couldn't load the image",
+      "video": "Couldn't load the video",
+      "audio": "Couldn't load the audio"
+    },
+    "mediaFailedHelp": "The file server isn't responding. The showman can read the question out loud or skip it.",
+    "openFile": "Open the file"
   },
   "showman": {
     "panel": "Only you can see this",

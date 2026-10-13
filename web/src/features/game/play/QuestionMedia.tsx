@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useSettings } from "@/features/settings/settingsStore";
@@ -27,6 +27,7 @@ function MediaItem({ file, playing }: { file: QuestionFile; playing: boolean }) 
   const volume = useSettings((s) => s.volume);
   const ref = useRef<HTMLMediaElement | null>(null);
   const src = file.file.link!;
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -36,12 +37,31 @@ function MediaItem({ file, playing }: { file: QuestionFile; playing: boolean }) 
     else el.pause();
   }, [playing, volume]);
 
+  if (failed) {
+    // A broken file must not look like an empty question: say so, offer the link.
+    return (
+      <div
+        role="alert"
+        className="flex min-h-40 w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-danger/50 bg-danger-surface p-6 text-center"
+        data-testid="media-failed"
+      >
+        <span className="font-semibold text-danger">
+          {t(`question.mediaFailed.${file.file.type}`)}
+        </span>
+        <span className="text-sm text-soft">{t("question.mediaFailedHelp")}</span>
+        <a href={src} target="_blank" rel="noreferrer" className="text-sm">
+          {t("question.openFile")}
+        </a>
+      </div>
+    );
+  }
   if (file.file.type === "image") {
     return (
       <img
         src={src}
         alt={t("question.image")}
-        className="mx-auto max-h-[min(52dvh,560px)] w-auto max-w-full rounded-lg border border-line object-contain"
+        onError={() => setFailed(true)}
+        className="mx-auto max-h-[min(55dvh,560px)] min-h-32 w-full max-w-full rounded-lg border border-line bg-surface object-contain"
       />
     );
   }
@@ -55,7 +75,8 @@ function MediaItem({ file, playing }: { file: QuestionFile; playing: boolean }) 
         playsInline
         controls
         preload="auto"
-        className="mx-auto max-h-[min(52dvh,560px)] w-full max-w-full rounded-lg border border-line bg-black"
+        onError={() => setFailed(true)}
+        className="mx-auto aspect-video max-h-[min(52dvh,560px)] w-full max-w-full rounded-lg border border-line bg-black"
       />
     );
   }
@@ -71,6 +92,7 @@ function MediaItem({ file, playing }: { file: QuestionFile; playing: boolean }) 
         src={src}
         controls
         preload="auto"
+        onError={() => setFailed(true)}
         className="w-full"
         aria-label={t("question.audio")}
       />

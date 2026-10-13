@@ -170,7 +170,7 @@ function ShowmanPanel() {
   return (
     <aside
       aria-label={t("showman.panel")}
-      className="flex w-full shrink-0 flex-col gap-3 rounded-lg border border-accent-line bg-accent-surface p-5 lg:w-[320px]"
+      className="flex w-full shrink-0 flex-col gap-2 rounded-lg border border-accent-line bg-accent-surface p-4 lg:w-[320px] lg:gap-3 lg:p-5"
       data-testid="showman-panel"
     >
       <span className="text-xs font-semibold uppercase tracking-wider text-accent-strong">
@@ -179,7 +179,7 @@ function ShowmanPanel() {
       <div className="flex flex-col gap-1">
         <span className="text-sm text-muted">{t("showman.answer")}</span>
         <span
-          className="text-xl font-semibold [overflow-wrap:anywhere]"
+          className="text-lg font-semibold [overflow-wrap:anywhere] lg:text-xl"
           data-testid="showman-answer"
         >
           {q?.answerText || t("showman.noAnswerText")}

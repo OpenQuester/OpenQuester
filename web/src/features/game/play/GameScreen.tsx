@@ -109,8 +109,10 @@ export function GameScreen() {
                 className="border-accent-line text-accent-strong"
                 onClick={() => setMenuOpen(true)}
                 data-testid="host-tools"
+                aria-label={t("menu.host")}
               >
-                {t("menu.host")}
+                <span className="sm:hidden">{t("menu.hostShort")}</span>
+                <span className="hidden sm:inline">{t("menu.host")}</span>
               </Button>
             )}
             {role === "showman" && phase !== "finished" && (

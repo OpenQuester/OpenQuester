@@ -189,6 +189,14 @@ export async function seedBigPackage(base, title = "Big board") {
     ),
   }));
   themes[4].questions[9].price = 10;
+  // A file that is never uploaded: the app must show a clear "couldn't load" state.
+  themes[0].questions[0].questionFiles = [
+    {
+      file: { md5: "0123456789abcdef0123456789abcdef", type: "image" },
+      displayTime: null,
+      order: 0,
+    },
+  ];
   const res = await fetch(`${base}/v1/packages`, {
     method: "POST",
     headers: { "content-type": "application/json", cookie },
