@@ -86,7 +86,8 @@ export function Board() {
                         stacked
                           ? "min-h-12 text-base"
                           : "min-h-14 text-lg sm:min-h-16 sm:text-2xl lg:min-h-20 lg:text-3xl 3xl:min-h-24 3xl:text-4xl 4xl:min-h-28 4xl:text-5xl",
-                        q.isPlayed && "border border-line bg-transparent text-transparent",
+                        q.isPlayed &&
+                          "border border-line bg-transparent text-ghost line-through opacity-60",
                         !q.isPlayed &&
                           can.ok &&
                           "border border-accent-line bg-surface-3 text-accent-strong hover:bg-accent-surface hover:border-accent",
@@ -95,7 +96,7 @@ export function Board() {
                           "cursor-default border border-line-strong bg-surface-2 text-soft",
                       )}
                     >
-                      {q.isPlayed ? "" : q.price != null ? formatScore(q.price) : "?"}
+                      {q.price != null ? formatScore(q.price) : "?"}
                     </button>
                   </div>
                 );

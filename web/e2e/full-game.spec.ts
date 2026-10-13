@@ -153,6 +153,10 @@ test.describe("full game", () => {
     await alice.page.keyboard.press("Escape");
 
     // ── No-risk question: a wrong answer costs nothing ─────────────────────
+    // Played questions keep their price on the board, but can't be picked.
+    const played = alice.page.getByRole("button", { name: "Capitals, 100, already played" });
+    await expect(played).toHaveText("100");
+    await expect(played).toBeDisabled();
     await cell(host.page, "Capitals", 300).click();
     await expectPhase(all, "Ready to buzz");
     await bob.page.keyboard.press("Space");
