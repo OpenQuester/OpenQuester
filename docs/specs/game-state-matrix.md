@@ -81,6 +81,17 @@ When changing gameplay state, make sure:
 5. New public event/payload changes are reflected in `openapi/schema.json`.
 6. Tests cover invalid roles, invalid phases, and race-sensitive behavior when applicable.
 
+## Rules confirmed while building the web client
+
+- A question ends as soon as nobody can still buzz: every eligible player has
+  either answered or passed. A pass after someone else's wrong answer reveals
+  the answer immediately instead of waiting for the timer.
+- When the showman picks a stake or secret question, it belongs to the player
+  whose turn it was: they make the opening bid or choose the recipient. The
+  showman never bids, receives or answers.
+- `start` carries `currentTurnPlayerId`, so every client shows who picks first.
+- The showman's copy of the final question includes the answer for judging.
+
 ## Common disabled reason categories
 
 Use consistent categories in UI copy and server/client logic:

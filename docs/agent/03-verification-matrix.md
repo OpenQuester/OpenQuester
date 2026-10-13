@@ -48,6 +48,19 @@ Backend test rules:
   Preserve Jest JSON and the real exit code when comparing runs. Missing services
   or log permissions are environment failures; do not classify them as game bugs.
 
+## Web app checks
+
+Run from `web/`. See `web/AGENTS.md`.
+
+| Change type | Minimum checks | Stronger checks |
+|---|---|---|
+| Component/layout change | `npm run typecheck`, `npm run lint`, `npm test` | `npm run e2e:full` (all three device projects) |
+| Game reducer/selectors/socket client | `npm test` | `npm run e2e:full` |
+| Public contract change (`openapi/schema.json`) | `npm run gen:api`, `npm run check:api`, `npm run typecheck` | `npm run e2e:full` |
+| Backend gameplay change the web app relies on | backend checks above | `npm run e2e:full` from `web/` (plays a full game against the changed server) |
+
+`npm run e2e:full` needs Docker: it starts Postgres, Redis and S3, builds and starts `server/`, seeds a demo package and runs Playwright on desktop, tablet and phone.
+
 ## Frontend checks
 
 Run from `client/`.

@@ -10,6 +10,7 @@ Top-level areas:
 
 - `server/` — TypeScript/Node.js backend: Express, Socket.IO, PostgreSQL, Redis, TypeORM, tsyringe.
 - `client/` — Flutter/Dart app and local packages managed through Melos.
+- `web/` — React + TypeScript + Vite browser client (phones, tablets, desktop). See `web/AGENTS.md`.
 - `openapi/` — OpenAPI schema and Socket.IO contract metadata. Generated Dart code lives in `client/packages/openapi/`.
 - `websites/` — Hugo docs/landing pages.
 - `docs/` — product, architecture, agent workflows, and implementation specs.
@@ -22,6 +23,7 @@ Top-level areas:
    - `server/AGENTS.md`
    - `client/AGENTS.md`
    - `openapi/AGENTS.md`
+   - `web/AGENTS.md`
 3. Read the relevant workflow or spec:
    - `docs/agent/01-repo-map.md`
    - `docs/agent/02-source-of-truth.md`
@@ -83,6 +85,10 @@ npm run validate:schema
 npm run lint
 npm run build
 npm run test:pipeline
+
+# run from web/
+npm run typecheck && npm run lint && npm test
+npm run e2e:full   # Docker: full games in Playwright against a local backend
 
 # run from client/
 melos run pre_build
