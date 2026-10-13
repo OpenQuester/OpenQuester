@@ -52,7 +52,12 @@ export function Dock() {
   const phase = phaseOf(session);
   const s = session.state;
   const paused = s.isPaused;
-  const { left, fraction } = useCountdown(phase === "finished" ? null : s.timer, paused);
+  // While media loads there is no countdown to show: the question timer only
+  // starts once every player has the question in front of them.
+  const { left, fraction } = useCountdown(
+    phase === "finished" || phase === "media" ? null : s.timer,
+    paused,
+  );
   const model = useDockModel(session, myId);
   const offline = connection !== "connected";
 
@@ -74,7 +79,7 @@ export function Dock() {
       className="sticky bottom-0 z-30 border-t border-line-strong bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
       data-testid="dock"
     >
-      <div className="mx-auto flex max-w-[1320px] flex-col gap-3 px-3 py-3 sm:px-6 md:flex-row md:items-center md:gap-6 md:py-4">
+      <div className="mx-auto flex max-w-[1320px] 3xl:max-w-[1760px] 4xl:max-w-[2240px] flex-col gap-3 px-3 py-3 sm:px-6 md:flex-row md:items-center md:gap-6 md:py-4">
         <div className="flex min-w-0 items-center gap-3.5 md:flex-[1_1_260px]">
           <TimerRing
             fraction={paused || offline ? null : fraction}
@@ -96,7 +101,10 @@ export function Dock() {
             >
               {offline ? t("dock.reconnecting") : paused ? t("dock.paused") : t(`phases.${phase}`)}
             </span>
-            <span className="truncate text-[17px] font-semibold" data-testid="dock-status">
+            <span
+              className="truncate text-[17px] font-semibold 3xl:text-xl"
+              data-testid="dock-status"
+            >
               {model.status}
             </span>
           </div>
@@ -234,6 +242,7 @@ function useDockModel(session: GameSession, myId: number): DockModel {
       const ready = players.filter((p) => p.mediaDownloaded).length;
       return {
         status: t("dock.media.status", { ready, total: players.length }),
+        ringLabel: `${ready}/${players.length}`,
         action: <Info>{reason("waiting_for_media")}</Info>,
         next: t("dock.media.next"),
       };

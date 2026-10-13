@@ -28,6 +28,7 @@ export function TimerRing({
       role="img"
       aria-label={text ? `${text}` : undefined}
       className="shrink-0"
+      data-testid="timer-ring"
     >
       <circle cx="28" cy="28" r={R} fill="none" stroke="var(--oq-surface-3)" strokeWidth="6" />
       <circle

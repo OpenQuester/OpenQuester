@@ -1,7 +1,11 @@
 import type { Question, QuestionFile } from "./protocol";
 
-/** Give up preloading after this long; the server has its own media timeout. */
-const PRELOAD_TIMEOUT_MS = 8000;
+/**
+ * Safety net only. A player reports ready when the media is really there, so
+ * the question timer never starts before everyone can see it; the server's own
+ * media timeout (30 s) moves the game on if someone's download stalls.
+ */
+const PRELOAD_TIMEOUT_MS = 45_000;
 
 /**
  * Loads the question's media so playback can start in sync once the server
@@ -21,8 +25,14 @@ function preloadFile(file: QuestionFile): Promise<void> {
   const url = file.file.link!;
   return new Promise<void>((resolve) => {
     if (file.file.type === "image") {
+      // Decoded, not just downloaded: the picture paints the moment it shows.
       const img = new Image();
-      img.onload = img.onerror = () => resolve();
+      img.onload = () =>
+        void img
+          .decode()
+          .catch(() => undefined)
+          .then(() => resolve());
+      img.onerror = () => resolve();
       img.src = url;
       return;
     }
