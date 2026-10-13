@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
-import { BackIcon, CheckIcon, UploadIcon } from "@/ui/icons";
+import { BackIcon, CheckIcon, EditIcon, UploadIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 
 import type { ImportWarning, ParsedPackage } from "./types";
@@ -39,6 +39,7 @@ export function UploadPackagePage() {
   const { t } = useTranslation();
   const me = useMe();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>({ kind: "pick" });
 
   // Leaving mid-upload would strand a half-uploaded package.
@@ -78,6 +79,12 @@ export function UploadPackagePage() {
     } catch (err) {
       setStep({ kind: "failed", parsed, name, error: uploadError(err, t) });
     }
+  }
+
+  async function edit(parsed: ParsedPackage) {
+    const { draftFromParsed } = await import("@/features/editor/EditorHomePage");
+    const draftId = await draftFromParsed(parsed);
+    void navigate({ to: "/packages/editor/$draftId", params: { draftId } });
   }
 
   async function retry(parsed: ParsedPackage, id: number, pending: PendingFile[]) {
@@ -153,6 +160,7 @@ export function UploadPackagePage() {
             parsed={step.parsed}
             name={step.name}
             onUpload={() => void upload(step.parsed, step.name)}
+            onEdit={() => void edit(step.parsed)}
             onCancel={() => setStep({ kind: "pick" })}
           />
         ) : step.kind === "uploading" ? (
@@ -300,11 +308,13 @@ function Review({
   parsed,
   name,
   onUpload,
+  onEdit,
   onCancel,
 }: {
   parsed: ParsedPackage;
   name: string;
   onUpload: () => void;
+  onEdit: () => void;
   onCancel: () => void;
 }) {
   const { t } = useTranslation();
@@ -375,7 +385,10 @@ function Review({
         >
           {t("upload.upload")}
         </Button>
-        <Button size="lg" onClick={onCancel}>
+        <Button size="lg" onClick={onEdit} icon={<EditIcon size={20} />} data-testid="upload-edit">
+          {t("upload.editFirst")}
+        </Button>
+        <Button size="lg" variant="ghost" onClick={onCancel}>
           {t("upload.another")}
         </Button>
       </div>

@@ -102,7 +102,8 @@
     "prev": "Previous",
     "next": "Next",
     "page": "Page {{page}} of {{pages}}",
-    "upload": "Upload package"
+    "upload": "Upload package",
+    "create": "Create package"
   },
   "questionTypes": {
     "simple": "Simple",
@@ -648,6 +649,284 @@
     "retryFiles": "Retry those files",
     "tryAgain": "Try again",
     "networkError": "Lost connection while uploading. Check your network and try again.",
-    "serverRejected": "The server didn't accept this package: {{message}}"
+    "serverRejected": "The server didn't accept this package: {{message}}",
+    "editFirst": "Edit before uploading"
+  },
+  "editor": {
+    "drafts": "Drafts",
+    "backToDrafts": "Back to drafts",
+    "cancel": "Cancel",
+    "optional": "(optional)",
+    "undo": "Undo",
+    "redo": "Redo",
+    "export": "Export .oq",
+    "exportHelp": "Download this package as an .oq file you can open here or in the OpenQuester app.",
+    "savedAt": "Saved in this browser {{when}}",
+    "notSaved": "Not saved yet",
+    "missing": "This draft isn't in this browser",
+    "missingHelp": "Drafts are kept in the browser they were made in. It may have been deleted, or made on another device.",
+    "seconds_one": "{{count}} s",
+    "seconds_other": "{{count}} s",
+    "secondsShort": "s",
+    "defaults": {
+      "title": "New package",
+      "round": "Round {{n}}",
+      "theme": "First theme"
+    },
+    "home": {
+      "title": "Package editor",
+      "lead": "Build a package from scratch or open a .siq or .oq file, then publish it to play.",
+      "newTitle": "Start from scratch",
+      "newHelp": "One round with a five-question theme to fill in.",
+      "new": "New package",
+      "importTitle": "Open a file",
+      "importHelp": "A SIGame .siq or an OpenQuester .oq export. You keep editing it here before publishing.",
+      "import": "Open .siq or .oq",
+      "drafts": "Your drafts",
+      "draftsHelp": "Drafts stay in this browser until you publish them. Export .oq to move one to another device.",
+      "noDrafts": "No drafts yet.",
+      "draftMeta": "{{rounds}} rounds · {{questions}} questions · edited {{when}}",
+      "published": "published",
+      "deleteDraft": "Delete draft {{title}}",
+      "deleteConfirm": "Delete the draft “{{title}}”? Its media is removed from this browser too."
+    },
+    "outline": {
+      "label": "Package outline",
+      "details": "Package details",
+      "rounds": "Rounds",
+      "addRound": "Add round",
+      "untitled": "Untitled",
+      "counts": "{{themes}} themes · {{questions}} questions"
+    },
+    "board": {
+      "roundOf": "Round {{n}} of {{total}}",
+      "roundName": "Round name",
+      "roundNamePlaceholder": "Name this round",
+      "roundType": "Round type",
+      "roundTypes": {
+        "simple": "Regular",
+        "final": "Final"
+      },
+      "oneFinal": "A package has one final round, and it's already set.",
+      "finalHelp": "In the final, players pick a theme, bet and answer one question. Each theme holds exactly one question with no price.",
+      "addTheme": "Add theme",
+      "roundActions": "Round actions",
+      "noThemes": "This round has no themes yet",
+      "noThemesHelp": "A theme is a row on the board. Add one and it starts with five questions to fill in.",
+      "themeName": "Theme name",
+      "themeNamePlaceholder": "Name this theme",
+      "themeActions": "Actions for theme {{name}}",
+      "dragTheme": "Drag to move this theme to another place or round",
+      "questionCount_one": "{{count}} question",
+      "questionCount_other": "{{count}} questions",
+      "questionActions": "Actions for {{label}}",
+      "emptyQuestion": "Empty question",
+      "noText": "No text yet",
+      "addQuestion": "Add",
+      "addQuestionTo": "Add a question to {{name}}",
+      "dropHere": "Drop here",
+      "needsFix": "Needs fixing",
+      "check": "Worth a look"
+    },
+    "actions": {
+      "edit": "Edit",
+      "move": "Move to…",
+      "moveTheme": "Move theme to…",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "deleteTheme": "Delete theme",
+      "deleteRound": "Delete round"
+    },
+    "density": {
+      "label": "Board view",
+      "compact": "Compact cards, full question on hover",
+      "cards": "Preview cards with media and answers"
+    },
+    "inspector": {
+      "label": "Selected question"
+    },
+    "preview": {
+      "answer": "Answer",
+      "noAnswer": "No answer yet",
+      "noQuestion": "No question text or media yet",
+      "hint": "Showman hint",
+      "comment": "Comment",
+      "maxBid": "Bids up to {{max}}",
+      "allIn": "All-in allowed",
+      "everyone": "everyone plays"
+    },
+    "media": {
+      "image": "Image",
+      "audio": "Audio",
+      "video": "Video",
+      "missing": "File missing",
+      "add": "Add image, audio or video",
+      "reading": "Reading…",
+      "remove": "Remove file",
+      "show": "Show",
+      "dropMore": "Drop more files here",
+      "errors": {
+        "mediaType": "{{name}} isn't an image, audio or video file.",
+        "mediaSize": "{{name}} is larger than 100 MB."
+      }
+    },
+    "form": {
+      "title": "Question for {{price}}",
+      "finalTitle": "Final question",
+      "description": "Edit the question, its answer and media.",
+      "type": "Question type",
+      "typeHelp": {
+        "simple": "First to buzz answers",
+        "stake": "Players bid to answer",
+        "secret": "Given to another player",
+        "noRisk": "No penalty, bonus points",
+        "choice": "Pick from options",
+        "hidden": "Price hidden on the board"
+      },
+      "price": "Price",
+      "text": "Question text",
+      "textPlaceholder": "What players see and the showman reads out",
+      "questionMedia": "Shown with the question",
+      "questionMediaHelp": "Drop images, audio or video here. A question needs text or media.",
+      "answer": "Correct answer",
+      "answerHelp": "Players see this after the showman judges.",
+      "hint": "Hint for the showman",
+      "hintHelp": "Only the showman sees it, to judge close answers.",
+      "answerMedia": "Shown with the answer",
+      "answerMediaHelp": "Optional media revealed with the answer.",
+      "comment": "Comment",
+      "commentHelp": "Read out by the showman after the answer.",
+      "options": "Options",
+      "optionsHelp": "Two to eight options. Mark the correct one.",
+      "option": "Option {{letter}}",
+      "correct": "Correct",
+      "removeOption": "Remove option {{letter}}",
+      "addOption": "Add option",
+      "settingsFor": "{{type}} settings",
+      "maxBid": "Highest bid",
+      "maxBidHelp": "Leave empty to allow all-in.",
+      "stakeEveryone": "Everyone bids at once",
+      "multiplier": "Price multiplier",
+      "noRiskEveryone": "Everyone plays it",
+      "transferTitle": "Who can receive it",
+      "transfer": {
+        "any": "Any player",
+        "exceptCurrent": "Anyone but the picker"
+      },
+      "allowedPrices": "Prices the receiver picks from",
+      "allowedPricesHelp": "Optional: 2 to 5 prices separated by commas. Empty keeps the board price.",
+      "showDelay": "Options appear after (s)",
+      "timing": "Timing",
+      "answerDelay": "Answer window (s)",
+      "showAnswer": "Answer shows (s)",
+      "preview": "Preview",
+      "save": "Save",
+      "saveShortcut": "Ctrl+Enter saves",
+      "unsaved": "You have unsaved changes to this question.",
+      "discard": "Discard changes",
+      "keepEditing": "Keep editing"
+    },
+    "move": {
+      "questionTitle": "Move question",
+      "themeTitle": "Move theme",
+      "round": "Round",
+      "theme": "Theme",
+      "noThemes": "This round has no themes yet.",
+      "position": "Position",
+      "atEnd": "At the end",
+      "before": "Before {{name}}",
+      "confirm": "Move here"
+    },
+    "details": {
+      "title": "Package details",
+      "name": "Package title",
+      "namePlaceholder": "Name your package",
+      "description": "Description",
+      "language": "Language",
+      "noLanguage": "Not set",
+      "age": "Age rating",
+      "tags": "Tags",
+      "tagsPlaceholder": "movies, music, 90s",
+      "tagsHelp": "Separate tags with commas. They help people find your package."
+    },
+    "confirm": {
+      "themeTitle": "Delete theme?",
+      "roundTitle": "Delete round?",
+      "themeBody_one": "“{{name}}” and its {{count}} question will be deleted. You can undo this.",
+      "themeBody_other": "“{{name}}” and its {{count}} questions will be deleted. You can undo this.",
+      "roundBody_one": "“{{name}}” with all its themes and {{count}} question will be deleted. You can undo this.",
+      "roundBody_other": "“{{name}}” with all its themes and {{count}} questions will be deleted. You can undo this."
+    },
+    "changes": {
+      "renamed": "Renamed",
+      "questionSaved": "Question saved",
+      "questionAdded": "Question added",
+      "questionMoved": "Moved to {{to}}",
+      "questionDeleted": "Question deleted",
+      "themeAdded": "Theme added",
+      "themeMoved": "Theme moved to {{to}}",
+      "themeDeleted": "Theme deleted",
+      "roundAdded": "Round added",
+      "roundMoved": "Round moved",
+      "roundDeleted": "Round deleted",
+      "roundType": "Round type changed",
+      "duplicated": "Duplicated",
+      "detailsSaved": "Details saved"
+    },
+    "empty": {
+      "title": "An empty package",
+      "help": "Add a round to start. Each round holds themes, and each theme holds questions."
+    },
+    "health": {
+      "good": "Ready to publish",
+      "needsAttention": "Can be published, a few things are worth a look",
+      "broken_one": "{{count}} thing to fix before publishing",
+      "broken_other": "{{count}} things to fix before publishing"
+    },
+    "severity": {
+      "critical": "Must fix ({{count}})",
+      "warning": "Worth a look ({{count}})",
+      "info": "Suggestions ({{count}})"
+    },
+    "status": {
+      "good_one": "Ready to publish · {{count}} question",
+      "good_other": "Ready to publish · {{count}} questions",
+      "review": "Review"
+    },
+    "publish": {
+      "open": "Publish",
+      "title": "Publish package",
+      "publish": "Publish to OpenQuester",
+      "help": "Publishing uploads the package and its media so you can host games with it.",
+      "blocked_one": "Fix the {{count}} issue above first. Tap it to jump there.",
+      "blocked_other": "Fix the {{count}} issues above first. Tap one to jump there.",
+      "sending": "Uploading media {{done}} of {{total}}",
+      "doneHelp": "Host a game with it now or find it later in Packages. The draft stays here for edits; publishing again makes a new copy."
+    },
+    "issues": {
+      "noTitle": "The package has no title.",
+      "noRounds": "The package has no rounds.",
+      "roundNoName": "The round has no name.",
+      "roundNoThemes": "The round has no themes.",
+      "themeNoName": "The theme has no name.",
+      "themeNoQuestions": "The theme has no questions.",
+      "questionEmpty": "The question has no text or media.",
+      "noPrice": "The question has no price.",
+      "priceRange": "The price must be between 0 and {{max}}.",
+      "missingMedia": "A media file is missing from this browser. Add it again.",
+      "choiceOptions": "A choice question needs 2 to 8 options (has {{count}}).",
+      "choiceEmptyOption": "An option has no text.",
+      "choiceNoCorrect": "No option is marked as correct.",
+      "secretPrices": "Pick 2 to 5 prices for the receiver, or leave the list empty (has {{count}}).",
+      "multipleFinals": "Only one round can be the final.",
+      "finalNotLast": "The final round has to be the last round.",
+      "finalOneQuestion": "A final theme holds exactly one question (has {{count}}).",
+      "finalTypeIgnored": "Final questions always play as regular questions; the type is ignored.",
+      "noAnswer": "The question has no answer. The showman will judge without one.",
+      "longText": "The text is very long and may not fit on screen.",
+      "noLanguage": "Set a language so players can find the package.",
+      "noDescription": "Add a short description.",
+      "noTags": "Add a few tags."
+    }
   }
 }

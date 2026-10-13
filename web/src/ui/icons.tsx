@@ -101,3 +101,88 @@ export const UploadIcon = (p: { size?: number }) => (
     <path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
   </Icon>
 );
+export const PlusIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </Icon>
+);
+export const TrashIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
+  </Icon>
+);
+export const GripIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <circle cx="9" cy="6" r="1" />
+    <circle cx="15" cy="6" r="1" />
+    <circle cx="9" cy="12" r="1" />
+    <circle cx="15" cy="12" r="1" />
+    <circle cx="9" cy="18" r="1" />
+    <circle cx="15" cy="18" r="1" />
+  </Icon>
+);
+export const ImageIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M3 16l5-4 4 3 3-2 6 4" />
+  </Icon>
+);
+export const VideoIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <rect x="3" y="6" width="13" height="12" rx="2" />
+    <path d="M16 10l5-3v10l-5-3" />
+  </Icon>
+);
+export const UndoIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3" />
+  </Icon>
+);
+export const RedoIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3" />
+  </Icon>
+);
+export const EditIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" />
+  </Icon>
+);
+export const DownloadIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M12 4v12M7 11l5 5 5-5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+  </Icon>
+);
+export const MoveIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M5 9l-3 3 3 3M19 9l3 3-3 3M9 5l3-3 3 3M9 19l3 3 3-3M2 12h20M12 2v20" />
+  </Icon>
+);
+export const ChevronIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M9 6l6 6-6 6" />
+  </Icon>
+);
+export const AlertIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M12 3l10 18H2zM12 10v5M12 18v.5" />
+  </Icon>
+);
+export const CardsIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="8" height="7" rx="1.5" />
+    <rect x="13" y="4" width="8" height="7" rx="1.5" />
+    <rect x="3" y="13" width="8" height="7" rx="1.5" />
+    <rect x="13" y="13" width="8" height="7" rx="1.5" />
+  </Icon>
+);
+export const ListIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M8 6h13M8 12h13M8 18h13M3 6h.5M3 12h.5M3 18h.5" />
+  </Icon>
+);
+export const OutlineIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M4 5h16M8 10h12M8 15h12M4 20h16" />
+  </Icon>
+);

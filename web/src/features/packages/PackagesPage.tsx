@@ -11,7 +11,7 @@ import { Badge } from "@/ui/Badge";
 import { Dialog } from "@/ui/Dialog";
 import { Button } from "@/ui/Button";
 import { Select, TextInput } from "@/ui/Field";
-import { UploadIcon } from "@/ui/icons";
+import { EditIcon, UploadIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 
 import {
@@ -58,13 +58,22 @@ export function PackagesPage() {
             <h1 id="pk-title" className="m-0 font-display text-4xl font-extrabold tracking-tight">
               {t("packages.title")}
             </h1>
-            <Link
-              to="/packages/upload"
-              className="inline-flex min-h-11 items-center gap-2 rounded-[12px] border border-line-strong bg-surface-3 px-4 font-semibold text-text no-underline hover:bg-surface-2 hover:text-text"
-            >
-              <UploadIcon size={18} />
-              {t("packages.upload")}
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/packages/editor"
+                className="inline-flex min-h-11 items-center gap-2 rounded-[12px] border border-line-strong bg-surface-3 px-4 font-semibold text-text no-underline hover:bg-surface-2 hover:text-text"
+              >
+                <EditIcon size={18} />
+                {t("packages.create")}
+              </Link>
+              <Link
+                to="/packages/upload"
+                className="inline-flex min-h-11 items-center gap-2 rounded-[12px] border border-line-strong bg-surface-3 px-4 font-semibold text-text no-underline hover:bg-surface-2 hover:text-text"
+              >
+                <UploadIcon size={18} />
+                {t("packages.upload")}
+              </Link>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <label htmlFor="pk-search" className="sr-only">

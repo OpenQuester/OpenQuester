@@ -77,6 +77,11 @@ const uploadRoute = createRoute({
     "UploadPackagePage",
   ),
 });
+const editorHomeRoute = createRoute({
+  getParentRoute: () => shell,
+  path: "/packages/editor",
+  component: lazyRouteComponent(() => import("@/features/editor/EditorHomePage"), "EditorHomePage"),
+});
 const createGameRoute = createRoute({
   getParentRoute: () => shell,
   path: "/games/new",
@@ -94,6 +99,13 @@ const settingsRoute = createRoute({
   component: lazyRouteComponent(() => import("@/features/settings/SettingsPage"), "SettingsPage"),
 });
 
+/** The editor owns the whole screen, like the game. */
+const editorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/packages/editor/$draftId",
+  component: lazyRouteComponent(() => import("@/features/editor/EditorPage"), "EditorPage"),
+});
+
 /** The game owns the whole screen. */
 const gameRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -108,9 +120,11 @@ const routeTree = rootRoute.addChildren([
     discordRoute,
     packagesRoute,
     uploadRoute,
+    editorHomeRoute,
     createGameRoute,
     settingsRoute,
   ]),
+  editorRoute,
   gameRoute,
 ]);
 

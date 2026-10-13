@@ -32,7 +32,7 @@ OQ_WEB_URL=https://<deploy>.pages.dev OQ_LIVE_PACKAGE_ID=3 npx playwright test -
 src/api/        openapi-fetch client, generated schema.d.ts, type aliases
 src/game/       protocol.ts (socket contract), reducer.ts (pure), selectors.ts,
                 connection.ts (socket lifecycle), store.ts (zustand), media.ts
-src/features/   screens: auth, home, packages, upload (.siq/.oq import), create-game, settings, game (lobby + play)
+src/features/   screens: auth, home, packages, upload (.siq/.oq import), editor, create-game, settings, game (lobby + play)
 src/ui/         small design-system components
 src/theme/      token sets ([data-theme] blocks) and the theme registry
 src/i18n/       en / uk / ru resources
@@ -55,6 +55,13 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   block plus an entry in `themes.ts`.
 - All user-facing text goes through i18next keys in `src/i18n/locales/*.json`.
 - Use `cn()` from `src/lib/cn.ts` for class names so later utilities win.
+- The package editor (`features/editor/`) edits an id-keyed tree (`model.ts`)
+  through pure functions in `ops.ts`; the store keeps undo history and one
+  store per open editor. Drafts and media live in IndexedDB (`drafts.ts`)
+  until Publish, which reuses the upload flow. `validate.ts` follows
+  `docs/specs/package-validation-spec.md`: critical issues block Publish.
+  Drag and drop is native HTML5; every drag has a Move dialog equivalent for
+  touch and keyboard.
 - Layouts must work at 375 px wide with no horizontal scroll; the e2e
   `expectNoHorizontalScroll` check runs on phone, tablet and desktop.
 
