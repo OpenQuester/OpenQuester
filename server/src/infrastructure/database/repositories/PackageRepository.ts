@@ -117,9 +117,15 @@ export class PackageRepository {
    * @param author Package author, typically current user
    * @returns Package data and files, which can be used for links generation
    */
+  /**
+   * Creates a package, or with `replaceId` replaces the content of that package
+   * in place (same id, author and creation date): its rounds and file usages are
+   * removed first, then the new content is written exactly as for a new package.
+   */
   public async create(
     packageData: PackageDTO,
-    author: User
+    author: User,
+    replaceId?: number
   ): Promise<{
     pack: Package;
     files: FileDTO[];
@@ -128,6 +134,20 @@ export class PackageRepository {
     const files: FileDTO[] = [];
 
     return this.db.dataSource.transaction(async (transaction) => {
+      let existing: Package | null = null;
+      if (replaceId !== undefined) {
+        existing = await transaction.findOne(Package, {
+          where: { id: replaceId },
+          relations: ["author", "tags", "logo"]
+        });
+        if (!existing) {
+          throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND, 404);
+        }
+        // Themes, questions, their files and choice answers cascade from rounds.
+        await transaction.delete(PackageRound, { package: { id: replaceId } });
+        await transaction.delete(FileUsage, { package: { id: replaceId } });
+      }
+
       // Process Tags, fetch old and save new tags
       const tagNames = (packageData.tags || []).map((tagData) => tagData.tag);
 
@@ -169,12 +189,12 @@ export class PackageRepository {
       }
 
       // Create, import and save package
-      const pack = new Package();
+      const pack = existing ?? new Package();
 
       pack.import({
         ageRestriction: packageData.ageRestriction,
-        createdAt: new Date(),
-        author: author,
+        createdAt: existing?.created_at ?? new Date(),
+        author: existing?.author ?? author,
         title: packageData.title,
         description: packageData.description,
         language: packageData.language,
@@ -182,6 +202,8 @@ export class PackageRepository {
         // Saved automatically because of cascade
         tags: tagEntities
       });
+      // import() keeps an old logo when none is given; an edit may remove it.
+      pack.logo = logoFile;
       await transaction.save(pack);
 
       // Create file usage for logo if it exists (for both new and existing files)

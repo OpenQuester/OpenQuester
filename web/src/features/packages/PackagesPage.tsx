@@ -11,17 +11,21 @@ import { Badge } from "@/ui/Badge";
 import { Dialog } from "@/ui/Dialog";
 import { Button } from "@/ui/Button";
 import { Select, TextInput } from "@/ui/Field";
-import { EditIcon, UploadIcon } from "@/ui/icons";
+import { EditIcon, TrashIcon, UploadIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 
 import {
+  extraFilterCount,
+  NO_FILTERS,
   PAGE_SIZE,
   summarize,
   usePackage,
   usePackages,
   type PackageCard,
   type PackageFilters,
+  type PackageSort,
 } from "./usePackages";
+import { useDeletePackage, useOpenInEditor } from "./packageActions";
 
 export function PackagesPage() {
   const { t } = useTranslation();
@@ -29,10 +33,17 @@ export function PackagesPage() {
   const navigate = useNavigate({ from: "/packages" });
   const [query, setQuery] = useState(search.q ?? "");
   const [filters, setFilters] = useState<PackageFilters>({
+    ...NO_FILTERS,
     title: search.q ?? "",
-    language: "",
     sort: "newest",
   });
+  const [showMore, setShowMore] = useState(false);
+  const me = useMe();
+  const change = (patch: Partial<PackageFilters>) => {
+    setFilters((f) => ({ ...f, ...patch }));
+    setPage(0);
+  };
+  const extra = extraFilterCount(filters);
   const [page, setPage] = useState(0);
   const packages = usePackages(filters, page);
   const selectedId = search.id ?? null;
@@ -59,6 +70,14 @@ export function PackagesPage() {
               {t("packages.title")}
             </h1>
             <div className="flex flex-wrap gap-2">
+              {me.data && !me.data.isGuest && (
+                <Link
+                  to="/packages/mine"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-[12px] border border-line-strong bg-surface-3 px-4 font-semibold text-text no-underline hover:bg-surface-2 hover:text-text"
+                >
+                  {t("myPackages.link")}
+                </Link>
+              )}
               <Link
                 to="/packages/editor"
                 className="inline-flex min-h-11 items-center gap-2 rounded-[12px] border border-line-strong bg-surface-3 px-4 font-semibold text-text no-underline hover:bg-surface-2 hover:text-text"
@@ -113,14 +132,34 @@ export function PackagesPage() {
               id="pk-sort"
               className="w-auto bg-surface"
               value={filters.sort}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, sort: e.target.value as PackageFilters["sort"] }))
-              }
+              onChange={(e) => change({ sort: e.target.value as PackageSort })}
             >
               <option value="newest">{t("packages.sortNewest")}</option>
+              <option value="oldest">{t("packages.sortOldest")}</option>
               <option value="title">{t("packages.sortTitle")}</option>
+              <option value="titleDesc">{t("packages.sortTitleDesc")}</option>
+              <option value="author">{t("packages.sortAuthor")}</option>
             </Select>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-expanded={showMore}
+              aria-controls="pk-more"
+              onClick={() => setShowMore((v) => !v)}
+              className="min-h-11"
+            >
+              {showMore ? t("packages.hideFilters") : t("packages.moreFilters")}
+              {extra > 0 && <Badge tone="accent">{extra}</Badge>}
+            </Button>
           </div>
+          {showMore && (
+            <MoreFilters
+              filters={filters}
+              myId={me.data && !me.data.isGuest ? me.data.id : null}
+              onChange={change}
+              onClear={() => change({ ...NO_FILTERS, language: filters.language })}
+            />
+          )}
 
           {packages.isLoading ? (
             <Spinner label={t("common.loading")} />
@@ -226,10 +265,24 @@ function PackageDetail({ id }: { id: number }) {
         {t("packages.loadFailed")}
       </p>
     );
-  return <PackageSummaryView pkg={pkg.data} canHost={me.data != null} />;
+  return (
+    <PackageSummaryView
+      pkg={pkg.data}
+      canHost={me.data != null}
+      isAuthor={me.data != null && me.data.id === pkg.data.author.id}
+    />
+  );
 }
 
-function PackageSummaryView({ pkg, canHost }: { pkg: OqPackage; canHost: boolean }) {
+function PackageSummaryView({
+  pkg,
+  canHost,
+  isAuthor,
+}: {
+  pkg: OqPackage;
+  canHost: boolean;
+  isAuthor: boolean;
+}) {
   const { t } = useTranslation();
   const s = summarize(pkg);
   const media = [
@@ -294,6 +347,173 @@ function PackageSummaryView({ pkg, canHost }: { pkg: OqPackage; canHost: boolean
           {t("packages.signInToHost")}
         </Link>
       )}
+      {isAuthor && <AuthorTools id={pkg.id} />}
     </>
+  );
+}
+
+/** Edit and delete for the package's own author. */
+function AuthorTools({ id }: { id: number }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { opening, error, open } = useOpenInEditor();
+  const del = useDeletePackage();
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <div className="flex flex-col gap-2" data-testid="author-tools">
+      <div className="flex flex-wrap gap-2">
+        <Button icon={<EditIcon size={18} />} disabled={opening} onClick={() => void open(id)}>
+          {opening ? t("myPackages.opening") : t("myPackages.edit")}
+        </Button>
+        {confirm ? (
+          <>
+            <Button
+              variant="danger"
+              disabled={del.isPending}
+              onClick={() =>
+                del.mutate(id, {
+                  onSuccess: () => void navigate({ to: "/packages/mine" }),
+                })
+              }
+            >
+              {t("myPackages.confirmDelete")}
+            </Button>
+            <Button variant="ghost" onClick={() => setConfirm(false)}>
+              {t("common.cancel")}
+            </Button>
+          </>
+        ) : (
+          <Button variant="ghost" icon={<TrashIcon size={18} />} onClick={() => setConfirm(true)}>
+            {t("myPackages.delete")}
+          </Button>
+        )}
+      </div>
+      {confirm && <p className="m-0 text-sm text-muted">{t("myPackages.deleteHelp")}</p>}
+      {(error || del.isError) && (
+        <p role="alert" className="m-0 text-sm text-danger">
+          {error ?? t("myPackages.deleteFailed")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const AGES = ["NONE", "A12", "A16", "A18"] as const;
+
+function MoreFilters({
+  filters,
+  myId,
+  onChange,
+  onClear,
+}: {
+  filters: PackageFilters;
+  myId: number | null;
+  onChange: (patch: Partial<PackageFilters>) => void;
+  onClear: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div
+      id="pk-more"
+      className="flex flex-wrap items-end gap-x-5 gap-y-4 rounded-lg border border-line bg-surface p-4"
+      data-testid="package-filters"
+    >
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="pk-age" className="text-sm text-muted">
+          {t("packages.age")}
+        </label>
+        <Select
+          id="pk-age"
+          className="w-auto"
+          value={filters.age}
+          onChange={(e) => onChange({ age: e.target.value as PackageFilters["age"] })}
+        >
+          <option value="">{t("packages.anyAge")}</option>
+          {AGES.map((a) => (
+            <option key={a} value={a}>
+              {a === "NONE" ? t("packages.ageNone") : `${a.slice(1)}+`}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <RangeFilter
+        id="pk-rounds"
+        label={t("packages.roundsRange")}
+        min={filters.minRounds}
+        max={filters.maxRounds}
+        onChange={(minRounds, maxRounds) => onChange({ minRounds, maxRounds })}
+      />
+      <RangeFilter
+        id="pk-questions"
+        label={t("packages.questionsRange")}
+        min={filters.minQuestions}
+        max={filters.maxQuestions}
+        onChange={(minQuestions, maxQuestions) => onChange({ minQuestions, maxQuestions })}
+      />
+      {myId != null && (
+        <label className="flex min-h-11 items-center gap-2.5">
+          <input
+            type="checkbox"
+            checked={filters.authorId === myId}
+            onChange={(e) => onChange({ authorId: e.target.checked ? myId : null })}
+            className="h-5 w-5 accent-[var(--oq-accent)]"
+          />
+          {t("packages.onlyMine")}
+        </label>
+      )}
+      <Button size="sm" variant="ghost" className="min-h-11" onClick={onClear}>
+        {t("packages.clearFilters")}
+      </Button>
+    </div>
+  );
+}
+
+function RangeFilter({
+  id,
+  label,
+  min,
+  max,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  min: number | null;
+  max: number | null;
+  onChange: (min: number | null, max: number | null) => void;
+}) {
+  const { t } = useTranslation();
+  const parse = (v: string) => {
+    const n = Number.parseInt(v, 10);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  return (
+    <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
+      <legend className="mb-1.5 p-0 text-sm text-muted">{label}</legend>
+      <div className="flex items-center gap-2">
+        <label htmlFor={`${id}-min`} className="sr-only">
+          {t("packages.min")}
+        </label>
+        <TextInput
+          id={`${id}-min`}
+          inputMode="numeric"
+          placeholder={t("packages.min")}
+          value={min ?? ""}
+          onChange={(e) => onChange(parse(e.target.value), max)}
+          className="w-20"
+        />
+        <span className="text-muted">–</span>
+        <label htmlFor={`${id}-max`} className="sr-only">
+          {t("packages.max")}
+        </label>
+        <TextInput
+          id={`${id}-max`}
+          inputMode="numeric"
+          placeholder={t("packages.max")}
+          value={max ?? ""}
+          onChange={(e) => onChange(min, parse(e.target.value))}
+          className="w-20"
+        />
+      </div>
+    </fieldset>
   );
 }

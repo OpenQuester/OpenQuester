@@ -62,6 +62,10 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   `docs/specs/package-validation-spec.md`: critical issues block Publish.
   Drag and drop is native HTML5; every drag has a Move dialog equivalent for
   touch and keyboard.
+  A published package opens as a draft (`fromServer.ts`) whose media keeps
+  its storage `url` instead of bytes; Publish then saves over it with
+  `PUT /v1/packages/{id}` (author or `edit_package`) and skips files already
+  stored.
 - Question media: players ACK `media-downloaded` only once every file is
   loaded (images decoded), so the question timer starts when everyone can see
   it. Audio and video have no controls and play only in the `showing` phase;

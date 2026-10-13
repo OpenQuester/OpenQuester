@@ -256,7 +256,57 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        /** Replace a package's content (author or edit_package permission); returns upload links for its files */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            /** @description Data for package creation */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PackageCreationInput"];
+                };
+            };
+            responses: {
+                /** @description Returns object of key-values where key is filename, and value is file upload link */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PackageUploadResponse"];
+                    };
+                };
+                /** @description Package is corrupted! */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PackageCorruptedResponse"];
+                    };
+                };
+                /** @description Not the author and no edit_package permission */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Package not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         post?: never;
         /**
          * Delete package by id

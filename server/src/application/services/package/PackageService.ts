@@ -124,6 +124,47 @@ export class PackageService {
     return this.uploadPackage(author, input.packageData, input.expiresIn);
   }
 
+  /**
+   * Replaces a package's content in place. Allowed for its author and for
+   * users with EDIT_PACKAGE. Returns upload links for every file it uses;
+   * files already in storage answer the upload with 412, which clients skip.
+   */
+  public async updatePackageForSession(input: {
+    sessionUserId: number | undefined;
+    packageId: number;
+    packageData: PackageDTO;
+    expiresIn?: number;
+  }): Promise<PackageUploadResponse> {
+    const user = await this.assertCanEditPackage(input);
+
+    const { pack, files } = await this.packageRepository.create(
+      input.packageData,
+      user,
+      input.packageId
+    );
+    const links = await this.packageStorageService.generateUploadLinks(
+      files,
+      input.expiresIn ?? UPLOAD_PACKAGE_LINKS_EXPIRES_IN
+    );
+    return { id: pack.id, uploadLinks: links };
+  }
+
+  /** Throws 403 unless the session user wrote the package or has EDIT_PACKAGE. */
+  public async assertCanEditPackage(input: {
+    sessionUserId: number | undefined;
+    packageId: number;
+  }): Promise<User> {
+    const user = await this.userSessionService.getValidatedSessionUser({
+      sessionUserId: input.sessionUserId
+    });
+    const packageEntity = await this.getPackageRaw(input.packageId, ["id"], ["author"]);
+    const isAuthor = packageEntity.author?.id === user.id;
+    if (!isAuthor && !this.userSessionService.userHasPermission(user, Permissions.EDIT_PACKAGE)) {
+      throw new ClientError(ClientResponse.NO_PERMISSION, HttpStatus.FORBIDDEN);
+    }
+    return user;
+  }
+
   public async canDeletePackage(input: {
     packageId: number;
     sessionUserId: number | undefined;

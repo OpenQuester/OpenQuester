@@ -4,7 +4,8 @@
     "close": "Close",
     "dismiss": "Dismiss",
     "you": "you",
-    "youCap": "You"
+    "youCap": "You",
+    "cancel": "Cancel"
   },
   "nav": {
     "main": "Main",
@@ -12,7 +13,8 @@
     "games": "Games",
     "packages": "Packages",
     "profile": "Profile and settings",
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "admin": "Admin"
   },
   "notFound": {
     "title": "This page doesn't exist"
@@ -103,7 +105,21 @@
     "next": "Next",
     "page": "Page {{page}} of {{pages}}",
     "upload": "Upload package",
-    "create": "Create package"
+    "create": "Create package",
+    "sortOldest": "Oldest",
+    "sortTitleDesc": "Title Z–A",
+    "sortAuthor": "Author",
+    "moreFilters": "More filters",
+    "hideFilters": "Fewer filters",
+    "age": "Age rating",
+    "anyAge": "Any",
+    "ageNone": "For everyone",
+    "roundsRange": "Rounds",
+    "questionsRange": "Questions",
+    "min": "Min",
+    "max": "Max",
+    "onlyMine": "Only my packages",
+    "clearFilters": "Clear filters"
   },
   "questionTypes": {
     "simple": "Simple",
@@ -160,7 +176,15 @@
     "reduceMotion": "Reduce motion",
     "volume": "Media volume",
     "signOut": "Sign out",
-    "guestSignOutHelp": "Guest accounts can't sign back in: you'll get a new guest next time."
+    "guestSignOutHelp": "Guest accounts can't sign back in: you'll get a new guest next time.",
+    "changeAvatar": "Change photo",
+    "avatarSaving": "Saving photo…",
+    "avatarSaved": "Photo updated",
+    "avatarErrors": {
+      "notImage": "That file isn't a picture we can read.",
+      "tooBig": "That picture is over 20 MB. Pick a smaller one.",
+      "generic": "Couldn't save the photo. Try again."
+    }
   },
   "join": {
     "notFound": "Game not found",
@@ -442,7 +466,16 @@
     "giveTurn": "Give them the turn",
     "isTurn": "It's their turn",
     "toSpectators": "Move to spectators",
-    "kick": "Remove from game"
+    "kick": "Remove from game",
+    "mute": "Mute in chat",
+    "unmute": "Unmute",
+    "muteHelp": "They stay in the game but can't send chat messages.",
+    "restrict": "Keep as spectator",
+    "unrestrict": "Allow playing again",
+    "restrictHelp": "Moves them to spectators and stops them from taking a player seat.",
+    "ban": "Ban from this game",
+    "banConfirm": "Yes, ban {{name}}",
+    "banHelp": "Removes them and they can't rejoin this game."
   },
   "announce": {
     "correct": "{{name}} is correct, {{points}}",
@@ -905,7 +938,10 @@
       "blocked_one": "Fix the {{count}} issue above first. Tap it to jump there.",
       "blocked_other": "Fix the {{count}} issues above first. Tap one to jump there.",
       "sending": "Uploading media {{done}} of {{total}}",
-      "doneHelp": "Host a game with it now or find it later in Packages. The draft stays here for edits; publishing again makes a new copy."
+      "doneHelp": "Host a game with it now or find it later in Packages. The draft stays here for edits; publishing again makes a new copy.",
+      "saveChanges": "Save changes to the published package",
+      "publishAsNew": "Publish as a new package instead",
+      "notYours": "Only the package's author can change it. Publish it as a new package instead."
     },
     "issues": {
       "noTitle": "The package has no title.",
@@ -939,5 +975,73 @@
     "close": "Close {{name}}",
     "pinHelp": "Keep this panel open next to the game, also after a reload",
     "unpinHelp": "Pinned on this device. Click to unpin"
+  },
+  "adminPanel": {
+    "title": "Admin",
+    "overview": "Overview",
+    "users": "Users",
+    "system": "System",
+    "noAccess": "This page is for admins.",
+    "noAccessHelp": "Your account doesn't have admin access. Ask an admin if you need it.",
+    "loadFailed": "Couldn't load this. Try again.",
+    "totalUsers": "Users",
+    "activeUsers": "Active",
+    "guests": "Guests",
+    "deletedUsers": "Deleted",
+    "bannedUsers": "Banned",
+    "uptime": "Server uptime",
+    "redis": "Redis",
+    "redisKeys_one": "{{count}} key",
+    "redisKeys_other": "{{count}} keys",
+    "down": "Down",
+    "recentUsers": "Newest users",
+    "guest": "Guest",
+    "search": "Search by name, username or email",
+    "status": "Status",
+    "anyStatus": "Any",
+    "statusActive": "Active",
+    "statusBanned": "Banned",
+    "statusDeleted": "Deleted",
+    "type": "Type",
+    "typeAll": "Everyone",
+    "typeRegistered": "Registered",
+    "typeGuest": "Guests",
+    "actionFailed": "That didn't work. Try again.",
+    "noUsers": "No users match.",
+    "mutedUntil": "Muted until {{date}}",
+    "mute": "Mute…",
+    "unmute": "Unmute",
+    "forHours_one": "For {{count}} hour",
+    "forHours_other": "For {{count}} hours",
+    "forWeek": "For a week",
+    "ban": "Ban",
+    "unban": "Unban",
+    "confirmBan": "Confirm ban",
+    "delete": "Delete",
+    "confirmDelete": "Confirm delete",
+    "restore": "Restore",
+    "noHealthAccess": "Your account can't view system health.",
+    "ping": "API",
+    "ok": "OK",
+    "eventLoop": "Event loop lag",
+    "redisMemory": "Redis memory",
+    "redisKeysLabel": "Redis keys",
+    "memory": "Server memory",
+    "refresh": "Refresh"
+  },
+  "myPackages": {
+    "title": "My packages",
+    "guest": "Guest accounts can't own packages. Sign in with Discord to publish and manage your own.",
+    "empty": "You haven't published a package yet. Create one in the editor or upload a .siq or .oq file.",
+    "published": "published {{when}}",
+    "host": "Host",
+    "edit": "Edit",
+    "opening": "Opening…",
+    "delete": "Delete",
+    "confirmDelete": "Yes, delete it",
+    "deleteHelp": "Deleting removes the package for everyone. Games already running keep their copy.",
+    "deleteFailed": "Couldn't delete this package. Try again.",
+    "openFailed": "Couldn't open this package in the editor. Try again.",
+    "link": "My packages"
   }
 }

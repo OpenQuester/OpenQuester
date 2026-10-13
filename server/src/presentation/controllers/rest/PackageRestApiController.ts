@@ -30,6 +30,7 @@ export class PackageRestApiController {
     router.post("/", asyncHandler(this.uploadPackage));
     router.get("/", asyncHandler(this.listPackages));
     router.get("/:id", asyncHandler(this.getPackage));
+    router.put("/:id", asyncHandler(this.updatePackage));
     router.delete(
       "/:id",
       checkPackDeletePermissionMiddleware(
@@ -48,6 +49,28 @@ export class PackageRestApiController {
 
     const data = await this.packageService.uploadPackageForSession({
       sessionUserId: req.session.userId,
+      packageData: validatedData.content
+    });
+    return res.status(HttpStatus.OK).send(data);
+  };
+
+  private updatePackage = async (req: Request, res: Response) => {
+    const { packageId } = new RequestDataValidator<PackageInputDTO>(
+      { packageId: Number(req.params.id) },
+      packIdScheme()
+    ).validate();
+    // Permission first, so someone else's package answers 403 whatever the body.
+    await this.packageService.assertCanEditPackage({
+      sessionUserId: req.session.userId,
+      packageId
+    });
+    const validatedData = new RequestDataValidator<{
+      content: PackageDTO;
+    }>(req.body, uploadPackageScheme()).validate();
+
+    const data = await this.packageService.updatePackageForSession({
+      sessionUserId: req.session.userId,
+      packageId,
       packageData: validatedData.content
     });
     return res.status(HttpStatus.OK).send(data);

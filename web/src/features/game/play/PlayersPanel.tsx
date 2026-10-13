@@ -146,6 +146,10 @@ function PlayerAdmin({ player, onDone }: { player: Player; onDone: () => void })
   const id = player.meta.id;
   const isTurn = session.state.currentTurnPlayerId === id;
   const inputId = `admin-score-${id}`;
+  const limits = player.restrictionData;
+  const [confirmBan, setConfirmBan] = useState(false);
+  const restrict = (change: Partial<Player["restrictionData"]>) =>
+    connection.emit("player-restricted", { playerId: id, ...limits, ...change });
 
   function onScore(e: FormEvent) {
     e.preventDefault();
@@ -207,6 +211,67 @@ function PlayerAdmin({ player, onDone }: { player: Player; onDone: () => void })
         >
           {t("admin.kick")}
         </Button>
+      </div>
+      <div className="flex flex-col gap-2.5 border-t border-line pt-3">
+        <div className="flex flex-col gap-1">
+          <Button
+            size="sm"
+            className="self-start"
+            aria-pressed={limits.muted}
+            onClick={() => restrict({ muted: !limits.muted })}
+            data-testid="admin-mute"
+          >
+            {limits.muted ? t("admin.unmute") : t("admin.mute")}
+          </Button>
+          <span className="text-sm text-muted">{t("admin.muteHelp")}</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Button
+            size="sm"
+            className="self-start"
+            aria-pressed={limits.restricted}
+            onClick={() => {
+              restrict({ restricted: !limits.restricted });
+              if (!limits.restricted) onDone();
+            }}
+            data-testid="admin-restrict"
+          >
+            {limits.restricted ? t("admin.unrestrict") : t("admin.restrict")}
+          </Button>
+          <span className="text-sm text-muted">{t("admin.restrictHelp")}</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap gap-2">
+            {confirmBan ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => {
+                    restrict({ banned: true });
+                    onDone();
+                  }}
+                  data-testid="admin-ban-confirm"
+                >
+                  {t("admin.banConfirm", { name: player.meta.username })}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirmBan(false)}>
+                  {t("common.cancel")}
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => setConfirmBan(true)}
+                data-testid="admin-ban"
+              >
+                {t("admin.ban")}
+              </Button>
+            )}
+          </div>
+          <span className="text-sm text-muted">{t("admin.banHelp")}</span>
+        </div>
       </div>
     </div>
   );

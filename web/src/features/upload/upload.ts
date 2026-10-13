@@ -45,19 +45,23 @@ const PARALLEL = 3;
 export async function uploadPackage(
   parsed: ParsedPackage,
   onProgress: (p: UploadProgress) => void,
+  /** Replace the content of this published package instead of creating one. */
+  replaceId?: number,
 ): Promise<UploadResult> {
   onProgress({ phase: "creating", done: 0, total: 0, sentBytes: 0, totalBytes: 0 });
+  // The generated union types are stricter than the server's scheme.
+  const body = { content: parsed.content } as never;
   const res = await unwrap(
-    api.POST("/v1/packages", {
-      // The generated union types are stricter than the server's scheme.
-      body: { content: parsed.content } as never,
-    }),
+    replaceId != null
+      ? api.PUT("/v1/packages/{id}", { params: { path: { id: replaceId } }, body })
+      : api.POST("/v1/packages", { body }),
   );
   const pending: PendingFile[] = [];
   for (const [md5, url] of Object.entries(res.uploadLinks)) {
     const file = parsed.files.get(md5.toLowerCase());
-    // A file the archive lacked was already reported as a warning before upload.
-    if (file) pending.push({ url, file });
+    // A file the archive lacked was already reported as a warning before upload;
+    // one opened from storage is already there.
+    if (file && file.bytes.byteLength > 0) pending.push({ url, file });
   }
   const failed = await uploadMedia(pending, onProgress);
   return { id: res.id, failed };
@@ -111,7 +115,10 @@ async function uploadMedia(
 }
 
 /** XHR rather than fetch: it reports upload progress. */
-function put({ url, file }: PendingFile, onSent: (bytes: number) => void): Promise<void> {
+export function put(
+  { url, file }: PendingFile,
+  onSent: (bytes: number) => void = () => {},
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);

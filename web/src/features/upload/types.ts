@@ -69,6 +69,11 @@ export interface MediaFile {
   /** Name inside the archive, used for the upload content type. */
   name: string;
   bytes: Uint8Array;
+  /**
+   * Set for a file already in storage (opened from a published package): it
+   * may have no bytes, is shown from this address and is never uploaded again.
+   */
+  url?: string;
 }
 
 /** Something the reader fixed or skipped, shown before upload so nothing is a surprise. */

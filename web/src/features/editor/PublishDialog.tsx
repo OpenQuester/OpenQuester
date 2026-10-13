@@ -78,14 +78,19 @@ function PublishBody({
   const pkg = useEditor((s) => s.pkg);
   const media = useEditor((s) => s.media);
   const setPublished = useEditor((s) => s.setPublished);
+  const publishedId = useEditor((s) => s.publishedId);
 
-  const publish = async () => {
+  /** With `replace`, saves over the package this draft was published as. */
+  const publish = async (replace: boolean) => {
     try {
       const parsed = toParsed(pkg, media);
-      const { id, failed } = await uploadPackage(parsed, (progress) =>
-        setStep({ kind: "uploading", progress }),
+      const { id, failed } = await uploadPackage(
+        parsed,
+        (progress) => setStep({ kind: "uploading", progress }),
+        replace ? publishedId : undefined,
       );
       setPublished(id);
+      void qc.invalidateQueries({ queryKey: ["package", id] });
       void qc.invalidateQueries({ queryKey: ["packages"] });
       setStep({ kind: "done", id, failed: failed.length });
     } catch (err) {
@@ -95,7 +100,9 @@ function PublishBody({
           err instanceof ApiError
             ? err.status === 0
               ? t("upload.networkError")
-              : t("upload.serverRejected", { message: err.message })
+              : err.status === 403 && replace
+                ? t("editor.publish.notYours")
+                : t("upload.serverRejected", { message: err.message })
             : String(err),
       });
     }
@@ -230,11 +237,21 @@ function PublishBody({
           inactive={blocked}
           disabled={blocked}
           icon={<UploadIcon size={20} />}
-          onClick={() => void publish()}
+          onClick={() => void publish(publishedId != null)}
           data-testid="publish-confirm"
         >
-          {t("editor.publish.publish")}
+          {publishedId != null ? t("editor.publish.saveChanges") : t("editor.publish.publish")}
         </Button>
+        {publishedId != null && !blocked && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="self-start"
+            onClick={() => void publish(false)}
+          >
+            {t("editor.publish.publishAsNew")}
+          </Button>
+        )}
         {report.critical > 0 ? (
           <p className="m-0 text-sm text-danger">
             {t("editor.publish.blocked", { count: report.critical })}

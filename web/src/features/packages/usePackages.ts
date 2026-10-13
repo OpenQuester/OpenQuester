@@ -3,11 +3,48 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api, unwrap } from "@/api/client";
 import type { OqPackage } from "@/api/types";
 
+export type PackageSort = "newest" | "oldest" | "title" | "titleDesc" | "author";
+
 export interface PackageFilters {
   title: string;
   language: string;
-  sort: "newest" | "title";
+  sort: PackageSort;
+  age: "" | "NONE" | "A12" | "A16" | "A18";
+  minRounds: number | null;
+  maxRounds: number | null;
+  minQuestions: number | null;
+  maxQuestions: number | null;
+  /** Only packages by this author (the "Mine" filter). */
+  authorId: number | null;
 }
+
+export const NO_FILTERS: Omit<PackageFilters, "title" | "sort"> = {
+  language: "",
+  age: "",
+  minRounds: null,
+  maxRounds: null,
+  minQuestions: null,
+  maxQuestions: null,
+  authorId: null,
+};
+
+/** How many of the extra filters (beyond search and language) are set. */
+export function extraFilterCount(f: PackageFilters): number {
+  return [f.age, f.minRounds, f.maxRounds, f.minQuestions, f.maxQuestions, f.authorId].filter(
+    (v) => v !== "" && v != null,
+  ).length;
+}
+
+const SORTS: Record<
+  PackageSort,
+  { sortBy: "created_at" | "title" | "author"; order: "asc" | "desc" }
+> = {
+  newest: { sortBy: "created_at", order: "desc" },
+  oldest: { sortBy: "created_at", order: "asc" },
+  title: { sortBy: "title", order: "asc" },
+  titleDesc: { sortBy: "title", order: "desc" },
+  author: { sortBy: "author", order: "asc" },
+};
 
 export const PAGE_SIZE = 24;
 
@@ -25,9 +62,10 @@ export interface PackageCard {
   tags?: unknown[] | null;
 }
 
-export function usePackages(filters: PackageFilters, page: number) {
+export function usePackages(filters: PackageFilters, page: number, enabled = true) {
   return useQuery({
     queryKey: ["packages", filters, page],
+    enabled,
     queryFn: async () => {
       const res = await unwrap(
         api.GET("/v1/packages", {
@@ -35,10 +73,15 @@ export function usePackages(filters: PackageFilters, page: number) {
             query: {
               limit: PAGE_SIZE,
               offset: page * PAGE_SIZE,
-              sortBy: filters.sort === "title" ? "title" : "created_at",
-              order: filters.sort === "title" ? "asc" : "desc",
+              ...SORTS[filters.sort],
               ...(filters.title.trim() ? { title: filters.title.trim() } : {}),
               ...(filters.language ? { language: filters.language } : {}),
+              ...(filters.age ? { ageRestriction: filters.age } : {}),
+              ...(filters.minRounds != null ? { minRounds: filters.minRounds } : {}),
+              ...(filters.maxRounds != null ? { maxRounds: filters.maxRounds } : {}),
+              ...(filters.minQuestions != null ? { minQuestions: filters.minQuestions } : {}),
+              ...(filters.maxQuestions != null ? { maxQuestions: filters.maxQuestions } : {}),
+              ...(filters.authorId != null ? { authorId: filters.authorId } : {}),
             },
           },
         }),

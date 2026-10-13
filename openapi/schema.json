@@ -412,6 +412,59 @@
           }
         }
       },
+      "put": {
+        "summary": "Replace a package's content (author or edit_package permission); returns upload links for its files",
+        "tags": ["Packages"],
+        "requestBody": {
+          "description": "Data for package creation",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageCreationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns object of key-values where key is filename, and value is file upload link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Package is corrupted!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageCorruptedResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the author and no edit_package permission"
+          },
+          "404": {
+            "description": "Package not found"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
       "delete": {
         "summary": "Delete package by id",
         "description": "Delete a package. Requires DELETE_PACKAGE permission or being the package author. This will also delete all associated files and cleanup orphaned tags.",

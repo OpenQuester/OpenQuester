@@ -2,6 +2,7 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { cn } from "@/lib/cn";
 import { useTranslation } from "react-i18next";
 
+import { can } from "@/features/admin/useAdmin";
 import { displayName, useMe } from "@/features/auth/useMe";
 import { Avatar } from "@/ui/Avatar";
 import { LogoMark } from "@/ui/Logo";
@@ -14,6 +15,9 @@ export function AppShell() {
   const nav = [
     { to: "/", label: t("nav.games"), active: path === "/" },
     { to: "/packages", label: t("nav.packages"), active: path.startsWith("/packages") },
+    ...(can(me.data, "admin_panel_access")
+      ? [{ to: "/admin", label: t("nav.admin"), active: path.startsWith("/admin") }]
+      : []),
   ] as const;
 
   return (

@@ -34,6 +34,7 @@ const urls = new WeakMap<MediaFile, string>();
 /** An object URL for a stored file, made once per file and kept for the tab. */
 export function mediaUrl(file: MediaFile | undefined): string | undefined {
   if (!file) return undefined;
+  if (file.url && file.bytes.byteLength === 0) return file.url;
   let url = urls.get(file);
   if (!url) {
     url = URL.createObjectURL(new Blob([file.bytes as BlobPart], { type: mimeFor(file.name) }));
@@ -78,7 +79,9 @@ export function exportOq(pkg: EditorPackage, media: Map<string, MediaFile>): Blo
   const entries: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {
     "content.json": new TextEncoder().encode(JSON.stringify(parsed.content, null, 2)),
   };
-  for (const f of parsed.files.values()) entries[`files/${f.md5}`] = [f.bytes, { level: 0 }];
+  for (const f of parsed.files.values())
+    // Files opened from a published package stay in storage and aren't downloaded.
+    if (f.bytes.byteLength > 0) entries[`files/${f.md5}`] = [f.bytes, { level: 0 }];
   const zip = zipSync(entries, { level: 6 });
   return new Blob([zip as BlobPart], { type: "application/zip" });
 }

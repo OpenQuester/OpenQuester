@@ -65,7 +65,7 @@ const num = (v: unknown): number | null =>
   typeof v === "number" ? v : typeof v === "string" && v.trim() && !isNaN(+v) ? +v : null;
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 
-function toContent(
+export function toContent(
   p: Json,
   types: Map<string, MediaType>,
   warnings: ImportWarning[],

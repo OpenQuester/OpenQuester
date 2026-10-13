@@ -15,6 +15,7 @@ import { Card } from "@/ui/Card";
 import { FieldError, Label, Select, TextInput } from "@/ui/Field";
 import { Spinner } from "@/ui/Spinner";
 
+import { AvatarPicker } from "./AvatarPicker";
 import { useSettings } from "./settingsStore";
 
 export function SettingsPage() {
@@ -66,14 +67,15 @@ function SettingsForm({ user }: { user: User }) {
 
         <Card>
           <form onSubmit={onSave} className="flex flex-col gap-4" noValidate>
-            <div className="flex items-center gap-4">
-              <Avatar name={displayName(me.data)} src={me.data.avatar} size={56} />
-              <div className="flex min-w-0 flex-col">
+            <div className="flex flex-wrap items-center gap-4">
+              <Avatar name={displayName(me.data)} src={me.data.avatar} size={72} />
+              <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-lg font-semibold">{displayName(me.data)}</span>
                 <span className="text-sm text-muted">
                   {me.data.isGuest ? t("settings.guestAccount") : `@${me.data.username}`}
                 </span>
               </div>
+              <AvatarPicker />
             </div>
             <Label htmlFor="s-name">{t("settings.displayName")}</Label>
             <div className="flex flex-wrap gap-3">
