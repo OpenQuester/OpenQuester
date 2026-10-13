@@ -60,6 +60,12 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
 
 ## Deploy
 
+The server's Docker image (`docker/Dockerfile`) also builds `web/` and serves it
+for every non-API path (`WebAppController`, `WEB_APP_DIR`), so one container on one
+port answers both the app and `/v1` + `/socket.io`. Point another Traefik host at
+it (e.g. `Host(\`dev.openquester.app\`)`) to use the app there. The Docker build
+takes `VITE_DISCORD_CLIENT_ID`from the repo variable`WEB_DISCORD_CLIENT_ID`.
+
 `.github/workflows/web.yml` builds, runs unit and e2e tests, then deploys
 `dist/` with `functions/` to the Cloudflare Pages project `openquester-web`.
 Previews proxy to `https://dev-api.openquester.app`, production (`main`) to

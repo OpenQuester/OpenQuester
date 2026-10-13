@@ -1,6 +1,6 @@
 import { RedisStore } from "connect-redis";
 import cors from "cors";
-import express from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import session from "express-session";
 import helmet from "helmet";
 import Redis from "ioredis";
@@ -44,18 +44,23 @@ export class MiddlewareController {
     this.ctx.app.use(express.json({ limit: "800kb" }));
     this.ctx.app.use(express.urlencoded({ limit: "800kb", extended: true }));
 
-    // Configure helmet with custom CSP to allow S3/MinIO images
-    const s3Endpoint = this.ctx.env.getEnvVar("S3_ENDPOINT", "string", "", true);
-    const imgSrcDirectives = ["'self'", "data:"];
-    if (s3Endpoint) {
-      imgSrcDirectives.push(s3Endpoint);
-    }
+    // CSP for the API pages and the browser app served from this origin
+    // (WebAppController): media and presigned uploads go to S3, Discord sign-in
+    // exchanges its code with discord.com, avatars may come from Discord's CDN.
+    const s3Origin = this._origin(this.ctx.env.getEnvVar("S3_ENDPOINT", "string", "", true));
+    const s3 = s3Origin ? [s3Origin] : [];
 
     this.ctx.app.use(
       helmet({
         contentSecurityPolicy: {
           directives: {
-            imgSrc: imgSrcDirectives
+            imgSrc: ["'self'", "data:", "blob:", "https://cdn.discordapp.com", ...s3],
+            mediaSrc: ["'self'", "blob:", ...s3],
+            connectSrc: ["'self'", "https://discord.com", ...s3],
+            fontSrc: ["'self'", "https:", "data:"],
+            styleSrc: ["'self'", "https:", "'unsafe-inline'"],
+            // Local stacks serve S3 over plain http.
+            upgradeInsecureRequests: this.ctx.env.ENV === EnvType.PROD ? [] : null
           }
         }
       })
@@ -120,6 +125,30 @@ export class MiddlewareController {
         }
       })
     );
+    // The web app can be served under another host than API_DOMAIN (e.g.
+    // dev.openquester.app beside dev-api.openquester.app). Browsers drop a cookie
+    // scoped to a foreign domain, so use a host-only cookie on those hosts.
+    this.ctx.app.use((req: Request, _res: Response, next: NextFunction) => {
+      if (req.session?.cookie) {
+        req.session.cookie.domain = this._cookieDomainFor(req.hostname);
+      }
+      next();
+    });
     this.ctx.app.use(verifySession(this.ctx.env, this.ctx.logger));
+  }
+
+  private _cookieDomainFor(hostname: string): string | undefined {
+    const domain = this.ctx.env.API_DOMAIN?.replace(/^\./, "");
+    if (!domain) return undefined;
+    const matches = hostname === domain || hostname.endsWith(`.${domain}`);
+    return matches ? this.ctx.env.API_DOMAIN : undefined;
+  }
+
+  private _origin(url: string): string | null {
+    try {
+      return url ? new URL(url).origin : null;
+    } catch {
+      return null;
+    }
   }
 }

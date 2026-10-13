@@ -18,6 +18,10 @@ ADMIN_EMAILS=
 # Domain (full) to which cookie will be assigned
 API_DOMAIN=
 
+# Built web app (web/dist) to serve for every non-API path. The Docker image sets
+# /app/web. Hosts outside API_DOMAIN (e.g. dev.openquester.app) get a host-only cookie.
+WEB_APP_DIR=
+
 ## DB variables
 DB_TYPE=
 DB_NAME=

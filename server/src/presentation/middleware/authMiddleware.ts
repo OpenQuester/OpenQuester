@@ -17,6 +17,11 @@ import { ValueUtils } from "domain/utils/ValueUtils";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
 const isPublicEndpoint = (env: Environment, url: string, method: string): boolean => {
+  // Only the API needs a session; everything else is the web app's static files.
+  if (url !== "/v1" && !url.startsWith("/v1/") && !url.startsWith("/v1?")) {
+    return true;
+  }
+
   const publicEndpoints = ["v1/api-docs", "v1/users", "v1/files"];
 
   if (env.ENV === EnvType.DEV) {

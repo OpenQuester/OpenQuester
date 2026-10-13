@@ -50,6 +50,7 @@ import { FileRestApiController } from "presentation/controllers/rest/FileRestApi
 import { GameRestApiController } from "presentation/controllers/rest/GameRestApiController";
 import { PackageRestApiController } from "presentation/controllers/rest/PackageRestApiController";
 import { SwaggerRestApiController } from "presentation/controllers/rest/SwaggerRestApiController";
+import { WebAppController } from "presentation/controllers/rest/WebAppController";
 import { UserRestApiController } from "presentation/controllers/rest/UserRestApiController";
 import { errorMiddleware } from "presentation/middleware/errorMiddleware";
 import { SocketIORealtimeGateway } from "presentation/realtime/SocketIORealtimeGateway";
@@ -306,6 +307,13 @@ export class ServeApi {
         this._context.logger
       );
     }
+
+    // Last, so every API route above wins over the app's client-side routes.
+    new WebAppController(
+      deps.app,
+      this._context.env.getEnvVar("WEB_APP_DIR", "string", "", true),
+      this._context.logger
+    );
 
     const broadcastService = container.resolve(GameActionBroadcastService);
     const metricsService = container.resolve(MetricsService);

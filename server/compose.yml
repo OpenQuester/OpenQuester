@@ -169,6 +169,9 @@ services:
       STARTUP_RECOVERY_ENABLED: "false"
     labels:
       - traefik.enable=true
+      # One container serves the API and the web app on one port. On a host,
+      # route both names to it, e.g.
+      #   Host(`dev-api.openquester.app`) || Host(`dev.openquester.app`)
       - traefik.http.routers.oq-server.rule=PathPrefix(`/`)
       - traefik.http.routers.oq-server.entrypoints=web
       - traefik.http.services.oq-server.loadbalancer.server.port=3000
