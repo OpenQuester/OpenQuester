@@ -24,14 +24,29 @@ import { ValueUtils } from "domain/utils/ValueUtils";
 @singleton()
 export class S3ObjectStorage implements ObjectStorage {
   private readonly client: S3Client;
+  /**
+   * Signs upload links for the public proxy (S3_URL_PREFIX) when files are
+   * served through it (S3_USE_SUB_DOMAIN_BUCKET_FORMAT): the link is signed
+   * for the virtual-hosted bucket host, which the proxy sets as Host upstream,
+   * and handed out under the proxy's address.
+   */
+  private readonly proxyUploadClient: S3Client | null;
 
   constructor(@inject(DI_TOKENS.S3Context) private readonly s3Context: S3Context) {
-    this.client = new S3Client({
+    this.client = this._createClient(true);
+    this.proxyUploadClient =
+      this.s3Context.useSubDomainBucketFormat && this.s3Context.urlPrefix
+        ? this._createClient(false)
+        : null;
+  }
+
+  private _createClient(forcePathStyle: boolean): S3Client {
+    return new S3Client({
       credentials: {
         accessKeyId: this.s3Context.accessKey,
         secretAccessKey: this.s3Context.secretKey
       },
-      forcePathStyle: true,
+      forcePathStyle,
       endpoint: this.s3Context.endpoint,
       region: this.s3Context.region,
       // Presigned uploads come from clients, so the SDK must not sign a CRC32
@@ -40,6 +55,13 @@ export class S3ObjectStorage implements ObjectStorage {
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED"
     });
+  }
+
+  /** Moves a virtual-hosted presigned URL onto the public proxy's address. */
+  private _viaProxy(signedUrl: string): string {
+    const signed = new URL(signedUrl);
+    const prefix = this.s3Context.urlPrefix.replace(/\/+$/, "");
+    return `${prefix}${signed.pathname}${signed.search}`;
   }
 
   public getIgnoredCleanupFolder(): string {
@@ -57,10 +79,11 @@ export class S3ObjectStorage implements ObjectStorage {
         IfNoneMatch: "*"
       });
 
-      return getSignedUrl(this.client, command, {
+      const signed = await getSignedUrl(this.proxyUploadClient ?? this.client, command, {
         expiresIn: input.expiresInSeconds,
         unhoistableHeaders: new Set(["Content-MD5", "If-None-Match"])
       });
+      return this.proxyUploadClient ? this._viaProxy(signed) : signed;
     }
 
     const command = new GetObjectCommand({
