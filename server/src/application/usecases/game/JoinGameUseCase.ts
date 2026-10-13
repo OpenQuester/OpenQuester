@@ -64,7 +64,7 @@ export class JoinGameUseCase
 
     // 3. Fetch user entity from DB (1 RT)
     const user = await this.userService.get(userData.id, {
-      select: ["id", "username"],
+      select: ["id", "username", "name"],
       relations: ["avatar"],
       relationSelects: {
         avatar: ["id", "filename"]
@@ -92,8 +92,10 @@ export class JoinGameUseCase
     });
 
     // 5. Mutate in-memory game state (0 RT)
+    // Players see each other by display name; guests always have one, while
+    // their generated username (guest_001) means nothing to other players.
     const player = await game.addPlayer(
-      { id: user.id, username: user.username, avatar: user.avatar ?? null },
+      { id: user.id, username: user.name?.trim() || user.username, avatar: user.avatar ?? null },
       payload.role,
       payload.targetSlot
     );

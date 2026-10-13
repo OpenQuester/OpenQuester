@@ -3629,6 +3629,7 @@
           },
           "username": {
             "type": "string",
+            "description": "Name shown to other players: the user's display name when set, otherwise their username.",
             "examples": ["Asion001"]
           },
           "avatar": {
@@ -4063,6 +4064,11 @@
         "properties": {
           "currentRound": {
             "$ref": "#/components/schemas/SocketIOGameStateRoundData"
+          },
+          "currentTurnPlayerId": {
+            "type": ["integer", "null"],
+            "description": "Player who picks the first question. Null when no player is seated.",
+            "examples": [2]
           }
         },
         "required": ["currentRound"]

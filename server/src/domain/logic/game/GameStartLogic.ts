@@ -53,7 +53,10 @@ export class GameStartLogic {
     const broadcasts: SocketEventBroadcast[] = [
       {
         event: SocketIOGameEvents.START,
-        data: { currentRound } satisfies GameStartBroadcastData,
+        data: {
+          currentRound,
+          currentTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+        } satisfies GameStartBroadcastData,
         target: SocketBroadcastTarget.GAME,
         gameId: game.id,
       } satisfies SocketEventBroadcast<GameStartBroadcastData>,

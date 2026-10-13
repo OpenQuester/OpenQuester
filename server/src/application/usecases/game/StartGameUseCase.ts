@@ -73,7 +73,10 @@ export class StartGameUseCase implements GameActionHandler<EmptyInputData, GameS
 
     return {
       success: true,
-      data: { currentRound: result.data.currentRound! },
+      data: {
+        currentRound: result.data.currentRound!,
+        currentTurnPlayerId: game.gameState.currentTurnPlayerId ?? null
+      },
       mutations: [
         DataMutationConverter.saveGameMutation(game),
         ...DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts)

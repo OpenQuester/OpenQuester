@@ -97,6 +97,8 @@ export interface GameLeaveBroadcastData {
 
 export interface GameStartBroadcastData {
   currentRound: GameStateRoundDTO;
+  /** Player who picks the first question */
+  currentTurnPlayerId: number | null;
 }
 
 export interface GamePauseBroadcastData {

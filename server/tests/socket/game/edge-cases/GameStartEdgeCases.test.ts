@@ -105,13 +105,27 @@ describe("Game Start Edge Cases", () => {
         const { showmanSocket, gameId } = setup;
 
         // Start the game
-        await utils.startGame(showmanSocket);
+        const startPayload = await utils.startGame(showmanSocket);
+        expect(startPayload.currentTurnPlayerId).toBeNull();
 
         // Verify game state
         const gameState = await utils.getGameState(gameId);
         expect(gameState).not.toBeNull();
         expect(gameState!.currentTurnPlayerId).toBeNull();
         expect(gameState!.questionState).toBe(QuestionState.CHOOSING);
+      });
+    });
+
+    it("should tell everyone who picks first in the start event", async () => {
+      await suite.scenario(async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, gameId } = setup;
+
+        const startPayload = await utils.startGame(showmanSocket);
+
+        const gameState = await utils.getGameState(gameId);
+        expect(startPayload.currentTurnPlayerId).not.toBeNull();
+        expect(startPayload.currentTurnPlayerId).toBe(gameState!.currentTurnPlayerId);
       });
     });
 
