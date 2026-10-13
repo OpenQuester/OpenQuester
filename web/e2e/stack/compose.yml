@@ -1,0 +1,40 @@
+# Local backend dependencies for web end-to-end tests.
+# Ports are offset from the defaults so they never clash with a dev database.
+name: oq-web-e2e
+
+services:
+  postgres:
+    image: postgres:16.3-alpine
+    environment:
+      POSTGRES_USER: oq
+      POSTGRES_PASSWORD: oq
+      POSTGRES_DB: oq_web_e2e
+    ports:
+      - "127.0.0.1:55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oq -d oq_web_e2e"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # S3-compatible storage for package media. No identities are configured,
+  # so presigned uploads and public downloads both work without real keys.
+  s3:
+    image: chrislusf/seaweedfs:4.48
+    command: server -dir=/data -s3 -s3.port=8333 -master.volumeSizeLimitMB=64 -volume.max=8
+    ports:
+      - "127.0.0.1:58333:8333"
+    tmpfs:
+      - /data
