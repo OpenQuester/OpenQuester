@@ -574,7 +574,9 @@ function mediaStatus(
     playerId,
     mediaDownloaded,
     allPlayersReady,
-    timer: allPlayersReady ? timer(GAME_QUESTION_ANSWER_TIME) : null
+    timer: allPlayersReady ? timer(GAME_QUESTION_ANSWER_TIME) : null,
+    // The final status carries the question's content timeline (null: none).
+    ...(allPlayersReady ? { contentPlan: null } : {})
   };
 }
 
