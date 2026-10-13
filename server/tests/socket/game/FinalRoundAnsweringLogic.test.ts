@@ -17,6 +17,11 @@ import {
 } from "domain/types/socket/events/FinalRoundEventData";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import type { GameClientSocket } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import {
+  expectFinalReviews,
+  expectPersistedFinalAnswers,
+  type FinalReviewExpectation
+} from "tests/socket/game/utils/FinalRoundTestAssertions";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { TestUtils } from "tests/utils/TestUtils";
 
@@ -447,28 +452,23 @@ describe("Final Round Answering Logic", () => {
           expect(timeoutAnswer).not.toHaveProperty("answerText");
         }
 
+        const expectedReviews: FinalReviewExpectation[] = playerUsers.map((player, index) => ({
+          playerId: player.id,
+          answerText: index === 0 ? "Answered before timeout" : "",
+          isCorrect: index === 0 ? null : false,
+          answerType: index === 0 ? FinalAnswerType.PENDING : FinalAnswerType.AUTO_LOSS
+        }));
         for (const submitEnd of submitEndBroadcasts) {
           expect(submitEnd.phase).toBe(FinalRoundPhase.ANSWERING);
           expect(submitEnd.nextPhase).toBe(FinalRoundPhase.REVIEWING);
           expect(submitEnd.allReviews).toHaveLength(3);
-          expect(submitEnd.allReviews?.map((review) => review.answerText)).toEqual(
-            expect.arrayContaining(["Answered before timeout", "", ""])
-          );
-
-          const timeoutReviews = submitEnd.allReviews?.filter(
-            (review) =>
-              review.playerId === playerUsers[1].id || review.playerId === playerUsers[2].id
-          );
-          expect(timeoutReviews).toHaveLength(2);
-          for (const review of timeoutReviews ?? []) {
-            expect(review.isCorrect).toBe(false);
-            expect(review.answerType).toBe(FinalAnswerType.AUTO_LOSS);
-          }
+          expectFinalReviews(submitEnd.allReviews, expectedReviews);
         }
 
         const gameState = await utils.getGameState(gameId);
         expect(gameState.questionState).toBe(QuestionState.REVIEWING);
         expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.REVIEWING);
+        expectPersistedFinalAnswers(gameState.finalRoundData?.answers, expectedReviews);
       });
     });
 
