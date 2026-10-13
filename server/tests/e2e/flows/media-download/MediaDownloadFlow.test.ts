@@ -48,8 +48,8 @@ describe("MediaDownloadFlow lifecycle", () => {
   it.each([
     { defect: "none", expected: undefined },
     { defect: "skipped media phase", expected: '"media_downloading"' },
-    { defect: "wrong active timer", expected: "10000" },
-    { defect: "wrong data timer", expected: "fresh 10000ms timer" },
+    { defect: "wrong active timer", expected: String(MEDIA_DOWNLOAD_TIMEOUT) },
+    { defect: "wrong data timer", expected: `fresh ${MEDIA_DOWNLOAD_TIMEOUT}ms timer` },
     { defect: "missing files", expected: "files mismatch" }
   ])("validates question data and pre-ACK state ($defect)", async ({ defect, expected }) => {
     const sockets = [

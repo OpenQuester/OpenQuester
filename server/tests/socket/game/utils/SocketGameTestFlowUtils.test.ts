@@ -141,7 +141,7 @@ describe("SocketGameTestFlowUtils reliability", () => {
       "wrong active media timer",
       QuestionState.MEDIA_DOWNLOADING,
       GAME_QUESTION_ANSWER_TIME,
-      "fresh 10000ms timer"
+      `fresh ${MEDIA_DOWNLOAD_TIMEOUT}ms timer`
     ]
   ])(
     "rejects correct QUESTION_DATA with %s before sending any ACK",
@@ -174,7 +174,9 @@ describe("SocketGameTestFlowUtils reliability", () => {
         events.emit(SocketIOGameEvents.QUESTION_DATA, data)
       );
       await expect(flow.pickQuestion(showman, 42, players)).rejects.toThrow(
-        defect === "wrong payload timer" ? "fresh 10000ms timer" : "files mismatch"
+        defect === "wrong payload timer"
+          ? `fresh ${MEDIA_DOWNLOAD_TIMEOUT}ms timer`
+          : "files mismatch"
       );
       players.forEach((player) => expect(player.emit).not.toHaveBeenCalled());
     }
