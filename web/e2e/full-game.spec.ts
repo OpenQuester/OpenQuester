@@ -125,6 +125,20 @@ test.describe("full game", () => {
     await host.page.getByTestId("continue").click();
     await expectPhase(all, "Choosing");
 
+    // ── Pause freezes everyone; chat works for every role ──────────────────
+    await host.page.getByRole("button", { name: "Pause" }).click();
+    await expect(alice.page.getByTestId("paused-banner")).toContainText("Paused by Hana");
+    await expect(dockPhase(alice.page)).toHaveText("Paused");
+    await host.page.getByRole("button", { name: "Resume" }).click();
+    await expect(alice.page.getByTestId("paused-banner")).toHaveCount(0);
+    await sam.page.getByRole("button", { name: "Chat" }).click();
+    await sam.page.getByLabel("Message").fill("good luck everyone");
+    await sam.page.getByRole("button", { name: "Send" }).click();
+    await sam.page.keyboard.press("Escape");
+    await alice.page.getByRole("button", { name: "Chat" }).click();
+    await expect(alice.page.getByRole("dialog")).toContainText("good luck everyone");
+    await alice.page.keyboard.press("Escape");
+
     // ── No-risk question: a wrong answer costs nothing ─────────────────────
     await cell(host.page, "Capitals", 300).click();
     await expectPhase(all, "Ready to buzz");

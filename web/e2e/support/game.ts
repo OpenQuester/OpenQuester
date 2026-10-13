@@ -38,8 +38,12 @@ export interface Person {
 
 export async function signInAsGuest(page: Page, name: string, redirect = "/"): Promise<void> {
   await page.goto(`/login?redirect=${encodeURIComponent(redirect)}`);
-  await page.getByLabel("Your name").fill(name);
-  await page.getByRole("button", { name: "Continue as guest" }).click();
+  // Retry if a dev-server reload swallows the first attempt.
+  await expect(async () => {
+    await page.getByLabel("Your name").fill(name);
+    await page.getByRole("button", { name: "Continue as guest" }).click();
+    await expect(page).not.toHaveURL(/\/login/, { timeout: 3000 });
+  }).toPass({ timeout: 20_000 });
   await expect(page).not.toHaveURL(/\/login/);
   await expect(page.getByRole("link", { name: "Profile and settings" })).toBeVisible();
 }
