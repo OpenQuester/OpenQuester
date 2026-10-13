@@ -179,7 +179,8 @@ export class GameValidator {
 
   public static validatePlayerRoleChange(data: PlayerRoleChangeInputData) {
     const schema = Joi.object<PlayerRoleChangeInputData>({
-      playerId: Joi.number().min(0),
+      // null (or omitted) means "change my own role", as the contract documents
+      playerId: Joi.number().min(0).allow(null),
       newRole: Joi.valid(...Object.values(PlayerRole)).required()
     });
 
