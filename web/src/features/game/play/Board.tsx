@@ -60,7 +60,7 @@ export function Board() {
                 "flex items-center rounded-md bg-surface font-semibold leading-tight [overflow-wrap:anywhere]",
                 stacked
                   ? "col-span-full px-1.5 pb-0.5 pt-1 text-[15px]"
-                  : "min-h-14 px-3 py-2 text-[15px] sm:min-h-16 sm:px-4 sm:text-base lg:min-h-20 lg:text-lg",
+                  : "min-h-14 px-3 py-2 text-[15px] sm:min-h-16 sm:px-4 sm:text-base lg:min-h-20 lg:text-lg 3xl:min-h-24 3xl:text-xl 4xl:min-h-28 4xl:text-2xl",
               )}
             >
               {theme.name}
@@ -85,7 +85,7 @@ export function Board() {
                         "flex w-full items-center justify-center rounded-md font-mono font-bold",
                         stacked
                           ? "min-h-12 text-base"
-                          : "min-h-14 text-lg sm:min-h-16 sm:text-2xl lg:min-h-20 lg:text-3xl",
+                          : "min-h-14 text-lg sm:min-h-16 sm:text-2xl lg:min-h-20 lg:text-3xl 3xl:min-h-24 3xl:text-4xl 4xl:min-h-28 4xl:text-5xl",
                         q.isPlayed && "border border-line bg-transparent text-transparent",
                         !q.isPlayed &&
                           can.ok &&

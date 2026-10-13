@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "./theme/themes.css";
 
+/* Big monitors: 1920px+ (Full HD and up) and 2400px+ (2K class). */
+@theme {
+  --breakpoint-3xl: 120rem;
+  --breakpoint-4xl: 150rem;
+}
+
 @theme inline {
   --color-bg: var(--oq-bg);
   --color-surface: var(--oq-surface);

@@ -33,7 +33,7 @@ export function QuestionStage() {
         className="flex min-w-0 flex-1 flex-col items-center gap-5"
         aria-label={t("question.region")}
       >
-        <div className="flex w-full flex-wrap items-center justify-center gap-2 text-muted">
+        <div className="flex w-full flex-wrap items-center justify-center gap-2 text-muted 3xl:text-xl">
           {meta && <span className="font-semibold text-soft">{meta.theme.name}</span>}
           {price != null && (
             <span className="font-mono font-bold text-accent-strong">{formatScore(price)}</span>
@@ -48,7 +48,7 @@ export function QuestionStage() {
           <AnswerReveal />
         ) : (
           <div
-            className="flex w-full max-w-[920px] flex-col items-center gap-5 oq-pop"
+            className="flex w-full max-w-[920px] flex-col items-center gap-5 oq-pop 3xl:max-w-[1280px] 4xl:max-w-[1600px]"
             key={q?.id ?? "q"}
           >
             {q?.questionFiles && q.questionFiles.length > 0 && (
@@ -56,7 +56,7 @@ export function QuestionStage() {
             )}
             {q?.text && (
               <p
-                className="m-0 text-center font-display text-[clamp(22px,3.4vw,38px)] font-semibold leading-tight [overflow-wrap:anywhere]"
+                className="m-0 text-center font-display text-[clamp(22px,3.4vw,38px)] font-semibold 3xl:text-[clamp(40px,2.4vw,64px)] leading-tight [overflow-wrap:anywhere]"
                 data-testid="question-text"
               >
                 {q.text}
@@ -170,7 +170,7 @@ function ShowmanPanel() {
   return (
     <aside
       aria-label={t("showman.panel")}
-      className="flex w-full shrink-0 flex-col gap-2 rounded-lg border border-accent-line bg-accent-surface p-4 lg:w-[320px] lg:gap-3 lg:p-5"
+      className="flex w-full shrink-0 flex-col gap-2 rounded-lg border border-accent-line bg-accent-surface p-4 lg:w-[320px] lg:gap-3 lg:p-5 3xl:w-[420px] 3xl:text-lg"
       data-testid="showman-panel"
     >
       <span className="text-xs font-semibold uppercase tracking-wider text-accent-strong">
@@ -229,21 +229,21 @@ function AnswerReveal() {
   const answerText = data?.answerText ?? s.currentQuestion?.answerText ?? null;
   return (
     <div
-      className="flex w-full max-w-[920px] flex-col items-center gap-5 oq-pop"
+      className="flex w-full max-w-[920px] flex-col items-center gap-5 oq-pop 3xl:max-w-[1280px] 4xl:max-w-[1600px]"
       data-testid="answer-reveal"
     >
       <span className="text-sm font-semibold uppercase tracking-wider text-muted">
         {t("reveal.answer")}
       </span>
       {answerText && (
-        <p className="m-0 text-center font-display text-[clamp(26px,4vw,44px)] font-extrabold leading-tight text-success [overflow-wrap:anywhere]">
+        <p className="m-0 text-center font-display text-[clamp(26px,4vw,44px)] font-extrabold 3xl:text-[clamp(44px,2.8vw,72px)] leading-tight text-success [overflow-wrap:anywhere]">
           {answerText}
         </p>
       )}
       {data?.answerFiles && data.answerFiles.length > 0 && (
         <QuestionMedia files={data.answerFiles} playing />
       )}
-      <p className="m-0 text-lg text-soft">
+      <p className="m-0 text-lg text-soft 3xl:text-2xl">
         {winner
           ? t("reveal.gotIt", { name: winner.meta.username, points: formatSigned(result!.result) })
           : t("reveal.nobody")}
