@@ -457,14 +457,31 @@ export class Game {
     return this.gameState.skippedPlayers?.includes(playerId) ?? false;
   }
 
+  /**
+   * True when nobody can still buzz: every player who may answer the current
+   * question has either passed or already answered it. A pass after someone
+   * else's wrong answer therefore ends the question instead of leaving
+   * everyone waiting for the timer.
+   */
   public haveAllPlayersSkipped(): boolean {
-    const activePlayers = this.getInGamePlayers();
+    const activePlayers = this._getAnswerEligibleInGamePlayers();
     if (activePlayers.length === 0) {
       return false;
     }
 
     const skippedPlayers = this.gameState.skippedPlayers ?? [];
-    return activePlayers.every((player) => skippedPlayers.includes(player.meta.id));
+    const answeredPlayerIds = this.gameState.answeredPlayers?.map((ap) => ap.player) ?? [];
+    return activePlayers.every(
+      (player) =>
+        skippedPlayers.includes(player.meta.id) || answeredPlayerIds.includes(player.meta.id)
+    );
+  }
+
+  /** In-game players allowed to answer the current question (late joiners excluded). */
+  private _getAnswerEligibleInGamePlayers(): Player[] {
+    return this.getInGamePlayers().filter((player) =>
+      this.isPlayerEligibleToAnswer(player.meta.id)
+    );
   }
 
   /**
@@ -476,7 +493,7 @@ export class Game {
    * @returns true if all players will be exhausted after the current answer is processed
    */
   public willAllPlayersBeExhausted(): boolean {
-    const activePlayers = this.getInGamePlayers();
+    const activePlayers = this._getAnswerEligibleInGamePlayers();
     if (activePlayers.length === 0) {
       return true;
     }
