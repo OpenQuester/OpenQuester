@@ -53,8 +53,20 @@ const TYPE_ALIASES: Record<string, UploadQuestion["type"]> = {
   sponsored: "noRisk",
 };
 
-const QUESTION_DISPLAY = 20_000;
-const ANSWER_DISPLAY = 15_000;
+/**
+ * One content item read from SIGame XML, in package order. SIGame plays these
+ * one at a time (an item that does not wait for its finish is shown together
+ * with the next), so the importer keeps order, placement and timing.
+ */
+interface ContentEntry {
+  kind: "text" | "said" | "file";
+  value?: string;
+  file?: FileRef;
+  placement: "screen" | "background";
+  waitForFinish: boolean;
+  /** Explicit duration in ms, or null for the default/real length. */
+  durationMs: number | null;
+}
 
 class SiqReader {
   files = new Map<string, MediaFile>();
@@ -170,6 +182,7 @@ class SiqReader {
       order,
       price: roundType === "final" ? null : price,
       text: body.text,
+      textOrder: body.textOrder,
       questionComment: body.comment,
       answerText,
       answerHint: wrong.length ? `Wrong answers: ${wrong.join(" / ")}` : null,
@@ -199,18 +212,23 @@ class SiqReader {
       [...children(params, "param")].find((p) => p.getAttribute("name") === n) ?? null;
     const question = byName("question") ?? params;
     const answer = byName("answer");
-    const read = (param: Element | null, display: number) => {
-      const texts: string[] = [];
-      const said: string[] = [];
-      const files: FileRef[] = [];
+    const read = (param: Element | null) => {
+      const entries: ContentEntry[] = [];
       for (const item of children(param, "item")) {
         const kind = item.getAttribute("type") ?? "text";
         const value = text(item);
         if (!value) continue;
+        const waitForFinish = item.getAttribute("waitForFinish")?.toLowerCase() !== "false";
+        const durationMs = parseTimeSpan(item.getAttribute("duration"));
         if (kind === "text" || kind === "say") {
-          (item.getAttribute("placement") === "replic" || kind === "say" ? said : texts).push(
+          const said = item.getAttribute("placement") === "replic" || kind === "say";
+          entries.push({
+            kind: said ? "said" : "text",
             value,
-          );
+            placement: "screen",
+            waitForFinish,
+            durationMs,
+          });
           continue;
         }
         const media = mediaType(kind);
@@ -220,14 +238,21 @@ class SiqReader {
           continue;
         }
         const ref = this.media(media, value, where);
-        if (ref) files.push(ref);
+        if (!ref) continue;
+        // SIGame plays audio in the background unless the item says otherwise.
+        const placement =
+          media === "audio" && (item.getAttribute("placement") ?? "background") === "background"
+            ? "background"
+            : "screen";
+        entries.push({ kind: "file", file: ref, placement, waitForFinish, durationMs });
       }
-      return { texts, said, files: toQuestionFiles(files, display) };
+      return toSequence(entries);
     };
-    const asked = read(question, QUESTION_DISPLAY);
-    const shown = read(answer, ANSWER_DISPLAY);
+    const asked = read(question);
+    const shown = read(answer);
     return {
       text: joined(asked.texts) ?? joined(asked.said),
+      textOrder: asked.texts.length ? asked.textOrder : null,
       comment: asked.texts.length ? joined(asked.said) : null,
       questionFiles: asked.files,
       answerFiles: shown.files,
@@ -237,10 +262,8 @@ class SiqReader {
 
   /** Format 4: <scenario><atom>text</atom><atom type="image">@pic.jpg</atom><atom type="marker"/>…</scenario> */
   private readV4(scenario: Element | null, where: string) {
-    const texts: string[] = [];
-    const said: string[] = [];
-    const qFiles: FileRef[] = [];
-    const aFiles: FileRef[] = [];
+    const asked: ContentEntry[] = [];
+    const shown: ContentEntry[] = [];
     let afterMarker = false;
     for (const atom of children(scenario, "atom")) {
       const kind = atom.getAttribute("type") ?? "text";
@@ -250,12 +273,20 @@ class SiqReader {
       }
       const value = text(atom);
       if (!value) continue;
-      if (kind === "text") {
-        if (!afterMarker) texts.push(value);
-        continue;
-      }
-      if (kind === "say") {
-        if (!afterMarker) said.push(value);
+      // SIGame: time -1 means "do not wait"; a positive time is the duration in seconds.
+      const time = Number.parseFloat(atom.getAttribute("time") ?? "0");
+      const waitForFinish = time !== -1;
+      const durationMs = Number.isFinite(time) && time > 0 ? Math.round(time * 1000) : null;
+      const into = afterMarker ? shown : asked;
+      if (kind === "text" || kind === "say") {
+        if (afterMarker) continue;
+        into.push({
+          kind: kind === "say" ? "said" : "text",
+          value,
+          placement: "screen",
+          waitForFinish,
+          durationMs,
+        });
         continue;
       }
       const media = mediaType(kind);
@@ -265,13 +296,23 @@ class SiqReader {
         continue;
       }
       const ref = this.media(media, value, where);
-      if (ref) (afterMarker ? aFiles : qFiles).push(ref);
+      if (!ref) continue;
+      into.push({
+        kind: "file",
+        file: ref,
+        placement: kind === "voice" ? "background" : "screen",
+        waitForFinish,
+        durationMs,
+      });
     }
+    const q = toSequence(asked);
+    const a = toSequence(shown);
     return {
-      text: joined(texts) ?? joined(said),
-      comment: texts.length ? joined(said) : null,
-      questionFiles: toQuestionFiles(qFiles, QUESTION_DISPLAY),
-      answerFiles: toQuestionFiles(aFiles, ANSWER_DISPLAY),
+      text: joined(q.texts) ?? joined(q.said),
+      textOrder: q.texts.length ? q.textOrder : null,
+      comment: q.texts.length ? joined(q.said) : null,
+      questionFiles: q.files,
+      answerFiles: a.files,
       selectionMode: null,
     };
   }
@@ -339,6 +380,49 @@ function mediaType(kind: string): MediaType | null {
   return null;
 }
 
-function toQuestionFiles(files: FileRef[], displayTime: number): QuestionFile[] {
-  return files.map((file, order) => ({ file, order, displayTime }));
+/**
+ * Turns SIGame content items into OpenQuester's model: files keep their
+ * order, placement, waitForFinish and duration; all screen texts become the
+ * question text, placed where the first one was. A text shown together with
+ * the next item (waitForFinish false) or with no media around stays a caption.
+ */
+function toSequence(entries: ContentEntry[]) {
+  const texts: string[] = [];
+  const said: string[] = [];
+  const files: QuestionFile[] = [];
+  let textOrder: number | null = null;
+  let textCaption = false;
+  let order = 0;
+  for (const e of entries) {
+    if (e.kind === "said") {
+      said.push(e.value!);
+      continue;
+    }
+    if (e.kind === "text") {
+      if (texts.length === 0) {
+        textOrder = order++;
+        textCaption = !e.waitForFinish;
+      }
+      texts.push(e.value!);
+      continue;
+    }
+    const f: QuestionFile = { file: e.file!, order: order++, displayTime: e.durationMs };
+    if (e.placement === "background") f.placement = "background";
+    if (!e.waitForFinish) f.waitForFinish = false;
+    files.push(f);
+  }
+  if (textCaption || files.length === 0) textOrder = null;
+  return { texts, said, files, textOrder };
+}
+
+/** SIGame durations are .NET TimeSpans ("00:00:05" or "00:00:05.5"). */
+function parseTimeSpan(raw: string | null): number | null {
+  if (!raw) return null;
+  const m = /^(?:(\d+)\.)?(\d{1,2}):(\d{1,2}):(\d{1,2})(?:\.(\d+))?$/.exec(raw.trim());
+  if (!m) return null;
+  const [, days, h, min, sec, frac] = m;
+  const ms =
+    ((Number(days ?? 0) * 24 + Number(h)) * 3600 + Number(min) * 60 + Number(sec)) * 1000 +
+    (frac ? Math.round(Number(`0.${frac}`) * 1000) : 0);
+  return ms > 0 ? ms : null;
 }

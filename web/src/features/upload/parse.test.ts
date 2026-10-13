@@ -96,11 +96,18 @@ describe("parseSiq", () => {
       type: "simple",
       price: 100,
       text: "What is the capital of France?",
+      // SIGame shows the text first, then the picture.
+      textOrder: 0,
       answerText: "Paris",
       answerHint: "Wrong answers: Lyon",
-      questionFiles: [{ file: { md5: md5Hex(png), type: "image" }, order: 0 }],
-      answerFiles: [{ file: { md5: md5Hex(mp3), type: "audio" }, order: 0 }],
+      questionFiles: [{ file: { md5: md5Hex(png), type: "image" }, order: 1, displayTime: null }],
+      // SIGame plays audio in the background by default.
+      answerFiles: [
+        { file: { md5: md5Hex(mp3), type: "audio" }, order: 0, placement: "background" },
+      ],
     });
+    // A text-only question keeps its text as a plain caption.
+    expect(secret!.textOrder).toBeNull();
     expect(secret).toMatchObject({
       type: "secret",
       subType: "simple",
@@ -138,11 +145,57 @@ describe("parseSiq", () => {
     expect(q).toMatchObject({
       type: "stake",
       text: "Listen",
-      questionFiles: [{ file: { type: "audio" } }],
+      textOrder: 0,
+      questionFiles: [{ file: { type: "audio" }, order: 1, placement: "background" }],
       answerFiles: [{ file: { type: "image" } }],
       showAnswerDuration: 10_000,
     });
     expect(parsed.warnings).toEqual([]);
+  });
+
+  it("keeps the order, grouping and timing of format 5 content", async () => {
+    const vid = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70]);
+    const vid2 = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x71]);
+    const parsed = await siq(
+      `<package name="Films" version="5"><rounds><round name="R"><themes><theme name="T"><questions>
+        <question price="100">
+          <params><param name="question" type="content">
+            <item>Name the film</item>
+            <item type="video" isRef="True">a.mp4</item>
+            <item type="video" isRef="True" duration="00:00:08">b.mp4</item>
+          </param></params>
+          <right><answer>Heat</answer></right>
+        </question>
+        <question price="200">
+          <params><param name="question" type="content">
+            <item waitForFinish="False">Who is this?</item>
+            <item type="image" isRef="True">a.png</item>
+            <item type="audio" isRef="True" placement="screen" waitForFinish="False">a.mp3</item>
+            <item type="image" isRef="True">a.png</item>
+          </param></params>
+          <right><answer>Me</answer></right>
+        </question>
+      </questions></theme></themes></round></rounds></package>`,
+      { "Video/a.mp4": vid, "Video/b.mp4": vid2, "Images/a.png": png, "Audio/a.mp3": mp3 },
+    );
+    const [films, who] = parsed.content.rounds[0]!.themes[0]!.questions;
+    // text → video → video, one at a time.
+    expect(films).toMatchObject({
+      textOrder: 0,
+      questionFiles: [
+        { file: { type: "video" }, order: 1, displayTime: null },
+        { file: { type: "video" }, order: 2, displayTime: 8_000 },
+      ],
+    });
+    expect(films!.questionFiles![0]).not.toHaveProperty("waitForFinish");
+    // A text shown together with the next item stays a caption; grouping is kept.
+    expect(who!.textOrder).toBeNull();
+    expect(who!.questionFiles).toMatchObject([
+      { order: 1 },
+      { order: 2, waitForFinish: false },
+      { order: 3 },
+    ]);
+    expect(who!.questionFiles![1]).not.toHaveProperty("placement");
   });
 
   it("explains a file that isn't a package", async () => {

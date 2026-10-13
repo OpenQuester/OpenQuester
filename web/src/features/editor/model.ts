@@ -26,6 +26,10 @@ export interface EditorMedia {
   type: MediaType;
   /** Milliseconds the file stays on screen; null lets the game decide. */
   displayTime: number | null;
+  /** Audio only: plays under the stage instead of taking it. */
+  placement?: "screen" | "background";
+  /** False shows the next item together with this one. */
+  waitForFinish?: boolean;
 }
 
 export interface ChoiceOption {
@@ -39,6 +43,11 @@ export interface EditorQuestion {
   type: QuestionType;
   price: number | null;
   text: string;
+  /**
+   * Where the text plays among the question files (0 = before the first);
+   * null shows it as a caption next to the media for the whole question.
+   */
+  textPosition: number | null;
   questionFiles: EditorMedia[];
   answerText: string;
   answerFiles: EditorMedia[];
@@ -101,6 +110,7 @@ export function newQuestion(
     type: "simple",
     price,
     text: "",
+    textPosition: null,
     questionFiles: [],
     answerText: "",
     answerFiles: [],
@@ -185,11 +195,16 @@ export function countQuestions(pkg: EditorPackage): number {
 const toMedia = (files: QuestionFile[] | null | undefined): EditorMedia[] =>
   [...(files ?? [])]
     .sort((a, b) => a.order - b.order)
-    .map((f) => ({
-      md5: f.file.md5,
-      type: f.file.type,
-      displayTime: f.displayTime,
-    }));
+    .map((f) => {
+      const m: EditorMedia = { md5: f.file.md5, type: f.file.type, displayTime: f.displayTime };
+      if (f.placement === "background") m.placement = "background";
+      if (f.waitForFinish === false) m.waitForFinish = false;
+      return m;
+    });
+
+/** The text's place among the files: how many files come before it. */
+const textPosition = (q: UploadQuestion): number | null =>
+  q.textOrder == null ? null : (q.questionFiles ?? []).filter((f) => f.order < q.textOrder!).length;
 
 const byOrder = <T extends { order: number }>(list: T[]): T[] =>
   [...list].sort((a, b) => a.order - b.order);
@@ -215,6 +230,7 @@ export function fromUpload(c: UploadContent): EditorPackage {
           newQuestion(q.price, {
             type: q.type,
             text: q.text ?? "",
+            textPosition: textPosition(q),
             questionFiles: toMedia(q.questionFiles),
             answerText: q.answerText ?? "",
             answerFiles: toMedia(q.answerFiles),
@@ -240,13 +256,19 @@ export function fromUpload(c: UploadContent): EditorPackage {
   };
 }
 
-const fromMedia = (files: EditorMedia[]): QuestionFile[] | null =>
+/** Files in order; positions at or after `skip` leave room for the text. */
+const fromMedia = (files: EditorMedia[], skip: number | null = null): QuestionFile[] | null =>
   files.length
-    ? files.map((f, order) => ({
-        file: { md5: f.md5, type: f.type },
-        order,
-        displayTime: f.displayTime,
-      }))
+    ? files.map((f, i) => {
+        const out: QuestionFile = {
+          file: { md5: f.md5, type: f.type },
+          order: skip != null && i >= skip ? i + 1 : i,
+          displayTime: f.displayTime,
+        };
+        if (f.placement === "background" && f.type === "audio") out.placement = "background";
+        if (f.waitForFinish === false) out.waitForFinish = false;
+        return out;
+      })
     : null;
 
 const orNull = (s: string): string | null => (s.trim() ? s : null);
@@ -280,17 +302,23 @@ export function toUpload(pkg: EditorPackage): UploadContent {
 
 function toUploadQuestion(q: EditorQuestion, order: number, final: boolean): UploadQuestion {
   const type: QuestionType = final ? "simple" : q.type;
+  // The text is a step of its own only next to media; alone it is just the text.
+  const textStep =
+    q.textPosition != null && q.text.trim() && q.questionFiles.length
+      ? Math.min(q.textPosition, q.questionFiles.length)
+      : null;
   const out: UploadQuestion = {
     type,
     order,
     price: final ? null : q.price,
     text: orNull(q.text),
+    textOrder: textStep,
     questionComment: orNull(q.questionComment),
     answerText: orNull(q.answerText),
     answerHint: orNull(q.answerHint),
     answerDelay: q.answerDelay,
     showAnswerDuration: q.showAnswerDuration,
-    questionFiles: fromMedia(q.questionFiles),
+    questionFiles: fromMedia(q.questionFiles, textStep),
     answerFiles: fromMedia(q.answerFiles),
   };
   switch (type) {

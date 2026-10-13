@@ -153,6 +153,13 @@ function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => vo
               {!q.text.trim() && q.questionFiles.length === 0 && (
                 <FieldError>{t("editor.issues.questionEmpty")}</FieldError>
               )}
+              {q.text.trim() && q.questionFiles.length > 0 && (
+                <Check
+                  checked={q.textPosition != null}
+                  onChange={(on) => set({ textPosition: on ? 0 : null })}
+                  label={t("editor.form.textFirst")}
+                />
+              )}
 
               {!final && q.type === "choice" && <ChoiceOptions q={q} set={set} />}
 

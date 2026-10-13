@@ -14,6 +14,10 @@ export interface QuestionFile {
   file: FileRef;
   order: number;
   displayTime: number | null;
+  /** Defaults to screen; background is audio under the stage. */
+  placement?: "screen" | "background";
+  /** False shows the next item together with this one. Defaults to true. */
+  waitForFinish?: boolean;
 }
 
 export interface UploadQuestion {
@@ -22,6 +26,8 @@ export interface UploadQuestion {
   order: number;
   price: number | null;
   text?: string | null;
+  /** Position of the text among the question files; null keeps it as a caption. */
+  textOrder?: number | null;
   questionComment?: string | null;
   answerText?: string | null;
   answerHint?: string | null;

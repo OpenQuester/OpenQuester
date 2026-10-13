@@ -82,7 +82,11 @@ export function toContent(
     const out = list(v).flatMap((f, i) => {
       if (!isObject(f)) return [];
       const file = fileRef(f.file);
-      return file ? [{ file, order: num(f.order) ?? i, displayTime: num(f.displayTime) }] : [];
+      if (!file) return [];
+      const out: QuestionFile = { file, order: num(f.order) ?? i, displayTime: num(f.displayTime) };
+      if (f.placement === "background" && file.type === "audio") out.placement = "background";
+      if (f.waitForFinish === false) out.waitForFinish = false;
+      return [out];
     });
     return out.length ? out : null;
   };
@@ -98,6 +102,7 @@ export function toContent(
       order: num(q.order) ?? i,
       price: num(q.price),
       text: str(q.text),
+      textOrder: num(q.textOrder),
       questionComment: str(q.questionComment),
       answerText: str(q.answerText),
       answerHint: str(q.answerHint),
