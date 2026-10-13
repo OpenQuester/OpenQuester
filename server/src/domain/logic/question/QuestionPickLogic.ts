@@ -2,6 +2,7 @@ import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionPickResult, QuestionPickType } from "domain/types/question/QuestionPickTypes";
 import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
@@ -68,6 +69,26 @@ export class QuestionPickLogic {
   /**
    * Mark question as played for special questions.
    */
+  /**
+   * The player a stake or secret question belongs to. When the showman picks
+   * on someone's behalf, it is the player whose turn it was, never the
+   * showman: the showman cannot bid, receive the question or score.
+   */
+  public static resolvePickerPlayerId(game: Game, triggeringPlayerId: number): number {
+    const triggering = game.getPlayer(triggeringPlayerId, { fetchDisconnected: true });
+    if (triggering?.role === PlayerRole.PLAYER) {
+      return triggeringPlayerId;
+    }
+
+    const inGamePlayers = game.getInGamePlayers();
+    const turnPlayerId = game.gameState.currentTurnPlayerId;
+    if (turnPlayerId != null && inGamePlayers.some((p) => p.meta.id === turnPlayerId)) {
+      return turnPlayerId;
+    }
+
+    return inGamePlayers[0]?.meta.id ?? triggeringPlayerId;
+  }
+
   public static markQuestionPlayed(game: Game, questionId: number, themeId: number): void {
     GameQuestionMapper.setQuestionPlayed(game, questionId, themeId);
   }

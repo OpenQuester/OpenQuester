@@ -77,7 +77,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
     ctx: ChoosingToStakeBiddingCtx
   ): Promise<MutationResult> {
     const { game, payload, triggeredBy } = ctx;
-    const pickerPlayerId = triggeredBy.playerId!;
+    const pickerPlayerId = QuestionPickLogic.resolvePickerPlayerId(game, triggeredBy.playerId!);
 
     const { question, theme } = QuestionPickLogic.validateQuestionPick(
       game,
