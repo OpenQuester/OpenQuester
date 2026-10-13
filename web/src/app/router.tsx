@@ -69,6 +69,14 @@ const packagesRoute = createRoute({
     q: str(s.q),
   }),
 });
+const uploadRoute = createRoute({
+  getParentRoute: () => shell,
+  path: "/packages/upload",
+  component: lazyRouteComponent(
+    () => import("@/features/upload/UploadPackagePage"),
+    "UploadPackagePage",
+  ),
+});
 const createGameRoute = createRoute({
   getParentRoute: () => shell,
   path: "/games/new",
@@ -99,6 +107,7 @@ const routeTree = rootRoute.addChildren([
     loginRoute,
     discordRoute,
     packagesRoute,
+    uploadRoute,
     createGameRoute,
     settingsRoute,
   ]),

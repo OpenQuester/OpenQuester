@@ -32,7 +32,7 @@ OQ_WEB_URL=https://<deploy>.pages.dev OQ_LIVE_PACKAGE_ID=3 npx playwright test -
 src/api/        openapi-fetch client, generated schema.d.ts, type aliases
 src/game/       protocol.ts (socket contract), reducer.ts (pure), selectors.ts,
                 connection.ts (socket lifecycle), store.ts (zustand), media.ts
-src/features/   screens: auth, home, packages, create-game, settings, game (lobby + play)
+src/features/   screens: auth, home, packages, upload (.siq/.oq import), create-game, settings, game (lobby + play)
 src/ui/         small design-system components
 src/theme/      token sets ([data-theme] blocks) and the theme registry
 src/i18n/       en / uk / ru resources

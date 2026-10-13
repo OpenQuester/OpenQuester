@@ -96,3 +96,8 @@ export const EyeIcon = (p: { size?: number }) => (
     <circle cx="12" cy="12" r="3" />
   </Icon>
 );
+export const UploadIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+  </Icon>
+);

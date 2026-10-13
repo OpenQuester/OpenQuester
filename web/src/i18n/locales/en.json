@@ -101,7 +101,8 @@
     "signInToHost": "Sign in to host",
     "prev": "Previous",
     "next": "Next",
-    "page": "Page {{page}} of {{pages}}"
+    "page": "Page {{page}} of {{pages}}",
+    "upload": "Upload package"
   },
   "questionTypes": {
     "simple": "Simple",
@@ -587,5 +588,65 @@
     "noSpectators": "Nobody is watching.",
     "seat": "Seat as player",
     "showmanHelp": "Manage a player to fix their score, give them the turn, move them to spectators or remove them."
+  },
+  "upload": {
+    "back": "Packages",
+    "title": "Upload a package",
+    "lead": "Bring a SIGame .siq pack or an OpenQuester .oq export. You'll see what's inside before anything is uploaded.",
+    "signInFirst": "Sign in to upload packages.",
+    "guestTitle": "Guest accounts can't upload packages",
+    "guestHelp": "A package needs an owner who can come back to it. Sign in with Discord to upload, and your packages stay with your account.",
+    "drop": "Drop a package file here",
+    "formats": "SIGame .siq (formats 4 and 5) or OpenQuester .oq. Images, audio and video inside the file are uploaded too.",
+    "choose": "Choose a file",
+    "reading": "Reading {{name}}…",
+    "readErrors": {
+      "wrongType": "That isn't a .siq or .oq file.",
+      "notZip": "This file is damaged or isn't a package archive.",
+      "noContentXml": "This .siq file has no content.xml, so there's nothing to read.",
+      "badContentXml": "The package description inside this .siq file is broken.",
+      "noContentJson": "This .oq file has no content.json, so there's nothing to read.",
+      "badContentJson": "The package description inside this .oq file is broken.",
+      "generic": "Couldn't read this file."
+    },
+    "format": {
+      "siq": "SIGame package",
+      "oq": "OpenQuester package"
+    },
+    "questionCount_one": "{{count}} question",
+    "questionCount_other": "{{count}} questions",
+    "mediaCount_one": "{{count}} media file · {{size}}",
+    "mediaCount_other": "{{count}} media files · {{size}}",
+    "noQuestions": "There are no playable questions in this file, so there's nothing to upload.",
+    "warningsTitle_one": "{{count}} thing was adjusted while reading",
+    "warningsTitle_other": "{{count}} things were adjusted while reading",
+    "warningsHelp": "The package still uploads. These questions may look different from the original.",
+    "warnings": {
+      "missingFile": "Media file {{detail}} isn't in the archive, so it was left out.",
+      "externalMedia": "Linked media ({{detail}}) can't be uploaded and was left out.",
+      "emptyQuestion": "Question has no text or media, so it was skipped.",
+      "noAnswer": "Question has no answer. The showman will judge it without one.",
+      "choiceAsSimple": "Choice question has fewer than two options, so it plays as a regular question.",
+      "unknownType": "Question type “{{detail}}” isn't supported yet and plays as a regular question.",
+      "hashMismatch": "Media file {{detail}} is damaged and was left out."
+    },
+    "showAll": "Show all {{count}}",
+    "showFewer": "Show fewer",
+    "upload": "Upload package",
+    "another": "Choose another file",
+    "progressLabel": "Upload progress",
+    "creating": "Creating the package…",
+    "sending": "Uploading media {{done}} of {{total}} · {{sent}} of {{size}}",
+    "keepOpen": "Keep this page open until the upload finishes.",
+    "done": "Package uploaded",
+    "doneHelp": "“{{title}}” is ready. Host a game with it now or find it later in Packages.",
+    "viewPackage": "View package",
+    "partial_one": "{{count}} media file didn't upload",
+    "partial_other": "{{count}} media files didn't upload",
+    "partialHelp": "The package exists, but questions that use those files will show a “couldn't load” notice until they're uploaded.",
+    "retryFiles": "Retry those files",
+    "tryAgain": "Try again",
+    "networkError": "Lost connection while uploading. Check your network and try again.",
+    "serverRejected": "The server didn't accept this package: {{message}}"
   }
 }
