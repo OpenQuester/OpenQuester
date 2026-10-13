@@ -1,5 +1,4 @@
 import { cn } from "@/lib/cn";
-import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GameSession } from "@/game/reducer";
@@ -17,7 +16,6 @@ import { formatScore, formatSigned } from "@/lib/format";
 import { Avatar } from "@/ui/Avatar";
 
 import { useGame, useSession } from "../GameContext";
-import { PlayerAdminDialog } from "./PlayerAdminDialog";
 
 interface ChipState {
   tag: string;
@@ -26,11 +24,10 @@ interface ChipState {
 }
 
 /** Score bar: every seated player, their score, and what they are doing now. */
-export function PlayerChips() {
+export function PlayerChips({ onManage }: { onManage?: (playerId: number) => void }) {
   const { t } = useTranslation();
   const session = useSession();
   const { myId } = useGame();
-  const [editing, setEditing] = useState<Player | null>(null);
   const isShowman = myRole(session, myId) === "showman";
   const host = showman(session);
   const players = seatedPlayers(session);
@@ -86,7 +83,7 @@ export function PlayerChips() {
                 <button
                   type="button"
                   className={cn(cls, "text-text hover:border-line-strong")}
-                  onClick={() => setEditing(p)}
+                  onClick={() => onManage?.(p.meta.id)}
                   aria-label={t("admin.manage", { name: p.meta.username })}
                 >
                   {content}
@@ -98,7 +95,6 @@ export function PlayerChips() {
           );
         })}
       </ul>
-      {editing && <PlayerAdminDialog player={editing} onClose={() => setEditing(null)} />}
     </>
   );
 }

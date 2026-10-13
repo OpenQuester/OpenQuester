@@ -356,7 +356,11 @@
       "audio": "Couldn't load the audio"
     },
     "mediaFailedHelp": "The file server isn't responding. The showman can read the question out loud or skip it.",
-    "openFile": "Open the file"
+    "openFile": "Open the file",
+    "mediaLoading": "Loading…",
+    "audioPlaying": "Listen",
+    "audioWaiting": "The audio plays when the question opens",
+    "enableSound": "Tap to turn the sound on"
   },
   "showman": {
     "panel": "Only you can see this",
@@ -928,5 +932,12 @@
       "noDescription": "Add a short description.",
       "noTags": "Add a few tags."
     }
+  },
+  "panels": {
+    "pin": "Pin {{name}}",
+    "unpin": "Unpin {{name}}",
+    "close": "Close {{name}}",
+    "pinHelp": "Keep this panel open next to the game, also after a reload",
+    "unpinHelp": "Pinned on this device. Click to unpin"
   }
 }

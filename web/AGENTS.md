@@ -62,6 +62,14 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   `docs/specs/package-validation-spec.md`: critical issues block Publish.
   Drag and drop is native HTML5; every drag has a Move dialog equivalent for
   touch and keyboard.
+- Question media: players ACK `media-downloaded` only once every file is
+  loaded (images decoded), so the question timer starts when everyone can see
+  it. Audio and video have no controls and play only in the `showing` phase;
+  blocked autoplay falls back to muted playback plus an "enable sound" button.
+- In-game chat, players and showman tools are side panels at `lg` (1024 px)
+  and up, never modals over the game; pins are per device in settings
+  (`pins`). Below `lg` they open as sheets. `3xl`/`4xl` breakpoints scale the
+  board and question for 1920 px+ and 2400 px+ monitors.
 - Layouts must work at 375 px wide with no horizontal scroll; the e2e
   `expectNoHorizontalScroll` check runs on phone, tablet and desktop.
 

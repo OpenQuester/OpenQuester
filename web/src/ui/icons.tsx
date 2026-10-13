@@ -186,3 +186,8 @@ export const OutlineIcon = (p: { size?: number }) => (
     <path d="M4 5h16M8 10h12M8 15h12M4 20h16" />
   </Icon>
 );
+export const PinIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z" />
+  </Icon>
+);

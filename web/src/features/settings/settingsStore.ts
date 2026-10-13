@@ -11,7 +11,11 @@ export interface Settings {
   reduceMotion: boolean;
   /** 0..1 */
   volume: number;
+  /** In-game side panels kept open on wide screens (this device only). */
+  pins: Partial<Record<PanelId, boolean>>;
 }
+
+export type PanelId = "host" | "players" | "chat";
 
 const KEY = "oq.settings";
 
@@ -28,6 +32,7 @@ function load(): Settings {
     sound: saved.sound ?? true,
     reduceMotion: saved.reduceMotion ?? false,
     volume: typeof saved.volume === "number" ? saved.volume : 0.7,
+    pins: saved.pins && typeof saved.pins === "object" ? saved.pins : {},
   };
 }
 

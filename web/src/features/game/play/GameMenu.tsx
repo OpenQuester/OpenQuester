@@ -6,7 +6,6 @@ import { myRole, phaseOf } from "@/game/selectors";
 import { Button } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
 
-import { DeleteGameButton } from "../DeleteGameButton";
 import { useGame, useSession } from "../GameContext";
 
 const KEYS = [
@@ -20,12 +19,12 @@ const KEYS = [
 export function GameMenu({
   open,
   onOpenChange,
-  onPlayers,
+  onHostTools,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Opens the players panel (scores and, for the showman, player tools). */
-  onPlayers: () => void;
+  /** Opens the showman tools panel. */
+  onHostTools: () => void;
 }) {
   const { t } = useTranslation();
   const session = useSession();
@@ -43,49 +42,15 @@ export function GameMenu({
     >
       <div className="flex flex-col gap-6 p-5">
         {role === "showman" && (
-          <section className="flex flex-col gap-3 rounded-md border border-accent-line bg-accent-surface p-4">
-            <h3 className="m-0 text-base font-semibold">{t("menu.host")}</h3>
-            {phase !== "finished" && (
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    connection.emit(session.state.isPaused ? "game-unpause" : "game-pause")
-                  }
-                >
-                  {session.state.isPaused ? t("game.resume") : t("game.pause")}
-                </Button>
-                {(phase === "showing" ||
-                  phase === "answering" ||
-                  phase === "media" ||
-                  phase === "stake_bidding" ||
-                  phase === "secret_transfer") && (
-                  <Button size="sm" onClick={() => connection.emit("skip-question-force")}>
-                    {t("menu.skipQuestion")}
-                  </Button>
-                )}
-                {phase === "reveal" && (
-                  <Button size="sm" onClick={() => connection.emit("skip-show-answer")}>
-                    {t("menu.skipReveal")}
-                  </Button>
-                )}
-                <Button size="sm" onClick={() => connection.emit("next-round")}>
-                  {t("menu.nextRound")}
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    onOpenChange(false);
-                    onPlayers();
-                  }}
-                >
-                  {t("menu.managePlayers")}
-                </Button>
-              </div>
-            )}
-            <p className="m-0 text-sm text-muted">{t("menu.hostHelp")}</p>
-            <DeleteGameButton gameId={session.gameId} />
-          </section>
+          <Button
+            variant="accent"
+            onClick={() => {
+              onOpenChange(false);
+              onHostTools();
+            }}
+          >
+            {t("menu.host")}
+          </Button>
         )}
         <div className="grid gap-6 sm:grid-cols-2">
           <section className="flex flex-col gap-2">

@@ -11,7 +11,7 @@ import { BackIcon, ChatIcon, CheckIcon, CloseIcon, CopyIcon, EyeIcon } from "@/u
 
 import { DeleteGameButton } from "../DeleteGameButton";
 import { useGame, useSession } from "../GameContext";
-import { ChatDrawer } from "../play/ChatDrawer";
+import { ChatDrawer } from "../play/ChatPanel";
 import { ConnectionBanner } from "../play/ConnectionBanner";
 import { useGamePreview } from "../useGamePreview";
 
