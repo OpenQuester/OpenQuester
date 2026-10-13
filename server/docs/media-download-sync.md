@@ -47,7 +47,9 @@ callback acknowledgement or proof that an action reached the Redis queue.
 - Repeated ACKs while still in the media phase can produce repeated status
   broadcasts. Do not document them as universally deduplicated. ACKs queued
   after completion are covered by the phase guard.
-- Selection starts `MEDIA_DOWNLOAD_TIMEOUT`; partial status `timer: null`
+- Selection starts `MEDIA_DOWNLOAD_TIMEOUT` (30 s, long enough for a slow
+  phone to load a picture; the web client hides this countdown and shows
+  "x of y players ready" instead); partial status `timer: null`
   means no replacement timer, not that the running media timer was removed.
 - Readiness completion or timeout starts `GAME_QUESTION_ANSWER_TIME`.
 - An ACK has no question identifier. The phase guard is not a general guarantee

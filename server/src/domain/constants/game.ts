@@ -28,8 +28,8 @@ export const GAME_CHAT_HISTORY_RETRIEVAL_LIMIT = 100;
 export const GAME_QUESTION_ANSWER_TIME = SECOND_MS * 20.5;
 /** 1 minute */
 export const GAME_QUESTION_ANSWER_SUBMIT_TIME = MINUTE_MS;
-/** 10 seconds - timeout for media download */
-export const MEDIA_DOWNLOAD_TIMEOUT = SECOND_MS * 10;
+/** 30 seconds - how long the question waits for every player to load its media */
+export const MEDIA_DOWNLOAD_TIMEOUT = SECOND_MS * 30;
 /** 75 seconds */
 export const GAME_FINAL_ANSWER_TIME = SECOND_MS * 75;
 /** 30 seconds - timeout for deciding secret question transfer target */
