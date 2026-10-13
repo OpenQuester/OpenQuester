@@ -13,6 +13,7 @@ import {
 } from "domain/types/action/ActionExecutionContext";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
+import { MediaDownloadedInputData } from "domain/types/socket/events/game/MediaDownloadedInputData";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
 import {
   FinalAnswerSubmitInputData,
@@ -94,6 +95,22 @@ export class GameValidator {
     });
 
     return this._validate<ChatMessageInputData>(data, schema);
+  }
+
+  public static validateMediaDownloaded(data: MediaDownloadedInputData) {
+    const schema = Joi.object<MediaDownloadedInputData>({
+      mediaDurations: Joi.array()
+        .items(
+          Joi.object({
+            md5: Joi.string().max(64).required(),
+            durationMs: Joi.number().positive().max(24 * 60 * 60 * 1000).required()
+          })
+        )
+        .max(100)
+        .optional()
+    });
+
+    return this._validate<MediaDownloadedInputData>(data, schema);
   }
 
   public static validatePickQuestion(data: QuestionPickInputData) {

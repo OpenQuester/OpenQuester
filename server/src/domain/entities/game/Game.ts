@@ -412,6 +412,8 @@ export class Game {
     this.gameState.secretQuestionData = null;
     this.gameState.stakeQuestionData = null;
     this.gameState.questionEligiblePlayers = null;
+    this.gameState.questionContentPlan = null;
+    this.gameState.mediaDurations = null;
     this.setQuestionState(QuestionState.CHOOSING);
   }
 

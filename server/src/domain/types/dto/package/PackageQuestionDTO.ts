@@ -17,6 +17,11 @@ export interface PackageQuestionDTO {
   price: number | null; // Final round questions have null price - players bid after theme selection
   isHidden: boolean;
   text?: string | null;
+  /**
+   * Position of the text among questionFiles orders. Null keeps the text on
+   * screen as a caption for the whole question instead of its own step.
+   */
+  textOrder?: number | null;
   answerHint?: string | null;
   answerText?: string | null;
   answerDelay: number;

@@ -46,6 +46,7 @@ export class GameQuestionMapper {
       showAnswerDuration: question.showAnswerDuration,
       showDelay: question.showDelay,
       text: question.text,
+      textOrder: question.textOrder ?? null,
       transferType: question.transferType
     };
   }

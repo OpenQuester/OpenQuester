@@ -1,5 +1,6 @@
 import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuestionGameData";
 import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
@@ -29,6 +30,13 @@ export interface GameStateDTO {
   /** This is used as readiness at game start and as readiness for another events */
   readyPlayers: number[] | null;
   timer: GameStateTimerDTO | null;
+  /**
+   * Timeline of the current question's content, run on the SHOWING timer.
+   * Null when the question has nothing to sequence (text only, single caption).
+   */
+  questionContentPlan?: QuestionContentPlanDTO | null;
+  /** Real audio/video lengths reported by players while preloading, by md5 */
+  mediaDurations?: Record<string, number> | null;
   /** Final round specific data */
   finalRoundData?: FinalRoundGameData | null;
   /** Which player can pick a question or eliminate theme in final */

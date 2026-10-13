@@ -1,3 +1,4 @@
+import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
@@ -7,4 +8,9 @@ export interface GameQuestionDataEventPayload {
   timer: GameStateTimerDTO;
   /** Players eligible to participate in the current question */
   questionEligiblePlayers?: number[] | null;
+  /**
+   * Content timeline on this payload's timer. Absent while media is still
+   * preloading (it then arrives with media-download-status).
+   */
+  contentPlan?: QuestionContentPlanDTO | null;
 }

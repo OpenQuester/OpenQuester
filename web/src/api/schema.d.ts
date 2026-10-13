@@ -2455,10 +2455,67 @@ export interface components {
             order: components["schemas"]["PackageEntitiesOrder"];
             file: components["schemas"]["FileItem"];
             /**
-             * @description Display duration in milliseconds
+             * @description Display duration in milliseconds. Null uses the real audio/video length (or a default for images)
              * @example 5000
              */
             displayTime: number | null;
+            placement?: components["schemas"]["ContentPlacement"];
+            /**
+             * @description When false, the next content item is shown together with this one (same step)
+             * @default true
+             * @example true
+             */
+            waitForFinish: boolean;
+        };
+        /**
+         * @description Where a content item plays: screen takes the stage for its step; background is audio that plays under the stage
+         * @default screen
+         * @example screen
+         * @enum {string}
+         */
+        ContentPlacement: "screen" | "background";
+        QuestionContentPlanItem: {
+            /**
+             * @example file
+             * @enum {string}
+             */
+            kind: "text" | "file";
+            /**
+             * @description File order for file items; the question's textOrder for the text item
+             * @example 1
+             */
+            order: number;
+            placement: components["schemas"]["ContentPlacement"];
+            /**
+             * @description How long this item plays. A background sound can outlive its step
+             * @example 12000
+             */
+            durationMs: number;
+        };
+        QuestionContentStep: {
+            /**
+             * @description Offset from the start of the content timeline
+             * @example 0
+             */
+            startMs: number;
+            /** @example 12000 */
+            durationMs: number;
+            items: components["schemas"]["QuestionContentPlanItem"][];
+        };
+        /** @description Server-timed content timeline. Steps play one after another on the phase timer (SHOWING for questions, SHOWING_ANSWER for answers): the timeline position is the timer's elapsed time, so pauses, answers and reconnects keep every client on the same step. A step without screen items keeps the previous screen. After totalMs the question timer continues with the answer window. */
+        QuestionContentPlan: {
+            steps: components["schemas"]["QuestionContentStep"][];
+            /** @example 26000 */
+            totalMs: number;
+        };
+        /** @description Optional media-downloaded payload. Clients that can read media metadata report real audio/video lengths so the server can time the content timeline; the longest report per file wins. */
+        SocketIOMediaDownloadedInput: {
+            mediaDurations?: {
+                /** @example 32f6abdc2da002d5f992d2b244ca0820 */
+                md5: string;
+                /** @example 31500 */
+                durationMs: number;
+            }[];
         };
         /** @description Base properties for all question types */
         PackageQuestion: {
@@ -2483,6 +2540,12 @@ export interface components {
              * @example Where is Kyiv located?
              */
             text?: string | null;
+            /**
+             * @description Position of the text among questionFiles orders (text first on a tie). Null keeps the text as a caption for the whole question instead of its own step
+             * @example 0
+             * @example null
+             */
+            textOrder?: number | null;
             /**
              * @description Hint for the answer
              * @example It's in Europe
@@ -2880,6 +2943,12 @@ export interface components {
              */
             skippedPlayers?: number[] | null;
             timer?: components["schemas"]["GameStateTimer"] | null;
+            /** @description Timeline of the current question's content on the question timer; null when there is nothing to sequence */
+            questionContentPlan?: components["schemas"]["QuestionContentPlan"] | null;
+            /** @description Reported audio/video lengths in ms for the current question, keyed by file md5 */
+            mediaDurations?: {
+                [key: string]: number;
+            } | null;
             finalRoundData?: components["schemas"]["FinalRoundGameData"] | null;
             /** @description Id of player whose turn it is to pick a question or eliminate theme */
             currentTurnPlayerId?: number | null;
@@ -3080,6 +3149,8 @@ export interface components {
             allPlayersReady: boolean;
             /** @description New question timer when readiness completion transitions to SHOWING, otherwise null. A partial status with null does not remove the active media timer. */
             timer: components["schemas"]["GameStateTimer"] | null;
+            /** @description Sent with the SHOWING timer: the content timeline to play on it */
+            contentPlan?: components["schemas"]["QuestionContentPlan"] | null;
         };
         /** @description Data sent to all players when player unskips a question */
         SocketIOGameUnskipEventPayload: {
@@ -3277,6 +3348,8 @@ export interface components {
             /** @description The applicable phase timer. For the normal question readiness handshake this is the media timer; the subsequent question timer arrives in media-download-status. */
             timer: components["schemas"]["GameStateTimer"];
             questionEligiblePlayers?: components["schemas"]["QuestionEligiblePlayers"];
+            /** @description Content timeline on this payload's timer. Absent during MEDIA_DOWNLOADING (it then arrives with media-download-status) */
+            contentPlan?: components["schemas"]["QuestionContentPlan"] | null;
         };
         /** @description Data sent to all players when a player starts answering a question */
         SocketIOQuestionAnswerEventPayload: {
@@ -3581,6 +3654,8 @@ export interface components {
             answerText: components["schemas"]["QuestionAnswerText"] | null;
             /** @description ID of the next player to take their turn, null if no next player (game finished) */
             nextTurnPlayerId?: number | null;
+            /** @description Answer files timeline on the SHOWING_ANSWER timer; the answer text stays visible as the headline */
+            answerContentPlan?: components["schemas"]["QuestionContentPlan"] | null;
         };
         /** @description Data sent when a player automatically loses in final round */
         SocketIOFinalAutoLossEventPayload: {

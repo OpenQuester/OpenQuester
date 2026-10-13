@@ -1,4 +1,3 @@
-import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -14,6 +13,7 @@ import {
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 /**
@@ -71,6 +71,7 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
     }
 
     game.setQuestionState(QuestionState.SHOWING);
+    QuestionContentPlanLogic.applyToGame(game);
 
     return {
       data: {
@@ -85,7 +86,9 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    const timer = new GameStateTimer(GAME_QUESTION_ANSWER_TIME);
+    // The content timeline plays first, then the usual answer window.
+    const durationMs = QuestionContentPlanLogic.questionTimerDuration(game);
+    const timer = new GameStateTimer(durationMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -96,7 +99,7 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: GAME_QUESTION_ANSWER_TIME,
+          pxTtl: durationMs,
         },
       ],
     };

@@ -98,6 +98,8 @@ export class QuestionPickLogic {
    */
   public static resetMediaDownloadStatus(game: Game): void {
     MediaDownloadLogic.resetAllPlayerStatus(game);
+    game.gameState.mediaDurations = null;
+    game.gameState.questionContentPlan = null;
   }
 
   public static buildResult(

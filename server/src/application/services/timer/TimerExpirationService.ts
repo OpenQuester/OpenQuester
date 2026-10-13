@@ -8,7 +8,6 @@ import { FinalRoundService } from "application/services/socket/FinalRoundService
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import {
-  GAME_QUESTION_ANSWER_TIME,
   GAME_TTL_IN_SECONDS,
   SYSTEM_PLAYER_ID
 } from "domain/constants/game";
@@ -48,6 +47,7 @@ import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 
 /**
  * Service handling timer expiration logic.
@@ -103,7 +103,8 @@ export class TimerExpirationService {
             playerId: SYSTEM_PLAYER_ID,
             mediaDownloaded: true,
             allPlayersReady: true,
-            timer
+            timer,
+            contentPlan: game.gameState.questionContentPlan ?? null
           } satisfies MediaDownloadStatusBroadcastData,
           room: gameId
         }
@@ -316,10 +317,11 @@ export class TimerExpirationService {
       );
 
       QuestionPickLogic.resetMediaDownloadStatus(game);
+      QuestionContentPlanLogic.applyToGame(game);
 
       const timer = await this.socketQuestionStateService.setupQuestionTimer(
         game,
-        GAME_QUESTION_ANSWER_TIME
+        QuestionContentPlanLogic.questionTimerDuration(game)
       );
       const timerDto = timer.value();
 
@@ -332,7 +334,8 @@ export class TimerExpirationService {
               data: {
                 data: questionData.question,
                 timer: timerDto,
-                questionEligiblePlayers: game.getQuestionEligiblePlayers()
+                questionEligiblePlayers: game.getQuestionEligiblePlayers(),
+                contentPlan: game.gameState.questionContentPlan ?? null
               } satisfies GameQuestionDataEventPayload,
               room: game.id,
               roleFilter: true
@@ -410,7 +413,8 @@ export class TimerExpirationService {
         data: {
           data: questionData.question,
           timer: transitionResult.timer,
-          questionEligiblePlayers: game.getQuestionEligiblePlayers()
+          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
+          contentPlan: game.gameState.questionContentPlan ?? null
         } satisfies GameQuestionDataEventPayload,
         room: game.id,
         roleFilter: true

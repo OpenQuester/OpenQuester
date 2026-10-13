@@ -1,4 +1,3 @@
-import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -19,6 +18,7 @@ import {
   StakeBiddingToAnsweringCtx,
   StakeBiddingToAnsweringMutationData
 } from "domain/types/socket/transition/special-question";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 
 /**
  * Handles transition from STAKE_BIDDING to ANSWERING phase.
@@ -92,6 +92,7 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     if (questionData) {
       game.gameState.currentQuestion = questionData;
     }
+    QuestionContentPlanLogic.applyToGame(game);
 
     game.setQuestionState(QuestionState.ANSWERING);
     game.gameState.answeringPlayer = winnerPlayerId;
@@ -118,7 +119,8 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     const { game } = ctx;
 
     // Setup answering timer so winner can request to answer
-    const timer = new GameStateTimer(GAME_QUESTION_ANSWER_TIME);
+    const durationMs = QuestionContentPlanLogic.questionTimerDuration(game);
+    const timer = new GameStateTimer(durationMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -129,7 +131,7 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: GAME_QUESTION_ANSWER_TIME
+          pxTtl: durationMs
         }
       ]
     };
@@ -165,7 +167,8 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
         data: {
           data: questionPayload,
           timer: timerResult.timer,
-          questionEligiblePlayers: game.getQuestionEligiblePlayers()
+          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
+          contentPlan: game.gameState.questionContentPlan ?? null
         } satisfies GameQuestionDataEventPayload,
         room: game.id,
         roleFilter: Boolean(data.fullQuestionData)

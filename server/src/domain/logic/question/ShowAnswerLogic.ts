@@ -3,8 +3,9 @@ import {
   SHOW_ANSWER_DURATION_TEXT,
   SHOW_ANSWER_DURATION_VIDEO
 } from "domain/constants/game";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
+import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
-import { PackageFileType } from "domain/enums/package/PackageFileType";
 
 /**
  * Logic class for handling show answer phase.
@@ -12,38 +13,40 @@ import { PackageFileType } from "domain/enums/package/PackageFileType";
  */
 export class ShowAnswerLogic {
   /**
+   * Timeline of the answer files, played one step at a time on the
+   * SHOWING_ANSWER timer. The answer text stays visible as the headline.
+   */
+  public static buildAnswerPlan(
+    question: Pick<PackageQuestionDTO, "answerFiles"> | null
+  ): QuestionContentPlanDTO | null {
+    if (!question?.answerFiles?.length) {
+      return null;
+    }
+
+    return QuestionContentPlanLogic.build(
+      { files: question.answerFiles },
+      null,
+      {
+        imageMs: SHOW_ANSWER_DURATION_TEXT,
+        audioMs: SHOW_ANSWER_DURATION_AUDIO,
+        videoMs: SHOW_ANSWER_DURATION_VIDEO
+      }
+    );
+  }
+
+  /**
    * Calculate the duration for showing the answer.
-   * Based on answer files (media stacking) or fallback default.
+   * Based on the answer files timeline, or the question's showAnswerDuration.
    */
   public static calculateShowAnswerDuration(question: PackageQuestionDTO | null): number {
     if (!question) {
       return SHOW_ANSWER_DURATION_TEXT;
     }
 
-    const { answerFiles } = question;
+    const plan = this.buildAnswerPlan(question);
 
-    if (answerFiles && answerFiles.length > 0) {
-      let duration = 0;
-      for (const file of answerFiles) {
-        if (file.displayTime && file.displayTime > 0) {
-          duration += file.displayTime;
-        } else {
-          switch (file.file.type) {
-            case PackageFileType.VIDEO:
-              duration += SHOW_ANSWER_DURATION_VIDEO;
-              break;
-            case PackageFileType.AUDIO:
-              duration += SHOW_ANSWER_DURATION_AUDIO;
-              break;
-            // Images and text use the text duration
-            case PackageFileType.IMAGE:
-            default:
-              duration += SHOW_ANSWER_DURATION_TEXT;
-              break;
-          }
-        }
-      }
-      return duration > 0 ? duration : SHOW_ANSWER_DURATION_TEXT;
+    if (plan) {
+      return plan.totalMs > 0 ? plan.totalMs : SHOW_ANSWER_DURATION_TEXT;
     }
 
     return question.showAnswerDuration > 0

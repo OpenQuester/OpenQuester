@@ -147,7 +147,8 @@ export class SocketActionHooks {
       RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.QUESTION_DATA, {
         data: questionData,
         timer,
-        questionEligiblePlayers: game.getQuestionEligiblePlayers()
+        questionEligiblePlayers: game.getQuestionEligiblePlayers(),
+        contentPlan: game.gameState.questionContentPlan ?? null
       } satisfies GameQuestionDataEventPayload)
     );
   }
@@ -240,7 +241,8 @@ export class SocketActionHooks {
         RealtimeEvents.toSocket(sid, SocketIOGameEvents.QUESTION_DATA, {
           data: questionData,
           timer,
-          questionEligiblePlayers: game.getQuestionEligiblePlayers()
+          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
+          contentPlan: game.gameState.questionContentPlan ?? null
         } satisfies GameQuestionDataEventPayload)
       );
     }

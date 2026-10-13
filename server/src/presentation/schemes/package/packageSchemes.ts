@@ -3,6 +3,7 @@ import Joi from "joi";
 import { MAX_QUESTION_PRICE_UPLOAD } from "domain/constants/game";
 import { LIMIT_MAX, LIMIT_MIN, OFFSET_MIN } from "domain/constants/pagination";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
@@ -30,6 +31,10 @@ const packageFileSchema = Joi.object({
   file: fileSchema.required(),
   displayTime: Joi.number().allow(null).required(),
   order: Joi.number().min(0).required(),
+  placement: Joi.string()
+    .valid(...Object.values(ContentPlacement))
+    .default(ContentPlacement.SCREEN),
+  waitForFinish: Joi.boolean().default(true),
 });
 
 // Base question schema with common fields
@@ -45,6 +50,7 @@ const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
     otherwise: Joi.boolean().allow(null).default(false), // Default false for others
   }),
   text: Joi.string().allow(null, ""),
+  textOrder: Joi.number().integer().min(0).allow(null),
   answerHint: Joi.string().allow(null, ""),
   answerText: Joi.string().allow(null, ""),
   answerDelay: Joi.number().allow(null).default(5000),

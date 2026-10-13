@@ -112,6 +112,7 @@ export class MediaDownloadPlayerLeaveLogic {
         mediaDownloaded: true,
         allPlayersReady: true,
         timer,
+        contentPlan: game.gameState.questionContentPlan ?? null,
       } satisfies MediaDownloadStatusBroadcastData,
       room: game.id,
     });

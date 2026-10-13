@@ -1,4 +1,3 @@
-import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -17,6 +16,7 @@ import {
   SecretTransferToAnsweringMutationData,
 } from "domain/types/socket/transition/special-question";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 
 /**
  * Handles transition from SECRET_QUESTION_TRANSFER to ANSWERING phase.
@@ -90,6 +90,7 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     if (questionData) {
       game.gameState.currentQuestion = questionData;
     }
+    QuestionContentPlanLogic.applyToGame(game);
 
     // Transition to answering state
     game.setQuestionState(QuestionState.ANSWERING);
@@ -113,7 +114,8 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     const { game } = ctx;
 
     // Setup answering timer
-    const timer = new GameStateTimer(GAME_QUESTION_ANSWER_TIME);
+    const durationMs = QuestionContentPlanLogic.questionTimerDuration(game);
+    const timer = new GameStateTimer(durationMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -124,7 +126,7 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: GAME_QUESTION_ANSWER_TIME,
+          pxTtl: durationMs,
         },
       ],
     };

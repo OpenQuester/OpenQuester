@@ -312,6 +312,7 @@ export class PackageRepository {
               type: questionData.type,
               isHidden: questionData.isHidden,
               text: questionData.text,
+              textOrder: questionData.textOrder,
               answerHint: questionData.answerHint,
               answerText: questionData.answerText,
               answerDelay: questionData.answerDelay,
@@ -356,6 +357,8 @@ export class PackageRepository {
                 order: questionFileData.order,
                 type: questionFileData.file.type,
                 display_time: questionFileData.displayTime,
+                placement: questionFileData.placement,
+                wait_for_finish: questionFileData.waitForFinish,
                 question: question
               });
               orders.add(questionFileData.order);
@@ -404,6 +407,8 @@ export class PackageRepository {
                 order: answerFileData.order,
                 type: answerFileData.file.type,
                 display_time: answerFileData.displayTime,
+                placement: answerFileData.placement,
+                wait_for_finish: answerFileData.waitForFinish,
                 question: question
               });
               orders.add(answerFileData.order);

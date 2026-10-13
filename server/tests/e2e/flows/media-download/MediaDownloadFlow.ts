@@ -42,6 +42,7 @@ import {
   assertMediaFixtureFiles,
   assertMediaDownloadStatus
 } from "./MediaDownloadAssertions";
+import { type MediaDownloadedInputData } from "domain/types/socket/events/game/MediaDownloadedInputData";
 
 export interface CreateMediaDownloadFlowOptions {
   readonly harness: ServerTestHarness;
@@ -332,7 +333,11 @@ export class MediaDownloadFlow {
     );
   }
 
-  public emitPlayerDownloaded(actor: ScenarioActor): void {
+  public emitPlayerDownloaded(actor: ScenarioActor, payload?: MediaDownloadedInputData): void {
+    if (payload) {
+      actor.emit(SocketIOGameEvents.MEDIA_DOWNLOADED, payload);
+      return;
+    }
     actor.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
   }
 
@@ -443,6 +448,10 @@ export class MediaDownloadFlow {
       gameId: this.gameId,
       expectedDurationMs
     });
+  }
+
+  public getGameState() {
+    return this.utils.getGameState(this.gameId);
   }
 
   public expectNoActiveTimer(): Promise<void> {

@@ -1,4 +1,3 @@
-import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
@@ -18,6 +17,7 @@ import { ChoosingToShowingFallbackCtx } from "domain/types/socket/transition/cho
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 
 /**
  * Fallback handler when a special question (secret/stake) is picked but
@@ -100,6 +100,7 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
 
     QuestionPickLogic.markQuestionPlayed(game, question.id!, theme.id!);
     QuestionPickLogic.resetMediaDownloadStatus(game);
+    QuestionContentPlanLogic.applyToGame(game);
 
     return {
       data: {},
@@ -112,7 +113,8 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    const timer = new GameStateTimer(GAME_QUESTION_ANSWER_TIME);
+    const durationMs = QuestionContentPlanLogic.questionTimerDuration(game);
+    const timer = new GameStateTimer(durationMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -123,7 +125,7 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: GAME_QUESTION_ANSWER_TIME,
+          pxTtl: durationMs,
         },
       ],
     };

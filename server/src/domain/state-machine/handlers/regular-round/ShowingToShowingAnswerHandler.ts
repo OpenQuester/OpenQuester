@@ -83,6 +83,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
 
     game.setQuestionState(QuestionState.SHOWING_ANSWER);
     game.gameState.currentQuestion = null;
+    game.gameState.questionContentPlan = null;
     game.gameState.answeredPlayers = null;
     game.gameState.skippedPlayers = null;
     game.gameState.answeringPlayer = null;
@@ -90,6 +91,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
       answerFiles: question?.answerFiles ?? null,
       answerText: question?.answerText ?? null,
       nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+      answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question),
     };
 
     return {

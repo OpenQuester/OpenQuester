@@ -1,0 +1,170 @@
+import { describe, expect, it } from "@jest/globals";
+
+import {
+  CONTENT_IMAGE_TIME,
+  CONTENT_ITEM_MAX_TIME,
+  CONTENT_MEDIA_UNKNOWN_TIME,
+  CONTENT_TEXT_MIN_TIME,
+  SHOW_ANSWER_DURATION_TEXT,
+  SHOW_ANSWER_DURATION_VIDEO
+} from "domain/constants/game";
+import { ContentPlacement } from "domain/enums/package/ContentPlacement";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
+import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
+import { QuestionContentItemKind } from "domain/types/dto/game/state/QuestionContentPlanDTO";
+import { PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
+
+function file(
+  order: number,
+  type: PackageFileType,
+  extra: Partial<PackageQuestionFileDTO> = {}
+): PackageQuestionFileDTO {
+  return {
+    order,
+    displayTime: null,
+    file: { md5: `md5-${order}`, type },
+    ...extra
+  };
+}
+
+describe("QuestionContentPlanLogic", () => {
+  it("plays text, then each video, one step at a time", () => {
+    const plan = QuestionContentPlanLogic.build(
+      {
+        text: "Name the film",
+        textOrder: 0,
+        files: [file(1, PackageFileType.VIDEO), file(2, PackageFileType.VIDEO)]
+      },
+      { "md5-1": 12_000, "md5-2": 8_000 }
+    )!;
+
+    expect(plan.steps.map((s) => s.items.map((i) => i.kind))).toEqual([
+      [QuestionContentItemKind.TEXT],
+      [QuestionContentItemKind.FILE],
+      [QuestionContentItemKind.FILE]
+    ]);
+    expect(plan.steps.map((s) => [s.startMs, s.durationMs])).toEqual([
+      [0, CONTENT_TEXT_MIN_TIME],
+      [CONTENT_TEXT_MIN_TIME, 12_000],
+      [CONTENT_TEXT_MIN_TIME + 12_000, 8_000]
+    ]);
+    expect(plan.totalMs).toBe(CONTENT_TEXT_MIN_TIME + 20_000);
+  });
+
+  it("keeps a text without textOrder as a caption, not a step", () => {
+    const plan = QuestionContentPlanLogic.build({
+      text: "Who is this?",
+      textOrder: null,
+      files: [file(0, PackageFileType.IMAGE)]
+    })!;
+
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0].items[0].kind).toBe(QuestionContentItemKind.FILE);
+    expect(plan.totalMs).toBe(CONTENT_IMAGE_TIME);
+  });
+
+  it("returns null when there is nothing to sequence", () => {
+    expect(QuestionContentPlanLogic.build({ text: "Only text" })).toBeNull();
+  });
+
+  it("sorts by order and puts the text first on a tie", () => {
+    const plan = QuestionContentPlanLogic.build({
+      text: "Look",
+      textOrder: 1,
+      files: [file(1, PackageFileType.IMAGE), file(0, PackageFileType.IMAGE)]
+    })!;
+
+    expect(plan.steps.map((s) => `${s.items[0].kind}:${s.items[0].order}`)).toEqual([
+      "file:0",
+      "text:1",
+      "file:1"
+    ]);
+  });
+
+  it("groups items until one waits for its finish", () => {
+    const plan = QuestionContentPlanLogic.build({
+      files: [
+        file(0, PackageFileType.IMAGE, { waitForFinish: false, displayTime: 3_000 }),
+        file(1, PackageFileType.IMAGE, { displayTime: 7_000 }),
+        file(2, PackageFileType.IMAGE)
+      ]
+    })!;
+
+    expect(plan.steps).toHaveLength(2);
+    expect(plan.steps[0].items.map((i) => i.order)).toEqual([0, 1]);
+    expect(plan.steps[0].durationMs).toBe(7_000);
+    expect(plan.steps[1].startMs).toBe(7_000);
+  });
+
+  it("does not let a non-waiting background sound stretch its step", () => {
+    const plan = QuestionContentPlanLogic.build(
+      {
+        files: [
+          file(0, PackageFileType.AUDIO, {
+            placement: ContentPlacement.BACKGROUND,
+            waitForFinish: false
+          }),
+          file(1, PackageFileType.IMAGE)
+        ]
+      },
+      { "md5-0": 60_000 }
+    )!;
+
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0].durationMs).toBe(CONTENT_IMAGE_TIME);
+    expect(plan.steps[0].items[0]).toMatchObject({
+      placement: ContentPlacement.BACKGROUND,
+      durationMs: 60_000
+    });
+  });
+
+  it("treats a background placement on non-audio files as screen", () => {
+    const plan = QuestionContentPlanLogic.build({
+      files: [file(0, PackageFileType.IMAGE, { placement: ContentPlacement.BACKGROUND })]
+    })!;
+
+    expect(plan.steps[0].items[0].placement).toBe(ContentPlacement.SCREEN);
+  });
+
+  it("prefers displayTime, then reported length, then the default, capped", () => {
+    const plan = QuestionContentPlanLogic.build(
+      {
+        files: [
+          file(0, PackageFileType.VIDEO, { displayTime: 4_000 }),
+          file(1, PackageFileType.VIDEO),
+          file(2, PackageFileType.AUDIO),
+          file(3, PackageFileType.VIDEO, { displayTime: 10 * 60_000 })
+        ]
+      },
+      { "md5-0": 50_000, "md5-1": 9_000 }
+    )!;
+
+    expect(plan.steps.map((s) => s.durationMs)).toEqual([
+      4_000,
+      9_000,
+      CONTENT_MEDIA_UNKNOWN_TIME,
+      CONTENT_ITEM_MAX_TIME
+    ]);
+  });
+});
+
+describe("ShowAnswerLogic answer plan", () => {
+  it("sequences answer files with the answer defaults", () => {
+    const question = {
+      answerFiles: [file(0, PackageFileType.IMAGE), file(1, PackageFileType.VIDEO)]
+    };
+
+    const plan = ShowAnswerLogic.buildAnswerPlan(question)!;
+
+    expect(plan.steps.map((s) => s.durationMs)).toEqual([
+      SHOW_ANSWER_DURATION_TEXT,
+      SHOW_ANSWER_DURATION_VIDEO
+    ]);
+    expect(plan.totalMs).toBe(SHOW_ANSWER_DURATION_TEXT + SHOW_ANSWER_DURATION_VIDEO);
+  });
+
+  it("has no plan without answer files", () => {
+    expect(ShowAnswerLogic.buildAnswerPlan({ answerFiles: null })).toBeNull();
+  });
+});

@@ -70,6 +70,7 @@ export class SkipQuestionForceUseCase implements GameActionHandler<
 
     game.setQuestionState(QuestionState.SHOWING_ANSWER);
     game.gameState.currentQuestion = null;
+    game.gameState.questionContentPlan = null;
     game.gameState.stakeQuestionData = null;
     game.gameState.secretQuestionData = null;
     game.gameState.answeredPlayers = null;
@@ -81,7 +82,8 @@ export class SkipQuestionForceUseCase implements GameActionHandler<
     const questionFinishPayload: QuestionFinishEventPayload = {
       answerFiles: question?.answerFiles ?? null,
       answerText: question?.answerText ?? null,
-      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null
+      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+      answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question)
     };
     game.gameState.answerShowData = questionFinishPayload;
 

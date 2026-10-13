@@ -1,11 +1,14 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 
 import {
+  CONTENT_IMAGE_TIME,
   GAME_QUESTION_ANSWER_TIME,
   MEDIA_DOWNLOAD_TIMEOUT,
   SYSTEM_PLAYER_ID
 } from "domain/constants/game";
+import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { QuestionContentItemKind } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { User } from "infrastructure/database/models/User";
 import {
@@ -14,7 +17,9 @@ import {
   MediaDownloadFlow,
   withMediaDownloadFlow
 } from "tests/e2e/flows/media-download/MediaDownloadFlow";
+import { IMAGE_QUESTION_TIMER_MS } from "tests/e2e/flows/media-download/MediaDownloadAssertions";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
+import { TEST_MEDIA_FILE_MD5 } from "tests/utils/PackageUtils";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 const DUPLICATE_MEDIA_DOWNLOAD_COMMANDS = 15;
@@ -38,6 +43,53 @@ describe("Media Download client-contract golden scenarios", () => {
     }
   });
 
+  it("plans the question content and keeps only reported lengths of its own files", async () => {
+    await withMediaDownloadFlow(createFlowOptions({ playerCount: 1 }), async (flow) => {
+      await flow.pickMediaQuestion();
+
+      const player = flow.player(0);
+      const afterDownload = flow.mark();
+      const statusRecord = flow.waitForMediaDownloadStatus(
+        flow.showman,
+        afterDownload,
+        expectedStatus(player.userId!, true, IMAGE_QUESTION_TIMER_MS)
+      );
+
+      flow.emitPlayerDownloaded(player, {
+        mediaDurations: [
+          { md5: TEST_MEDIA_FILE_MD5, durationMs: 7_000 },
+          { md5: "not-in-this-question", durationMs: 9_000 }
+        ]
+      });
+
+      const status = (await statusRecord).args[0];
+      await flow.waitForActionsComplete();
+
+      // One image step: images use their default time, not a reported length.
+      expect(status.contentPlan).toEqual({
+        totalMs: CONTENT_IMAGE_TIME,
+        steps: [
+          {
+            startMs: 0,
+            durationMs: CONTENT_IMAGE_TIME,
+            items: [
+              {
+                kind: QuestionContentItemKind.FILE,
+                order: 0,
+                placement: ContentPlacement.SCREEN,
+                durationMs: CONTENT_IMAGE_TIME
+              }
+            ]
+          }
+        ]
+      });
+      const state = await flow.getGameState();
+      expect(state?.questionContentPlan).toEqual(status.contentPlan);
+      expect(state?.mediaDurations).toEqual({ [TEST_MEDIA_FILE_MD5]: 7_000 });
+      await flow.expectActiveTimerDuration(IMAGE_QUESTION_TIMER_MS);
+    });
+  });
+
   it("transitions when every player is ready even though the showman is not", async () => {
     await withMediaDownloadFlow(createFlowOptions({ playerCount: 1 }), async (flow) => {
       const afterQuestionPick = await flow.pickMediaQuestion();
@@ -46,7 +98,7 @@ describe("Media Download client-contract golden scenarios", () => {
       const player = flow.player(0);
       const afterDownload = flow.mark();
       const probe = flow.createAcceptedMediaDownloadProbe(player);
-      const status = expectedStatus(player.userId!, true, GAME_QUESTION_ANSWER_TIME);
+      const status = expectedStatus(player.userId!, true, IMAGE_QUESTION_TIMER_MS);
       const statusBroadcasts = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterDownload,
@@ -73,7 +125,7 @@ describe("Media Download client-contract golden scenarios", () => {
         { actor: flow.showman, expected: false }
       ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
-      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+      await flow.expectActiveTimerDuration(IMAGE_QUESTION_TIMER_MS);
       flow.assertCriticalEventOrder(player, afterQuestionPick);
       await flow.expectNoSocketErrors(flow.allRecipients, afterDownload);
 
@@ -92,7 +144,7 @@ describe("Media Download client-contract golden scenarios", () => {
         { actor: flow.showman, expected: false }
       ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
-      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+      await flow.expectActiveTimerDuration(IMAGE_QUESTION_TIMER_MS);
       await flow.expectNoSocketErrors(flow.allRecipients, afterLateAck);
     });
   });
@@ -188,7 +240,7 @@ describe("Media Download client-contract golden scenarios", () => {
         });
         expect(statuses[1].mediaDownloaded).toBe(true);
         expect(statuses[1].allPlayersReady).toBe(true);
-        expect(statuses[1].timer?.durationMs).toBe(GAME_QUESTION_ANSWER_TIME);
+        expect(statuses[1].timer?.durationMs).toBe(IMAGE_QUESTION_TIMER_MS);
       }
       flow.assertNoAdditionalQuestionData(flow.allRecipients, afterDownloadBurst);
 
@@ -197,7 +249,7 @@ describe("Media Download client-contract golden scenarios", () => {
         { actor: secondPlayer, expected: true }
       ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
-      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+      await flow.expectActiveTimerDuration(IMAGE_QUESTION_TIMER_MS);
       await flow.expectNoSocketErrors(flow.allRecipients, afterDownloadBurst);
     });
   });
@@ -267,7 +319,7 @@ describe("Media Download client-contract golden scenarios", () => {
 
       const afterRemainingDownload = flow.mark();
       const remainingProbe = flow.createAcceptedMediaDownloadProbe(remainingPlayer);
-      const finalStatus = expectedStatus(remainingPlayer.userId!, true, GAME_QUESTION_ANSWER_TIME);
+      const finalStatus = expectedStatus(remainingPlayer.userId!, true, IMAGE_QUESTION_TIMER_MS);
       const finalBroadcasts = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterRemainingDownload,
@@ -294,7 +346,7 @@ describe("Media Download client-contract golden scenarios", () => {
         { actor: remainingPlayer, expected: true }
       ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
-      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+      await flow.expectActiveTimerDuration(IMAGE_QUESTION_TIMER_MS);
       await flow.expectNoSocketErrors(flow.allRecipients, afterRemainingDownload);
     });
   });
@@ -338,7 +390,7 @@ describe("Media Download client-contract golden scenarios", () => {
       await flow.expectNoSocketErrors(flow.allRecipients, afterPartial);
 
       const afterTimerExpiry = flow.mark();
-      const timeoutStatus = expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME);
+      const timeoutStatus = expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS);
       const timeoutBroadcasts = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterTimerExpiry,
@@ -357,7 +409,7 @@ describe("Media Download client-contract golden scenarios", () => {
         { actor: waitingPlayer, expected: true }
       ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
-      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+      await flow.expectActiveTimerDuration(IMAGE_QUESTION_TIMER_MS);
       await flow.expectNoSocketErrors(flow.allRecipients, afterTimerExpiry);
     });
   });
@@ -371,7 +423,7 @@ describe("Media Download client-contract golden scenarios", () => {
       const timeoutBroadcasts = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterTimerExpiry,
-        expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
+        expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
       );
 
       await Promise.all([flow.expireMediaDownloadTimer(), timeoutBroadcasts]);
@@ -386,7 +438,7 @@ describe("Media Download client-contract golden scenarios", () => {
         { actor: flow.player(1), expected: true }
       ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
-      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+      await flow.expectActiveTimerDuration(IMAGE_QUESTION_TIMER_MS);
       await flow.expectNoSocketErrors(flow.allRecipients, afterTimerExpiry);
     });
   });
@@ -403,7 +455,7 @@ describe("Media Download client-contract golden scenarios", () => {
       const finalBroadcasts = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterDownload,
-        expectedStatus(player.userId!, true, GAME_QUESTION_ANSWER_TIME)
+        expectedStatus(player.userId!, true, IMAGE_QUESTION_TIMER_MS)
       );
 
       flow.emitPlayerDownloaded(player);
@@ -423,7 +475,7 @@ describe("Media Download client-contract golden scenarios", () => {
 
       expect(timeoutProbe.records()).toHaveLength(1);
       await flow.expectQuestionState(QuestionState.SHOWING);
-      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+      await flow.expectActiveTimerDuration(IMAGE_QUESTION_TIMER_MS);
       await flow.expectNoSocketErrors(flow.allRecipients, afterCompletion);
     });
   });

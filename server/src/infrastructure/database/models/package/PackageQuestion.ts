@@ -20,6 +20,7 @@ export interface PackageQuestionImport {
   type: PackageQuestionType;
   isHidden: boolean;
   text?: string | null;
+  textOrder?: number | null;
   answerHint?: string | null;
   answerText?: string | null;
   answerDelay?: number | null;
@@ -64,6 +65,10 @@ export class PackageQuestion {
 
   @Column({ type: "text", nullable: true })
   text?: string | null;
+
+  /** Position of the text in the content order; null shows it as a caption */
+  @Column({ name: "text_order", type: "int", nullable: true })
+  text_order?: number | null;
 
   @Column({ type: "text", nullable: true })
   answer_hint?: string | null;
@@ -114,6 +119,7 @@ export class PackageQuestion {
     this.type = data.type;
     this.isHidden = data.isHidden;
     this.text = data.text;
+    this.text_order = data.textOrder ?? null;
     this.answer_hint = data.answerHint;
     this.answer_text = data.answerText;
     this.answer_delay = data.answerDelay;
@@ -149,6 +155,7 @@ export class PackageQuestion {
       price: this.price,
       isHidden: this.isHidden,
       text: this.text,
+      textOrder: this.text_order ?? null,
       answerHint: this.answer_hint,
       answerText: this.answer_text,
       answerDelay: this.answer_delay ?? 5000,

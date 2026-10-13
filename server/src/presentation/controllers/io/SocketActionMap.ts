@@ -1,6 +1,7 @@
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameValidator } from "domain/validators/GameValidator";
+import { type MediaDownloadedInputData } from "domain/types/socket/events/game/MediaDownloadedInputData";
 import {
   type GameJoinInputData,
   type PlayerKickInputData,
@@ -265,7 +266,9 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
   {
     event: SocketIOGameEvents.MEDIA_DOWNLOADED,
     actionType: GameActionType.MEDIA_DOWNLOADED,
-    gameIdStrategy: GameIdStrategy.FROM_SESSION
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) =>
+      GameValidator.validateMediaDownloaded((data ?? {}) as MediaDownloadedInputData)
   },
 
   // ──────────────── System ────────────────

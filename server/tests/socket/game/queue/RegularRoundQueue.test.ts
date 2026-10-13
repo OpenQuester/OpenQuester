@@ -262,7 +262,11 @@ describe("Game Lock and Queue Mechanics", () => {
 
           const finalState = await utils.getGameState(gameId);
           expect(finalState!.questionState).toBe(QuestionState.SHOWING);
-          assertFreshTimer(finalState?.timer, GAME_QUESTION_ANSWER_TIME, "queue media completion");
+          assertFreshTimer(
+            finalState?.timer,
+            GAME_QUESTION_ANSWER_TIME + (finalState?.questionContentPlan?.totalMs ?? 0),
+            "queue media completion"
+          );
         } catch (error) {
           primaryFailure = error;
         } finally {
@@ -410,7 +414,11 @@ describe("Game Lock and Queue Mechanics", () => {
 
           const finalState = await utils.getGameState(gameId);
           expect(finalState!.questionState).toBe(QuestionState.SHOWING);
-          assertFreshTimer(finalState?.timer, GAME_QUESTION_ANSWER_TIME, "queue media completion");
+          assertFreshTimer(
+            finalState?.timer,
+            GAME_QUESTION_ANSWER_TIME + (finalState?.questionContentPlan?.totalMs ?? 0),
+            "queue media completion"
+          );
 
           const finalGame = await utils.getGameFromGameService(gameId);
           const activePlayersReady = finalGame.players
