@@ -31,10 +31,27 @@ test("a full game on the deployed site", async ({ browser }) => {
   for (const p of everyone)
     await expect(dockPhase(p.page)).toHaveText("Choosing", { timeout: 20_000 });
 
+  // The first pick belongs to a player, not the showman: whoever's turn it is
+  // can open a question (older servers don't say whose turn it is up front).
+  await expect(async () => {
+    for (const p of [alice.page, bob.page]) {
+      const cellBtn = p.getByTestId("board-cell").and(p.locator(":enabled")).first();
+      if ((await dockPhase(p).textContent()) === "Choosing" && (await cellBtn.count()) > 0) {
+        await cellBtn.click();
+        await p.waitForTimeout(1500);
+        if ((await dockPhase(host.page).textContent()) !== "Choosing") break;
+      }
+    }
+    expect(await dockPhase(host.page).textContent()).not.toBe("Choosing");
+  }).toPass({ timeout: 30_000 });
+  await playQuestion(host.page, alice.page);
+
   for (let round = 1; round <= 10; round++) {
     // One question per round: Alice buzzes and is judged correct.
-    await host.page.getByTestId("board-cell").and(host.page.locator(":enabled")).first().click();
-    await playQuestion(host.page, alice.page);
+    if (round > 1) {
+      await host.page.getByTestId("board-cell").and(host.page.locator(":enabled")).first().click();
+      await playQuestion(host.page, alice.page);
+    }
     const roundName = await roundOf(host.page);
     await host.page.getByRole("button", { name: "Skip to next round" }).click();
     // Wait for the next round's board, or the results after the last round.
