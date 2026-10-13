@@ -13,7 +13,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "gen:api": "openapi-typescript ../openapi/schema.json -o src/api/schema.d.ts && prettier --write src/api/schema.d.ts",
+    "gen:api": "openapi-typescript ../openapi/schema.json -o src/api/schema.d.ts",
     "check:api": "node scripts/check-api-types.mjs",
     "e2e:stack": "node scripts/e2e-stack.mjs",
     "e2e": "playwright test",
@@ -54,6 +54,7 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.2",
     "vite": "^8.3.4",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.4",
+    "wrangler": "^4.149.0"
   }
 }
