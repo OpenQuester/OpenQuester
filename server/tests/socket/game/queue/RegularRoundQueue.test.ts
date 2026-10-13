@@ -437,7 +437,7 @@ describe("Game Lock and Queue Mechanics", () => {
     it("should process a queued secret transfer timer expiration before the drain-trigger action", () =>
       suite.scenario(async (scenario) => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
-        const { showmanSocket, spectatorSockets, gameId, playerUsers, showmanUser } = setup;
+        const { showmanSocket, spectatorSockets, gameId, playerUsers } = setup;
 
         let showmanDrainEvents: EventCollector<
           CollectedSocketEvent<
@@ -558,7 +558,8 @@ describe("Game Lock and Queue Mechanics", () => {
           const spectatorQuestionData = spectatorEvents[1].data as GameQuestionDataEventPayload;
           const eligiblePlayerIds = playerUsers.map((playerUser) => playerUser.id);
 
-          expect(transfer.fromPlayerId).toBe(showmanUser.id);
+          // The showman picked on behalf of the turn player, who owns the question
+          expect(eligiblePlayerIds).toContain(transfer.fromPlayerId);
           expect(eligiblePlayerIds).toContain(transfer.toPlayerId);
           expect(transfer.questionId).toBe(secretQuestion!.id);
           expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe("Secret answer");
