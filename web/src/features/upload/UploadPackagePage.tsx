@@ -128,7 +128,7 @@ export function UploadPackagePage() {
             <div className="flex flex-col gap-4">
               <p className="m-0 font-semibold">{t("upload.guestTitle")}</p>
               <p className="m-0 text-soft">{t("upload.guestHelp")}</p>
-              {discordEnabled && (
+              {discordEnabled ? (
                 <Button
                   variant="primary"
                   size="lg"
@@ -137,6 +137,8 @@ export function UploadPackagePage() {
                 >
                   {t("login.discord")}
                 </Button>
+              ) : (
+                <p className="m-0 text-sm text-muted">{t("upload.discordUnavailable")}</p>
               )}
             </div>
           </Card>

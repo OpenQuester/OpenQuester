@@ -596,6 +596,7 @@
     "signInFirst": "Sign in to upload packages.",
     "guestTitle": "Guest accounts can't upload packages",
     "guestHelp": "A package needs an owner who can come back to it. Sign in with Discord to upload, and your packages stay with your account.",
+    "discordUnavailable": "Discord sign-in isn't switched on for this site yet, so uploading isn't available here.",
     "drop": "Drop a package file here",
     "formats": "SIGame .siq (formats 4 and 5) or OpenQuester .oq. Images, audio and video inside the file are uploaded too.",
     "choose": "Choose a file",
