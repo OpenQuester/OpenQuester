@@ -1,0 +1,145 @@
+@import "tailwindcss";
+@import "./theme/themes.css";
+
+@theme inline {
+  --color-bg: var(--oq-bg);
+  --color-surface: var(--oq-surface);
+  --color-surface-2: var(--oq-surface-2);
+  --color-surface-3: var(--oq-surface-3);
+  --color-avatar: var(--oq-avatar);
+  --color-line: var(--oq-border);
+  --color-line-strong: var(--oq-border-strong);
+  --color-text: var(--oq-text);
+  --color-soft: var(--oq-text-soft);
+  --color-muted: var(--oq-text-muted);
+  --color-faint: var(--oq-text-faint);
+  --color-ghost: var(--oq-text-ghost);
+  --color-accent: var(--oq-accent);
+  --color-accent-strong: var(--oq-accent-strong);
+  --color-on-accent: var(--oq-on-accent);
+  --color-accent-surface: var(--oq-accent-surface);
+  --color-accent-line: var(--oq-accent-border);
+  --color-accent-soft: var(--oq-accent-soft);
+  --color-info: var(--oq-info);
+  --color-info-soft: var(--oq-info-soft);
+  --color-primary: var(--oq-primary);
+  --color-on-primary: var(--oq-on-primary);
+  --color-success: var(--oq-success);
+  --color-success-surface: var(--oq-success-surface);
+  --color-success-line: var(--oq-success-border);
+  --color-warning: var(--oq-warning);
+  --color-warning-surface: var(--oq-warning-surface);
+  --color-warning-soft: var(--oq-warning-soft);
+  --color-danger: var(--oq-danger);
+  --color-danger-surface: var(--oq-danger-surface);
+  --color-danger-strong: var(--oq-danger-strong);
+
+  --radius-sm: var(--oq-radius-sm);
+  --radius-md: var(--oq-radius-md);
+  --radius-lg: var(--oq-radius-lg);
+
+  --font-display: var(--oq-font-display);
+  --font-sans: var(--oq-font-body);
+  --font-mono: var(--oq-font-mono);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--oq-bg);
+    color: var(--oq-text);
+    font-family: var(--oq-font-body);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  a {
+    color: var(--oq-info-soft);
+  }
+  a:hover {
+    color: #d6daff;
+  }
+  :focus-visible {
+    outline: 2px solid var(--oq-info);
+    outline-offset: 2px;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  kbd {
+    font-family: var(--oq-font-mono);
+    font-size: 0.8em;
+    font-weight: 600;
+  }
+  input::placeholder {
+    color: var(--oq-text-faint);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+
+@keyframes oq-pop {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes oq-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--oq-accent) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--oq-accent) 0%, transparent);
+  }
+}
+@keyframes oq-slide-up {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.oq-pop {
+  animation: oq-pop 180ms ease-out;
+}
+.oq-pulse {
+  animation: oq-pulse 1.6s ease-in-out infinite;
+}
+.oq-slide-up {
+  animation: oq-slide-up 200ms ease-out;
+}
+.sr-only-focusable:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}

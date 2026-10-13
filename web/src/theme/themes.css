@@ -1,0 +1,55 @@
+/*
+ * Theme token sets. Every colour, radius and font used by the app comes from
+ * these variables, so a new theme is one more [data-theme] block plus an entry
+ * in themes.ts. Midnight is the default.
+ */
+:root,
+[data-theme="midnight"] {
+  color-scheme: dark;
+
+  --oq-bg: #0d0f1c;
+  --oq-surface: #161a2e;
+  --oq-surface-2: #1f2440;
+  --oq-surface-3: #262b4a;
+  --oq-avatar: #2c3256;
+  --oq-border: #262b4a;
+  --oq-border-strong: #343a63;
+
+  --oq-text: #eef0ff;
+  --oq-text-soft: #c3c8ea;
+  --oq-text-muted: #a3a9cf;
+  --oq-text-faint: #7e86b8;
+  --oq-text-ghost: #4a5080;
+
+  /* Amber: "you can act now". Reserved for your turn and the primary action. */
+  --oq-accent: #ffb547;
+  --oq-accent-strong: #ffd27d;
+  --oq-on-accent: #1a1203;
+  --oq-accent-surface: #2a2414;
+  --oq-accent-border: #6b5220;
+  --oq-accent-soft: #ffe7b8;
+
+  /* Indigo: information and secondary actions. */
+  --oq-info: #8b95ff;
+  --oq-info-soft: #aeb5ff;
+  --oq-primary: #4a55d9;
+  --oq-on-primary: #ffffff;
+
+  --oq-success: #7ce883;
+  --oq-success-surface: #203a2a;
+  --oq-success-border: #2f6b3a;
+  --oq-warning: #ffe078;
+  --oq-warning-surface: #3a3418;
+  --oq-warning-soft: #e8e1c0;
+  --oq-danger: #ff9c9c;
+  --oq-danger-surface: #3a1a1a;
+  --oq-danger-strong: #ff6b6b;
+
+  --oq-radius-sm: 10px;
+  --oq-radius-md: 14px;
+  --oq-radius-lg: 20px;
+
+  --oq-font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --oq-font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --oq-font-mono: "JetBrains Mono", ui-monospace, monospace;
+}

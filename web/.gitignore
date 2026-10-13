@@ -1,0 +1,10 @@
+node_modules
+dist
+playwright-report
+test-results
+blob-report
+e2e/.auth
+.env.local
+*.local
+.e2e-stack
+screenshots

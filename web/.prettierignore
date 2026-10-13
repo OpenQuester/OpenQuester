@@ -1,0 +1,7 @@
+dist
+node_modules
+playwright-report
+test-results
+src/api/schema.d.ts
+screenshots
+.e2e-stack
