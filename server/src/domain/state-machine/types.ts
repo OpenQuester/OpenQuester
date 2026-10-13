@@ -112,6 +112,9 @@ export interface TransitionResources {
   /** Final round question data used when final bidding completes. */
   finalRoundQuestionData?: FinalRoundQuestionData | null;
 
+  /** The same final question with its answer; only the showman receives it. */
+  finalRoundFullQuestion?: PackageQuestionDTO | null;
+
   /** Prefetched next round metadata for round progression. */
   nextRound?: GameStateRoundDTO | null;
 

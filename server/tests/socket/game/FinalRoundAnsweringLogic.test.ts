@@ -1,3 +1,5 @@
+import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { type FinalQuestionEventData } from "domain/types/socket/events/FinalRoundEventData";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 
 import { FINAL_ROUND_ANSWER_MAX_LENGTH } from "domain/constants/game";
@@ -213,7 +215,17 @@ describe("Final Round Answering Logic", () => {
           scenario.waitForEvent(spectatorSocket, SocketIOGameEvents.FINAL_QUESTION_DATA)
         ];
         scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
-        await Promise.all(questionDataPromises);
+        const [showmanQuestion, playerQuestion, spectatorQuestion] = (await Promise.all(
+          questionDataPromises
+        )) as FinalQuestionEventData[];
+
+        // Only the showman's copy carries the answer, so they can judge
+        expect((showmanQuestion.questionData.question as PackageQuestionDTO).answerText).toBeTruthy();
+        expect(playerQuestion.questionData.question).not.toHaveProperty("answerText");
+        expect(spectatorQuestion.questionData.question).not.toHaveProperty("answerText");
+        expect(playerQuestion.questionData.question.text).toBe(
+          showmanQuestion.questionData.question.text
+        );
 
         const answeringState = await utils.getGameState(gameId);
         expect(answeringState.questionState).toBe(QuestionState.ANSWERING);

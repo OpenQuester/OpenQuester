@@ -90,12 +90,15 @@ export class TransitionResourceService {
   public async getFinalRoundQuestionData(
     game: Game
   ): Promise<TransitionResources | undefined> {
-    const finalRoundQuestionData = await this.resolveFinalRoundQuestionData(game);
-    if (!finalRoundQuestionData) {
+    const resolved = await this.resolveFinalRoundQuestionData(game);
+    if (!resolved) {
       return undefined;
     }
 
-    return { finalRoundQuestionData };
+    return {
+      finalRoundQuestionData: resolved.questionData,
+      finalRoundFullQuestion: resolved.fullQuestion,
+    };
   }
 
   public async getNextRound(game: Game): Promise<TransitionResources> {
@@ -138,7 +141,7 @@ export class TransitionResourceService {
 
   private async resolveFinalRoundQuestionData(
     game: Game
-  ): Promise<FinalRoundQuestionData | null> {
+  ): Promise<{ questionData: FinalRoundQuestionData; fullQuestion: PackageQuestionDTO } | null> {
     const handler = RoundHandlerFactory.create(
       PackageRoundType.FINAL
     ) as FinalRoundHandler;
@@ -159,11 +162,14 @@ export class TransitionResourceService {
     }
 
     return {
-      themeId: remainingTheme.id,
-      themeName: remainingTheme.name,
-      question: GameQuestionMapper.mapToSimpleQuestion(
-        questionWithTheme.question
-      ),
+      questionData: {
+        themeId: remainingTheme.id,
+        themeName: remainingTheme.name,
+        question: GameQuestionMapper.mapToSimpleQuestion(
+          questionWithTheme.question
+        ),
+      },
+      fullQuestion: questionWithTheme.question,
     };
   }
 

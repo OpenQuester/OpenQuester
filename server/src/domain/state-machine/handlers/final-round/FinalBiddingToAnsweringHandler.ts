@@ -95,7 +95,8 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
 
     return {
       data: {
-        questionData
+        questionData,
+        fullQuestion: ctx.resources?.finalRoundFullQuestion ?? null
       } satisfies FinalBiddingToAnsweringMutationData
     };
   }
@@ -132,15 +133,17 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     const broadcasts: BroadcastEvent[] = [];
     const mutationData = mutationResult.data as FinalBiddingToAnsweringMutationData;
 
-    const questionData = mutationData.questionData;
+    const { questionData, fullQuestion } = mutationData;
 
-    // 1. Emit question data so players can see the question
+    // 1. Emit question data so players can see the question. With the full
+    // question available, the showman's copy also carries the answer.
     broadcasts.push({
       event: SocketIOGameEvents.FINAL_QUESTION_DATA,
       data: {
-        questionData
+        questionData: fullQuestion ? { ...questionData, question: fullQuestion } : questionData
       } satisfies FinalQuestionEventData,
-      room: ctx.game.id
+      room: ctx.game.id,
+      roleFilter: Boolean(fullQuestion)
     });
 
     // 2. Emit phase complete event

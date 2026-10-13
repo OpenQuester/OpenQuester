@@ -5090,7 +5090,7 @@
       },
       "SocketIOFinalQuestionEventDataPayload": {
         "type": "object",
-        "description": "Data sent when final round question is revealed",
+        "description": "Data sent when final round question is revealed. Role-filtered: the showman's copy includes answerText and answerHint so they can judge; players and spectators get the question without the answer.",
         "properties": {
           "questionData": {
             "$ref": "#/components/schemas/FinalRoundQuestionData"
