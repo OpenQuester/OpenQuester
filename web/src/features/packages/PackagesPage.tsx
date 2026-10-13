@@ -8,6 +8,7 @@ import type { OqPackage } from "@/api/types";
 import { useMe } from "@/features/auth/useMe";
 import { LANGUAGES } from "@/i18n";
 import { Badge } from "@/ui/Badge";
+import { Dialog } from "@/ui/Dialog";
 import { Button } from "@/ui/Button";
 import { Select, TextInput } from "@/ui/Field";
 import { Spinner } from "@/ui/Spinner";
@@ -44,16 +45,14 @@ export function PackagesPage() {
     return () => window.clearTimeout(id);
   }, [query]);
 
-  const select = (id: number) => void navigate({ search: (s) => ({ ...s, id }), replace: true });
+  const select = (id: number | undefined) =>
+    void navigate({ search: (s) => ({ ...s, id }), replace: true });
   const pages = Math.max(1, Math.ceil((packages.data?.total ?? 0) / PAGE_SIZE));
 
   return (
     <PageContainer width={1320}>
-      <div className="flex flex-wrap items-start gap-6">
-        <section
-          className="flex min-w-0 flex-[999_1_600px] flex-col gap-5"
-          aria-labelledby="pk-title"
-        >
+      <div className="flex flex-col gap-6">
+        <section className="flex min-w-0 flex-col gap-5" aria-labelledby="pk-title">
           <h1 id="pk-title" className="m-0 font-display text-4xl font-extrabold tracking-tight">
             {t("packages.title")}
           </h1>
@@ -142,16 +141,16 @@ export function PackagesPage() {
           )}
         </section>
 
-        <aside
-          aria-label={t("packages.details")}
-          className="flex flex-[1_1_340px] flex-col gap-4 rounded-lg border border-line bg-surface p-6 lg:sticky lg:top-6"
+        <Dialog
+          open={selectedId != null}
+          onOpenChange={(open) => !open && select(undefined)}
+          title={t("packages.details")}
+          closeLabel={t("common.close")}
         >
-          {selectedId == null ? (
-            <p className="m-0 text-muted">{t("packages.pickOne")}</p>
-          ) : (
-            <PackageDetail id={selectedId} />
-          )}
-        </aside>
+          <div className="flex flex-col gap-5 p-5 sm:p-6" data-testid="package-details">
+            {selectedId != null && <PackageDetail id={selectedId} />}
+          </div>
+        </Dialog>
       </div>
     </PageContainer>
   );
@@ -222,7 +221,7 @@ function PackageSummaryView({ pkg, canHost }: { pkg: OqPackage; canHost: boolean
   return (
     <>
       <div className="flex flex-col gap-1">
-        <h2 className="m-0 font-display text-[26px] font-extrabold [overflow-wrap:anywhere]">
+        <h2 className="m-0 font-display text-[clamp(24px,3vw,30px)] font-extrabold [overflow-wrap:anywhere]">
           {pkg.title}
         </h2>
         <span className="text-sm text-muted">
@@ -236,12 +235,12 @@ function PackageSummaryView({ pkg, canHost }: { pkg: OqPackage; canHost: boolean
         {s.rounds.map((r, i) => (
           <div
             key={i}
-            className="flex justify-between gap-3 rounded-[12px] bg-surface-2 px-3 py-2.5"
+            className="flex flex-wrap justify-between gap-x-4 gap-y-1 rounded-[12px] bg-surface-2 px-4 py-3"
           >
-            <span className="[overflow-wrap:anywhere]">
+            <span className="font-medium [overflow-wrap:anywhere]">
               {i + 1} · {r.name}
             </span>
-            <span className="shrink-0 text-muted">
+            <span className="text-muted">
               {r.type === "final"
                 ? t("packages.finalThemes", { count: r.themes })
                 : t("packages.roundCounts", { themes: r.themes, questions: r.questions })}

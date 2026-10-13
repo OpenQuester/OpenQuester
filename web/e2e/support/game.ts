@@ -72,7 +72,7 @@ export async function joinByLink(
 ): Promise<void> {
   await page.goto(`/games/${code}`);
   await page.getByLabel("Your name").fill(name);
-  await page.getByRole("button", { name: as === "player" ? "Join as player" : "Watch" }).click();
+  await page.getByRole("button", { name: as === "player" ? "Join as player" : "Spectate" }).click();
   await expect(page.getByText("You are")).toContainText(as === "player" ? "Player" : "Spectator");
 }
 

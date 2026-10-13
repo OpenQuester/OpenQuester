@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { cn } from "@/lib/cn";
 import { useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -13,6 +13,8 @@ import { FieldError, TextInput } from "@/ui/Field";
 import { LockIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 
+import { leftGames, rememberLeftGame } from "@/game/store";
+
 import { gameStatus, parseGameCode, playerCount, useGames, type GameStatus } from "./useGames";
 
 type Filter = "all" | "lobby" | "playing";
@@ -20,17 +22,22 @@ type Filter = "all" | "lobby" | "playing";
 export function HomePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { notice } = useSearch({ from: "/shell/" });
   const me = useMe();
   const games = useGames();
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [hidden, setHidden] = useState<string[]>(() => leftGames());
 
   const list = useMemo(
     () => (games.data ?? []).filter((g) => gameStatus(g) !== "finished"),
     [games.data],
   );
-  const mine = me.data ? list.find((g) => g.players.some((p) => p.id === me.data!.id)) : undefined;
+  // Games you are still seated in, except ones you left on purpose from this browser.
+  const mine = me.data
+    ? list.find((g) => !hidden.includes(g.id) && g.players.some((p) => p.id === me.data!.id))
+    : undefined;
   const visible = list.filter((g) => filter === "all" || gameStatus(g) === filter);
 
   function onJoin(e: FormEvent) {
@@ -46,6 +53,14 @@ export function HomePage() {
   return (
     <PageContainer>
       <div className="flex flex-col gap-10">
+        {(notice === "kicked" || notice === "deleted") && (
+          <div
+            role="status"
+            className="rounded-md border border-line-strong bg-surface-2 px-5 py-4 text-soft"
+          >
+            {t(`home.notice.${notice}`)}
+          </div>
+        )}
         {mine && (
           <section
             aria-label={t("home.inProgress")}
@@ -65,15 +80,25 @@ export function HomePage() {
             >
               {t("home.rejoin")}
             </Link>
+            <Button
+              variant="ghost"
+              className="border-accent-line text-accent-soft"
+              onClick={() => {
+                rememberLeftGame(mine.id);
+                setHidden(leftGames());
+              }}
+            >
+              {t("home.hideRejoin")}
+            </Button>
           </section>
         )}
 
-        <section className="flex flex-wrap items-stretch gap-6">
-          <div className="flex min-w-0 flex-[999_1_480px] flex-col gap-5 rounded-lg border border-line bg-surface p-6 sm:p-8">
+        <section className="grid items-stretch gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
+          <div className="flex min-w-0 flex-col gap-5 rounded-lg border border-line bg-surface p-6 sm:p-8">
             <h1 className="m-0 font-display text-[clamp(32px,5vw,44px)] font-extrabold leading-[1.05] tracking-tight">
               {t("home.joinTitle")}
             </h1>
-            <p className="m-0 max-w-[46ch] text-muted">{t("home.joinSubtitle")}</p>
+            <p className="m-0 max-w-[62ch] text-muted">{t("home.joinSubtitle")}</p>
             <form onSubmit={onJoin} className="flex flex-wrap gap-3" noValidate>
               <label htmlFor="game-code" className="sr-only">
                 {t("home.codeLabel")}
@@ -97,10 +122,12 @@ export function HomePage() {
             </form>
             <FieldError id="code-error">{codeError}</FieldError>
           </div>
-          <div className="flex flex-[1_1_280px] flex-col justify-between gap-4 rounded-lg border border-line-strong bg-surface-2 p-6 sm:p-8">
+          <div className="flex min-w-0 flex-col justify-between gap-5 rounded-lg border border-line-strong bg-surface-2 p-6 sm:p-8">
             <div className="flex flex-col gap-2">
-              <h2 className="m-0 font-display text-[26px] font-extrabold">{t("home.hostTitle")}</h2>
-              <p className="m-0 text-muted">{t("home.hostSubtitle")}</p>
+              <h2 className="m-0 font-display text-[clamp(26px,3vw,32px)] font-extrabold">
+                {t("home.hostTitle")}
+              </h2>
+              <p className="m-0 max-w-[48ch] text-muted">{t("home.hostSubtitle")}</p>
             </div>
             <Link
               to="/packages"

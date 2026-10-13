@@ -6,6 +6,7 @@ import { myRole, phaseOf } from "@/game/selectors";
 import { Button } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
 
+import { DeleteGameButton } from "../DeleteGameButton";
 import { useGame, useSession } from "../GameContext";
 
 const KEYS = [
@@ -19,9 +20,12 @@ const KEYS = [
 export function GameMenu({
   open,
   onOpenChange,
+  onPlayers,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Opens the players panel (scores and, for the showman, player tools). */
+  onPlayers: () => void;
 }) {
   const { t } = useTranslation();
   const session = useSession();
@@ -38,13 +42,58 @@ export function GameMenu({
       closeLabel={t("common.close")}
     >
       <div className="flex flex-col gap-6 p-5">
+        {role === "showman" && (
+          <section className="flex flex-col gap-3 rounded-md border border-accent-line bg-accent-surface p-4">
+            <h3 className="m-0 text-base font-semibold">{t("menu.host")}</h3>
+            {phase !== "finished" && (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    connection.emit(session.state.isPaused ? "game-unpause" : "game-pause")
+                  }
+                >
+                  {session.state.isPaused ? t("game.resume") : t("game.pause")}
+                </Button>
+                {(phase === "showing" ||
+                  phase === "answering" ||
+                  phase === "media" ||
+                  phase === "stake_bidding" ||
+                  phase === "secret_transfer") && (
+                  <Button size="sm" onClick={() => connection.emit("skip-question-force")}>
+                    {t("menu.skipQuestion")}
+                  </Button>
+                )}
+                {phase === "reveal" && (
+                  <Button size="sm" onClick={() => connection.emit("skip-show-answer")}>
+                    {t("menu.skipReveal")}
+                  </Button>
+                )}
+                <Button size="sm" onClick={() => connection.emit("next-round")}>
+                  {t("menu.nextRound")}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onPlayers();
+                  }}
+                >
+                  {t("menu.managePlayers")}
+                </Button>
+              </div>
+            )}
+            <p className="m-0 text-sm text-muted">{t("menu.hostHelp")}</p>
+            <DeleteGameButton gameId={session.gameId} />
+          </section>
+        )}
         <div className="grid gap-6 sm:grid-cols-2">
           <section className="flex flex-col gap-2">
             <h3 className="m-0 text-base font-semibold">{t("menu.shortcuts")}</h3>
             {KEYS.map(([what, key]) => (
               <div key={what} className="flex items-center justify-between gap-3 text-[15px]">
-                <span>{t(what)}</span>
-                <kbd className="rounded-sm border border-line-strong bg-surface-2 px-2 py-1">
+                <span className="min-w-0">{t(what)}</span>
+                <kbd className="shrink-0 whitespace-nowrap rounded-sm border border-line-strong bg-surface-2 px-2 py-1">
                   {key.startsWith("keys.") ? t(key) : key}
                 </kbd>
               </div>
@@ -76,40 +125,12 @@ export function GameMenu({
             />
           </section>
         </div>
-        {role === "showman" && phase !== "finished" && (
-          <section className="flex flex-col gap-2">
-            <h3 className="m-0 text-base font-semibold">{t("menu.host")}</h3>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                onClick={() =>
-                  connection.emit(session.state.isPaused ? "game-unpause" : "game-pause")
-                }
-              >
-                {session.state.isPaused ? t("game.resume") : t("game.pause")}
-              </Button>
-              {(phase === "showing" ||
-                phase === "answering" ||
-                phase === "media" ||
-                phase === "stake_bidding" ||
-                phase === "secret_transfer") && (
-                <Button size="sm" onClick={() => connection.emit("skip-question-force")}>
-                  {t("menu.skipQuestion")}
-                </Button>
-              )}
-              <Button size="sm" onClick={() => connection.emit("next-round")}>
-                {t("menu.nextRound")}
-              </Button>
-            </div>
-            <p className="m-0 text-sm text-muted">{t("menu.hostHelp")}</p>
-          </section>
-        )}
         <div className="flex flex-wrap gap-2 border-t border-line pt-4">
           {role === "player" && phase !== "finished" && (
             <Button
               onClick={() => {
                 connection.setJoinRole("spectator");
-                connection.emit("player-role-change", { playerId: null, newRole: "spectator" });
+                connection.emit("player-role-change", { playerId: myId, newRole: "spectator" });
                 onOpenChange(false);
               }}
             >

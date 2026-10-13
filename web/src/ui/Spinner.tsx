@@ -28,3 +28,12 @@ export function Spinner({ label, size = 24 }: { label?: string; size?: number })
     </span>
   );
 }
+
+/** Spinner in the middle of the screen, for full-page waits. */
+export function PageLoader({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-dvh items-center justify-center px-4">
+      <Spinner label={label} size={32} />
+    </div>
+  );
+}

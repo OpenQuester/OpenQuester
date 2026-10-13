@@ -53,7 +53,16 @@ export function ChatDrawer({
             const author = findPlayer(session, m.user);
             const isShowman = author?.role === "showman";
             return (
-              <div key={m.uuid} className="flex flex-col gap-0.5">
+              <div
+                key={m.uuid}
+                className={
+                  m.user === myId
+                    ? "flex flex-col gap-1 self-end rounded-md rounded-br-sm bg-accent-surface px-3.5 py-2.5"
+                    : "flex flex-col gap-1 self-start rounded-md rounded-bl-sm bg-surface-2 px-3.5 py-2.5"
+                }
+                style={{ maxWidth: "88%" }}
+                data-testid="chat-message"
+              >
                 <span
                   className={
                     isShowman

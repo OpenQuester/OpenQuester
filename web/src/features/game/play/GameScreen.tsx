@@ -2,9 +2,9 @@ import { cn } from "@/lib/cn";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { myRole, phaseOf, seatedPlayers, spectators } from "@/game/selectors";
+import { myRole, phaseOf, seatedPlayers } from "@/game/selectors";
 import { Button } from "@/ui/Button";
-import { ChatIcon, MenuIcon, PauseIcon, PlayIcon } from "@/ui/icons";
+import { ChatIcon, EyeIcon, MenuIcon, PauseIcon, PlayIcon, UsersIcon } from "@/ui/icons";
 
 import { useGame, useSession } from "../GameContext";
 import { ChatDrawer } from "./ChatDrawer";
@@ -12,6 +12,7 @@ import { ConnectionBanner } from "./ConnectionBanner";
 import { Dock } from "./Dock";
 import { GameMenu } from "./GameMenu";
 import { PlayerChips } from "./PlayerChips";
+import { PlayersPanel } from "./PlayersPanel";
 import { Stage } from "./Stage";
 import { useGameFeedback } from "./useGameFeedback";
 import { useHotkeys } from "./useHotkeys";
@@ -27,6 +28,7 @@ export function GameScreen() {
   const { connection, myId } = useGame();
   const [chatOpen, setChatOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [playersOpen, setPlayersOpen] = useState(false);
   const role = myRole(session, myId);
   const phase = phaseOf(session);
   const round = session.state.currentRound;
@@ -47,10 +49,18 @@ export function GameScreen() {
 
   const roleTone =
     role === "showman"
-      ? "bg-accent-surface text-accent-strong"
+      ? "bg-accent text-on-accent"
       : role === "player"
-        ? "bg-surface-2 text-info-soft"
-        : "bg-surface-2 text-muted";
+        ? "bg-primary text-on-primary"
+        : "bg-surface-3 text-text border border-line-strong";
+  const roundLabel =
+    phase === "finished"
+      ? t("game.over")
+      : round?.type === "final"
+        ? t("game.finalRound")
+        : round
+          ? t("game.roundLabel", { n: round.order + 1, name: round.name })
+          : "";
 
   return (
     <div className="flex min-h-dvh flex-col bg-bg" data-phase={phase} data-role={role}>
@@ -61,29 +71,48 @@ export function GameScreen() {
       <header className="border-b border-line">
         <div className="mx-auto flex max-w-[1320px] flex-wrap items-center gap-2.5 px-3 py-2.5 sm:px-6">
           <span
-            className={cn("rounded-[8px] px-2.5 py-1 text-[13px] font-semibold", roleTone)}
-            data-testid="my-role"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold",
+              roleTone,
+            )}
+            aria-label={t("game.youAre", { role: t(`roles.${role}`) })}
           >
-            {t(`roles.${role}`)}
+            {role === "spectator" && <EyeIcon size={16} />}
+            <span className="font-medium opacity-80">{t("game.you")}</span>
+            <span data-testid="my-role">{t(`roles.${role}`)}</span>
           </span>
           <span
-            className="mr-1 max-w-[18ch] truncate text-sm text-muted"
+            className="mr-1 max-w-[26ch] truncate text-sm text-muted"
             title={round?.name}
             data-testid="round-name"
           >
-            {phase === "finished"
-              ? t("game.over")
-              : round?.type === "final"
-                ? t("game.finalRound")
-                : round?.name}
+            {roundLabel}
           </span>
-          <div className="order-last w-full sm:order-none sm:w-auto sm:flex-1">
+          <div className="order-last w-full">
             <PlayerChips />
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <span className="hidden text-sm text-muted md:inline">
-              {t("game.watching", { count: spectators(session).length })}
-            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setPlayersOpen(true)}
+              icon={<UsersIcon size={16} />}
+              aria-label={t("players.title")}
+              data-testid="open-players"
+            >
+              <span className="hidden sm:inline">{t("players.button")}</span>
+            </Button>
+            {role === "showman" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="border-accent-line text-accent-strong"
+                onClick={() => setMenuOpen(true)}
+                data-testid="host-tools"
+              >
+                {t("menu.host")}
+              </Button>
+            )}
             {role === "showman" && phase !== "finished" && (
               <Button
                 size="sm"
@@ -139,7 +168,8 @@ export function GameScreen() {
 
       <Dock />
       <ChatDrawer open={chatOpen} onOpenChange={openChat} />
-      <GameMenu open={menuOpen} onOpenChange={setMenuOpen} />
+      <GameMenu open={menuOpen} onOpenChange={setMenuOpen} onPlayers={() => setPlayersOpen(true)} />
+      <PlayersPanel open={playersOpen} onOpenChange={setPlayersOpen} />
       {seatedPlayers(session).length === 0 && role === "showman" && phase === "choosing" && (
         <span className="sr-only">{t("game.noPlayers")}</span>
       )}

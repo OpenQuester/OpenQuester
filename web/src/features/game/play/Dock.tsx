@@ -176,7 +176,9 @@ function useDockModel(session: GameSession, myId: number): DockModel {
         return {
           status: picker
             ? t("dock.choosing.showmanStatus", { name: name(picker) })
-            : t("dock.choosing.youPick"),
+            : session.turnUnknown
+              ? t("dock.choosing.unknownShowman")
+              : t("dock.choosing.youPick"),
           action: (
             <div className="flex w-full flex-wrap justify-center gap-2">
               <Info>
@@ -197,6 +199,17 @@ function useDockModel(session: GameSession, myId: number): DockModel {
           next: t("dock.choosing.next"),
         };
       }
+      if (session.turnUnknown && !picker) {
+        return {
+          status: t("dock.choosing.unknown"),
+          action: (
+            <Info>
+              {role === "spectator" ? t("dock.choosing.watching") : t("dock.choosing.unknownInfo")}
+            </Info>
+          ),
+          next: t("dock.choosing.next"),
+        };
+      }
       return {
         status: mine
           ? t("dock.choosing.yourTurn")
@@ -208,7 +221,7 @@ function useDockModel(session: GameSession, myId: number): DockModel {
             {mine
               ? t("dock.choosing.pickInfo")
               : role === "spectator"
-                ? t("reasons.wrong_role_watch")
+                ? t("dock.choosing.watching")
                 : reason("not_your_turn")}
           </Info>
         ),

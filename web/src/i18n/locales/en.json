@@ -46,7 +46,7 @@
     "codeLabel": "Room code or invite link",
     "codeInvalid": "That doesn't look like a room code or game link.",
     "join": "Join",
-    "watch": "Watch",
+    "watch": "Spectate",
     "hostTitle": "Host your own",
     "hostSubtitle": "Pick a package, set the room, share the link. You're the showman.",
     "createGame": "Create game",
@@ -55,18 +55,23 @@
     "filters": {
       "all": "All",
       "lobby": "In lobby",
-      "playing": "Playing — watch"
+      "playing": "In progress"
     },
     "status": {
       "lobby": "In lobby",
-      "playing": "Playing"
+      "playing": "In progress"
     },
     "private": "Password",
     "package": "Package · {{title}}",
     "players": "players",
     "host": "Host {{name}}",
     "noGames": "No open games right now. Host one and share the link!",
-    "loadFailed": "Couldn't load games. Check your connection and try again."
+    "loadFailed": "Couldn't load games. Check your connection and try again.",
+    "hideRejoin": "Hide",
+    "notice": {
+      "kicked": "The showman removed you from the game.",
+      "deleted": "The showman deleted the game."
+    }
   },
   "packages": {
     "title": "Packages",
@@ -167,7 +172,7 @@
     "password": "Game password",
     "passwordRequired": "This game needs a password.",
     "asPlayer": "Join as player",
-    "watch": "Watch",
+    "watch": "Spectate",
     "lobbyHelp": "Players buzz and score. Spectators watch everything but can't answer.",
     "playingHelp": "The game already started. You can watch now; the showman can seat you if a slot is free.",
     "fullHelp": "All seats are taken. You can watch and take a seat if one frees up."
@@ -185,7 +190,14 @@
     "pause": "Pause",
     "resume": "Resume",
     "scores": "Scores",
-    "noPlayers": "No players are seated. You can pick questions yourself."
+    "noPlayers": "No players are seated. You can pick questions yourself.",
+    "roundLabel": "Round {{n}} · {{name}}",
+    "you": "You:",
+    "youAre": "You are {{role}}",
+    "delete": "Delete game",
+    "deleteConfirm": "Delete this game for everyone?",
+    "deleteYes": "Yes, delete",
+    "deleteNo": "Cancel"
   },
   "lobby": {
     "leave": "Leave lobby",
@@ -265,11 +277,13 @@
     },
     "feel": "Sound and motion",
     "host": "Showman tools",
-    "hostHelp": "Click a player's score at the top to fix a score, hand them the turn or remove them.",
+    "hostHelp": "Use Manage players to fix a score, hand over the turn or remove someone. Deleting the game sends everyone home.",
     "skipQuestion": "Skip this question",
     "nextRound": "Go to next round",
     "spectate": "Switch to spectator",
-    "leave": "Leave game"
+    "leave": "Leave game",
+    "skipReveal": "Skip the answer",
+    "managePlayers": "Manage players"
   },
   "keys": {
     "space": "Space"
@@ -440,7 +454,11 @@
       "pickAny": "Pick any cell on the board",
       "nextRound": "Skip to next round",
       "next": "The question opens for everyone as soon as it's picked.",
-      "nextYou": "The question opens for everyone right after you pick."
+      "nextYou": "The question opens for everyone right after you pick.",
+      "unknownShowman": "A player picks next — or pick for them",
+      "unknown": "First pick",
+      "unknownInfo": "If it's your turn, pick any cell on the board",
+      "watching": "You're watching the pick"
     },
     "media": {
       "status": "{{ready}} of {{total}} players ready",
@@ -549,5 +567,17 @@
     "secretTransfer": "The secret question goes to {{name}}",
     "scoreChanged": "The showman set {{name}}'s score to {{score}}",
     "turnChanged": "{{name}} picks next"
+  },
+  "players": {
+    "title": "Players and scores",
+    "button": "Players",
+    "scores": "Scores",
+    "none": "No players are seated yet.",
+    "picksNext": "picks next",
+    "manage": "Manage",
+    "noShowman": "No showman right now",
+    "noSpectators": "Nobody is watching.",
+    "seat": "Seat as player",
+    "showmanHelp": "Manage a player to fix their score, give them the turn, move them to spectators or remove them."
   }
 }

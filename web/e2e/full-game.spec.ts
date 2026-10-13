@@ -61,6 +61,16 @@ test.describe("full game", () => {
         p === host ? "Showman" : p === sam ? "Spectator" : "Player",
       );
 
+    // Everyone can see every player's score; the showman also gets host tools.
+    await sam.page.getByTestId("open-players").click();
+    await expect(sam.page.getByTestId("players-row")).toHaveCount(2);
+    await expect(sam.page.getByTestId("players-panel")).toContainText("Hana");
+    await sam.page.keyboard.press("Escape");
+    await expect(alice.page.getByTestId("host-tools")).toHaveCount(0);
+    await host.page.getByTestId("host-tools").click();
+    await expect(host.page.getByRole("button", { name: "Manage players" })).toBeVisible();
+    await host.page.keyboard.press("Escape");
+
     // ── Simple question: buzz, typed answer, correct ───────────────────────
     await cell(host.page, "Capitals", 100).click();
     await expectPhase(all, "Ready to buzz");
