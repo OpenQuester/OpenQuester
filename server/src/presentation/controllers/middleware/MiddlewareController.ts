@@ -47,8 +47,14 @@ export class MiddlewareController {
     // CSP for the API pages and the browser app served from this origin
     // (WebAppController): media and presigned uploads go to S3, Discord sign-in
     // exchanges its code with discord.com, avatars may come from Discord's CDN.
-    const s3Origin = this._origin(this.ctx.env.getEnvVar("S3_ENDPOINT", "string", "", true));
-    const s3 = s3Origin ? [s3Origin] : [];
+    // Uploads go to S3_ENDPOINT; public file links may use S3_URL_PREFIX instead.
+    const s3 = [
+      ...new Set(
+        ["S3_ENDPOINT", "S3_URL_PREFIX"]
+          .map((name) => this._origin(this.ctx.env.getEnvVar(name, "string", "", true)))
+          .filter((origin): origin is string => origin != null)
+      )
+    ];
 
     this.ctx.app.use(
       helmet({
