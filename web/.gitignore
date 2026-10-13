@@ -8,3 +8,4 @@ e2e/.auth
 *.local
 .e2e-stack
 screenshots
+.wrangler
