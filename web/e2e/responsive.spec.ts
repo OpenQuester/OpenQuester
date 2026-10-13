@@ -7,6 +7,7 @@ import {
   hostGame,
   joinByLink,
   person,
+  shot,
   signInAsGuest,
 } from "./support/game";
 
@@ -59,6 +60,29 @@ test.describe("layout on this device", () => {
     await expect(dockPhase(page)).toHaveText("Answering");
     await expect(page.getByLabel("Your answer")).toBeInViewport();
 
+    await host.context.close();
+  });
+
+  test("a board with many questions fits without sideways scrolling", async ({ browser, page }) => {
+    const host = await person(browser, "Host", { viewport: { width: 1280, height: 800 } });
+    await signInAsGuest(host.page, "Host");
+    const code = await hostGame(host.page, "Big board", {
+      packageId: Number(process.env.OQ_E2E_BIG_PACKAGE_ID),
+    });
+    await joinByLink(page, code, "Pat", "player");
+    await page.getByRole("button", { name: "I'm ready" }).click();
+    await expect(dockPhase(page)).toHaveText("Choosing");
+    await expect(page.getByTestId("board-cell")).toHaveCount(60);
+    await expectNoHorizontalScroll(page);
+    await shot(page, `big-board-${test.info().project.name}`);
+    // Every price stays a comfortable touch target and fully visible.
+    const viewport = page.viewportSize()!;
+    for (const box of await page
+      .getByTestId("board-cell")
+      .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON() as DOMRect))) {
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.right).toBeLessThanOrEqual(viewport.width);
+    }
     await host.context.close();
   });
 });

@@ -171,6 +171,42 @@ export async function seedPackage(base, title = "Demo: every question type") {
   return { id, title };
 }
 
+/** A wide board: 6 themes with 10 questions each, like many SIGame packages. */
+export async function seedBigPackage(base, title = "Big board") {
+  const cookie = await author(base);
+  const themes = Array.from({ length: 6 }, (_, t) => ({
+    name: [
+      "Manga and novels",
+      "Describe the poster",
+      "Guess the special",
+      "Fell asleep on the keyboard",
+      "Hatter",
+      "Villains",
+    ][t],
+    order: t,
+    questions: Array.from({ length: 10 }, (_, i) =>
+      q(i, 2 + i * 0, `Question ${t + 1}.${i + 1}`, `Answer ${t + 1}.${i + 1}`),
+    ),
+  }));
+  themes[4].questions[9].price = 10;
+  const res = await fetch(`${base}/v1/packages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({
+      content: {
+        title,
+        language: "en",
+        ageRestriction: "NONE",
+        tags: [],
+        rounds: [{ name: "Wide", order: 0, type: "simple", themes }],
+      },
+    }),
+  });
+  if (!res.ok) throw new Error(`big package upload failed: ${res.status} ${await res.text()}`);
+  const { id } = await res.json();
+  return { id, title };
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   const base = process.argv[2] ?? "http://localhost:53000";
   seedPackage(base, process.argv[3])

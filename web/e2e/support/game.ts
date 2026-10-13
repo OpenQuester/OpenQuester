@@ -52,9 +52,9 @@ export async function signInAsGuest(page: Page, name: string, redirect = "/"): P
 export async function hostGame(
   page: Page,
   title: string,
-  options: { maxPlayers?: number } = {},
+  options: { maxPlayers?: number; packageId?: number } = {},
 ): Promise<string> {
-  await page.goto(`/games/new?packageId=${packageId()}`);
+  await page.goto(`/games/new?packageId=${options.packageId ?? packageId()}`);
   await page.getByLabel("Game name").fill(title);
   if (options.maxPlayers) await page.getByLabel("Players").selectOption(String(options.maxPlayers));
   await page.getByRole("button", { name: "Create & open lobby" }).click();
