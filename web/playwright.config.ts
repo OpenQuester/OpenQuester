@@ -11,6 +11,7 @@ const API_URL = process.env.OQ_API_URL ?? "http://localhost:53000";
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ["live/**"],
   timeout: 120_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,

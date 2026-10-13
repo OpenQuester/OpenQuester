@@ -22,6 +22,8 @@ npm run e2e:full     # Docker: Postgres, Redis, S3, server, seed, Playwright, te
 npm run e2e:stack -- up | restart | down   # keep the backend running while iterating
 npm run e2e          # Playwright only (stack and app already running; OQ_WEB_URL to reuse a dev server)
 OQ_SCREENSHOTS=1 npm run e2e   # also saves a screenshot of every phase to web/screenshots/
+OQ_WEB_URL=https://<deploy>.pages.dev OQ_LIVE_PACKAGE_ID=3 npx playwright test -c playwright.live.config.ts
+                     # smoke: a full game on a deployed site against its real server
 ```
 
 ## Layout

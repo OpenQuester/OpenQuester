@@ -66,7 +66,11 @@ export function GameScreen() {
           >
             {t(`roles.${role}`)}
           </span>
-          <span className="mr-1 max-w-[18ch] truncate text-sm text-muted" title={round?.name}>
+          <span
+            className="mr-1 max-w-[18ch] truncate text-sm text-muted"
+            title={round?.name}
+            data-testid="round-name"
+          >
             {phase === "finished"
               ? t("game.over")
               : round?.type === "final"
