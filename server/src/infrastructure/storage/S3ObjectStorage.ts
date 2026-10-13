@@ -33,7 +33,12 @@ export class S3ObjectStorage implements ObjectStorage {
       },
       forcePathStyle: true,
       endpoint: this.s3Context.endpoint,
-      region: this.s3Context.region
+      region: this.s3Context.region,
+      // Presigned uploads come from clients, so the SDK must not sign a CRC32
+      // of the (empty) request body into the URL; strict S3 servers then reject
+      // every upload as a bad digest. Content-MD5 already guards the payload.
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED"
     });
   }
 
