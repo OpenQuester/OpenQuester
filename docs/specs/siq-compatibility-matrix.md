@@ -54,6 +54,7 @@ This matrix should be updated as parser/editor/game support evolves.
 | Text question | Supported | Import question text and answer. |
 | Image/audio/video media | SupportedWithConversion | Import media by hash and represent through OQ media fields; warn if file type/codec is risky. |
 | Simple answer text | Supported | Preserve answer text. |
+| Content order and timing (`placement`, `waitForFinish`, `duration`) | Supported | Keep item order, background audio, grouping and explicit durations; the game plays them one step at a time. All screen texts merge into the question text at the first text's position (`textOrder`); a text shown together with the next item becomes a caption. `replic`/`say` goes to the comment. |
 | Answer media | Partial | Preserve when model supports it; warn if game/editor preview is incomplete. |
 | Choice question | Partial | Preserve choices when possible; ensure gameplay CTA explains screen selection. |
 | Stake/bidding question | Supported or Partial | Preserve type if game support exists; warn if SIQ semantics differ. |

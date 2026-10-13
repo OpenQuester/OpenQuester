@@ -70,6 +70,10 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   loaded (images decoded), so the question timer starts when everyone can see
   it. Audio and video have no controls and play only in the `showing` phase;
   blocked autoplay falls back to muted playback plus an "enable sound" button.
+  Question and answer content plays one step at a time (`ContentStage`) on the
+  server's `contentPlan`; the position is the phase timer's elapsed time
+  (`game/contentPlan.ts`, `session.content` in the reducer), frozen while
+  someone answers. Players report real audio/video lengths with the ACK.
 - In-game chat, players and showman tools are side panels at `lg` (1024 px)
   and up, never modals over the game; pins are per device in settings
   (`pins`). Below `lg` they open as sheets. `3xl`/`4xl` breakpoints scale the
