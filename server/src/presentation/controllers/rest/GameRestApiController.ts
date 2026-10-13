@@ -87,12 +87,16 @@ export class GameRestApiController {
     const createdByUser = await this.userService.getUserBySession(
       req.session.userId,
       {
-        select: ["id", "username"],
+        select: ["id", "username", "name"],
         relations: []
       }
     );
 
-    const result = await this.gameService.create(createdByUser, gameCreateDTO);
+    // The games list shows the host by display name, like players see in game
+    const result = await this.gameService.create(
+      { id: createdByUser.id, username: createdByUser.name?.trim() || createdByUser.username },
+      gameCreateDTO
+    );
     return res.status(HttpStatus.OK).send(result);
   };
 
