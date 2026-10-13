@@ -1,4 +1,4 @@
-import { seedBigPackage, seedPackage } from "./seed.mjs";
+import { seedBigPackage, seedMediaPackage, seedPackage } from "./seed.mjs";
 
 const API_URL = process.env.OQ_API_URL ?? "http://localhost:53000";
 
@@ -23,4 +23,6 @@ export default async function globalSetup(): Promise<void> {
   process.env.OQ_E2E_PACKAGE_TITLE = pkg.title;
   const big = await seedBigPackage(API_URL, `E2E big board ${Date.now()}`);
   process.env.OQ_E2E_BIG_PACKAGE_ID = String(big.id);
+  const media = await seedMediaPackage(API_URL, `E2E media ${Date.now()}`);
+  process.env.OQ_E2E_MEDIA_PACKAGE_ID = String(media.id);
 }

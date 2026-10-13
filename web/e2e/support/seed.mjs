@@ -2,6 +2,7 @@
 // image question and a final round. Used by Playwright and runnable by hand:
 //   node e2e/support/seed.mjs http://localhost:53000
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
 
 const ANSWER_DELAY = 1000;
@@ -212,6 +213,76 @@ export async function seedBigPackage(base, title = "Big board") {
   });
   if (!res.ok) throw new Error(`big package upload failed: ${res.status} ${await res.text()}`);
   const { id } = await res.json();
+  return { id, title };
+}
+
+/** Uploads each file the server asks for; `files` maps md5 to body and type. */
+async function uploadFiles(uploadLinks, files) {
+  for (const [name, url] of Object.entries(uploadLinks)) {
+    const file = files[name];
+    if (!file) continue;
+    const put = await fetch(url, {
+      method: "PUT",
+      headers: {
+        "content-md5": createHash("md5").update(file.body).digest("base64"),
+        "content-type": file.type,
+      },
+      body: file.body,
+    });
+    if (!put.ok) throw new Error(`media upload failed: ${put.status} ${await put.text()}`);
+  }
+}
+
+/** One video, one image and one audio question: media sync and playback checks. */
+export async function seedMediaPackage(base, title = "Media check") {
+  const cookie = await author(base);
+  const clip = readFileSync(new URL("../fixtures/clip.webm", import.meta.url));
+  const png = makePng(1600, 900, [90, 140, 255]);
+  const md5 = (b) => createHash("md5").update(b).digest("hex");
+  const files = {
+    [md5(clip)]: { body: clip, type: "video/webm" },
+    [md5(png)]: { body: png, type: "image/png" },
+  };
+  const media = (hash, type) => [{ file: { md5: hash, type }, displayTime: null, order: 0 }];
+  const res = await fetch(`${base}/v1/packages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({
+      content: {
+        title,
+        language: "en",
+        ageRestriction: "NONE",
+        tags: [],
+        rounds: [
+          {
+            name: "Media",
+            order: 0,
+            type: "simple",
+            themes: [
+              {
+                name: "Media",
+                order: 0,
+                questions: [
+                  q(0, 100, "What is on the screen?", "Test pattern", {
+                    questionFiles: media(md5(clip), "video"),
+                  }),
+                  q(1, 200, "Which colour is this picture?", "Blue", {
+                    questionFiles: media(md5(png), "image"),
+                  }),
+                  q(2, 300, "Which note is this?", "A", {
+                    questionFiles: media(md5(clip), "audio"),
+                  }),
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  });
+  if (!res.ok) throw new Error(`media package upload failed: ${res.status} ${await res.text()}`);
+  const { id, uploadLinks } = await res.json();
+  await uploadFiles(uploadLinks, files);
   return { id, title };
 }
 

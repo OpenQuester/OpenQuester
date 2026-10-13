@@ -5,3 +5,7 @@ export function seedBigPackage(
   base: string,
   title?: string,
 ): Promise<{ id: number; title: string }>;
+export function seedMediaPackage(
+  base: string,
+  title?: string,
+): Promise<{ id: number; title: string }>;

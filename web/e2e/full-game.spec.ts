@@ -68,7 +68,10 @@ test.describe("full game", () => {
     await sam.page.keyboard.press("Escape");
     await expect(alice.page.getByTestId("host-tools")).toHaveCount(0);
     await host.page.getByTestId("host-tools").click();
-    await expect(host.page.getByRole("button", { name: "Manage players" })).toBeVisible();
+    await expect(host.page.getByTestId("host-panel")).toBeVisible();
+    await expect(
+      host.page.getByTestId("host-panel").getByRole("button", { name: "Manage Alice" }),
+    ).toBeVisible();
     await host.page.keyboard.press("Escape");
 
     // ── Simple question: buzz, typed answer, correct ───────────────────────
