@@ -1,13 +1,15 @@
-import { createRootRoute, createRoute, createRouter, Link, Outlet } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  createRoute,
+  createRouter,
+  lazyRouteComponent,
+  Link,
+  Outlet,
+} from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
-import { DiscordCallbackPage } from "@/features/auth/DiscordCallbackPage";
 import { LoginPage } from "@/features/auth/LoginPage";
-import { CreateGamePage } from "@/features/create-game/CreateGamePage";
-import { GamePage } from "@/features/game/GamePage";
 import { HomePage } from "@/features/home/HomePage";
-import { PackagesPage } from "@/features/packages/PackagesPage";
-import { SettingsPage } from "@/features/settings/SettingsPage";
 
 import { AppShell, PageContainer } from "./AppShell";
 
@@ -49,7 +51,10 @@ const loginRoute = createRoute({
 const discordRoute = createRoute({
   getParentRoute: () => shell,
   path: "/auth/discord",
-  component: DiscordCallbackPage,
+  component: lazyRouteComponent(
+    () => import("@/features/auth/DiscordCallbackPage"),
+    "DiscordCallbackPage",
+  ),
   validateSearch: (s: Record<string, unknown>): { code?: string; error?: string } => ({
     code: str(s.code),
     error: str(s.error),
@@ -58,7 +63,7 @@ const discordRoute = createRoute({
 const packagesRoute = createRoute({
   getParentRoute: () => shell,
   path: "/packages",
-  component: PackagesPage,
+  component: lazyRouteComponent(() => import("@/features/packages/PackagesPage"), "PackagesPage"),
   validateSearch: (s: Record<string, unknown>): { id?: number; q?: string } => ({
     id: num(s.id),
     q: str(s.q),
@@ -67,7 +72,10 @@ const packagesRoute = createRoute({
 const createGameRoute = createRoute({
   getParentRoute: () => shell,
   path: "/games/new",
-  component: CreateGamePage,
+  component: lazyRouteComponent(
+    () => import("@/features/create-game/CreateGamePage"),
+    "CreateGamePage",
+  ),
   validateSearch: (s: Record<string, unknown>): { packageId?: number } => ({
     packageId: num(s.packageId),
   }),
@@ -75,14 +83,14 @@ const createGameRoute = createRoute({
 const settingsRoute = createRoute({
   getParentRoute: () => shell,
   path: "/settings",
-  component: SettingsPage,
+  component: lazyRouteComponent(() => import("@/features/settings/SettingsPage"), "SettingsPage"),
 });
 
 /** The game owns the whole screen. */
 const gameRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/games/$gameId",
-  component: GamePage,
+  component: lazyRouteComponent(() => import("@/features/game/GamePage"), "GamePage"),
 });
 
 const routeTree = rootRoute.addChildren([

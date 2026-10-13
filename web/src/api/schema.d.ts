@@ -2672,7 +2672,10 @@ export interface components {
         PlayerMeta: {
             /** @example 200 */
             id: number;
-            /** @example Asion001 */
+            /**
+             * @description Name shown to other players: the user's display name when set, otherwise their username.
+             * @example Asion001
+             */
             username: string;
             /**
              * @example https://example.image.com
@@ -2903,6 +2906,11 @@ export interface components {
         /** @description This data sent to all players in room when game is started */
         SocketIOGameStartEventPayload: {
             currentRound: components["schemas"]["SocketIOGameStateRoundData"];
+            /**
+             * @description Player who picks the first question. Null when no player is seated.
+             * @example 2
+             */
+            currentTurnPlayerId?: number | null;
         };
         /** @description This data is sent to all players in room when a player changes their ready status */
         SocketIOPlayerReadinessEventPayload: {
@@ -3506,7 +3514,7 @@ export interface components {
             nextPhase: components["schemas"]["FinalRoundPhase"];
             timer: components["schemas"]["GameStateTimer"];
         };
-        /** @description Data sent when final round question is revealed */
+        /** @description Data sent when final round question is revealed. Role-filtered: the showman's copy includes answerText and answerHint so they can judge; players and spectators get the question without the answer. */
         SocketIOFinalQuestionEventDataPayload: {
             questionData: components["schemas"]["FinalRoundQuestionData"];
         };
