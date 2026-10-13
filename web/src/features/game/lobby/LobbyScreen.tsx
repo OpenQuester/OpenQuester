@@ -9,6 +9,7 @@ import { Avatar } from "@/ui/Avatar";
 import { Button } from "@/ui/Button";
 import { BackIcon, ChatIcon, CheckIcon, CloseIcon, CopyIcon, EyeIcon } from "@/ui/icons";
 
+import { DeleteGameButton } from "../DeleteGameButton";
 import { useGame, useSession } from "../GameContext";
 import { ChatDrawer } from "../play/ChatDrawer";
 import { ConnectionBanner } from "../play/ConnectionBanner";
@@ -52,7 +53,7 @@ export function LobbyScreen() {
     if (role === "player") connection.emit("player-slot-change", { targetSlot: slot });
     else {
       connection.setJoinRole("player", slot);
-      connection.emit("player-role-change", { playerId: null, newRole: "player" });
+      connection.emit("player-role-change", { playerId: myId, newRole: "player" });
     }
   };
 
@@ -217,7 +218,7 @@ export function LobbyScreen() {
                 variant="ghost"
                 className="self-start"
                 onClick={() =>
-                  connection.emit("player-role-change", { playerId: null, newRole: "spectator" })
+                  connection.emit("player-role-change", { playerId: myId, newRole: "spectator" })
                 }
               >
                 {t("lobby.watchInstead")}
@@ -237,7 +238,7 @@ export function LobbyScreen() {
                 disabled={freeSlots === 0}
                 onClick={() => {
                   connection.setJoinRole("player");
-                  connection.emit("player-role-change", { playerId: null, newRole: "player" });
+                  connection.emit("player-role-change", { playerId: myId, newRole: "player" });
                 }}
               >
                 {t("lobby.takeSeat")}
@@ -272,6 +273,9 @@ export function LobbyScreen() {
               <p className="m-0 text-sm text-muted">
                 {activeSeated.length === 0 ? t("lobby.startAloneHelp") : t("lobby.startHelp")}
               </p>
+              <div className="border-t border-line-strong pt-4">
+                <DeleteGameButton gameId={session.gameId} />
+              </div>
             </section>
           )}
 

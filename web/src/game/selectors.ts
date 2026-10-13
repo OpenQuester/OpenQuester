@@ -158,6 +158,7 @@ export function canPick(
   if (phaseOf(session) !== "choosing") return no("wrong_phase");
   if (question?.isPlayed) return no("already_done");
   if (role === "showman") return OK;
+  if (session.turnUnknown) return OK;
   if (session.state.currentTurnPlayerId !== myId) return no("not_your_turn");
   return OK;
 }

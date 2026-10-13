@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { safeStorage } from "@/lib/storage";
+
 import { reduce, sessionFromSnapshot, type GameSession } from "./reducer";
 import type { ServerEvent } from "./protocol";
 
@@ -21,7 +23,7 @@ interface GameStore {
   pending: { action: string; at: number } | null;
   toasts: GameToast[];
   /** Set once the local player left or was removed; the page navigates away. */
-  left: "left" | "kicked" | null;
+  left: { gameId: string; why: "left" | "kicked" | "deleted" } | null;
 
   begin: (gameId: string) => void;
   dispatch: (event: ServerEvent) => void;
@@ -30,7 +32,7 @@ interface GameStore {
   setPending: (action: string | null) => void;
   toast: (kind: GameToast["kind"], text: string) => void;
   dismissToast: (id: number) => void;
-  markLeft: (why: "left" | "kicked") => void;
+  markLeft: (why: "left" | "kicked" | "deleted") => void;
 }
 
 let toastId = 0;
@@ -81,10 +83,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
     window.setTimeout(() => get().dismissToast(id), 4500);
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
-  markLeft: (left) => set({ left }),
+  markLeft: (why) => {
+    const gameId = get().gameId;
+    if (!gameId) return;
+    set({ left: { gameId, why } });
+    if (why === "left") rememberLeftGame(gameId);
+  },
 }));
 
 // Lets end-to-end tests and devtools inspect the live game state.
 if (typeof window !== "undefined") {
   (window as unknown as { __oqGame?: typeof useGameStore }).__oqGame = useGameStore;
+}
+
+const LEFT_KEY = "oq.leftGames";
+
+/** Games this browser explicitly left; the home page stops offering to rejoin them. */
+export function leftGames(): string[] {
+  try {
+    const list = JSON.parse(safeStorage.get(LEFT_KEY) ?? "[]") as unknown;
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function rememberLeftGame(gameId: string): void {
+  safeStorage.set(LEFT_KEY, JSON.stringify([...new Set([gameId, ...leftGames()])].slice(0, 20)));
+}
+
+export function forgetLeftGame(gameId: string): void {
+  safeStorage.set(LEFT_KEY, JSON.stringify(leftGames().filter((id) => id !== gameId)));
 }

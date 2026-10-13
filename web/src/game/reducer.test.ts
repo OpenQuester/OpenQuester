@@ -372,3 +372,16 @@ describe("reducer: snapshots and housekeeping", () => {
     ).toBe(s);
   });
 });
+
+describe("reducer: servers that do not announce the first picker", () => {
+  it("lets players try to pick until the turn is known", () => {
+    let s = reduce(session(), { type: "start", payload: { currentRound: round() } });
+    expect(s.turnUnknown).toBe(true);
+    s = reduce(s, {
+      type: "question-finish",
+      payload: { answerFiles: null, answerText: "x", nextTurnPlayerId: BOB },
+    });
+    expect(s.turnUnknown).toBe(false);
+    expect(s.state.currentTurnPlayerId).toBe(BOB);
+  });
+});

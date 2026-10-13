@@ -35,6 +35,11 @@ export interface GameSession {
   finalAutoLoss: Record<number, "empty_answer" | "timeout">;
   /** Bumps on each applied event so views can key animations. */
   version: number;
+  /**
+   * True when the game started on a server that does not announce the first
+   * picker. Players may then try to pick; the server decides whose turn it is.
+   */
+  turnUnknown: boolean;
 }
 
 export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSession {
@@ -58,6 +63,7 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
         )
       : {},
     version: 0,
+    turnUnknown: false,
   };
 }
 
@@ -207,7 +213,21 @@ export function reduce(session: GameSession, event: ServerEvent): GameSession {
   return next === session ? session : { ...next, version: session.version + 1 };
 }
 
+const TURN_EVENTS = new Set<ServerEvent["type"]>([
+  "question-finish",
+  "turn-player-changed",
+  "next-round",
+  "question-data",
+  "stake-question-picked",
+  "secret-question-picked",
+]);
+
 function apply(session: GameSession, event: ServerEvent): GameSession {
+  const next = applyEvent(session, event);
+  return next.turnUnknown && TURN_EVENTS.has(event.type) ? { ...next, turnUnknown: false } : next;
+}
+
+function applyEvent(session: GameSession, event: ServerEvent): GameSession {
   const s = session.state;
 
   switch (event.type) {
@@ -241,15 +261,18 @@ function apply(session: GameSession, event: ServerEvent): GameSession {
       };
 
     case "start":
-      return patchState(session, {
-        currentRound: event.payload.currentRound,
-        questionState: "choosing",
-        readyPlayers: null,
-        currentTurnPlayerId:
-          event.payload.currentTurnPlayerId !== undefined
-            ? event.payload.currentTurnPlayerId
-            : s.currentTurnPlayerId,
-      });
+      return {
+        ...patchState(session, {
+          currentRound: event.payload.currentRound,
+          questionState: "choosing",
+          readyPlayers: null,
+          currentTurnPlayerId:
+            event.payload.currentTurnPlayerId !== undefined
+              ? event.payload.currentTurnPlayerId
+              : s.currentTurnPlayerId,
+        }),
+        turnUnknown: event.payload.currentTurnPlayerId === undefined,
+      };
 
     case "game-pause":
       return patchState(session, { isPaused: true, timer: event.payload.timer ?? s.timer });

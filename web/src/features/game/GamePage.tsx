@@ -9,7 +9,7 @@ import { isStarted } from "@/game/reducer";
 import { useGameStore } from "@/game/store";
 import { translateServerError } from "@/i18n/serverErrors";
 import { Button } from "@/ui/Button";
-import { Spinner } from "@/ui/Spinner";
+import { PageLoader } from "@/ui/Spinner";
 
 import { GameContext } from "./GameContext";
 import { takeJoinIntent } from "./joinIntent";
@@ -42,11 +42,7 @@ export function GamePage() {
       : null);
 
   if (me.isLoading || (preview.isLoading && !join)) {
-    return (
-      <PageContainer>
-        <Spinner label={t("common.loading")} />
-      </PageContainer>
-    );
+    return <PageLoader label={t("common.loading")} />;
   }
 
   if (!join || !me.data) {
@@ -100,8 +96,11 @@ function ConnectedGame({
   }, [connection]);
 
   useEffect(() => {
-    if (left) void navigate({ to: "/", search: left === "kicked" ? { notice: "kicked" } : {} });
-  }, [left, navigate]);
+    // Only react to leaving *this* game: the store may still hold the previous one.
+    if (left?.gameId === gameId) {
+      void navigate({ to: "/", search: left.why === "left" ? {} : { notice: left.why } });
+    }
+  }, [left, gameId, navigate]);
 
   const value = useMemo(() => ({ connection, myId }), [connection, myId]);
 
@@ -130,11 +129,7 @@ function ConnectedGame({
   }
 
   if (!session) {
-    return (
-      <PageContainer>
-        <Spinner label={t("game.joining")} />
-      </PageContainer>
-    );
+    return <PageLoader label={t("game.joining")} />;
   }
 
   return (

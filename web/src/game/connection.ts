@@ -14,7 +14,7 @@ import {
   type PlayerRole,
   type ServerEvent,
 } from "./protocol";
-import { useGameStore } from "./store";
+import { forgetLeftGame, useGameStore } from "./store";
 
 export interface JoinOptions {
   role: PlayerRole;
@@ -52,6 +52,7 @@ export class GameConnection {
   }
 
   connect(): void {
+    forgetLeftGame(this.gameId);
     // React StrictMode mounts, unmounts and remounts: a closed connection must
     // be able to start over.
     this.closed = false;
@@ -77,6 +78,13 @@ export class GameConnection {
       if (!this.closed) useGameStore.getState().setConnection("reconnecting");
     });
     socket.on("error", (payload: unknown) => this.onError(payload));
+    // The lobby-wide games feed tells us when the showman deletes this game.
+    socket.on("games", (payload: { event?: string; data?: { id?: string } }) => {
+      if (payload?.event === "deleted" && payload.data?.id?.toUpperCase() === this.gameId) {
+        useGameStore.getState().markLeft("deleted");
+        this.close();
+      }
+    });
 
     for (const name of SERVER_EVENT_NAMES) {
       socket.on(name, (payload: unknown) =>
