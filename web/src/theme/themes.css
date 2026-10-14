@@ -1,7 +1,7 @@
 /*
  * Theme token sets. Every colour, radius and font used by the app comes from
  * these variables, so a new theme is one more [data-theme] block plus an entry
- * in themes.ts. Midnight is the default.
+ * in themes.ts. Midnight is the default; Daylight is its light counterpart.
  */
 :root,
 [data-theme="midnight"] {
@@ -44,6 +44,12 @@
   --oq-danger: #ff9c9c;
   --oq-danger-surface: #3a1a1a;
   --oq-danger-strong: #ff6b6b;
+  --oq-on-danger-surface: #ffd0cc;
+  --oq-on-warning-surface: #ffe7a8;
+  --oq-on-accent-surface: #e8dcc0;
+
+  --oq-link-hover: #d6daff;
+  --oq-scrim: #05060d;
 
   --oq-radius-sm: 10px;
   --oq-radius-md: 14px;
@@ -52,4 +58,52 @@
   --oq-font-display: "Bricolage Grotesque", system-ui, sans-serif;
   --oq-font-body: "IBM Plex Sans", system-ui, sans-serif;
   --oq-font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Daylight: the same roles on paper-white. Amber stays the "act now" colour,
+   darkened so it reads as text on white. */
+[data-theme="daylight"] {
+  color-scheme: light;
+
+  --oq-bg: #f4f5fb;
+  --oq-surface: #ffffff;
+  --oq-surface-2: #eceefa;
+  --oq-surface-3: #e0e3f5;
+  --oq-avatar: #d9ddf3;
+  --oq-border: #dde0f0;
+  --oq-border-strong: #c3c8e4;
+
+  --oq-text: #141833;
+  --oq-text-soft: #2f355c;
+  --oq-text-muted: #4f5682;
+  --oq-text-faint: #6a7199;
+  --oq-text-ghost: #a9aecb;
+
+  --oq-accent: #e08a00;
+  --oq-accent-strong: #a86300;
+  --oq-on-accent: #1a1203;
+  --oq-accent-surface: #fff3dc;
+  --oq-accent-border: #f0c77a;
+  --oq-accent-soft: #7a4a00;
+
+  --oq-info: #4a55d9;
+  --oq-info-soft: #3a44c0;
+  --oq-primary: #4a55d9;
+  --oq-on-primary: #ffffff;
+
+  --oq-success: #1d7a33;
+  --oq-success-surface: #e2f6e6;
+  --oq-success-border: #9fd8ab;
+  --oq-warning: #8a6200;
+  --oq-warning-surface: #fff6d6;
+  --oq-warning-soft: #5c4a10;
+  --oq-danger: #c42b2b;
+  --oq-danger-surface: #fde7e7;
+  --oq-danger-strong: #b01e1e;
+  --oq-on-danger-surface: #8a1c1c;
+  --oq-on-warning-surface: #5c4300;
+  --oq-on-accent-surface: #6b4a10;
+
+  --oq-link-hover: #252e9e;
+  --oq-scrim: #141833;
 }

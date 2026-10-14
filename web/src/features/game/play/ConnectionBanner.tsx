@@ -12,7 +12,10 @@ export function ConnectionBanner({ showPause = false }: { showPause?: boolean })
   if (connection === "reconnecting" || connection === "connecting") {
     if (!session) return null;
     return (
-      <div role="alert" className="border-b border-danger/40 bg-danger-surface text-[#FFD0CC]">
+      <div
+        role="alert"
+        className="border-b border-danger/40 bg-danger-surface text-on-danger-surface"
+      >
         <div className="mx-auto flex max-w-[1320px] flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 sm:px-6">
           <strong>{t("banner.reconnecting")}</strong>
           <span>{t("banner.reconnectingHelp")}</span>
@@ -25,7 +28,7 @@ export function ConnectionBanner({ showPause = false }: { showPause?: boolean })
     return (
       <div
         role="status"
-        className="border-b border-warning/30 bg-warning-surface text-[#FFE7A8]"
+        className="border-b border-warning/30 bg-warning-surface text-on-warning-surface"
         data-testid="paused-banner"
       >
         <div className="mx-auto flex max-w-[1320px] flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 sm:px-6">

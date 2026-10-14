@@ -166,6 +166,7 @@
     "theme": "Тема",
     "themes": {
       "midnight": "Midnight",
+      "daylight": "Дневной свет",
       "broadcast": "Broadcast",
       "boldPop": "Bold Pop",
       "softParty": "Soft Party"

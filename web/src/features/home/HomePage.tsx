@@ -69,7 +69,7 @@ export function HomePage() {
             <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-accent" />
             <div className="flex min-w-[220px] flex-1 flex-col">
               <span className="font-semibold">{t("home.stillIn", { title: mine.title })}</span>
-              <span className="text-sm text-[#E8DCC0]">
+              <span className="text-sm text-on-accent-surface">
                 {gameStatus(mine) === "lobby" ? t("home.stillInLobby") : t("home.stillInPlaying")}
               </span>
             </div>

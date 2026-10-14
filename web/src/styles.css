@@ -39,6 +39,10 @@
   --color-danger: var(--oq-danger);
   --color-danger-surface: var(--oq-danger-surface);
   --color-danger-strong: var(--oq-danger-strong);
+  --color-on-danger-surface: var(--oq-on-danger-surface);
+  --color-on-warning-surface: var(--oq-on-warning-surface);
+  --color-on-accent-surface: var(--oq-on-accent-surface);
+  --color-scrim: var(--oq-scrim);
 
   --radius-sm: var(--oq-radius-sm);
   --radius-md: var(--oq-radius-md);
@@ -68,7 +72,7 @@
     color: var(--oq-info-soft);
   }
   a:hover {
-    color: #d6daff;
+    color: var(--oq-link-hover);
   }
   :focus-visible {
     outline: 2px solid var(--oq-info);

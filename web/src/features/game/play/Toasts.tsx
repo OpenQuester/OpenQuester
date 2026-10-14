@@ -20,7 +20,7 @@ export function Toasts() {
           role={toast.kind === "error" ? "alert" : "status"}
           className={cn(
             "pointer-events-auto flex max-w-[560px] items-center gap-3 rounded-md border px-4 py-3 shadow-xl oq-slide-up",
-            toast.kind === "error" && "border-danger/50 bg-danger-surface text-[#FFD0CC]",
+            toast.kind === "error" && "border-danger/50 bg-danger-surface text-on-danger-surface",
             toast.kind === "info" && "border-line-strong bg-surface-2 text-text",
             toast.kind === "success" && "border-success-line bg-success-surface text-success",
           )}

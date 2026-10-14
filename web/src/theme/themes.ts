@@ -5,9 +5,10 @@ export interface ThemeOption {
   available: boolean;
 }
 
-/** Midnight ships first; the others are planned token sets. */
+/** Midnight and its light counterpart Daylight ship; the others are planned token sets. */
 export const THEMES: ThemeOption[] = [
   { id: "midnight", labelKey: "settings.themes.midnight", available: true },
+  { id: "daylight", labelKey: "settings.themes.daylight", available: true },
   { id: "broadcast", labelKey: "settings.themes.broadcast", available: false },
   { id: "bold-pop", labelKey: "settings.themes.boldPop", available: false },
   { id: "soft-party", labelKey: "settings.themes.softParty", available: false },

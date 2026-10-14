@@ -65,7 +65,7 @@ function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => vo
   return (
     <RD.Root open onOpenChange={(o) => !o && requestClose()}>
       <RD.Portal>
-        <RD.Overlay className="fixed inset-0 z-40 bg-[#05060d]/70 oq-pop" />
+        <RD.Overlay className="fixed inset-0 z-40 bg-scrim/70 oq-pop" />
         <RD.Content
           data-testid="question-dialog"
           onKeyDown={(e) => {
