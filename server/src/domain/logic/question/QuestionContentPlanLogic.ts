@@ -151,18 +151,40 @@ export class QuestionContentPlanLogic {
       : null;
 
     game.gameState.questionContentPlan = plan;
+    game.gameState.buzzerOpensAtMs = this.buzzerOpensAt(game);
     return plan?.totalMs ?? 0;
   }
 
   /**
-   * Question timer length: the content timeline plays first, then the usual
-   * answer window.
+   * When the buzzer opens, as a position on the SHOWING timer: after the
+   * content timeline, after the reading time of a caption text (text shown
+   * the whole time rather than as a step), plus the question's answer delay.
+   * 0 when the game allows pressing at any time (`falseStart` off).
+   */
+  public static buzzerOpensAt(game: Game): number {
+    const question = game.gameState.currentQuestion;
+    if (!question || !game.settings.falseStart) {
+      return 0;
+    }
+
+    const contentMs = game.gameState.questionContentPlan?.totalMs ?? 0;
+    const caption = question.text?.trim();
+    const isCaption =
+      !!caption && (question.textOrder === null || question.textOrder === undefined);
+    const readingMs = isCaption ? this.textDuration(caption) : 0;
+    const delayMs = Math.max(0, question.answerDelay ?? 0);
+
+    return Math.max(contentMs, readingMs) + delayMs;
+  }
+
+  /**
+   * Question timer length: the content plays and the buzzer opens first,
+   * then the usual answer window.
    */
   public static questionTimerDuration(game: Game): number {
-    return (
-      (game.gameState.questionContentPlan?.totalMs ?? 0) +
-      GAME_QUESTION_ANSWER_TIME
-    );
+    const contentMs = game.gameState.questionContentPlan?.totalMs ?? 0;
+    const opensAtMs = game.gameState.buzzerOpensAtMs ?? 0;
+    return Math.max(contentMs, opensAtMs) + GAME_QUESTION_ANSWER_TIME;
   }
 
   public static textDuration(text: string): number {

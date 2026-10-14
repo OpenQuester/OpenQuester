@@ -69,6 +69,20 @@
       "system": {
         "schema": "#/components/schemas/SocketIOEvents"
       }
+    },
+    "buzzer": {
+      "press": {
+        "event": "question-answer",
+        "direction": "client-to-server"
+      },
+      "opens": "The buzzer opens when the SHOWING timer reaches buzzerOpensAtMs. A press before that is a false start: the server broadcasts buzzer-false-start and rejects the player's presses with buzzer_locked until the lock ends (3 s).",
+      "acceptWindow": "The first press in time opens a 300 ms accept window. Players who press inside it take part in a random draw when it closes; the winner is announced with question-answer. A press inside the window gets no immediate broadcast.",
+      "directAnswer": "When a player is already designated to answer (secret or stake winner), their press answers immediately without false-start or window rules.",
+      "falseStartEvent": {
+        "event": "buzzer-false-start",
+        "direction": "server-to-client",
+        "payloadSchema": "#/components/schemas/SocketIOBuzzerFalseStartEventPayload"
+      }
     }
   },
   "paths": {
@@ -2853,6 +2867,9 @@
           },
           "package": {
             "$ref": "#/components/schemas/PackageItem"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/GameSettings"
           }
         },
         "required": [
@@ -2864,6 +2881,7 @@
           "maxPlayers",
           "package",
           "players",
+          "settings",
           "title"
         ]
       },
@@ -2899,6 +2917,9 @@
             "pattern": "^[A-Za-z0-9_-]+$",
             "description": "Optional password for private games. If not provided for a private game, a 4-character password (uppercase letters A-Z only) will be auto-generated. User-provided passwords can contain letters A-Z, a-z, digits 0-9, hyphen and underscore.",
             "examples": ["MyPass-123", null]
+          },
+          "settings": {
+            "$ref": "#/components/schemas/GameSettingsInput"
           }
         },
         "required": [
@@ -4659,9 +4680,12 @@
           "title": {
             "type": "string",
             "examples": ["Game title"]
+          },
+          "settings": {
+            "$ref": "#/components/schemas/GameSettings"
           }
         },
-        "required": ["title"]
+        "required": ["settings", "title"]
       },
       "GameState": {
         "type": "object",
@@ -4749,6 +4773,28 @@
               "type": "number"
             },
             "description": "Reported audio/video lengths in ms for the current question, keyed by file md5"
+          },
+          "buzzerOpensAtMs": {
+            "type": ["number", "null"],
+            "description": "Position on the SHOWING timer (ms) when the buzzer opens: after the content timeline, the reading time of a caption text and the question's answer delay. A press before it is a false start. 0 or null: open right away"
+          },
+          "buzzerWindow": {
+            "description": "Presses collected in the buzzer accept window after the first press; the answerer is drawn among them when it closes",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BuzzerWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "buzzerLocks": {
+            "type": ["object", "null"],
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Players locked out after a false start: player id -> epoch ms when the lock ends"
           },
           "finalRoundData": {
             "oneOf": [
@@ -5071,6 +5117,7 @@
           "user-leave",
           "game-data",
           "question-answer",
+          "buzzer-false-start",
           "question-data",
           "question-finish",
           "answer-submitted",
@@ -5162,6 +5209,10 @@
                 "type": "null"
               }
             ]
+          },
+          "buzzerOpensAtMs": {
+            "type": ["number", "null"],
+            "description": "Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away"
           }
         },
         "required": ["allPlayersReady", "mediaDownloaded", "playerId", "timer"]
@@ -5486,6 +5537,10 @@
                 "type": "null"
               }
             ]
+          },
+          "buzzerOpensAtMs": {
+            "type": ["number", "null"],
+            "description": "Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away"
           }
         },
         "required": ["data", "timer"]
@@ -6980,6 +7035,73 @@
           }
         },
         "required": ["bucket", "groups", "topUsers"]
+      },
+      "BuzzerWindow": {
+        "type": "object",
+        "properties": {
+          "openedAt": {
+            "type": "number",
+            "description": "Epoch ms of the first press"
+          },
+          "presses": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Players who pressed inside the window, in arrival order"
+          }
+        },
+        "required": ["openedAt", "presses"]
+      },
+      "SocketIOBuzzerFalseStartEventPayload": {
+        "type": "object",
+        "description": "A player pressed before the buzzer opened and is locked out for a moment",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "lockMs": {
+            "type": "number",
+            "description": "How long the lock lasts (ms) from when the event is sent"
+          }
+        },
+        "required": ["playerId", "lockMs"]
+      },
+      "ButtonPressMode": {
+        "type": "string",
+        "enum": ["random_within_window", "first_wins"],
+        "default": "random_within_window",
+        "description": "How the answerer is chosen when several players press: random_within_window draws among presses that arrive within 300 ms of the first one; first_wins gives it to the first press the server receives",
+        "examples": ["random_within_window"]
+      },
+      "GameSettings": {
+        "type": "object",
+        "description": "Rules the host picks when creating a game. Missing fields use their defaults.",
+        "properties": {
+          "falseStart": {
+            "type": "boolean",
+            "default": true,
+            "description": "The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time"
+          },
+          "buttonPressMode": {
+            "$ref": "#/components/schemas/ButtonPressMode"
+          }
+        },
+        "required": ["buttonPressMode", "falseStart"]
+      },
+      "GameSettingsInput": {
+        "type": "object",
+        "description": "Game settings on creation; omitted fields use their defaults",
+        "properties": {
+          "falseStart": {
+            "type": "boolean",
+            "default": true,
+            "description": "The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time"
+          },
+          "buttonPressMode": {
+            "$ref": "#/components/schemas/ButtonPressMode"
+          }
+        }
       }
     }
   }

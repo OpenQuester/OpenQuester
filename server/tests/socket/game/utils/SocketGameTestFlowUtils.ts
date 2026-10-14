@@ -350,7 +350,11 @@ export class SocketGameTestFlowUtils {
       gameState.timer,
       expectedState === QuestionState.MEDIA_DOWNLOADING
         ? MEDIA_DOWNLOAD_TIMEOUT
-        : GAME_QUESTION_ANSWER_TIME,
+        : GAME_QUESTION_ANSWER_TIME +
+            Math.max(
+              gameState.questionContentPlan?.totalMs ?? 0,
+              gameState.buzzerOpensAtMs ?? 0
+            ),
       operation
     );
     return gameState;

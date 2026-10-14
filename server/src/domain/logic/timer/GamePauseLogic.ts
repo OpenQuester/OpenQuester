@@ -28,10 +28,17 @@ export interface GamePauseBuildResultInput {
  */
 export class GamePauseLogic {
   /**
-   * Calculate elapsed time for a timer from its start time.
+   * Time the timer has run: what it used before its latest (re)start plus the
+   * time since then. A timer resumed after a pause or an answer keeps counting
+   * from its saved elapsed time instead of from its original start.
    */
-  public static calculateElapsedTime(timer: GameStateTimerDTO): number {
-    return Date.now() - new Date(timer.startedAt).getTime();
+  public static calculateElapsedTime(
+    timer: GameStateTimerDTO,
+    now: number = Date.now()
+  ): number {
+    const since = new Date(timer.resumedAt ?? timer.startedAt).getTime();
+    const running = Number.isFinite(since) ? Math.max(0, now - since) : 0;
+    return (timer.resumedAt ? timer.elapsedMs || 0 : 0) + running;
   }
 
   /**

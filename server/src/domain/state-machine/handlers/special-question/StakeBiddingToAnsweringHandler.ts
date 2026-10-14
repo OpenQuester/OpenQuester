@@ -168,7 +168,8 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
           data: questionPayload,
           timer: timerResult.timer,
           questionEligiblePlayers: game.getQuestionEligiblePlayers(),
-          contentPlan: game.gameState.questionContentPlan ?? null
+          contentPlan: game.gameState.questionContentPlan ?? null,
+          buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
         } satisfies GameQuestionDataEventPayload,
         room: game.id,
         roleFilter: Boolean(data.fullQuestionData)

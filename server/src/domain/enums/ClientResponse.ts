@@ -77,6 +77,8 @@ export enum ClientResponse {
   QUESTION_ALREADY_PLAYED = "question_already_played",
   QUESTION_NOT_PICKED = "question_not_picked",
   SOMEONE_ALREADY_ANSWERING = "someone_already_answering",
+  /** Player pressed too early and is still locked out */
+  BUZZER_LOCKED = "buzzer_locked",
   ALREADY_ANSWERED = "already_answered",
   GAME_IS_PAUSED = "game_is_paused",
   PLAYER_NOT_FOUND = "player_not_found",

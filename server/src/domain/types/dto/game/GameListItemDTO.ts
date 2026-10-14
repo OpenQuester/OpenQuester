@@ -1,3 +1,4 @@
+import { GameSettingsDTO } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageListItemDTO } from "domain/types/dto/game/items/PackageIListItemDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -24,6 +25,7 @@ export interface GameListItemDTO {
   ageRestriction: AgeRestriction;
   players: GameListItemPlayersStats[];
   maxPlayers: number;
+  settings: GameSettingsDTO;
   startedAt: Date | null;
   finishedAt: Date | null;
   package: PackageListItemDTO;

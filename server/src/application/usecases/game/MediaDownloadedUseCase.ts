@@ -75,6 +75,9 @@ export class MediaDownloadedUseCase
       contentPlan: transitionTimer
         ? (game.gameState.questionContentPlan ?? null)
         : undefined,
+      buzzerOpensAtMs: transitionTimer
+        ? (game.gameState.buzzerOpensAtMs ?? null)
+        : undefined,
     };
 
     const broadcast: SocketEventBroadcast<MediaDownloadStatusBroadcastData> = {

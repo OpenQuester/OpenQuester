@@ -1,3 +1,4 @@
+import { normalizeGameSettings } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
@@ -255,7 +256,8 @@ export class GameRepository {
       roundsCount: counts.roundsCount,
       questionsCount: counts.questionsCount,
       players: [],
-      gameState: initialGameState
+      gameState: initialGameState,
+      settings: normalizeGameSettings(gameData.settings)
     });
 
     // Store immutable package data separately
@@ -525,6 +527,7 @@ export class GameRepository {
       ageRestriction: game.ageRestriction,
       isPrivate: game.isPrivate,
       maxPlayers: game.maxPlayers,
+      settings: game.settings,
       players: game.players.map((p) => ({
         id: p.meta.id,
         role: p.role,

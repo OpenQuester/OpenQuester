@@ -30,4 +30,5 @@ export const gameRedisDataScheme = () =>
     roundsCount: Joi.string().pattern(/^\d+$/).required(),
     questionsCount: Joi.string().pattern(/^\d+$/).required(),
     gameState: Joi.string().required(),
+    settings: Joi.string().optional(),
   });

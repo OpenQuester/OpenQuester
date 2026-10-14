@@ -15,6 +15,7 @@ import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/Ga
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { INSTANT_BUZZER_SETTINGS } from "tests/socket/game/utils/SocketGameTestLobbyUtils";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
@@ -265,7 +266,8 @@ describe("Choice Question Flow Tests", () => {
         packageId: packageResponse.body.id,
         isPrivate: false,
         ageRestriction: AgeRestriction.NONE,
-        maxPlayers: 10
+        maxPlayers: 10,
+        settings: INSTANT_BUZZER_SETTINGS
       } satisfies GameCreateDTO)
       .expect(HttpStatus.OK);
     const gameId: string = gameResponse.body.id;

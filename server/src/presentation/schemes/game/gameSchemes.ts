@@ -1,3 +1,7 @@
+import {
+  ButtonPressMode,
+  GameSettingsDTO
+} from "domain/types/dto/game/settings/GameSettingsDTO";
 import Joi from "joi";
 
 import {
@@ -11,6 +15,12 @@ import { type GameUpdateDTO } from "domain/types/dto/game/GameUpdateDTO";
 import { type GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 export { gameRedisDataScheme } from "domain/validators/schemas/GameRedisDataSchema";
+
+export const gameSettingsScheme = () =>
+  Joi.object<GameSettingsDTO>({
+    falseStart: Joi.boolean().optional(),
+    buttonPressMode: Joi.valid(...Object.values(ButtonPressMode)).optional()
+  });
 
 export const gameIdScheme = () =>
   Joi.object({
@@ -29,7 +39,8 @@ export const createGameScheme = () =>
     password: Joi.string()
       .max(16)
       .pattern(/^[A-Za-z0-9_-]+$/)
-      .optional()
+      .optional(),
+    settings: gameSettingsScheme().optional()
   });
 
 export const updateGameScheme = () =>

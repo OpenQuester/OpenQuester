@@ -28,6 +28,17 @@ export const GAME_CHAT_HISTORY_RETRIEVAL_LIMIT = 100;
 export const GAME_QUESTION_ANSWER_TIME = SECOND_MS * 20.5;
 /** 1 minute */
 export const GAME_QUESTION_ANSWER_SUBMIT_TIME = MINUTE_MS;
+/**
+ * 3 seconds - a press before the buzzer opens (false start) locks that player
+ * out this long (SIGame TimeForBlockingButton)
+ */
+export const BUZZER_FALSE_START_LOCK_TIME = SECOND_MS * 3;
+/**
+ * 300 ms - presses that arrive this soon after the first one take part in a
+ * random draw, so network distance doesn't decide who answers (SIGame
+ * ButtonsAccepting with RandomWithinInterval)
+ */
+export const BUZZER_ACCEPT_WINDOW = 300;
 /** 30 seconds - how long the question waits for every player to load its media */
 export const MEDIA_DOWNLOAD_TIMEOUT = SECOND_MS * 30;
 /** 75 seconds */

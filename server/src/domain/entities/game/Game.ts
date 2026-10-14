@@ -13,6 +13,10 @@ import {
   GameStateDTO
 } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import {
+  GameSettingsDTO,
+  normalizeGameSettings
+} from "domain/types/dto/game/settings/GameSettingsDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GetPlayerOptions } from "domain/types/game/GetPlayerOptions";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
@@ -42,6 +46,7 @@ export class Game {
   private _questionsCount: number;
   private readonly _players: Player[];
   private _gameState: GameStateDTO;
+  private _settings: GameSettingsDTO;
 
   constructor(data: GameImportDTO) {
     this._id = data.id;
@@ -58,6 +63,7 @@ export class Game {
     this._questionsCount = data.questionsCount;
     this._players = data.players;
     this._gameState = data.gameState;
+    this._settings = normalizeGameSettings(data.settings);
   }
 
   // Getters
@@ -95,6 +101,14 @@ export class Game {
 
   public set ageRestriction(ageRestriction: AgeRestriction) {
     this._ageRestriction = ageRestriction;
+  }
+
+  public get settings(): GameSettingsDTO {
+    return this._settings;
+  }
+
+  public set settings(settings: GameSettingsDTO) {
+    this._settings = normalizeGameSettings(settings);
   }
 
   public get maxPlayers() {
@@ -302,6 +316,8 @@ export class Game {
 
   public pause() {
     this._gameState.isPaused = true;
+    // Presses waiting for the draw are dropped; players press again after the pause
+    this._gameState.buzzerWindow = null;
   }
 
   public unpause() {
@@ -423,6 +439,21 @@ export class Game {
     }
 
     this.gameState.questionState = questionState;
+
+    // A buzzer race only lives inside SHOWING
+    if (questionState !== QuestionState.SHOWING) {
+      this.gameState.buzzerWindow = null;
+    }
+
+    // Buzzer timing belongs to one question's content
+    if (
+      questionState === QuestionState.CHOOSING ||
+      questionState === QuestionState.MEDIA_DOWNLOADING ||
+      questionState === QuestionState.SHOWING_ANSWER
+    ) {
+      this.gameState.buzzerOpensAtMs = null;
+      this.gameState.buzzerLocks = null;
+    }
   }
 
   public setTimer(timer: GameStateTimerDTO | null) {

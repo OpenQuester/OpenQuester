@@ -8,15 +8,20 @@ import { FinalRoundService } from "application/services/socket/FinalRoundService
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import {
+  GAME_QUESTION_ANSWER_SUBMIT_TIME,
   GAME_TTL_IN_SECONDS,
   SYSTEM_PLAYER_ID
 } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { MIN_TIMER_TTL_MS } from "domain/constants/timer";
 import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
+import { BuzzerLogic } from "domain/logic/question/BuzzerLogic";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
+import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
 import { StakeBiddingTimeoutLogic } from "domain/logic/timer/StakeBiddingTimeoutLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
@@ -104,7 +109,8 @@ export class TimerExpirationService {
             mediaDownloaded: true,
             allPlayersReady: true,
             timer,
-            contentPlan: game.gameState.questionContentPlan ?? null
+            contentPlan: game.gameState.questionContentPlan ?? null,
+            buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
           } satisfies MediaDownloadStatusBroadcastData,
           room: gameId
         }
@@ -121,6 +127,11 @@ export class TimerExpirationService {
 
     if (!game) {
       return { success: false, broadcasts: [] };
+    }
+
+    // The active timer was shortened to the buzzer accept window
+    if (game.gameState.buzzerWindow) {
+      return this._resolveBuzzerWindow(game);
     }
 
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
@@ -141,6 +152,78 @@ export class TimerExpirationService {
       game,
       broadcasts: transitionResult.broadcasts,
       timerMutations: transitionResult.timerMutations
+    };
+  }
+
+  /**
+   * Closes the buzzer accept window: draws the answerer among its presses and
+   * moves to ANSWERING, or lets the question timer run on when nobody who
+   * pressed can still answer.
+   */
+  private async _resolveBuzzerWindow(game: Game): Promise<TimerExpirationResult> {
+    const openedAt = game.gameState.buzzerWindow!.openedAt;
+    const timer = game.gameState.timer;
+    const winner = BuzzerLogic.drawWinner(game);
+
+    if (winner === null || !timer) {
+      await this.gameService.updateGame(game);
+
+      if (!timer) {
+        return { success: true, game, broadcasts: [] };
+      }
+
+      const remainingMs = Math.max(
+        MIN_TIMER_TTL_MS,
+        timer.durationMs - GamePauseLogic.calculateElapsedTime(timer)
+      );
+
+      return {
+        success: true,
+        game,
+        broadcasts: [],
+        timerMutations: [
+          {
+            op: "set",
+            key: timerKey(game.id),
+            value: JSON.stringify(timer),
+            pxTtl: remainingMs
+          }
+        ]
+      };
+    }
+
+    // Keep the SHOWING timer as of the first press, so a wrong answer resumes
+    // the question from there
+    const savedTimer = {
+      ...timer,
+      elapsedMs: GamePauseLogic.calculateElapsedTime(timer, openedAt)
+    };
+
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.USER_ACTION,
+      triggeredBy: { playerId: winner, isSystem: false }
+    });
+
+    if (!transitionResult) {
+      return { success: false, broadcasts: [] };
+    }
+
+    await this.gameService.updateGame(game);
+
+    return {
+      success: true,
+      game,
+      broadcasts: transitionResult.broadcasts,
+      timerMutations: [
+        {
+          op: "set",
+          key: timerKey(game.id, QuestionState.SHOWING),
+          value: JSON.stringify(savedTimer),
+          pxTtl: Math.ceil(GAME_QUESTION_ANSWER_SUBMIT_TIME * 1.5)
+        },
+        ...transitionResult.timerMutations
+      ]
     };
   }
 
@@ -335,7 +418,8 @@ export class TimerExpirationService {
                 data: questionData.question,
                 timer: timerDto,
                 questionEligiblePlayers: game.getQuestionEligiblePlayers(),
-                contentPlan: game.gameState.questionContentPlan ?? null
+                contentPlan: game.gameState.questionContentPlan ?? null,
+                buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
               } satisfies GameQuestionDataEventPayload,
               room: game.id,
               roleFilter: true
@@ -414,7 +498,8 @@ export class TimerExpirationService {
           data: questionData.question,
           timer: transitionResult.timer,
           questionEligiblePlayers: game.getQuestionEligiblePlayers(),
-          contentPlan: game.gameState.questionContentPlan ?? null
+          contentPlan: game.gameState.questionContentPlan ?? null,
+          buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
         } satisfies GameQuestionDataEventPayload,
         room: game.id,
         roleFilter: true

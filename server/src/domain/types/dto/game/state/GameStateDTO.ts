@@ -20,6 +20,13 @@ export interface GameStateAnsweredPlayerData {
   answerType: AnswerResultType;
 }
 
+export interface BuzzerWindowDTO {
+  /** When the first press arrived (epoch ms) */
+  openedAt: number;
+  /** Players who pressed inside the window, in arrival order */
+  presses: number[];
+}
+
 export interface GameStateDTO {
   questionState: QuestionState | null;
   isPaused: boolean;
@@ -37,6 +44,16 @@ export interface GameStateDTO {
   questionContentPlan?: QuestionContentPlanDTO | null;
   /** Real audio/video lengths reported by players while preloading, by md5 */
   mediaDurations?: Record<string, number> | null;
+  /**
+   * Position on the SHOWING timer (ms) when the buzzer opens: after the
+   * content timeline, the reading time of a caption text and the question's
+   * answer delay. A press before that is a false start. 0 or null: open now.
+   */
+  buzzerOpensAtMs?: number | null;
+  /** Presses collected in the accept window after the first press */
+  buzzerWindow?: BuzzerWindowDTO | null;
+  /** Players locked out after a false start: player id -> epoch ms when the lock ends */
+  buzzerLocks?: Record<string, number> | null;
   /** Final round specific data */
   finalRoundData?: FinalRoundGameData | null;
   /** Which player can pick a question or eliminate theme in final */

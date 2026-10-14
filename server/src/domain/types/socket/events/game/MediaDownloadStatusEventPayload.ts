@@ -8,4 +8,6 @@ export interface MediaDownloadStatusBroadcastData {
   timer: GameStateTimerDTO | null;
   /** Set together with the SHOWING timer: the content timeline to play */
   contentPlan?: QuestionContentPlanDTO | null;
+  /** Position on this payload's timer (ms) when the buzzer opens; 0 = open now */
+  buzzerOpensAtMs?: number | null;
 }

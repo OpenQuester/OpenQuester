@@ -109,7 +109,7 @@ export class JoinGameUseCase
 
     // 7. Build output payload
     const gameJoinData: GameJoinOutputData = {
-      meta: { title: game.title },
+      meta: { title: game.title, settings: game.settings },
       players: game.players.map((p) => p.toDTO()),
       gameState: this.buildJoinVisibleGameState(game, player.role),
       chatMessages,

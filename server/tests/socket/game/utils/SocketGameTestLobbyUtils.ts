@@ -4,6 +4,10 @@ import { SocketGameContextService } from "application/services/socket/SocketGame
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
+import {
+  ButtonPressMode,
+  GameSettingsDTO
+} from "domain/types/dto/game/settings/GameSettingsDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
@@ -21,8 +25,21 @@ import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
 import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
 import { GameClientSocket, GameTestSetup } from "./SocketIOGameTestUtils";
 
+/**
+ * Buzzer rules most socket tests run with: the button is open from the start
+ * and the first press answers, so a test can buzz right after the question
+ * shows. Buzzer tests opt into the real defaults through `gameSettings`.
+ */
+export const INSTANT_BUZZER_SETTINGS: Partial<GameSettingsDTO> = Object.freeze({
+  falseStart: false,
+  buttonPressMode: ButtonPressMode.FIRST_WINS
+});
+
 export class SocketGameTestLobbyUtils {
   private readonly packageUtils = new PackageUtils();
+
+  /** Settings for games created by this helper */
+  public gameSettings: Partial<GameSettingsDTO> = INSTANT_BUZZER_SETTINGS;
 
   constructor(
     private userUtils: SocketGameTestUserUtils,
@@ -138,7 +155,8 @@ export class SocketGameTestLobbyUtils {
         isPrivate: false,
         password: undefined,
         ageRestriction: AgeRestriction.NONE,
-        maxPlayers: 10
+        maxPlayers: 10,
+        settings: this.gameSettings
       };
 
       // Create the game via REST API

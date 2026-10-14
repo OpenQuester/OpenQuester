@@ -148,7 +148,8 @@ export class SocketActionHooks {
         data: questionData,
         timer,
         questionEligiblePlayers: game.getQuestionEligiblePlayers(),
-        contentPlan: game.gameState.questionContentPlan ?? null
+        contentPlan: game.gameState.questionContentPlan ?? null,
+        buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
       } satisfies GameQuestionDataEventPayload)
     );
   }
@@ -242,7 +243,8 @@ export class SocketActionHooks {
           data: questionData,
           timer,
           questionEligiblePlayers: game.getQuestionEligiblePlayers(),
-          contentPlan: game.gameState.questionContentPlan ?? null
+          contentPlan: game.gameState.questionContentPlan ?? null,
+          buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
         } satisfies GameQuestionDataEventPayload)
       );
     }

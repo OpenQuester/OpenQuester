@@ -13,4 +13,6 @@ export interface GameQuestionDataEventPayload {
    * preloading (it then arrives with media-download-status).
    */
   contentPlan?: QuestionContentPlanDTO | null;
+  /** Position on this payload's timer (ms) when the buzzer opens; 0 = open now */
+  buzzerOpensAtMs?: number | null;
 }
