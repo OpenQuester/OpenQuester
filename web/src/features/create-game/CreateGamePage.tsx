@@ -13,7 +13,7 @@ import { gamesKey } from "@/features/home/useGames";
 import { summarize, usePackage } from "@/features/packages/usePackages";
 import { Button } from "@/ui/Button";
 import { FieldError, Label, Select, TextInput } from "@/ui/Field";
-import { BackIcon } from "@/ui/icons";
+import { BackIcon, EyeIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 
 export function CreateGamePage() {
@@ -223,6 +223,15 @@ export function CreateGamePage() {
               {t("packages.loadFailed")}
             </span>
           )}
+          <Link
+            to="/packages/$packageId/preview"
+            params={{ packageId: String(packageId) }}
+            className="inline-flex items-center gap-1.5 text-sm"
+            data-testid="create-preview"
+          >
+            <EyeIcon size={16} />
+            {t("packages.preview")}
+          </Link>
           <Link to="/packages" search={{ id: packageId }} className="text-sm">
             {t("create.changePackage")}
           </Link>

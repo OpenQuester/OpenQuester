@@ -120,6 +120,15 @@ const adminRoute = createRoute({
   component: lazyRouteComponent(() => import("@/features/admin/AdminPage"), "AdminPage"),
 });
 
+const previewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/packages/$packageId/preview",
+  component: lazyRouteComponent(
+    () => import("@/features/editor/PackagePreviewPage"),
+    "PackagePreviewPage",
+  ),
+});
+
 /** The game owns the whole screen. */
 const gameRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -141,6 +150,7 @@ const routeTree = rootRoute.addChildren([
     myPackagesRoute,
   ]),
   editorRoute,
+  previewRoute,
   gameRoute,
 ]);
 

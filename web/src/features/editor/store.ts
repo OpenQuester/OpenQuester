@@ -33,6 +33,8 @@ export interface EditorState {
   lastChange: Change | null;
   savedAt: number | null;
   publishedId?: number;
+  /** A published package opened to look at: no edits, no autosave. */
+  readOnly: boolean;
 
   apply: (fn: (pkg: EditorPackage) => EditorPackage, change?: Omit<Change, "at">) => void;
   undo: () => void;
@@ -55,9 +57,11 @@ export function createEditorStore(init: {
   media: Map<string, MediaFile>;
   savedAt: number | null;
   publishedId?: number;
+  readOnly?: boolean;
 }): StoreApi<EditorState> {
   return createStore<EditorState>((set, get) => ({
     ...init,
+    readOnly: init.readOnly ?? false,
     past: [],
     future: [],
     roundId: init.pkg.rounds[0]?.id ?? null,
@@ -67,7 +71,8 @@ export function createEditorStore(init: {
     lastChange: null,
 
     apply: (fn, change) => {
-      const { pkg, past } = get();
+      const { pkg, past, readOnly } = get();
+      if (readOnly) return;
       const next = fn(pkg);
       if (next === pkg) return;
       set({

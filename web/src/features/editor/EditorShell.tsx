@@ -51,9 +51,11 @@ function useMediaQuery(query: string): boolean {
 
 type Confirm = { kind: "theme" | "round"; id: string; name: string; questions: number };
 
-export function EditorShell() {
+/** `header` replaces the editing header, e.g. for a read-only preview. */
+export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
   const { t } = useTranslation();
   const store = useEditorStore();
+  const readOnly = useEditor((s) => s.readOnly);
   const pkg = useEditor((s) => s.pkg);
   const media = useEditor((s) => s.media);
   const roundId = useEditor((s) => s.roundId);
@@ -166,13 +168,15 @@ export function EditorShell() {
 
   return (
     <div className="flex h-dvh flex-col bg-bg text-text">
-      <EditorHeader
-        onPublish={() => setPublish(true)}
-        onDetails={() => setDetails(true)}
-        onExport={() => downloadBlob(exportOq(pkg, media), `${safeFileName(pkg.title)}.oq`)}
-        report={report}
-        mediaBytes={mediaBytes}
-      />
+      {header ?? (
+        <EditorHeader
+          onPublish={() => setPublish(true)}
+          onDetails={() => setDetails(true)}
+          onExport={() => downloadBlob(exportOq(pkg, media), `${safeFileName(pkg.title)}.oq`)}
+          report={report}
+          mediaBytes={mediaBytes}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1">
         <aside className="hidden w-[272px] shrink-0 overflow-y-auto border-r border-line px-3 py-5 lg:block">
@@ -186,7 +190,7 @@ export function EditorShell() {
 
         <main id="main" className="min-w-0 flex-1 overflow-y-auto">
           <div className="flex flex-col gap-5 px-4 py-5 sm:px-6 lg:px-7">
-            <RoundChips onAdd={addRound} />
+            <RoundChips onAdd={readOnly ? undefined : addRound} />
             {round ? (
               <RoundBoard
                 key={round.id}
@@ -197,7 +201,7 @@ export function EditorShell() {
                 actions={actions}
               />
             ) : (
-              <EmptyPackage onAddRound={addRound} />
+              !readOnly && <EmptyPackage onAddRound={addRound} />
             )}
           </div>
         </main>
@@ -222,42 +226,44 @@ export function EditorShell() {
               </button>
             </div>
             <QuestionPreview question={selected.question} final={selected.round.type === "final"} />
-            <div className="mt-auto flex gap-2 pt-2">
-              <Button
-                variant="primary"
-                size="lg"
-                className="flex-1"
-                icon={<EditIcon size={18} />}
-                onClick={() => edit(selected.question.id)}
-              >
-                {t("editor.actions.edit")}
-              </Button>
-              <IconButton
-                label={t("editor.actions.move")}
-                onClick={() => actions.move(selected.question.id)}
-              >
-                <MoveIcon size={18} />
-              </IconButton>
-              <IconButton
-                label={t("editor.actions.duplicate")}
-                onClick={() => actions.duplicate(selected.question.id)}
-              >
-                <CopyIcon size={18} />
-              </IconButton>
-              <IconButton
-                label={t("editor.actions.delete")}
-                danger
-                onClick={() => actions.remove(selected.question.id)}
-              >
-                <TrashIcon size={18} />
-              </IconButton>
-            </div>
+            {!readOnly && (
+              <div className="mt-auto flex gap-2 pt-2">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="flex-1"
+                  icon={<EditIcon size={18} />}
+                  onClick={() => edit(selected.question.id)}
+                >
+                  {t("editor.actions.edit")}
+                </Button>
+                <IconButton
+                  label={t("editor.actions.move")}
+                  onClick={() => actions.move(selected.question.id)}
+                >
+                  <MoveIcon size={18} />
+                </IconButton>
+                <IconButton
+                  label={t("editor.actions.duplicate")}
+                  onClick={() => actions.duplicate(selected.question.id)}
+                >
+                  <CopyIcon size={18} />
+                </IconButton>
+                <IconButton
+                  label={t("editor.actions.delete")}
+                  danger
+                  onClick={() => actions.remove(selected.question.id)}
+                >
+                  <TrashIcon size={18} />
+                </IconButton>
+              </div>
+            )}
           </aside>
         )}
       </div>
 
-      <StatusBar report={report} onReview={() => setPublish(true)} />
-      <UndoToast />
+      {!readOnly && <StatusBar report={report} onReview={() => setPublish(true)} />}
+      {!readOnly && <UndoToast />}
 
       <QuestionDialog />
       <MoveDialog target={moveTarget} onClose={() => setMoveTarget(null)} />
@@ -363,8 +369,6 @@ function EditorHeader({
   const canRedo = useEditor((s) => s.future.length > 0);
   const undo = useEditor((s) => s.undo);
   const redo = useEditor((s) => s.redo);
-  const density = useEditor((s) => s.density);
-  const setDensity = useEditor((s) => s.setDensity);
   const savedAt = useEditor((s) => s.savedAt);
   const [, tick] = useState(0);
   useEffect(() => {
@@ -409,40 +413,7 @@ function EditorHeader({
         <IconButton label={t("editor.redo")} onClick={redo} disabled={!canRedo}>
           <RedoIcon size={18} />
         </IconButton>
-        <div
-          role="group"
-          aria-label={t("editor.density.label")}
-          className="flex rounded-[12px] border border-line-strong p-0.5 sm:ml-1"
-        >
-          <button
-            type="button"
-            aria-pressed={density === "compact"}
-            title={t("editor.density.compact")}
-            aria-label={t("editor.density.compact")}
-            onClick={() => setDensity("compact")}
-            className={cn(
-              "hidden size-10 items-center justify-center rounded-[10px] sm:inline-flex",
-              density === "compact" ? "bg-surface-3 text-text" : "text-muted",
-            )}
-          >
-            <ListIcon size={18} />
-          </button>
-          <button
-            type="button"
-            aria-pressed={density === "cards"}
-            title={t("editor.density.cards")}
-            aria-label={t("editor.density.cards")}
-            data-testid="density-cards"
-            // On phones this is the only view button, so it toggles.
-            onClick={() => setDensity(density === "cards" ? "compact" : "cards")}
-            className={cn(
-              "inline-flex size-10 items-center justify-center rounded-[10px]",
-              density === "cards" ? "bg-surface-3 text-text" : "text-muted",
-            )}
-          >
-            <CardsIcon size={18} />
-          </button>
-        </div>
+        <DensityToggle />
         <div className="flex flex-1 items-center justify-end gap-2 sm:ml-1.5">
           <Button
             icon={<DownloadIcon size={18} />}
@@ -472,7 +443,50 @@ function EditorHeader({
   );
 }
 
-function RoundChips({ onAdd }: { onAdd: () => void }) {
+/** Compact cards with hover previews, or preview cards with media and answers. */
+export function DensityToggle() {
+  const { t } = useTranslation();
+  const density = useEditor((s) => s.density);
+  const setDensity = useEditor((s) => s.setDensity);
+  return (
+    <div
+      role="group"
+      aria-label={t("editor.density.label")}
+      className="flex rounded-[12px] border border-line-strong p-0.5 sm:ml-1"
+    >
+      <button
+        type="button"
+        aria-pressed={density === "compact"}
+        title={t("editor.density.compact")}
+        aria-label={t("editor.density.compact")}
+        onClick={() => setDensity("compact")}
+        className={cn(
+          "hidden size-10 items-center justify-center rounded-[10px] sm:inline-flex",
+          density === "compact" ? "bg-surface-3 text-text" : "text-muted",
+        )}
+      >
+        <ListIcon size={18} />
+      </button>
+      <button
+        type="button"
+        aria-pressed={density === "cards"}
+        title={t("editor.density.cards")}
+        aria-label={t("editor.density.cards")}
+        data-testid="density-cards"
+        // On phones this is the only view button, so it toggles.
+        onClick={() => setDensity(density === "cards" ? "compact" : "cards")}
+        className={cn(
+          "inline-flex size-10 items-center justify-center rounded-[10px]",
+          density === "cards" ? "bg-surface-3 text-text" : "text-muted",
+        )}
+      >
+        <CardsIcon size={18} />
+      </button>
+    </div>
+  );
+}
+
+function RoundChips({ onAdd }: { onAdd?: () => void }) {
   const { t } = useTranslation();
   const rounds = useEditor((s) => s.pkg.rounds);
   const roundId = useEditor((s) => s.roundId);
@@ -496,14 +510,16 @@ function RoundChips({ onAdd }: { onAdd: () => void }) {
           {i + 1} · {r.name || t("editor.outline.untitled")}
         </button>
       ))}
-      <button
-        type="button"
-        aria-label={t("editor.outline.addRound")}
-        onClick={onAdd}
-        className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-muted"
-      >
-        <PlusIcon size={16} />
-      </button>
+      {onAdd && (
+        <button
+          type="button"
+          aria-label={t("editor.outline.addRound")}
+          onClick={onAdd}
+          className="inline-flex size-10 shrink-0 items-center justify-center rounded-full border border-dashed border-line-strong text-muted"
+        >
+          <PlusIcon size={16} />
+        </button>
+      )}
     </nav>
   );
 }

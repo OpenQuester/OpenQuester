@@ -27,19 +27,22 @@ export function Outline({
 }) {
   const { t } = useTranslation();
   const rounds = useEditor((s) => s.pkg.rounds);
+  const readOnly = useEditor((s) => s.readOnly);
   return (
     <nav
       aria-label={t("editor.outline.label")}
       className="flex flex-col gap-1.5"
       data-testid="outline"
     >
-      <button
-        type="button"
-        onClick={onDetails}
-        className="flex min-h-11 items-center gap-2.5 rounded-sm px-3 text-left font-medium text-soft hover:bg-surface-2"
-      >
-        {t("editor.outline.details")}
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={onDetails}
+          className="flex min-h-11 items-center gap-2.5 rounded-sm px-3 text-left font-medium text-soft hover:bg-surface-2"
+        >
+          {t("editor.outline.details")}
+        </button>
+      )}
       <div className="mx-3 mt-3 mb-1 text-xs font-bold tracking-[0.08em] text-faint uppercase">
         {t("editor.outline.rounds")}
       </div>
@@ -48,14 +51,16 @@ export function Outline({
           <RoundItem key={r.id} round={r} index={i} report={report} onJumpTheme={onJumpTheme} />
         ))}
       </ol>
-      <button
-        type="button"
-        onClick={onAddRound}
-        className="mt-1.5 flex min-h-11 items-center gap-2 rounded-sm border border-dashed border-line-strong px-3 text-sm font-semibold text-muted hover:text-text"
-      >
-        <PlusIcon size={16} />
-        {t("editor.outline.addRound")}
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={onAddRound}
+          className="mt-1.5 flex min-h-11 items-center gap-2 rounded-sm border border-dashed border-line-strong px-3 text-sm font-semibold text-muted hover:text-text"
+        >
+          <PlusIcon size={16} />
+          {t("editor.outline.addRound")}
+        </button>
+      )}
     </nav>
   );
 }
@@ -91,6 +96,7 @@ function RoundItem({
   const current = useEditor((s) => s.roundId === round.id);
   const selectRound = useEditor((s) => s.selectRound);
   const drag = useDragging();
+  const readOnly = useEditor((s) => s.readOnly);
   const questions = round.themes.reduce((n, th) => n + th.questions.length, 0);
 
   const drop = useDropTarget({
@@ -132,7 +138,7 @@ function RoundItem({
       )}
       <button
         type="button"
-        {...dragSource({ kind: "round", id: round.id })}
+        {...dragSource({ kind: "round", id: round.id }, !readOnly)}
         {...drop.props}
         aria-current={current ? "page" : undefined}
         onClick={() => selectRound(round.id)}
@@ -194,6 +200,7 @@ function ThemeItem({
   const { t } = useTranslation();
   const apply = useEditor((s) => s.apply);
   const drag = useDragging();
+  const readOnly = useEditor((s) => s.readOnly);
   const drop = useDropTarget({
     accepts: (d) => (d.kind === "question" || d.kind === "theme") && d.id !== theme.id,
     axis: drag?.kind === "theme" ? "y" : "none",
@@ -223,7 +230,7 @@ function ThemeItem({
       )}
       <button
         type="button"
-        {...dragSource({ kind: "theme", id: theme.id })}
+        {...dragSource({ kind: "theme", id: theme.id }, !readOnly)}
         {...drop.props}
         data-testid="outline-theme"
         onClick={() => onJump(round.id, theme.id)}

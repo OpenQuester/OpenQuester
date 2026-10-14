@@ -13,6 +13,7 @@ export function InlineText({
   placeholder,
   className,
   id,
+  readOnly,
 }: {
   value: string;
   onCommit: (v: string) => void;
@@ -20,6 +21,7 @@ export function InlineText({
   placeholder?: string;
   className?: string;
   id?: string;
+  readOnly?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   const [seen, setSeen] = useState(value);
@@ -35,6 +37,7 @@ export function InlineText({
     <input
       id={id}
       aria-label={label}
+      readOnly={readOnly}
       value={draft}
       placeholder={placeholder}
       onChange={(e) => setDraft(e.target.value)}
@@ -47,7 +50,8 @@ export function InlineText({
         }
       }}
       className={cn(
-        "min-w-0 rounded-sm border border-transparent bg-transparent px-1.5 py-0.5 text-text outline-none placeholder:text-faint hover:border-line-strong focus:border-info focus:bg-bg",
+        "min-w-0 rounded-sm border border-transparent bg-transparent px-1.5 py-0.5 text-text outline-none placeholder:text-faint",
+        !readOnly && "hover:border-line-strong focus:border-info focus:bg-bg",
         className,
       )}
     />

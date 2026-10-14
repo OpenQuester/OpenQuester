@@ -119,7 +119,8 @@
     "min": "Від",
     "max": "До",
     "onlyMine": "Лише мої пакети",
-    "clearFilters": "Скинути фільтри"
+    "clearFilters": "Скинути фільтри",
+    "preview": "Переглянути питання"
   },
   "questionTypes": {
     "simple": "Звичайне",
@@ -819,7 +820,9 @@
       "comment": "Коментар",
       "maxBid": "Ставки до {{max}}",
       "allIn": "Можна ва-банк",
-      "everyone": "грають усі"
+      "everyone": "грають усі",
+      "back": "Назад",
+      "readOnly": "Перегляд · раундів: {{rounds}} · питань: {{questions}} · лише читання"
     },
     "media": {
       "image": "Зображення",

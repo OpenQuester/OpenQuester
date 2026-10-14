@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
+import { Dialog } from "@/ui/Dialog";
 import { FieldError, inputClass, Label, TextInput } from "@/ui/Field";
 import { CheckIcon, CloseIcon, PlusIcon, TrashIcon, UploadIcon } from "@/ui/icons";
 
@@ -23,8 +24,27 @@ export function QuestionDialog() {
   const pkg = useEditor((s) => s.pkg);
   const at = id ? ops.findQuestion(pkg, id) : null;
   const edit = useEditor((s) => s.edit);
+  const readOnly = useEditor((s) => s.readOnly);
   if (!at) return null;
+  if (readOnly) return <QuestionView at={at} onClose={() => edit(null)} />;
   return <QuestionForm key={at.question.id} at={at} onClose={() => edit(null)} />;
+}
+
+/** A published package's question, to look at only. */
+function QuestionView({ at, onClose }: { at: ops.QuestionPath; onClose: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Dialog
+      open
+      onOpenChange={(o) => !o && onClose()}
+      title={`${at.round.name || "—"} › ${at.theme.name || "—"}`}
+      closeLabel={t("common.close")}
+    >
+      <div className="p-5" data-testid="question-view">
+        <QuestionPreview question={at.question} final={at.round.type === "final"} />
+      </div>
+    </Dialog>
+  );
 }
 
 function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => void }) {

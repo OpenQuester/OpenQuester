@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
 
-import { expectNoHorizontalScroll, shot } from "./support/game";
+import { expectNoHorizontalScroll, packageId, shot } from "./support/game";
 import { makePng } from "./support/seed.mjs";
 
 /** An .oq export with a picture question and two rounds, so moves can cross rounds. */
@@ -146,5 +146,18 @@ test.describe("package editor", () => {
     // The issue jumps straight to the question that causes it.
     await check.getByRole("button", { name: /no text or media/ }).click();
     await expect(page.getByTestId("question-dialog")).toBeVisible();
+  });
+
+  test("a published package opens read only from the package list", async ({ page }) => {
+    await page.goto(`/packages?id=${packageId()}`);
+    await page.getByTestId("package-preview").click();
+    await expect(page.getByTestId("preview-badge")).toBeVisible();
+    await expect(page.getByTestId("round-board")).toBeVisible();
+    await expect(page.getByTestId("question-card").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Actions for/ })).toHaveCount(0);
+    await expect(page.locator("[draggable=true]")).toHaveCount(0);
+    await page.getByTestId("question-card").first().click();
+    await expect(page.getByTestId("question-view").or(page.getByTestId("inspector"))).toBeVisible();
+    await expectNoHorizontalScroll(page);
   });
 });

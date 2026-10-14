@@ -119,7 +119,8 @@
     "min": "Min",
     "max": "Max",
     "onlyMine": "Only my packages",
-    "clearFilters": "Clear filters"
+    "clearFilters": "Clear filters",
+    "preview": "Preview questions"
   },
   "questionTypes": {
     "simple": "Simple",
@@ -793,7 +794,9 @@
       "comment": "Comment",
       "maxBid": "Bids up to {{max}}",
       "allIn": "All-in allowed",
-      "everyone": "everyone plays"
+      "everyone": "everyone plays",
+      "back": "Back",
+      "readOnly": "Preview · {{rounds}} rounds · {{questions}} questions · read only"
     },
     "media": {
       "image": "Image",

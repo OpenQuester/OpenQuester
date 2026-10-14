@@ -11,7 +11,7 @@ import { Badge } from "@/ui/Badge";
 import { Dialog } from "@/ui/Dialog";
 import { Button } from "@/ui/Button";
 import { Select, TextInput } from "@/ui/Field";
-import { EditIcon, TrashIcon, UploadIcon } from "@/ui/icons";
+import { EditIcon, TrashIcon, UploadIcon, EyeIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 
 import {
@@ -347,6 +347,15 @@ function PackageSummaryView({
           {t("packages.signInToHost")}
         </Link>
       )}
+      <Link
+        to="/packages/$packageId/preview"
+        params={{ packageId: String(pkg.id) }}
+        className="flex min-h-12 items-center justify-center gap-2 rounded-md border border-line-strong font-semibold text-text no-underline hover:bg-surface-2 hover:text-text"
+        data-testid="package-preview"
+      >
+        <EyeIcon size={18} />
+        {t("packages.preview")}
+      </Link>
       {isAuthor && <AuthorTools id={pkg.id} />}
     </>
   );

@@ -34,6 +34,7 @@ export function RoundBoard({
 }) {
   const { t } = useTranslation();
   const apply = useEditor((s) => s.apply);
+  const readOnly = useEditor((s) => s.readOnly);
   const final = round.type === "final";
   const hasFinal = useEditor((s) =>
     s.pkg.rounds.some((r) => r.type === "final" && r.id !== round.id),
@@ -61,65 +62,74 @@ export function RoundBoard({
             onCommit={(name) =>
               apply((p) => ops.updateRound(p, round.id, { name }), { key: "renamed" })
             }
+            readOnly={readOnly}
             className="-ml-1.5 font-display text-[clamp(24px,3vw,34px)] font-extrabold tracking-tight"
           />
         </div>
-        <div className="flex items-center gap-2">
-          <div
-            role="group"
-            aria-label={t("editor.board.roundType")}
-            className="flex rounded-[12px] border border-line bg-surface p-1"
-          >
-            {(["simple", "final"] as const).map((type) => (
-              <button
-                key={type}
-                type="button"
-                aria-pressed={round.type === type}
-                disabled={type === "final" && hasFinal}
-                title={type === "final" && hasFinal ? t("editor.board.oneFinal") : undefined}
-                onClick={() =>
-                  apply(
-                    (p) => {
-                      let next = ops.updateRound(p, round.id, { type });
-                      // The final round has to be last.
-                      if (type === "final")
-                        next = ops.moveRound(next, round.id, next.rounds.length);
-                      return next;
-                    },
-                    { key: "roundType" },
-                  )
-                }
-                className={cn(
-                  "min-h-9 rounded-[9px] px-3.5 text-sm font-semibold disabled:cursor-not-allowed disabled:text-ghost",
-                  round.type === type ? "bg-surface-3 text-text" : "text-muted hover:text-text",
-                )}
-              >
-                {t(`editor.board.roundTypes.${type}`)}
-              </button>
-            ))}
+        {readOnly ? (
+          round.type === "final" && (
+            <span className="rounded-[8px] bg-accent-surface px-2.5 py-1 text-sm font-bold text-accent-strong">
+              {t("editor.board.roundTypes.final")}
+            </span>
+          )
+        ) : (
+          <div className="flex items-center gap-2">
+            <div
+              role="group"
+              aria-label={t("editor.board.roundType")}
+              className="flex rounded-[12px] border border-line bg-surface p-1"
+            >
+              {(["simple", "final"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  aria-pressed={round.type === type}
+                  disabled={type === "final" && hasFinal}
+                  title={type === "final" && hasFinal ? t("editor.board.oneFinal") : undefined}
+                  onClick={() =>
+                    apply(
+                      (p) => {
+                        let next = ops.updateRound(p, round.id, { type });
+                        // The final round has to be last.
+                        if (type === "final")
+                          next = ops.moveRound(next, round.id, next.rounds.length);
+                        return next;
+                      },
+                      { key: "roundType" },
+                    )
+                  }
+                  className={cn(
+                    "min-h-9 rounded-[9px] px-3.5 text-sm font-semibold disabled:cursor-not-allowed disabled:text-ghost",
+                    round.type === type ? "bg-surface-3 text-text" : "text-muted hover:text-text",
+                  )}
+                >
+                  {t(`editor.board.roundTypes.${type}`)}
+                </button>
+              ))}
+            </div>
+            <Button
+              icon={<PlusIcon size={18} />}
+              onClick={addTheme}
+              data-testid="add-theme"
+              className="whitespace-nowrap"
+            >
+              {t("editor.board.addTheme")}
+            </Button>
+            <Menu
+              label={t("editor.board.roundActions")}
+              size={44}
+              className="border border-line-strong"
+              items={[
+                {
+                  label: t("editor.actions.deleteRound"),
+                  icon: <TrashIcon size={16} />,
+                  danger: true,
+                  onSelect: () => actions.removeRound(round.id),
+                },
+              ]}
+            />
           </div>
-          <Button
-            icon={<PlusIcon size={18} />}
-            onClick={addTheme}
-            data-testid="add-theme"
-            className="whitespace-nowrap"
-          >
-            {t("editor.board.addTheme")}
-          </Button>
-          <Menu
-            label={t("editor.board.roundActions")}
-            size={44}
-            className="border border-line-strong"
-            items={[
-              {
-                label: t("editor.actions.deleteRound"),
-                icon: <TrashIcon size={16} />,
-                danger: true,
-                onSelect: () => actions.removeRound(round.id),
-              },
-            ]}
-          />
-        </div>
+        )}
       </div>
       {final && <p className="m-0 text-sm text-muted">{t("editor.board.finalHelp")}</p>}
 
@@ -127,9 +137,11 @@ export function RoundBoard({
         <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-line-strong px-5 py-10 text-center">
           <p className="m-0 font-semibold">{t("editor.board.noThemes")}</p>
           <p className="m-0 max-w-[44ch] text-sm text-muted">{t("editor.board.noThemesHelp")}</p>
-          <Button variant="accent" icon={<PlusIcon size={18} />} onClick={addTheme}>
-            {t("editor.board.addTheme")}
-          </Button>
+          {!readOnly && (
+            <Button variant="accent" icon={<PlusIcon size={18} />} onClick={addTheme}>
+              {t("editor.board.addTheme")}
+            </Button>
+          )}
         </div>
       ) : (
         <ol className="m-0 flex list-none flex-col gap-3 p-0">
@@ -168,12 +180,13 @@ function ThemeRow({
   const { t } = useTranslation();
   const apply = useEditor((s) => s.apply);
   const density = useEditor((s) => s.density);
+  const readOnly = useEditor((s) => s.readOnly);
   const drag = useDragging();
   const final = round.type === "final";
   const issue = report.byNode.get(theme.id);
 
   const rowDrop = useDropTarget({
-    accepts: (d) => d.kind === "theme" && d.id !== theme.id,
+    accepts: (d) => !readOnly && d.kind === "theme" && d.id !== theme.id,
     axis: "y",
     onDrop: (d, edge) =>
       apply((p) => ops.moveTheme(p, d.id, round.id, edge === "before" ? index : index + 1), {
@@ -203,7 +216,7 @@ function ThemeRow({
   };
 
   const cardActions: CardActions = { ...actions, dropQuestion };
-  const canAdd = !final || theme.questions.length === 0;
+  const canAdd = !readOnly && (!final || theme.questions.length === 0);
 
   return (
     <li
@@ -226,14 +239,16 @@ function ThemeRow({
       )}
       <div className="flex min-w-0 items-start gap-1 md:flex-col md:items-stretch">
         <div className="flex min-w-0 flex-1 items-center gap-1 md:flex-none">
-          <span
-            {...dragSource({ kind: "theme", id: theme.id })}
-            aria-hidden
-            title={t("editor.board.dragTheme")}
-            className="hidden h-9 w-6 shrink-0 cursor-grab items-center justify-center text-faint hover:text-text md:inline-flex"
-          >
-            <GripIcon size={16} />
-          </span>
+          {!readOnly && (
+            <span
+              {...dragSource({ kind: "theme", id: theme.id })}
+              aria-hidden
+              title={t("editor.board.dragTheme")}
+              className="hidden h-9 w-6 shrink-0 cursor-grab items-center justify-center text-faint hover:text-text md:inline-flex"
+            >
+              <GripIcon size={16} />
+            </span>
+          )}
           <InlineText
             id={`theme-name-${theme.id}`}
             value={theme.name}
@@ -242,30 +257,33 @@ function ThemeRow({
             onCommit={(name) =>
               apply((p) => ops.updateTheme(p, theme.id, { name }), { key: "renamed" })
             }
+            readOnly={readOnly}
             className="w-full flex-1 font-semibold"
           />
-          <Menu
-            label={t("editor.board.themeActions", { name: theme.name || "—" })}
-            items={[
-              {
-                label: t("editor.actions.moveTheme"),
-                icon: <MoveIcon size={16} />,
-                onSelect: () => actions.moveTheme(theme.id),
-              },
-              {
-                label: t("editor.actions.duplicate"),
-                icon: <CopyIcon size={16} />,
-                onSelect: () =>
-                  apply((p) => ops.duplicateTheme(p, theme.id).pkg, { key: "duplicated" }),
-              },
-              {
-                label: t("editor.actions.deleteTheme"),
-                icon: <TrashIcon size={16} />,
-                danger: true,
-                onSelect: () => actions.removeTheme(theme.id),
-              },
-            ]}
-          />
+          {!readOnly && (
+            <Menu
+              label={t("editor.board.themeActions", { name: theme.name || "—" })}
+              items={[
+                {
+                  label: t("editor.actions.moveTheme"),
+                  icon: <MoveIcon size={16} />,
+                  onSelect: () => actions.moveTheme(theme.id),
+                },
+                {
+                  label: t("editor.actions.duplicate"),
+                  icon: <CopyIcon size={16} />,
+                  onSelect: () =>
+                    apply((p) => ops.duplicateTheme(p, theme.id).pkg, { key: "duplicated" }),
+                },
+                {
+                  label: t("editor.actions.deleteTheme"),
+                  icon: <TrashIcon size={16} />,
+                  danger: true,
+                  onSelect: () => actions.removeTheme(theme.id),
+                },
+              ]}
+            />
+          )}
         </div>
         <span className="hidden px-1.5 text-xs text-faint md:block md:pl-8">
           {t("editor.board.questionCount", { count: theme.questions.length })}
@@ -289,7 +307,7 @@ function ThemeRow({
             actions={cardActions}
           />
         ))}
-        {(canAdd || drag?.kind === "question") && (
+        {(canAdd || (!readOnly && drag?.kind === "question")) && (
           <button
             type="button"
             {...appendDrop.props}

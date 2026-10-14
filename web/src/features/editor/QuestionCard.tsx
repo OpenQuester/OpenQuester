@@ -38,9 +38,10 @@ export function QuestionCard({
   const density = useEditor((s) => s.density);
   const selected = useEditor((s) => s.selectedId === q.id);
   const drag = useDragging();
+  const readOnly = useEditor((s) => s.readOnly);
   const isDragged = drag?.kind === "question" && drag.id === q.id;
   const drop = useDropTarget({
-    accepts: (d) => d.kind === "question" && d.id !== q.id,
+    accepts: (d) => !readOnly && d.kind === "question" && d.id !== q.id,
     axis: "x",
     onDrop: (d, edge: Edge) => actions.dropQuestion(d.id, edge === "before" ? index : index + 1),
   });
@@ -77,7 +78,7 @@ export function QuestionCard({
         cards ? "min-h-[150px]" : "min-h-[84px]",
       )}
     >
-      <span className="flex items-center gap-2 pr-7">
+      <span className={cn("flex items-center gap-2", !readOnly && "pr-7")}>
         {!final && (
           <span
             className={cn(
@@ -146,7 +147,7 @@ export function QuestionCard({
 
   return (
     <div
-      {...dragSource({ kind: "question", id: q.id })}
+      {...dragSource({ kind: "question", id: q.id }, !readOnly)}
       {...drop.props}
       className={cn("group relative", isDragged && "opacity-40")}
     >
@@ -167,33 +168,35 @@ export function QuestionCard({
         </HoverPreview>
       )}
       <div className="absolute top-1.5 right-1.5">
-        <Menu
-          label={t("editor.board.questionActions", { label })}
-          size={32}
-          items={[
-            {
-              label: t("editor.actions.edit"),
-              icon: <EditIcon size={16} />,
-              onSelect: () => actions.edit(q.id),
-            },
-            {
-              label: t("editor.actions.move"),
-              icon: <MoveIcon size={16} />,
-              onSelect: () => actions.move(q.id),
-            },
-            {
-              label: t("editor.actions.duplicate"),
-              icon: <CopyIcon size={16} />,
-              onSelect: () => actions.duplicate(q.id),
-            },
-            {
-              label: t("editor.actions.delete"),
-              icon: <TrashIcon size={16} />,
-              danger: true,
-              onSelect: () => actions.remove(q.id),
-            },
-          ]}
-        />
+        {!readOnly && (
+          <Menu
+            label={t("editor.board.questionActions", { label })}
+            size={32}
+            items={[
+              {
+                label: t("editor.actions.edit"),
+                icon: <EditIcon size={16} />,
+                onSelect: () => actions.edit(q.id),
+              },
+              {
+                label: t("editor.actions.move"),
+                icon: <MoveIcon size={16} />,
+                onSelect: () => actions.move(q.id),
+              },
+              {
+                label: t("editor.actions.duplicate"),
+                icon: <CopyIcon size={16} />,
+                onSelect: () => actions.duplicate(q.id),
+              },
+              {
+                label: t("editor.actions.delete"),
+                icon: <TrashIcon size={16} />,
+                danger: true,
+                onSelect: () => actions.remove(q.id),
+              },
+            ]}
+          />
+        )}
       </div>
     </div>
   );
