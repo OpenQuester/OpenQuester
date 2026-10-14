@@ -108,8 +108,9 @@ export class TransitionGuards {
    * Checks if there's an active secret question transfer phase.
    */
   public static isSecretTransferPhase(game: Game): boolean {
+    const data = game.gameState.secretQuestionData;
     return (
-      game.gameState.secretQuestionData?.transferDecisionPhase === true &&
+      (data?.transferDecisionPhase === true || !!data?.priceSelection) &&
       TransitionGuards.isQuestionState(game, QuestionState.SECRET_TRANSFER)
     );
   }

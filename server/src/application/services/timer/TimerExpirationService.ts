@@ -43,7 +43,8 @@ import {
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { type MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { type SecretQuestionTransferBroadcastData } from "domain/types/socket/game/SecretQuestionTransferData";
+import { type SecretQuestionPriceBroadcastData,
+  type SecretQuestionTransferBroadcastData } from "domain/types/socket/game/SecretQuestionTransferData";
 import {
   AnsweringToShowingAnswerMutationData,
   AnsweringToShowingMutationData
@@ -449,6 +450,14 @@ export class TimerExpirationService {
       targetPlayerId = pool[choiceIndex].meta.id;
     }
 
+    // customPrice: the receiver ran out of time to pick, so the question is
+    // theirs at the lowest price (or a random player's, if they left)
+    const selection = secretData.priceSelection ?? null;
+    if (selection && eligiblePlayers.some((p) => p.meta.id === selection.playerId)) {
+      targetPlayerId = selection.playerId;
+    }
+    const price = selection ? Math.min(...selection.allowedPrices) : undefined;
+
     const questionData = await this.packageStore.getQuestionWithTheme(
       game.id,
       secretData.questionId
@@ -463,7 +472,7 @@ export class TimerExpirationService {
         game,
         trigger: TransitionTrigger.TIMER_EXPIRED,
         triggeredBy: { isSystem: true },
-        payload: { targetPlayerId },
+        payload: price !== undefined ? { targetPlayerId, price } : { targetPlayerId },
         resources: this.transitionResourceService.fromSimpleQuestion(questionData.question)
       });
 
@@ -479,15 +488,22 @@ export class TimerExpirationService {
 
     await this.gameService.updateGame(game);
 
-    const transferBroadcast: BroadcastEvent<SecretQuestionTransferBroadcastData> = {
-      event: SocketIOGameEvents.SECRET_QUESTION_TRANSFER,
-      data: {
-        fromPlayerId: secretData.pickerPlayerId,
-        toPlayerId: targetPlayerId,
-        questionId: secretData.questionId
-      },
-      room: game.id
-    };
+    const transferBroadcast: BroadcastEvent =
+      price !== undefined
+        ? ({
+            event: SocketIOGameEvents.SECRET_QUESTION_PRICE,
+            data: { playerId: targetPlayerId, price, questionId: secretData.questionId },
+            room: game.id
+          } satisfies BroadcastEvent<SecretQuestionPriceBroadcastData>)
+        : ({
+            event: SocketIOGameEvents.SECRET_QUESTION_TRANSFER,
+            data: {
+              fromPlayerId: secretData.pickerPlayerId,
+              toPlayerId: targetPlayerId,
+              questionId: secretData.questionId
+            },
+            room: game.id
+          } satisfies BroadcastEvent<SecretQuestionTransferBroadcastData>);
 
     const broadcasts: BroadcastEvent[] = [transferBroadcast];
 
@@ -495,7 +511,7 @@ export class TimerExpirationService {
       broadcasts.push({
         event: SocketIOGameEvents.QUESTION_DATA,
         data: {
-          data: questionData.question,
+          data: price !== undefined ? { ...questionData.question, price } : questionData.question,
           timer: transitionResult.timer,
           questionEligiblePlayers: game.getQuestionEligiblePlayers(),
           contentPlan: game.gameState.questionContentPlan ?? null,

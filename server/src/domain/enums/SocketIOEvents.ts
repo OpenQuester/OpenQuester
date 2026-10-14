@@ -59,6 +59,7 @@ export enum SocketIOGameEvents {
   // Secret Question Events
   SECRET_QUESTION_PICKED = "secret-question-picked",
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
+  SECRET_QUESTION_PRICE = "secret-question-price",
 
   // Stake Question Events
   STAKE_QUESTION_PICKED = "stake-question-picked",

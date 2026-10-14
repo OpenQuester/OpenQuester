@@ -38,6 +38,7 @@ import { QuestionAnswerUseCase } from "application/usecases/question/QuestionAns
 import { QuestionPickUseCase } from "application/usecases/question/QuestionPickUseCase";
 import { QuestionSkipUseCase } from "application/usecases/question/QuestionSkipUseCase";
 import { QuestionUnskipUseCase } from "application/usecases/question/QuestionUnskipUseCase";
+import { SecretQuestionPriceUseCase } from "application/usecases/question/SecretQuestionPriceUseCase";
 import { SecretQuestionTransferUseCase } from "application/usecases/question/SecretQuestionTransferUseCase";
 import { SkipQuestionForceUseCase } from "application/usecases/question/SkipQuestionForceUseCase";
 import { SkipShowAnswerUseCase } from "application/usecases/question/SkipShowAnswerUseCase";
@@ -217,6 +218,11 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   registry.register(
     GameActionType.SECRET_QUESTION_TRANSFER,
     new SecretQuestionTransferUseCase(secretQuestionService)
+  );
+
+  registry.register(
+    GameActionType.SECRET_QUESTION_PRICE,
+    new SecretQuestionPriceUseCase(secretQuestionService)
   );
 
   registry.register(

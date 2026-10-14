@@ -428,7 +428,11 @@
     "picked": "{{name}} picked a secret question and is choosing who answers.",
     "ruleAny": "It can go to any player, including the one who picked it. They answer alone — no buzzer.",
     "ruleExcept": "It must go to another player. They answer alone — no buzzer.",
-    "giveTo": "Give the question to"
+    "giveTo": "Give the question to",
+    "prices": "Prices to pick from",
+    "pickPriceYou": "The question is yours — pick its price",
+    "pickPrice": "{{name}} got the question and picks its price",
+    "priceRule": "A bigger price wins more if you're right and costs more if you're wrong. You see the question after picking."
   },
   "stake": {
     "kicker": "Stake question · auction",
@@ -585,7 +589,11 @@
       "pickFirst": "Pick a player first",
       "wait": "Wait — you might get this question",
       "next": "They must answer: +{{points}} if right, −{{points}} if wrong.",
-      "nextNoPrice": "They must answer alone."
+      "nextNoPrice": "They must answer alone.",
+      "priceYou": "Pick the price of your question",
+      "priceOther": "{{name}} is picking the price",
+      "priceWait": "Waiting for {{name}} to pick a price",
+      "priceNext": "Right answer wins the picked price, wrong costs it. If time runs out, the lowest price is used."
     },
     "stake": {
       "waitFor": "Waiting for {{name}}'s bid",

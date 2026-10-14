@@ -50,6 +50,8 @@
   "question_already_played": "This question is already played",
   "question_not_picked": "Question not picked yet",
   "someone_already_answering": "Someone is already answering",
+  "cannot_pick_secret_question_price": "Only the player who received the question picks its price",
+  "invalid_secret_question_price": "Pick one of the offered prices",
   "buzzer_locked": "You pressed too early. Wait a moment before pressing again",
   "player_not_found": "Player not found",
   "cannot_submit_answer": "You cannot submit answer on this question",

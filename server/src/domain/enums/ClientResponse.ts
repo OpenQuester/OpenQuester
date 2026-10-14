@@ -79,6 +79,8 @@ export enum ClientResponse {
   SOMEONE_ALREADY_ANSWERING = "someone_already_answering",
   /** Player pressed too early and is still locked out */
   BUZZER_LOCKED = "buzzer_locked",
+  CANNOT_PICK_SECRET_QUESTION_PRICE = "cannot_pick_secret_question_price",
+  INVALID_SECRET_QUESTION_PRICE = "invalid_secret_question_price",
   ALREADY_ANSWERED = "already_answered",
   GAME_IS_PAUSED = "game_is_paused",
   PLAYER_NOT_FOUND = "player_not_found",

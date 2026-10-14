@@ -17,3 +17,13 @@ export interface SecretQuestionTransferResult
   /** Round ID for question lookup */
   roundId: number | null;
 }
+
+/** Result of a customPrice secret question's price pick */
+export interface SecretQuestionPriceResult {
+  gameId: string;
+  playerId: number;
+  price: number;
+  questionId: number;
+  timer: GameStateTimerDTO | null;
+  question: PackageQuestionDTO | null;
+}

@@ -245,6 +245,41 @@ describe("reducer: special questions", () => {
     expect(phaseOf(s)).toBe("answering");
     expect(s.state.answeringPlayer).toBe(BOB);
   });
+
+  it("lets the receiver pick the price of a customPrice secret question", () => {
+    let s = reduce(choosing(), {
+      type: "secret-question-picked",
+      payload: { pickerPlayerId: ALICE, transferType: "any", questionId: 101 },
+    });
+    s = reduce(s, {
+      type: "secret-question-transfer",
+      payload: {
+        fromPlayerId: ALICE,
+        toPlayerId: BOB,
+        questionId: 101,
+        allowedPrices: [100, 300],
+        timer: timer(30_000),
+      },
+    });
+    expect(phaseOf(s)).toBe("secret_transfer");
+    expect(s.state.secretQuestionData?.priceSelection).toEqual({
+      playerId: BOB,
+      allowedPrices: [100, 300],
+    });
+    expect(s.state.timer?.durationMs).toBe(30_000);
+
+    s = run(
+      s,
+      { type: "secret-question-price", payload: { playerId: BOB, price: 300, questionId: 101 } },
+      {
+        type: "question-data",
+        payload: { data: question(101, { type: "secret", price: 300 }), timer: timer() },
+      },
+    );
+    expect(phaseOf(s)).toBe("answering");
+    expect(s.state.answeringPlayer).toBe(BOB);
+    expect(s.state.currentQuestion?.price).toBe(300);
+  });
 });
 
 describe("reducer: final round", () => {

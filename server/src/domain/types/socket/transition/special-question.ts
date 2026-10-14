@@ -11,6 +11,8 @@ import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackage
  */
 export type SecretTransferToAnsweringPayload = {
   targetPlayerId: number;
+  /** customPrice questions: the price the receiver picked */
+  price?: number;
 };
 
 export type SecretTransferToAnsweringCtx =

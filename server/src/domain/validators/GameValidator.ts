@@ -36,7 +36,8 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultData, AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
-import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
+import { SecretQuestionPriceInputData,
+  SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { SchemaValidator } from "domain/validators/SchemaValidator";
 
@@ -127,6 +128,14 @@ export class GameValidator {
     });
 
     return this._validate<SecretQuestionTransferInputData>(data, schema);
+  }
+
+  public static validateSecretQuestionPrice(data: SecretQuestionPriceInputData) {
+    const schema = Joi.object<SecretQuestionPriceInputData>({
+      price: Joi.number().integer().min(0).required()
+    });
+
+    return this._validate<SecretQuestionPriceInputData>(data, schema);
   }
 
   public static validateAnswerSubmitted(data: AnswerSubmittedData) {

@@ -588,6 +588,33 @@ function secretModel({
   const secret = session.state.secretQuestionData;
   const role = myRole(session, myId);
   const picker = findPlayer(session, secret?.pickerPlayerId);
+  const selection = secret?.priceSelection;
+  if (selection) {
+    const chooser = findPlayer(session, selection.playerId)?.meta.username ?? "";
+    const mine = selection.playerId === myId;
+    return {
+      status: mine ? t("dock.secret.priceYou") : t("dock.secret.priceOther", { name: chooser }),
+      action: mine ? (
+        <div className="flex w-full flex-wrap gap-2" role="group" aria-label={t("secret.prices")}>
+          {selection.allowedPrices.map((p) => (
+            <Button
+              key={p}
+              variant="accent"
+              size="lg"
+              className="flex-1"
+              onClick={() => connection.emit("secret-question-price", { price: p })}
+              data-testid="secret-price"
+            >
+              {formatScore(p)}
+            </Button>
+          ))}
+        </div>
+      ) : (
+        <Info>{t("dock.secret.priceWait", { name: chooser })}</Info>
+      ),
+      next: t("dock.secret.priceNext"),
+    };
+  }
   const canChoose = secret?.pickerPlayerId === myId || role === "showman";
   const targetPlayer = findPlayer(session, target);
   const price = session.state.currentQuestion?.price;

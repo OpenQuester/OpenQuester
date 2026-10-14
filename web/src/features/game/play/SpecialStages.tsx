@@ -20,6 +20,40 @@ export function SecretStage() {
   const isPicker = secret?.pickerPlayerId === myId;
   const canChoose = isPicker || role === "showman";
   const [target, setTarget] = useSecretTarget();
+  const selection = secret?.priceSelection;
+  if (selection) {
+    const chooser = findPlayer(session, selection.playerId);
+    return (
+      <section
+        className="mx-auto flex w-full max-w-[860px] flex-col gap-5 oq-pop"
+        aria-labelledby="secret-h"
+      >
+        <span className="text-sm font-semibold text-muted">
+          {t("questionTypes.secret")}
+          {meta && ` · ${meta.theme.name}`}
+        </span>
+        <h2
+          id="secret-h"
+          className="m-0 font-display text-[clamp(24px,3.4vw,36px)] font-extrabold leading-tight"
+        >
+          {selection.playerId === myId
+            ? t("secret.pickPriceYou")
+            : t("secret.pickPrice", { name: chooser?.meta.username ?? "" })}
+        </h2>
+        <p className="m-0 text-soft">{t("secret.priceRule")}</p>
+        <ul className="m-0 flex list-none flex-wrap gap-3 p-0" aria-label={t("secret.prices")}>
+          {selection.allowedPrices.map((p) => (
+            <li
+              key={p}
+              className="rounded-md border border-line-strong bg-surface px-5 py-3 font-mono text-2xl font-bold"
+            >
+              {formatScore(p)}
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
   const options = seatedPlayers(session).filter(
     (p) =>
       p.status === "in-game" &&

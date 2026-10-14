@@ -13,14 +13,20 @@ import { type GameAction, type GameActionResult } from "domain/types/action/Game
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { type QuestionPickResult, QuestionPickType } from "domain/types/question/QuestionPickTypes";
-import { type SecretQuestionTransferResult } from "domain/types/question/SecretQuestionTransferTypes";
+import {
+  type SecretQuestionPriceResult,
+  type SecretQuestionTransferResult
+} from "domain/types/question/SecretQuestionTransferTypes";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import {
   type GameJoinOutputData,
   type GameLeaveBroadcastData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { type SecretQuestionTransferBroadcastData } from "domain/types/socket/game/SecretQuestionTransferData";
+import {
+  type SecretQuestionPriceBroadcastData,
+  type SecretQuestionTransferBroadcastData
+} from "domain/types/socket/game/SecretQuestionTransferData";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
@@ -55,6 +61,7 @@ export class SocketActionHooks {
       GameActionType.SECRET_QUESTION_TRANSFER,
       this.afterSecretQuestionTransfer.bind(this)
     );
+    this.hooks.set(GameActionType.SECRET_QUESTION_PRICE, this.afterSecretQuestionPrice.bind(this));
   }
 
   /**
@@ -204,16 +211,45 @@ export class SocketActionHooks {
     }
 
     const data = result.data as SecretQuestionTransferResult;
-    const { gameId, timer, question, fromPlayerId, toPlayerId, questionId } = data;
+    const { gameId, timer, question, fromPlayerId, toPlayerId, questionId, allowedPrices } = data;
 
     const transferData: SecretQuestionTransferBroadcastData = {
       fromPlayerId,
       toPlayerId,
-      questionId
+      questionId,
+      allowedPrices: allowedPrices ?? null,
+      // The price pick runs on its own timer
+      ...(allowedPrices ? { timer } : {})
     };
 
     this.realtimeGateway.publish(
       RealtimeEvents.toRoom(gameId, SocketIOGameEvents.SECRET_QUESTION_TRANSFER, transferData)
+    );
+
+    if (!timer || !question) {
+      return;
+    }
+
+    await this.emitPersonalizedQuestionData(game, gameId, question, timer);
+  }
+
+  private async afterSecretQuestionPrice({
+    game,
+    result
+  }: AfterExecutionHookContext): Promise<void> {
+    if (!result.data) {
+      return;
+    }
+
+    const { gameId, playerId, price, questionId, timer, question } =
+      result.data as SecretQuestionPriceResult;
+
+    this.realtimeGateway.publish(
+      RealtimeEvents.toRoom(gameId, SocketIOGameEvents.SECRET_QUESTION_PRICE, {
+        playerId,
+        price,
+        questionId
+      } satisfies SecretQuestionPriceBroadcastData)
     );
 
     if (!timer || !question) {

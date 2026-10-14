@@ -537,11 +537,32 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         questionEligiblePlayers: event.payload.questionEligiblePlayers ?? null,
       });
 
-    case "secret-question-transfer":
+    case "secret-question-transfer": {
+      const { toPlayerId, allowedPrices, timer } = event.payload;
+      if (allowedPrices?.length && s.secretQuestionData) {
+        // customPrice: the receiver picks the price before the question shows.
+        return patchState(session, {
+          timer: timer ?? s.timer,
+          secretQuestionData: {
+            ...s.secretQuestionData,
+            transferDecisionPhase: false,
+            priceSelection: { playerId: toPlayerId, allowedPrices },
+          },
+        });
+      }
       return patchState(session, {
-        answeringPlayer: event.payload.toPlayerId,
+        answeringPlayer: toPlayerId,
         secretQuestionData: s.secretQuestionData
           ? { ...s.secretQuestionData, transferDecisionPhase: false }
+          : s.secretQuestionData,
+      });
+    }
+
+    case "secret-question-price":
+      return patchState(session, {
+        answeringPlayer: event.payload.playerId,
+        secretQuestionData: s.secretQuestionData
+          ? { ...s.secretQuestionData, priceSelection: null }
           : s.secretQuestionData,
       });
 

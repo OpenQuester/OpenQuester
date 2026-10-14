@@ -205,6 +205,8 @@ export interface SecretQuestionData {
   transferType: TransferType;
   questionId: number;
   transferDecisionPhase: boolean;
+  /** customPrice: the receiver picks one of these prices before the question shows. */
+  priceSelection?: { playerId: number; allowedPrices: number[] } | null;
 }
 
 export interface StakeQuestionData {
@@ -322,7 +324,16 @@ export interface ServerEvents {
     questionId: number;
     questionEligiblePlayers?: number[] | null;
   };
-  "secret-question-transfer": { fromPlayerId: number; toPlayerId: number; questionId: number };
+  "secret-question-transfer": {
+    fromPlayerId: number;
+    toPlayerId: number;
+    questionId: number;
+    /** customPrice: the receiver now picks one of these prices. */
+    allowedPrices?: number[] | null;
+    timer?: Timer | null;
+  };
+  /** The receiver of a customPrice secret question picked its price. */
+  "secret-question-price": { playerId: number; price: number; questionId: number };
   "stake-question-picked": {
     pickerPlayerId: number;
     questionId: number;
@@ -396,6 +407,7 @@ export interface ClientEvents {
   "question-skip": undefined;
   "question-unskip": undefined;
   "secret-question-transfer": { targetPlayerId: number };
+  "secret-question-price": { price: number };
   "stake-bid-submit": { bidType: StakeBidType; bidAmount: number | null };
   "theme-eliminate": { themeId: number };
   "final-bid-submit": { bid: number };
@@ -434,6 +446,7 @@ export const SERVER_EVENT_NAMES: ServerEventName[] = [
   "question-unskip",
   "secret-question-picked",
   "secret-question-transfer",
+  "secret-question-price",
   "stake-question-picked",
   "stake-bid-submit",
   "stake-question-winner",

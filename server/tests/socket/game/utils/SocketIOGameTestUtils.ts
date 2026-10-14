@@ -174,6 +174,11 @@ export class SocketGameTestUtils {
     this.lobbyUtils.gameSettings = settings;
   }
 
+  /** Changes the fixture package of games this helper creates; null resets */
+  public set packageTransform(transform: SocketGameTestLobbyUtils["packageTransform"]) {
+    this.lobbyUtils.packageTransform = transform;
+  }
+
   public async setupGameTestEnvironment(
     userRepo: Repository<User>,
     app: Express,

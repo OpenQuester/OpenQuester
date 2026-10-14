@@ -14,7 +14,10 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { type AnswerResultData } from "domain/types/socket/game/AnswerResultData";
 import { type AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
-import { type SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
+import {
+  type SecretQuestionPriceInputData,
+  type SecretQuestionTransferInputData
+} from "domain/types/socket/game/SecretQuestionTransferData";
 import { type StakeBidSubmitInputData } from "domain/types/socket/events/game/StakeQuestionEventData";
 import {
   type FinalAnswerSubmitInputData,
@@ -225,6 +228,13 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
     inputValidator: (data) =>
       GameValidator.validateSecretQuestionTransfer(data as SecretQuestionTransferInputData)
+  },
+  {
+    event: SocketIOGameEvents.SECRET_QUESTION_PRICE,
+    actionType: GameActionType.SECRET_QUESTION_PRICE,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) =>
+      GameValidator.validateSecretQuestionPrice(data as SecretQuestionPriceInputData)
   },
   {
     event: SocketIOGameEvents.STAKE_BID_SUBMIT,

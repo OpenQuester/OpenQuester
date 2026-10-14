@@ -5103,6 +5103,7 @@
           "final-answer-submit",
           "final-answer-review",
           "secret-question-transfer",
+          "secret-question-price",
           "stake-bid-submit",
           "media-downloaded"
         ],
@@ -5149,6 +5150,7 @@
           "final-auto-loss",
           "secret-question-picked",
           "secret-question-transfer",
+          "secret-question-price",
           "stake-question-picked",
           "stake-bid-submit",
           "stake-question-winner",
@@ -5701,6 +5703,24 @@
             "type": "integer",
             "description": "ID of the transferred secret question",
             "examples": [456]
+          },
+          "allowedPrices": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "integer"
+            },
+            "description": "customPrice questions: the receiver now picks one of these prices (secret-question-price); the question data follows the pick"
+          },
+          "timer": {
+            "description": "customPrice questions: the timer of the price pick",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": ["fromPlayerId", "questionId", "toPlayerId"]
@@ -6322,6 +6342,17 @@
             "type": "boolean",
             "description": "Whether currently in the transfer decision phase (waiting for transfer decision)",
             "examples": [true]
+          },
+          "priceSelection": {
+            "description": "customPrice questions: after the transfer, the receiving player picks one of allowedPrices before the question shows",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SecretPriceSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -7102,6 +7133,49 @@
             "$ref": "#/components/schemas/ButtonPressMode"
           }
         }
+      },
+      "SecretPriceSelection": {
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "The player who received the question and picks its price"
+          },
+          "allowedPrices": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": ["playerId", "allowedPrices"]
+      },
+      "SocketIOSecretQuestionPriceInput": {
+        "type": "object",
+        "description": "The receiver of a customPrice secret question picks its price",
+        "properties": {
+          "price": {
+            "type": "integer",
+            "description": "One of the question's allowedPrices"
+          }
+        },
+        "required": ["price"]
+      },
+      "SocketIOSecretQuestionPriceEventPayload": {
+        "type": "object",
+        "description": "The receiver picked the price (or the 30 s ran out and the lowest price was taken); question-data follows",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "price": {
+            "type": "integer"
+          },
+          "questionId": {
+            "type": "integer"
+          }
+        },
+        "required": ["playerId", "price", "questionId"]
       }
     }
   }

@@ -35,11 +35,16 @@ export const INSTANT_BUZZER_SETTINGS: Partial<GameSettingsDTO> = Object.freeze({
   buttonPressMode: ButtonPressMode.FIRST_WINS
 });
 
+type PackageCreateTestInput = ReturnType<PackageUtils["createTestPackageData"]>;
+
 export class SocketGameTestLobbyUtils {
   private readonly packageUtils = new PackageUtils();
 
   /** Settings for games created by this helper */
   public gameSettings: Partial<GameSettingsDTO> = INSTANT_BUZZER_SETTINGS;
+
+  /** Optional change to the fixture package before it is uploaded */
+  public packageTransform: ((pkg: PackageCreateTestInput) => void) | null = null;
 
   constructor(
     private userUtils: SocketGameTestUserUtils,
@@ -133,6 +138,8 @@ export class SocketGameTestLobbyUtils {
         additionalSimpleQuestions,
         includeMediaQuestionFiles
       );
+
+      this.packageTransform?.(packageData);
 
       const packageRes = await this.userUtils.httpClient
         .post("/v1/packages")

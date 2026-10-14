@@ -197,8 +197,9 @@ export function getGamePhase(game: Game): GamePhase {
     return GamePhase.STAKE_BIDDING;
   }
 
+  // Includes the receiver's price pick of a customPrice question
   if (
-    secretQuestionData?.transferDecisionPhase &&
+    (secretQuestionData?.transferDecisionPhase || secretQuestionData?.priceSelection) &&
     questionState === QuestionState.SECRET_TRANSFER
   ) {
     return GamePhase.SECRET_QUESTION_TRANSFER;

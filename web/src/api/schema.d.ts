@@ -3849,13 +3849,13 @@ export interface components {
          * @example join
          * @enum {string}
          */
-        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "stake-bid-submit" | "media-downloaded";
+        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "secret-question-price" | "stake-bid-submit" | "media-downloaded";
         /**
          * @description Server-to-client game events emitted on the /games namespace.
          * @example join
          * @enum {string}
          */
-        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
+        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
         /** @description Data sent to all players when player skips a question */
         SocketIOGameSkipEventPayload: {
             /**
@@ -4171,6 +4171,10 @@ export interface components {
              * @example 456
              */
             questionId: number;
+            /** @description customPrice questions: the receiver now picks one of these prices (secret-question-price); the question data follows the pick */
+            allowedPrices?: number[] | null;
+            /** @description customPrice questions: the timer of the price pick */
+            timer?: components["schemas"]["GameStateTimer"] | null;
         };
         /** @description Data sent to eliminate a theme in final round */
         SocketIOThemeEliminateInput: {
@@ -4572,6 +4576,8 @@ export interface components {
              * @example true
              */
             transferDecisionPhase: boolean;
+            /** @description customPrice questions: after the transfer, the receiving player picks one of allowedPrices before the question shows */
+            priceSelection?: components["schemas"]["SecretPriceSelection"] | null;
         };
         /** @description Data saved to game state in order to understand current stake question state */
         StakeQuestionGameData: {
@@ -4896,6 +4902,22 @@ export interface components {
              */
             falseStart: boolean;
             buttonPressMode?: components["schemas"]["ButtonPressMode"];
+        };
+        SecretPriceSelection: {
+            /** @description The player who received the question and picks its price */
+            playerId: number;
+            allowedPrices: number[];
+        };
+        /** @description The receiver of a customPrice secret question picks its price */
+        SocketIOSecretQuestionPriceInput: {
+            /** @description One of the question's allowedPrices */
+            price: number;
+        };
+        /** @description The receiver picked the price (or the 30 s ran out and the lowest price was taken); question-data follows */
+        SocketIOSecretQuestionPriceEventPayload: {
+            playerId: number;
+            price: number;
+            questionId: number;
         };
     };
     responses: never;
