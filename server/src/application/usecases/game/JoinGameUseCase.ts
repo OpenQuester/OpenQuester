@@ -1,3 +1,4 @@
+import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { UserService } from "application/services/user/UserService";
 import { GAME_CHAT_HISTORY_RETRIEVAL_LIMIT } from "domain/constants/game";
@@ -175,8 +176,17 @@ export class JoinGameUseCase
     const gameState = game.gameState;
     const currentRound = this.buildJoinVisibleCurrentRound(gameState, joinedRole);
     const finalRoundData = this.buildJoinVisibleFinalRoundData(gameState);
+    // Others' stakes and answers stay hidden from players until the review
+    const allPlay =
+      gameState.allPlay && joinedRole !== PlayerRole.SHOWMAN
+        ? AllPlayLogic.hideFromPlayers(gameState.allPlay, gameState.questionState)
+        : gameState.allPlay;
 
-    if (currentRound === gameState.currentRound && finalRoundData === gameState.finalRoundData) {
+    if (
+      currentRound === gameState.currentRound &&
+      finalRoundData === gameState.finalRoundData &&
+      allPlay === gameState.allPlay
+    ) {
       return gameState;
     }
 
@@ -184,6 +194,7 @@ export class JoinGameUseCase
       ...gameState,
       currentRound,
       finalRoundData,
+      allPlay,
     };
   }
 

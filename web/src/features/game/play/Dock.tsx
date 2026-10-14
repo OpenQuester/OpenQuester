@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 
 import type { GameSession } from "@/game/reducer";
 import {
+  allPlayMaxStake,
+  allPlayStakes,
   canBuzz,
   finalBid,
   findPlayer,
@@ -12,6 +14,7 @@ import {
   isEligible,
   isSingleAnswerer,
   me as findMe,
+  myAllPlayEntry,
   myRole,
   phaseOf,
   questionValue,
@@ -38,6 +41,7 @@ const RING_COLORS: Partial<Record<Phase, string>> = {
   answering: "var(--oq-success)",
   reveal: "var(--oq-success)",
   final_reviewing: "var(--oq-success)",
+  all_play_reviewing: "var(--oq-success)",
   finished: "var(--oq-success)",
 };
 
@@ -467,6 +471,27 @@ function useDockModel(session: GameSession, myId: number): DockModel {
     case "stake_bidding":
       return stakeModel(ctx);
 
+    case "all_play_bidding":
+      return allPlayStakeModel(ctx);
+
+    case "all_play_answering":
+      return allPlayAnswerModel(ctx);
+
+    case "all_play_reviewing": {
+      const entries = s.allPlay?.entries ?? [];
+      const done = entries.filter((e) => e.isCorrect != null).length;
+      return {
+        status: t("dock.final.reviewStatus", { done, total: entries.length }),
+        action: (
+          <Info>
+            {role === "showman" ? t("dock.allPlay.reviewShowman") : t("dock.final.reviewWait")}
+          </Info>
+        ),
+        next: t("dock.allPlay.reviewNext"),
+        ringLabel: `${done}/${entries.length}`,
+      };
+    }
+
     case "final_elimination": {
       const turn = s.currentTurnPlayerId;
       const left = remainingFinalThemes(session).length;
@@ -780,7 +805,76 @@ function finalAnswerModel({ t, session, myId }: DockCtx): DockModel {
   };
 }
 
-function FinalAnswerBox() {
+function allPlayStakeModel({ t, session, myId, connection }: DockCtx): DockModel {
+  const entries = session.state.allPlay?.entries ?? [];
+  const placed = entries.filter((e) => e.stake != null).length;
+  const mine = myAllPlayEntry(session, myId);
+  const next = t("dock.allPlay.stakeNext");
+  if (!mine) {
+    return {
+      status: t("dock.final.bidsIn", { done: placed, total: entries.length }),
+      action: <Info>{t("dock.allPlay.stakeWatch")}</Info>,
+      next,
+    };
+  }
+  if (mine.stake != null) {
+    return {
+      status: t("dock.allPlay.stakeLocked"),
+      action: <Info>{t("dock.final.waitOthers", { done: placed, total: entries.length })}</Info>,
+      next,
+    };
+  }
+  const max = allPlayMaxStake(session, myId);
+  return {
+    status: t("dock.final.bidRange", { max: formatScore(max) }),
+    action: (
+      <BidControls
+        min={1}
+        max={max}
+        allIn={max}
+        onBid={(amount) => connection.emit("all-play-stake", { amount })}
+        cta={t("dock.final.placeBid")}
+      />
+    ),
+    next,
+  };
+}
+
+function allPlayAnswerModel({ t, session, myId }: DockCtx): DockModel {
+  const entries = session.state.allPlay?.entries ?? [];
+  const done = entries.filter((e) => e.submitted).length;
+  const mine = myAllPlayEntry(session, myId);
+  const stakes = allPlayStakes(session, mine ?? { stake: null });
+  const next =
+    session.state.allPlay?.mode === "stake"
+      ? t("dock.allPlay.answerNextStake")
+      : t("dock.allPlay.answerNextNoRisk", { points: formatScore(stakes.win) });
+  if (!mine) {
+    return {
+      status: t("dock.final.answersIn", { done, total: entries.length }),
+      action: <Info>{t("dock.allPlay.answerWatch")}</Info>,
+      next,
+    };
+  }
+  if (mine.submitted) {
+    return {
+      status: t("dock.final.answerLocked"),
+      action: <Info>{t("dock.final.waitOthers", { done, total: entries.length })}</Info>,
+      next,
+    };
+  }
+  return {
+    status: t("dock.allPlay.typeAnswer"),
+    action: <FinalAnswerBox event="all-play-answer" />,
+    next,
+  };
+}
+
+function FinalAnswerBox({
+  event = "final-answer-submit",
+}: {
+  event?: "final-answer-submit" | "all-play-answer";
+}) {
   const { t } = useTranslation();
   const session = useSession();
   const { connection } = useGame();
@@ -791,7 +885,7 @@ function FinalAnswerBox() {
   const submit = (value: string) => {
     if (sentRef.current) return;
     sentRef.current = true;
-    connection.emit("final-answer-submit", { answerText: value.trim() });
+    connection.emit(event, { answerText: value.trim() });
   };
 
   // At the buzzer, send whatever was typed rather than losing it.
@@ -808,7 +902,7 @@ function FinalAnswerBox() {
       }}
     >
       <label htmlFor="final-answer" className="sr-only">
-        {t("dock.final.answerLabel")}
+        {event === "all-play-answer" ? t("dock.answering.typeLabel") : t("dock.final.answerLabel")}
       </label>
       <TextInput
         id="final-answer"

@@ -1,3 +1,4 @@
+import { AllPlayDataDTO } from "domain/types/dto/game/state/AllPlayDataDTO";
 import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
@@ -54,6 +55,8 @@ export interface GameStateDTO {
   buzzerWindow?: BuzzerWindowDTO | null;
   /** Players locked out after a false start: player id -> epoch ms when the lock ends */
   buzzerLocks?: Record<string, number> | null;
+  /** "Everyone answers" question (stake / no-risk for everyone) in play */
+  allPlay?: AllPlayDataDTO | null;
   /** Final round specific data */
   finalRoundData?: FinalRoundGameData | null;
   /** Which player can pick a question or eliminate theme in final */

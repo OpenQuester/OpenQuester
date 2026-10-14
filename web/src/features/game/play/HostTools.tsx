@@ -32,6 +32,7 @@ export function HostTools({ focusPlayer }: { focusPlayer?: number | null }) {
             phase === "answering" ||
             phase === "media" ||
             phase === "stake_bidding" ||
+            phase === "all_play_answering" ||
             phase === "secret_transfer") && (
             <Button size="sm" onClick={() => connection.emit("skip-question-force")}>
               {t("menu.skipQuestion")}

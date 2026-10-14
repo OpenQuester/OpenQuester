@@ -4796,6 +4796,17 @@
             },
             "description": "Players locked out after a false start: player id -> epoch ms when the lock ends"
           },
+          "allPlay": {
+            "description": "\"Everyone answers\" question in play",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AllPlayData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "finalRoundData": {
             "oneOf": [
               {
@@ -5104,6 +5115,9 @@
           "final-answer-review",
           "secret-question-transfer",
           "secret-question-price",
+          "all-play-stake",
+          "all-play-answer",
+          "all-play-review",
           "stake-bid-submit",
           "media-downloaded"
         ],
@@ -5151,6 +5165,11 @@
           "secret-question-picked",
           "secret-question-transfer",
           "secret-question-price",
+          "all-play-start",
+          "all-play-stake",
+          "all-play-answer",
+          "all-play-reviewing",
+          "all-play-review",
           "stake-question-picked",
           "stake-bid-submit",
           "stake-question-winner",
@@ -7176,6 +7195,202 @@
           }
         },
         "required": ["playerId", "price", "questionId"]
+      },
+      "AllPlayMode": {
+        "type": "string",
+        "enum": ["noRisk", "stake"],
+        "description": "noRisk: right wins price × multiplier, wrong costs nothing. stake: each player stakes; right wins the stake, wrong loses it",
+        "examples": ["stake"]
+      },
+      "AllPlayEntry": {
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "stake": {
+            "type": ["integer", "null"],
+            "description": "Stake mode: the amount staked; null until staked. Shown to players as 0 until the review"
+          },
+          "answer": {
+            "type": ["string", "null"],
+            "description": "Typed answer; null until submitted. Shown to players as an empty string until the review"
+          },
+          "submitted": {
+            "type": "boolean"
+          },
+          "isCorrect": {
+            "type": ["boolean", "null"],
+            "description": "The showman's ruling; null until reviewed"
+          },
+          "scoreChange": {
+            "type": ["integer", "null"]
+          }
+        },
+        "required": [
+          "playerId",
+          "stake",
+          "answer",
+          "submitted",
+          "isCorrect",
+          "scoreChange"
+        ]
+      },
+      "AllPlayData": {
+        "type": "object",
+        "description": "\"Everyone answers\" question (stake / no-risk with subType forEveryone). Phases follow questionState: bidding (stake mode) → media_downloading → showing (players type answers) → reviewing (showman rules on each) → showing_answer",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/AllPlayMode"
+          },
+          "questionId": {
+            "type": "integer"
+          },
+          "themeId": {
+            "type": "integer"
+          },
+          "price": {
+            "type": "integer"
+          },
+          "maxStake": {
+            "type": ["integer", "null"]
+          },
+          "priceMultiplier": {
+            "type": ["number", "null"]
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AllPlayEntry"
+            }
+          }
+        },
+        "required": [
+          "mode",
+          "questionId",
+          "themeId",
+          "price",
+          "maxStake",
+          "priceMultiplier",
+          "entries"
+        ]
+      },
+      "SocketIOAllPlayStartEventPayload": {
+        "type": "object",
+        "description": "An \"everyone answers\" question started: the stake phase (stake mode, with its timer) or straight to the question (timer null)",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/AllPlayMode"
+          },
+          "questionId": {
+            "type": "integer"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "price": {
+            "type": "integer"
+          },
+          "maxStake": {
+            "type": ["integer", "null"]
+          },
+          "priceMultiplier": {
+            "type": ["number", "null"]
+          },
+          "timer": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "questionId",
+          "players",
+          "price",
+          "maxStake",
+          "priceMultiplier",
+          "timer"
+        ]
+      },
+      "SocketIOAllPlaySubmittedEventPayload": {
+        "type": "object",
+        "description": "all-play-stake / all-play-answer broadcast: a player sent their stake or answer (the value stays hidden until the review)",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          }
+        },
+        "required": ["playerId"]
+      },
+      "SocketIOAllPlayReviewingEventPayload": {
+        "type": "object",
+        "description": "Answers are in: every answer and stake is visible for the review",
+        "properties": {
+          "allPlay": {
+            "$ref": "#/components/schemas/AllPlayData"
+          }
+        },
+        "required": ["allPlay"]
+      },
+      "SocketIOAllPlayReviewEventPayload": {
+        "type": "object",
+        "description": "The showman ruled on one answer",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "isCorrect": {
+            "type": "boolean"
+          },
+          "scoreChange": {
+            "type": "integer"
+          },
+          "newScore": {
+            "type": "integer"
+          }
+        },
+        "required": ["playerId", "isCorrect", "scoreChange", "newScore"]
+      },
+      "SocketIOAllPlayStakeInput": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "description": "Between 1 and the player's score (at least the price), capped by maxStake"
+          }
+        },
+        "required": ["amount"]
+      },
+      "SocketIOAllPlayAnswerInput": {
+        "type": "object",
+        "properties": {
+          "answerText": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "required": ["answerText"]
+      },
+      "SocketIOAllPlayReviewInput": {
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "isCorrect": {
+            "type": "boolean"
+          }
+        },
+        "required": ["playerId", "isCorrect"]
       }
     }
   }

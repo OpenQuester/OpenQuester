@@ -140,6 +140,20 @@ function chipState(
       const bid = info.stake.bids[String(id)];
       return bid != null ? { tag: formatScore(bid), hot: false, dim: false } : none;
     }
+    case "all_play_bidding":
+    case "all_play_answering": {
+      const entry = s.allPlay?.entries.find((e) => e.playerId === id);
+      if (!entry) return none;
+      const done = phaseOf(session) === "all_play_bidding" ? entry.stake != null : entry.submitted;
+      return done
+        ? { tag: t("chips.answered"), hot: false, dim: false }
+        : { tag: t("chips.typing"), hot: true, dim: false };
+    }
+    case "all_play_reviewing": {
+      const entry = s.allPlay?.entries.find((e) => e.playerId === id);
+      if (!entry || entry.scoreChange == null) return none;
+      return { tag: formatSigned(entry.scoreChange), hot: !!entry.isCorrect, dim: false };
+    }
     case "final_elimination":
       return s.currentTurnPlayerId === id
         ? { tag: t("chips.removing"), hot: true, dim: false }

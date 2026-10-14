@@ -81,6 +81,14 @@ export const FINAL_ROUND_THEME_ELIMINATION_TIME = SECOND_MS * 30;
 export const STAKE_QUESTION_BID_TIME = SECOND_MS * 30;
 export const STAKE_QUESTION_MIN_BID = 1;
 
+// "Everyone answers" questions (stake / no-risk for everyone)
+/** 30 seconds for every player to make a hidden stake */
+export const ALL_PLAY_BID_TIME = SECOND_MS * 30;
+export const ALL_PLAY_MIN_STAKE = 1;
+/** 45 seconds to type an answer once the question content has played */
+export const ALL_PLAY_ANSWER_TIME = SECOND_MS * 45;
+export const ALL_PLAY_ANSWER_MAX_LENGTH = 255;
+
 /** Absolute cap for player score magnitude (soft cap below exact int32 bounds) */
 export const SCORE_ABS_LIMIT = 2_100_000_000;
 /** Max price allowed for a question on package upload */

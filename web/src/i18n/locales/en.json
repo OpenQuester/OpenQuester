@@ -345,7 +345,10 @@
     "final_bidding": "Final · bidding",
     "final_answering": "Final · answering",
     "final_reviewing": "Final · review",
-    "finished": "Game over"
+    "finished": "Game over",
+    "all_play_bidding": "Everyone · stakes",
+    "all_play_answering": "Everyone answers",
+    "all_play_reviewing": "Everyone · review"
   },
   "reasons": {
     "wrong_role": "Only players can do this",
@@ -635,6 +638,17 @@
       "status": "Thanks for playing",
       "back": "Back to games",
       "next": "Host another game with any package, or join an open one."
+    },
+    "allPlay": {
+      "stakeWatch": "Players are making their stakes",
+      "stakeLocked": "Stake placed",
+      "stakeNext": "When every stake is in, the question is shown to everyone.",
+      "typeAnswer": "Type your answer — everyone answers this one",
+      "answerWatch": "Players are writing their answers",
+      "answerNextStake": "When time is up the showman judges every answer. Right wins your stake, wrong loses it.",
+      "answerNextNoRisk": "When time is up the showman judges every answer. Right wins {{points}}, wrong costs nothing.",
+      "reviewShowman": "Judge each answer on the stage",
+      "reviewNext": "Once every answer is judged, the right answer is revealed."
     }
   },
   "errors": {
@@ -1178,5 +1192,13 @@
       "audioBytes": "One sound file",
       "videoBytes": "One video"
     }
+  },
+  "allPlay": {
+    "kickerStake": "Stake for everyone",
+    "kickerNoRisk": "No risk for everyone",
+    "ruleStake": "Everyone stakes and writes an answer. Right wins your stake, wrong loses it. Stakes up to {{max}}.",
+    "ruleNoRisk": "Everyone writes an answer. Right wins {{points}}, wrong costs nothing.",
+    "stakePrompt": "Make your stake — nobody sees it until the answers are in",
+    "players": "Players"
   }
 }

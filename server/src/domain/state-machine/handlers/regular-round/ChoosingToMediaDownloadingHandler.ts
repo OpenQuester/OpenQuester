@@ -1,3 +1,5 @@
+import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
+import { allPlayStartBroadcast } from "domain/state-machine/handlers/all-play/ChoosingToAllPlayBiddingHandler";
 import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -81,6 +83,12 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
 
     // Set current question and mark as played
     QuestionPickLogic.processNormalQuestionPick(game, question, theme.id!);
+
+    // No-risk for everyone: every player answers in writing
+    const allPlayMode = AllPlayLogic.modeOf(question);
+    if (allPlayMode) {
+      AllPlayLogic.start(game, question, theme.id!, allPlayMode);
+    }
     QuestionPickLogic.resetMediaDownloadStatus(game);
 
     game.setQuestionState(QuestionState.MEDIA_DOWNLOADING);
@@ -120,10 +128,10 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
    * (showman gets full question, players get filtered data).
    */
   protected collectBroadcasts(
-    _ctx: ChoosingToMediaDownloadingCtx,
+    ctx: ChoosingToMediaDownloadingCtx,
     _mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {
-    return [];
+    return ctx.game.gameState.allPlay ? [allPlayStartBroadcast(ctx.game, null)] : [];
   }
 }

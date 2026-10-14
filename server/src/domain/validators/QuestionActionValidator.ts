@@ -34,6 +34,9 @@ export class QuestionActionValidator {
    * Validates skip action requirements for players
    */
   public static validatePlayerSkipAction(context: QuestionActionContext): void {
+    if (context.game.gameState.allPlay) {
+      throw new ClientError(ClientResponse.ALL_PLAY_NO_BUZZER);
+    }
     this._validateBasicRequirements(context);
     this._validateQuestionAction(context);
     this._validateQuestionSkipping(context.game);

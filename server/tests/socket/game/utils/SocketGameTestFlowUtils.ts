@@ -1,6 +1,10 @@
 import { container } from "tsyringe";
 
-import { GAME_QUESTION_ANSWER_TIME, MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
+import {
+  ALL_PLAY_ANSWER_TIME,
+  GAME_QUESTION_ANSWER_TIME,
+  MEDIA_DOWNLOAD_TIMEOUT
+} from "domain/constants/game";
 import { GameActionType } from "domain/enums/GameActionType";
 import { withTimeout } from "tests/e2e/harness/TestPromiseUtils";
 import { Game } from "domain/entities/game/Game";
@@ -23,7 +27,8 @@ import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import {
   assertFreshTimer,
   assertMediaQuestionData,
-  assertMediaDownloadStatus
+  assertMediaDownloadStatus,
+  questionTimerFor
 } from "tests/e2e/flows/media-download/MediaDownloadAssertions";
 
 import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
@@ -118,7 +123,18 @@ export class SocketGameTestFlowUtils {
         );
         playerSocket.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         const [status] = await Promise.all([statusPromise, accepted]);
-        assertMediaDownloadStatus(status, playerId, expectedAllPlayersReady);
+        // "Everyone answers" questions give a longer answer window
+        const allPlay = expectedAllPlayersReady
+          ? !!(await this.stateUtils.getGameState(showmanSocket.gameId!))?.allPlay
+          : false;
+        assertMediaDownloadStatus(
+          status,
+          playerId,
+          expectedAllPlayersReady,
+          expectedAllPlayersReady
+            ? questionTimerFor(status, allPlay ? ALL_PLAY_ANSWER_TIME : GAME_QUESTION_ANSWER_TIME)
+            : null
+        );
         await this.eventUtils.waitForActionsComplete(showmanSocket.gameId!);
         await this._expectQuestionState(
           showmanSocket,
@@ -350,7 +366,7 @@ export class SocketGameTestFlowUtils {
       gameState.timer,
       expectedState === QuestionState.MEDIA_DOWNLOADING
         ? MEDIA_DOWNLOAD_TIMEOUT
-        : GAME_QUESTION_ANSWER_TIME +
+        : (gameState.allPlay ? ALL_PLAY_ANSWER_TIME : GAME_QUESTION_ANSWER_TIME) +
             Math.max(
               gameState.questionContentPlan?.totalMs ?? 0,
               gameState.buzzerOpensAtMs ?? 0

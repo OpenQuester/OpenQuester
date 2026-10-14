@@ -192,8 +192,14 @@ test.describe("full game", () => {
     await picker.getByRole("radio", { name: /Bob/ }).click();
     await shot(picker, "12-secret-picker");
     await picker.getByTestId("secret-give").click();
+    // A customPrice question: Bob picks its price before he sees it.
+    await expect(dockStatus(bob.page)).toHaveText("Pick the price of your question");
+    await expect(dockStatus(alice.page)).toHaveText("Bob is picking the price");
+    await shot(bob.page, "12-secret-price");
+    await bob.page.getByTestId("secret-price").filter({ hasText: "300" }).click();
     await expectPhase([host.page], "Answering");
     await expect(dockStatus(bob.page)).toHaveText("You're answering!");
+    await expect(host.page.getByTestId("judge-correct")).toContainText("+300");
     await host.page.getByTestId("judge-correct").click();
     await expectPhase(all, "Answer");
     await expect.poll(() => chipScore(host.page, "Bob")).toBe("100");

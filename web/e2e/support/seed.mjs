@@ -216,6 +216,51 @@ export async function seedBigPackage(base, title = "Big board") {
   return { id, title };
 }
 
+/** "Everyone answers" questions: no-risk and stake with subType forEveryone. */
+export async function seedAllPlayPackage(base, title = "Everyone answers") {
+  const cookie = await author(base);
+  const res = await fetch(`${base}/v1/packages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie },
+    body: JSON.stringify({
+      content: {
+        title,
+        language: "en",
+        ageRestriction: "NONE",
+        tags: [],
+        rounds: [
+          {
+            name: "Together",
+            order: 0,
+            type: "simple",
+            themes: [
+              {
+                name: "Everyone",
+                order: 0,
+                questions: [
+                  q(0, 100, "Which planet is known as the red planet?", "Mars", {
+                    type: "noRisk",
+                    subType: "forEveryone",
+                    priceMultiplier: 2,
+                  }),
+                  q(1, 200, "What is the chemical symbol for gold?", "Au", {
+                    type: "stake",
+                    subType: "forEveryone",
+                    maxPrice: 300,
+                  }),
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  });
+  if (!res.ok) throw new Error(`all-play package upload failed: ${res.status} ${await res.text()}`);
+  const { id } = await res.json();
+  return { id, title };
+}
+
 /** Uploads each file the server asks for; `files` maps md5 to body and type. */
 async function uploadFiles(uploadLinks, files) {
   for (const [name, url] of Object.entries(uploadLinks)) {

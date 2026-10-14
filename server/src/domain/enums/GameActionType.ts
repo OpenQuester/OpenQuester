@@ -28,6 +28,9 @@ export enum GameActionType {
   SKIP_SHOW_ANSWER = "skip-show-answer",
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
   SECRET_QUESTION_PRICE = "secret-question-price",
+  ALL_PLAY_STAKE = "all-play-stake",
+  ALL_PLAY_ANSWER = "all-play-answer",
+  ALL_PLAY_REVIEW = "all-play-review",
   STAKE_BID_SUBMIT = "stake-bid-submit",
 
   // Final Round

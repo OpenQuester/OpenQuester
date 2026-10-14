@@ -1,3 +1,8 @@
+import {
+  type AllPlayAnswerInputData,
+  type AllPlayReviewInputData,
+  type AllPlayStakeInputData
+} from "domain/types/socket/events/game/AllPlayEventPayloads";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameValidator } from "domain/validators/GameValidator";
@@ -228,6 +233,24 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
     inputValidator: (data) =>
       GameValidator.validateSecretQuestionTransfer(data as SecretQuestionTransferInputData)
+  },
+  {
+    event: SocketIOGameEvents.ALL_PLAY_STAKE,
+    actionType: GameActionType.ALL_PLAY_STAKE,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) => GameValidator.validateAllPlayStake(data as AllPlayStakeInputData)
+  },
+  {
+    event: SocketIOGameEvents.ALL_PLAY_ANSWER,
+    actionType: GameActionType.ALL_PLAY_ANSWER,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) => GameValidator.validateAllPlayAnswer(data as AllPlayAnswerInputData)
+  },
+  {
+    event: SocketIOGameEvents.ALL_PLAY_REVIEW,
+    actionType: GameActionType.ALL_PLAY_REVIEW,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) => GameValidator.validateAllPlayReview(data as AllPlayReviewInputData)
   },
   {
     event: SocketIOGameEvents.SECRET_QUESTION_PRICE,

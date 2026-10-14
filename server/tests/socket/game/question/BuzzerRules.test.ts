@@ -94,7 +94,12 @@ describe("Buzzer rules", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         const opensAt = (await utils.getGameState(gameId))!.buzzerOpensAtMs ?? 0;
-        await new Promise((resolve) => setTimeout(resolve, opensAt + 100));
+        // Nothing happens while the caption is read
+        await scenario.waitForNoEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_ANSWER,
+          opensAt + 100
+        );
 
         const answer = await scenario.emitAndWaitForEvent<QuestionAnswerEventPayload>(
           showmanSocket,
@@ -154,9 +159,7 @@ describe("Buzzer rules", () => {
           () => scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.QUESTION_ANSWER)
         );
         expect(answer.userId).toBe(playerUsers[1].id);
-        expect((await utils.getGameState(gameId))!.questionState).toBe(
-          QuestionState.ANSWERING
-        );
+        expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.ANSWERING);
       });
     });
 

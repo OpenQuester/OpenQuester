@@ -1,4 +1,5 @@
 import {
+  ALL_PLAY_ANSWER_TIME,
   CONTENT_IMAGE_TIME,
   CONTENT_ITEM_MAX_TIME,
   CONTENT_MEDIA_UNKNOWN_TIME,
@@ -189,7 +190,8 @@ export class QuestionContentPlanLogic {
   public static questionTimerDuration(game: Game): number {
     const contentMs = game.gameState.questionContentPlan?.totalMs ?? 0;
     const opensAtMs = game.gameState.buzzerOpensAtMs ?? 0;
-    return Math.max(contentMs, opensAtMs) + GAME_QUESTION_ANSWER_TIME;
+    const answerMs = game.gameState.allPlay ? ALL_PLAY_ANSWER_TIME : GAME_QUESTION_ANSWER_TIME;
+    return Math.max(contentMs, opensAtMs) + answerMs;
   }
 
   public static textDuration(text: string): number {

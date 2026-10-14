@@ -430,6 +430,7 @@ export class Game {
     this.gameState.questionEligiblePlayers = null;
     this.gameState.questionContentPlan = null;
     this.gameState.mediaDurations = null;
+    this.gameState.allPlay = null;
     this.setQuestionState(QuestionState.CHOOSING);
   }
 

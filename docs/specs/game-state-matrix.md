@@ -92,6 +92,28 @@ When changing gameplay state, make sure:
 - `start` carries `currentTurnPlayerId`, so every client shows who picks first.
 - The showman's copy of the final question includes the answer for judging.
 
+## Special question rules (SIGame parity)
+
+- **Choice:** a picked option is checked by the server when the question's
+  right answer is exactly one of the options (`ChoiceAnswerLogic`); right
+  scores +price, wrong −price, and the showman does not judge. Otherwise the
+  showman judges as usual. Options appear `showDelay` after the content, and
+  the buzzer opens then (plus `answerDelay`).
+- **Secret, customPrice:** after the transfer, the receiver picks the price
+  from `allowedPrices` (`secret-question-price`, 30 s; on timeout the lowest
+  price). The question is then shown and answered at that price.
+- **Hidden price:** the board shows the price as unknown until the question
+  is picked.
+- **Everyone answers** (stake or no-risk with `subType: forEveryone`,
+  `gameState.allPlay`): no buzzer. Stake mode starts with hidden stakes from
+  every player (`all-play-stake`, 30 s, at most the player's score or the
+  price, capped by `maxPrice`; missing stakes become the price). The question
+  then preloads and shows; every player types an answer (`all-play-answer`,
+  45 s after the content). The showman rules on each answer in REVIEWING
+  (`all-play-review`); a missing answer is wrong. Stake: right +stake, wrong
+  −stake. No-risk: right +price × multiplier, wrong ±0. Answers and stakes
+  stay hidden from players until the review.
+
 ## Common disabled reason categories
 
 Use consistent categories in UI copy and server/client logic:

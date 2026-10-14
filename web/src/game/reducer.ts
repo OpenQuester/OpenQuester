@@ -8,6 +8,8 @@ import type {
   FinalRoundData,
   GameJoinData,
   GameSettings,
+  AllPlayData,
+  AllPlayEntry,
   GameState,
   Player,
   Question,
@@ -245,7 +247,11 @@ function onQuestionData(
   let questionState: GameState["questionState"] = s.questionState;
   let answeringPlayer = s.answeringPlayer;
 
-  if (stake?.winnerPlayerId != null) {
+  if (s.allPlay && s.questionState === "bidding") {
+    // Stake for everyone: stakes are in, the question now preloads.
+    questionState = "media_downloading";
+    answeringPlayer = null;
+  } else if (stake?.winnerPlayerId != null) {
     questionState = "answering";
     answeringPlayer = stake.winnerPlayerId;
   } else if (secret && s.answeringPlayer != null) {
@@ -558,6 +564,69 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       });
     }
 
+    case "all-play-start": {
+      const p = event.payload;
+      const allPlay: AllPlayData = {
+        mode: p.mode,
+        questionId: p.questionId,
+        price: p.price,
+        maxStake: p.maxStake,
+        priceMultiplier: p.priceMultiplier,
+        entries: p.players.map((playerId) => ({
+          playerId,
+          stake: null,
+          answer: null,
+          submitted: false,
+          isCorrect: null,
+          scoreChange: null,
+        })),
+      };
+      if (!p.timer) {
+        // No-risk for everyone: the question follows with question-data.
+        return patchState(session, { allPlay });
+      }
+      return {
+        ...patchState(session, {
+          questionState: "bidding",
+          currentRound: markQuestionPlayed(s.currentRound, p.questionId),
+          timer: p.timer,
+          allPlay,
+          answeredPlayers: null,
+          skippedPlayers: null,
+          answeringPlayer: null,
+          answerShowData: null,
+        }),
+        content: null,
+      };
+    }
+
+    case "all-play-stake":
+    case "all-play-answer": {
+      const staked = event.type === "all-play-stake";
+      return patchAllPlayEntry(session, event.payload.playerId, (e) =>
+        staked ? { ...e, stake: e.stake ?? 0 } : { ...e, submitted: true, answer: e.answer ?? "" },
+      );
+    }
+
+    case "all-play-reviewing":
+      return {
+        ...patchState(session, {
+          questionState: "reviewing",
+          allPlay: event.payload.allPlay,
+          timer: null,
+        }),
+        players: applyAllPlayScores(session.players, event.payload.allPlay),
+      };
+
+    case "all-play-review": {
+      const { playerId, isCorrect, scoreChange, newScore } = event.payload;
+      const next = patchAllPlayEntry(session, playerId, (e) => ({ ...e, isCorrect, scoreChange }));
+      return {
+        ...next,
+        players: patchPlayer(next.players, playerId, (pl) => ({ ...pl, score: newScore })),
+      };
+    }
+
     case "secret-question-price":
       return patchState(session, {
         answeringPlayer: event.payload.playerId,
@@ -796,4 +865,30 @@ function freeze(content: ContentClock | null, paused: boolean): ContentClock | n
 function retime(content: ContentClock | null, timer: Timer | null): ContentClock | null {
   if (!content || content.frozenAtMs != null || !timer || !content.timer) return content;
   return { ...content, timer };
+}
+
+function patchAllPlayEntry(
+  session: GameSession,
+  playerId: number,
+  patch: (entry: AllPlayEntry) => AllPlayEntry,
+): GameSession {
+  const allPlay = session.state.allPlay;
+  if (!allPlay) return session;
+  return patchState(session, {
+    allPlay: {
+      ...allPlay,
+      entries: allPlay.entries.map((e) => (e.playerId === playerId ? patch(e) : e)),
+    },
+  });
+}
+
+/** Answers ruled automatically when the review starts (missing ones) change scores too. */
+function applyAllPlayScores(players: Player[], allPlay: AllPlayData): Player[] {
+  return allPlay.entries.reduce(
+    (acc, e) =>
+      e.scoreChange != null && e.isCorrect != null
+        ? patchPlayer(acc, e.playerId, (p) => ({ ...p, score: p.score + (e.scoreChange ?? 0) }))
+        : acc,
+    players,
+  );
 }

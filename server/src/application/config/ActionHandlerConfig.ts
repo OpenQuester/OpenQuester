@@ -38,6 +38,11 @@ import { QuestionAnswerUseCase } from "application/usecases/question/QuestionAns
 import { QuestionPickUseCase } from "application/usecases/question/QuestionPickUseCase";
 import { QuestionSkipUseCase } from "application/usecases/question/QuestionSkipUseCase";
 import { QuestionUnskipUseCase } from "application/usecases/question/QuestionUnskipUseCase";
+import {
+  AllPlayAnswerUseCase,
+  AllPlayReviewUseCase,
+  AllPlayStakeUseCase
+} from "application/usecases/question/AllPlayUseCases";
 import { SecretQuestionPriceUseCase } from "application/usecases/question/SecretQuestionPriceUseCase";
 import { SecretQuestionTransferUseCase } from "application/usecases/question/SecretQuestionTransferUseCase";
 import { SkipQuestionForceUseCase } from "application/usecases/question/SkipQuestionForceUseCase";
@@ -218,6 +223,19 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   registry.register(
     GameActionType.SECRET_QUESTION_TRANSFER,
     new SecretQuestionTransferUseCase(secretQuestionService)
+  );
+
+  registry.register(
+    GameActionType.ALL_PLAY_STAKE,
+    new AllPlayStakeUseCase(phaseTransitionRouter, transitionResourceService)
+  );
+  registry.register(
+    GameActionType.ALL_PLAY_ANSWER,
+    new AllPlayAnswerUseCase(phaseTransitionRouter, transitionResourceService)
+  );
+  registry.register(
+    GameActionType.ALL_PLAY_REVIEW,
+    new AllPlayReviewUseCase(phaseTransitionRouter, transitionResourceService)
   );
 
   registry.register(

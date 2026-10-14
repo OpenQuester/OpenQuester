@@ -30,6 +30,10 @@ export enum GamePhase {
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
   STAKE_BIDDING = "stake-bidding",
 
+  // "Everyone answers" questions (stake / no-risk for everyone)
+  ALL_PLAY_BIDDING = "all-play-bidding",
+  ALL_PLAY_REVIEWING = "all-play-reviewing",
+
   // Final round
   FINAL_THEME_ELIMINATION = "final-theme-elimination",
   FINAL_BIDDING = "final-bidding",
@@ -203,6 +207,12 @@ export function getGamePhase(game: Game): GamePhase {
     questionState === QuestionState.SECRET_TRANSFER
   ) {
     return GamePhase.SECRET_QUESTION_TRANSFER;
+  }
+
+  // "Everyone answers" questions bid and review in regular rounds
+  if (game.gameState.allPlay && currentRound?.type !== PackageRoundType.FINAL) {
+    if (questionState === QuestionState.BIDDING) return GamePhase.ALL_PLAY_BIDDING;
+    if (questionState === QuestionState.REVIEWING) return GamePhase.ALL_PLAY_REVIEWING;
   }
 
   // Final round phases

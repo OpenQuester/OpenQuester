@@ -58,6 +58,10 @@ export class QuestionAnswerUseCase
     // Pure validation
     QuestionAnswerRequestLogic.validate(game, currentPlayer);
 
+    if (game.gameState.allPlay) {
+      throw new ClientError(ClientResponse.ALL_PLAY_NO_BUZZER);
+    }
+
     const playerId = currentPlayer!.meta.id;
     const now = Date.now();
 

@@ -231,6 +231,30 @@ export interface GameSettings {
   buttonPressMode: ButtonPressMode;
 }
 
+export type AllPlayMode = "noRisk" | "stake";
+
+export interface AllPlayEntry {
+  playerId: number;
+  /** Stake mode: the stake (0 = staked, amount hidden until the review). */
+  stake: number | null;
+  /** The typed answer ("" = sent, hidden until the review). */
+  answer: string | null;
+  submitted: boolean;
+  isCorrect: boolean | null;
+  scoreChange: number | null;
+}
+
+/** "Everyone answers" question: every player answers in writing. */
+export interface AllPlayData {
+  mode: AllPlayMode;
+  questionId: number;
+  themeId?: number;
+  price: number;
+  maxStake: number | null;
+  priceMultiplier: number | null;
+  entries: AllPlayEntry[];
+}
+
 export interface GameState {
   questionState: QuestionState | null;
   isPaused: boolean;
@@ -245,6 +269,7 @@ export interface GameState {
   buzzerOpensAtMs?: number | null;
   /** Players locked out after a false start: id -> epoch ms (server clock) the lock ends. */
   buzzerLocks?: Record<string, number> | null;
+  allPlay?: AllPlayData | null;
   finalRoundData?: FinalRoundData | null;
   currentTurnPlayerId?: number | null;
   skippedPlayers: number[] | null;
@@ -332,6 +357,25 @@ export interface ServerEvents {
     allowedPrices?: number[] | null;
     timer?: Timer | null;
   };
+  "all-play-start": {
+    mode: AllPlayMode;
+    questionId: number;
+    players: number[];
+    price: number;
+    maxStake: number | null;
+    priceMultiplier: number | null;
+    /** Stake timer in stake mode; null when the question comes next. */
+    timer: Timer | null;
+  };
+  "all-play-stake": { playerId: number };
+  "all-play-answer": { playerId: number };
+  "all-play-reviewing": { allPlay: AllPlayData };
+  "all-play-review": {
+    playerId: number;
+    isCorrect: boolean;
+    scoreChange: number;
+    newScore: number;
+  };
   /** The receiver of a customPrice secret question picked its price. */
   "secret-question-price": { playerId: number; price: number; questionId: number };
   "stake-question-picked": {
@@ -408,6 +452,9 @@ export interface ClientEvents {
   "question-unskip": undefined;
   "secret-question-transfer": { targetPlayerId: number };
   "secret-question-price": { price: number };
+  "all-play-stake": { amount: number };
+  "all-play-answer": { answerText: string };
+  "all-play-review": { playerId: number; isCorrect: boolean };
   "stake-bid-submit": { bidType: StakeBidType; bidAmount: number | null };
   "theme-eliminate": { themeId: number };
   "final-bid-submit": { bid: number };
@@ -447,6 +494,11 @@ export const SERVER_EVENT_NAMES: ServerEventName[] = [
   "secret-question-picked",
   "secret-question-transfer",
   "secret-question-price",
+  "all-play-start",
+  "all-play-stake",
+  "all-play-answer",
+  "all-play-reviewing",
+  "all-play-review",
   "stake-question-picked",
   "stake-bid-submit",
   "stake-question-winner",

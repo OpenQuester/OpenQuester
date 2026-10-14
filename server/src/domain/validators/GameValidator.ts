@@ -1,3 +1,9 @@
+import { ALL_PLAY_ANSWER_MAX_LENGTH } from "domain/constants/game";
+import {
+  AllPlayAnswerInputData,
+  AllPlayReviewInputData,
+  AllPlayStakeInputData
+} from "domain/types/socket/events/game/AllPlayEventPayloads";
 import Joi from "joi";
 
 import {
@@ -128,6 +134,32 @@ export class GameValidator {
     });
 
     return this._validate<SecretQuestionTransferInputData>(data, schema);
+  }
+
+  public static validateAllPlayStake(data: AllPlayStakeInputData) {
+    return this._validate<AllPlayStakeInputData>(
+      data,
+      Joi.object<AllPlayStakeInputData>({ amount: Joi.number().integer().min(0).required() })
+    );
+  }
+
+  public static validateAllPlayAnswer(data: AllPlayAnswerInputData) {
+    return this._validate<AllPlayAnswerInputData>(
+      data,
+      Joi.object<AllPlayAnswerInputData>({
+        answerText: Joi.string().allow("").max(ALL_PLAY_ANSWER_MAX_LENGTH).required()
+      })
+    );
+  }
+
+  public static validateAllPlayReview(data: AllPlayReviewInputData) {
+    return this._validate<AllPlayReviewInputData>(
+      data,
+      Joi.object<AllPlayReviewInputData>({
+        playerId: Joi.number().integer().required(),
+        isCorrect: Joi.boolean().required()
+      })
+    );
   }
 
   public static validateSecretQuestionPrice(data: SecretQuestionPriceInputData) {

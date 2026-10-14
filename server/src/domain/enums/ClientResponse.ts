@@ -79,6 +79,11 @@ export enum ClientResponse {
   SOMEONE_ALREADY_ANSWERING = "someone_already_answering",
   /** Player pressed too early and is still locked out */
   BUZZER_LOCKED = "buzzer_locked",
+  ALL_PLAY_ALREADY_SUBMITTED = "all_play_already_submitted",
+  ALL_PLAY_ALREADY_REVIEWED = "all_play_already_reviewed",
+  ALL_PLAY_INVALID_STAKE = "all_play_invalid_stake",
+  ALL_PLAY_NOT_PARTICIPANT = "all_play_not_participant",
+  ALL_PLAY_NO_BUZZER = "all_play_no_buzzer",
   CANNOT_PICK_SECRET_QUESTION_PRICE = "cannot_pick_secret_question_price",
   INVALID_SECRET_QUESTION_PRICE = "invalid_secret_question_price",
   ALREADY_ANSWERED = "already_answered",

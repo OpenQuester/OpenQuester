@@ -41,8 +41,8 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
   public canTransition(ctx: TransitionContext): boolean {
     const { game, trigger, triggeredBy } = ctx;
 
-    // 1. Verify we're in the expected phase
-    if (getGamePhase(game) !== this.fromPhase) {
+    // 1. Verify we're in the expected phase (no buzzer when everyone answers)
+    if (getGamePhase(game) !== this.fromPhase || game.gameState.allPlay) {
       return false;
     }
 

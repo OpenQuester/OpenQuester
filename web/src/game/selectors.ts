@@ -40,6 +40,9 @@ export type Phase =
   | "final_bidding"
   | "final_answering"
   | "final_reviewing"
+  | "all_play_bidding"
+  | "all_play_answering"
+  | "all_play_reviewing"
   | "finished";
 
 export function phaseOf(session: GameSession): Phase {
@@ -57,6 +60,11 @@ export function phaseOf(session: GameSession): Phase {
       case "reviewing":
         return "final_reviewing";
     }
+  }
+  if (s.allPlay && s.currentRound.type !== "final") {
+    if (s.questionState === "bidding") return "all_play_bidding";
+    if (s.questionState === "showing") return "all_play_answering";
+    if (s.questionState === "reviewing") return "all_play_reviewing";
   }
   switch (s.questionState) {
     case "media_downloading":
@@ -283,4 +291,32 @@ export function initials(name: string): string {
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
+}
+
+/** My part in the "everyone answers" question, if I play it. */
+export function myAllPlayEntry(session: GameSession, myId: number) {
+  return session.state.allPlay?.entries.find((e) => e.playerId === myId) ?? null;
+}
+
+/** Highest stake I may make: my score, at least the price, capped by the package. */
+export function allPlayMaxStake(session: GameSession, myId: number): number {
+  const data = session.state.allPlay;
+  if (!data) return 0;
+  const score = me(session, myId)?.score ?? 0;
+  const affordable = Math.max(score, data.price, 1);
+  return data.maxStake != null ? Math.max(1, Math.min(affordable, data.maxStake)) : affordable;
+}
+
+/** Points a right answer wins and a wrong one costs, for one entry. */
+export function allPlayStakes(
+  session: GameSession,
+  entry: { stake: number | null },
+): { win: number; lose: number } {
+  const data = session.state.allPlay;
+  if (!data) return { win: 0, lose: 0 };
+  if (data.mode === "stake") {
+    const stake = entry.stake || data.price;
+    return { win: stake, lose: -stake };
+  }
+  return { win: Math.round(data.price * (data.priceMultiplier ?? 1)), lose: 0 };
 }

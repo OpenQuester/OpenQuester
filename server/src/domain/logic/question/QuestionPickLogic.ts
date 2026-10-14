@@ -164,6 +164,12 @@ export class QuestionPickLogic {
         };
       }
 
+      case GamePhase.ALL_PLAY_BIDDING:
+        return {
+          success: true,
+          data: { type: QuestionPickType.ALL_PLAY, gameId: game.id, timer: timerDto }
+        };
+
       case GamePhase.MEDIA_DOWNLOADING:
       case GamePhase.SHOWING: {
         if (timerDto) {

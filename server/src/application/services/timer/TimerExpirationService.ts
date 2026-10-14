@@ -228,6 +228,31 @@ export class TimerExpirationService {
     };
   }
 
+  private async _handleAllPlayBiddingExpiration(game: Game): Promise<TimerExpirationResult> {
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.TIMER_EXPIRED,
+      triggeredBy: { isSystem: true },
+      resources: await this.transitionResourceService.getQuestionWithTheme(
+        game,
+        game.gameState.allPlay!.questionId
+      )
+    });
+
+    if (!transitionResult) {
+      return { success: false, broadcasts: [] };
+    }
+
+    await this.gameService.updateGame(game);
+
+    return {
+      success: true,
+      game,
+      broadcasts: transitionResult.broadcasts,
+      timerMutations: transitionResult.timerMutations
+    };
+  }
+
   /**
    * Handle show answer timeout - transitions from SHOWING_ANSWER to CHOOSING.
    * Called when the answer display timer expires after a correct answer or all players exhausted.
@@ -330,6 +355,11 @@ export class TimerExpirationService {
     // Route to stake question bidding timeout when applicable
     if (StakeBiddingTimeoutLogic.isStakeBiddingExpiration(game)) {
       return this._handleStakeBiddingExpiration(game);
+    }
+
+    // Stake for everyone: missing stakes are filled and the question preloads
+    if (game.gameState.allPlay) {
+      return this._handleAllPlayBiddingExpiration(game);
     }
 
     // Final round bidding timeout (existing flow)

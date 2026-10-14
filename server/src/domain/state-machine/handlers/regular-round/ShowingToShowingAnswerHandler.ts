@@ -44,6 +44,12 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
       return false;
     }
 
+    // An "everyone answers" question goes to review instead, unless the
+    // showman skips it
+    if (game.gameState.allPlay && trigger !== TransitionTrigger.USER_ACTION) {
+      return false;
+    }
+
     if (
       !TransitionGuards.canTransitionInRegularRound(game, QuestionState.SHOWING)
     ) {

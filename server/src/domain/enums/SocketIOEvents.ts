@@ -61,6 +61,13 @@ export enum SocketIOGameEvents {
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
   SECRET_QUESTION_PRICE = "secret-question-price",
 
+  // "Everyone answers" questions
+  ALL_PLAY_START = "all-play-start",
+  ALL_PLAY_STAKE = "all-play-stake",
+  ALL_PLAY_ANSWER = "all-play-answer",
+  ALL_PLAY_REVIEWING = "all-play-reviewing",
+  ALL_PLAY_REVIEW = "all-play-review",
+
   // Stake Question Events
   STAKE_QUESTION_PICKED = "stake-question-picked",
   STAKE_BID_SUBMIT = "stake-bid-submit",

@@ -9,3 +9,7 @@ export function seedMediaPackage(
   base: string,
   title?: string,
 ): Promise<{ id: number; title: string }>;
+export function seedAllPlayPackage(
+  base: string,
+  title?: string,
+): Promise<{ id: number; title: string }>;

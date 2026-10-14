@@ -1,3 +1,4 @@
+import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { STAKE_QUESTION_BID_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -62,6 +63,8 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
       );
 
       if (question.type !== PackageQuestionType.STAKE) return false;
+      // Stake for everyone has its own flow (ChoosingToAllPlayBiddingHandler)
+      if (AllPlayLogic.modeOf(question)) return false;
 
       return TransitionGuards.hasEligiblePlayers(game);
     } catch {

@@ -3685,6 +3685,8 @@ export interface components {
             buzzerLocks?: {
                 [key: string]: number;
             } | null;
+            /** @description "Everyone answers" question in play */
+            allPlay?: components["schemas"]["AllPlayData"] | null;
             finalRoundData?: components["schemas"]["FinalRoundGameData"] | null;
             /** @description Id of player whose turn it is to pick a question or eliminate theme */
             currentTurnPlayerId?: number | null;
@@ -3849,13 +3851,13 @@ export interface components {
          * @example join
          * @enum {string}
          */
-        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "secret-question-price" | "stake-bid-submit" | "media-downloaded";
+        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "secret-question-price" | "all-play-stake" | "all-play-answer" | "all-play-review" | "stake-bid-submit" | "media-downloaded";
         /**
          * @description Server-to-client game events emitted on the /games namespace.
          * @example join
          * @enum {string}
          */
-        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
+        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "all-play-start" | "all-play-stake" | "all-play-answer" | "all-play-reviewing" | "all-play-review" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
         /** @description Data sent to all players when player skips a question */
         SocketIOGameSkipEventPayload: {
             /**
@@ -4918,6 +4920,69 @@ export interface components {
             playerId: number;
             price: number;
             questionId: number;
+        };
+        /**
+         * @description noRisk: right wins price × multiplier, wrong costs nothing. stake: each player stakes; right wins the stake, wrong loses it
+         * @example stake
+         * @enum {string}
+         */
+        AllPlayMode: "noRisk" | "stake";
+        AllPlayEntry: {
+            playerId: number;
+            /** @description Stake mode: the amount staked; null until staked. Shown to players as 0 until the review */
+            stake: number | null;
+            /** @description Typed answer; null until submitted. Shown to players as an empty string until the review */
+            answer: string | null;
+            submitted: boolean;
+            /** @description The showman's ruling; null until reviewed */
+            isCorrect: boolean | null;
+            scoreChange: number | null;
+        };
+        /** @description "Everyone answers" question (stake / no-risk with subType forEveryone). Phases follow questionState: bidding (stake mode) → media_downloading → showing (players type answers) → reviewing (showman rules on each) → showing_answer */
+        AllPlayData: {
+            mode: components["schemas"]["AllPlayMode"];
+            questionId: number;
+            themeId: number;
+            price: number;
+            maxStake: number | null;
+            priceMultiplier: number | null;
+            entries: components["schemas"]["AllPlayEntry"][];
+        };
+        /** @description An "everyone answers" question started: the stake phase (stake mode, with its timer) or straight to the question (timer null) */
+        SocketIOAllPlayStartEventPayload: {
+            mode: components["schemas"]["AllPlayMode"];
+            questionId: number;
+            players: number[];
+            price: number;
+            maxStake: number | null;
+            priceMultiplier: number | null;
+            timer: components["schemas"]["GameStateTimer"] | null;
+        };
+        /** @description all-play-stake / all-play-answer broadcast: a player sent their stake or answer (the value stays hidden until the review) */
+        SocketIOAllPlaySubmittedEventPayload: {
+            playerId: number;
+        };
+        /** @description Answers are in: every answer and stake is visible for the review */
+        SocketIOAllPlayReviewingEventPayload: {
+            allPlay: components["schemas"]["AllPlayData"];
+        };
+        /** @description The showman ruled on one answer */
+        SocketIOAllPlayReviewEventPayload: {
+            playerId: number;
+            isCorrect: boolean;
+            scoreChange: number;
+            newScore: number;
+        };
+        SocketIOAllPlayStakeInput: {
+            /** @description Between 1 and the player's score (at least the price), capped by maxStake */
+            amount: number;
+        };
+        SocketIOAllPlayAnswerInput: {
+            answerText: string;
+        };
+        SocketIOAllPlayReviewInput: {
+            playerId: number;
+            isCorrect: boolean;
         };
     };
     responses: never;

@@ -99,10 +99,13 @@ export function assertMediaDownloadStatus(
 export const IMAGE_QUESTION_TIMER_MS = CONTENT_IMAGE_TIME + GAME_QUESTION_ANSWER_TIME;
 
 /** Question timer implied by a completion status: content timeline + answer window. */
-export function questionTimerFor(status: MediaDownloadStatusBroadcastData): number {
+export function questionTimerFor(
+  status: MediaDownloadStatusBroadcastData,
+  answerTimeMs: number = GAME_QUESTION_ANSWER_TIME
+): number {
   const contentMs = status.contentPlan?.totalMs ?? 0;
   const opensAtMs = status.buzzerOpensAtMs ?? 0;
-  return GAME_QUESTION_ANSWER_TIME + Math.max(contentMs, opensAtMs);
+  return answerTimeMs + Math.max(contentMs, opensAtMs);
 }
 
 export function assertFreshTimer(
