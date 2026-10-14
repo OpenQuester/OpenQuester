@@ -3158,6 +3158,24 @@
             "type": ["string", "null"],
             "examples": ["en"]
           },
+          "authors": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Who wrote the package (names, not accounts)"
+          },
+          "sources": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Where the package's facts come from"
+          },
           "logo": {
             "oneOf": [
               {
@@ -4014,6 +4032,42 @@
               }
             ]
           },
+          "rightAnswers": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Other answers that count as right (besides answerText). Only the showman sees them during the question; revealed with the answer"
+          },
+          "wrongAnswers": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Answers known to be wrong, to help the showman judge. Never sent to players"
+          },
+          "authors": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Who wrote the question; shown with the answer"
+          },
+          "sources": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Where the facts come from; shown with the answer"
+          },
           "answerDelay": {
             "type": ["integer", "null"],
             "description": "Delay in milliseconds before being able to answer, if applicable",
@@ -4342,6 +4396,24 @@
             "type": ["string", "null"],
             "description": "Language of the package",
             "examples": ["en", "ua"]
+          },
+          "authors": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Who wrote the package (names, not accounts)"
+          },
+          "sources": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Where the package's facts come from"
           },
           "ageRestriction": {
             "$ref": "#/components/schemas/AgeRestriction",
@@ -6132,6 +6204,33 @@
                 "type": "null"
               }
             ]
+          },
+          "rightAnswers": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Other answers that also counted as right"
+          },
+          "authors": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Who wrote the question"
+          },
+          "sources": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Where the facts come from"
           }
         },
         "required": ["answerFiles", "answerText"]

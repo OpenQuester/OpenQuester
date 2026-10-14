@@ -53,4 +53,17 @@ export class ShowAnswerLogic {
       ? question.showAnswerDuration
       : SHOW_ANSWER_DURATION_TEXT;
   }
+
+  /** Extra right answers and credits revealed together with the answer */
+  public static credits(question: PackageQuestionDTO | null | undefined): {
+    rightAnswers: string[] | null;
+    authors: string[] | null;
+    sources: string[] | null;
+  } {
+    return {
+      rightAnswers: question?.rightAnswers ?? null,
+      authors: question?.authors ?? null,
+      sources: question?.sources ?? null
+    };
+  }
 }

@@ -1,3 +1,4 @@
+import { nonEmpty } from "domain/utils/textList";
 import {
   Column,
   Entity,
@@ -30,6 +31,8 @@ export interface PackageImport {
   author: User;
   logo?: File | null;
   tags: PackageTag[];
+  authors?: string[] | null;
+  sources?: string[] | null;
 }
 
 @Entity("package")
@@ -55,6 +58,13 @@ export class Package {
 
   @Column({ type: "text", nullable: true })
   description?: string | null;
+
+  /** Who wrote the package (names, not accounts) */
+  @Column({ type: "text", array: true, nullable: true })
+  authors?: string[] | null;
+
+  @Column({ type: "text", array: true, nullable: true })
+  sources?: string[] | null;
 
   @Column({ type: "enum", enum: AgeRestriction, default: AgeRestriction.NONE })
   age_restriction!: AgeRestriction;
@@ -88,6 +98,8 @@ export class Package {
     this.age_restriction = data.ageRestriction;
     this.author = data.author;
     this.tags = data.tags;
+    this.authors = nonEmpty(data.authors);
+    this.sources = nonEmpty(data.sources);
 
     if (data.logo) {
       this.logo = data.logo;
@@ -126,6 +138,8 @@ export class Package {
       createdAt: this.created_at,
       description: this.description,
       language: this.language,
+      authors: this.authors ?? null,
+      sources: this.sources ?? null,
       logo: this.logoDTO(fileUrlBuilder),
       tags: this.tags.map((tag) => tag.toDTO())
     };
@@ -165,6 +179,8 @@ export class Package {
       createdAt: this.created_at,
       description: this.description,
       language: this.language,
+      authors: this.authors ?? null,
+      sources: this.sources ?? null,
       logo: logoDTO,
       rounds: roundsDTO,
       tags: tagsDTO

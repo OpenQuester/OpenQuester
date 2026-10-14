@@ -160,6 +160,39 @@ describe("PackageRestApiController", () => {
     expect(result.ageRestriction).toBe(packageData.ageRestriction);
   });
 
+  it("keeps authors, sources and extra answers", async () => {
+    const loginData = await testUtils.createAndLoginUser("testuser");
+    const packageData = packageUtils.createTestPackageData(loginData.user, false);
+    packageData.authors = ["Ann", " "];
+    packageData.sources = ["Encyclopedia"];
+    const question = packageData.rounds[0].themes[0].questions[0];
+    question.rightAnswers = ["Alt answer"];
+    question.wrongAnswers = ["Common mistake"];
+    question.authors = ["Bob"];
+    question.sources = ["https://example.com"];
+
+    const createRes = await http
+      .post("/v1/packages")
+      .send({ content: packageData })
+      .set("Cookie", loginData.cookie);
+    const id = (createRes.body as unknown as PackageUploadResponse).id;
+    const result = (await http.get(`/v1/packages/${id}`).set("Cookie", loginData.cookie))
+      .body as PackageDTO;
+
+    expect(result.authors).toEqual(["Ann"]);
+    expect(result.sources).toEqual(["Encyclopedia"]);
+    const saved = result.rounds
+      .flatMap((r) => r.themes)
+      .flatMap((t) => t.questions)
+      .find((q) => q.text === question.text);
+    expect(saved).toMatchObject({
+      rightAnswers: ["Alt answer"],
+      wrongAnswers: ["Common mistake"],
+      authors: ["Bob"],
+      sources: ["https://example.com"]
+    });
+  });
+
   it("should list packages", async () => {
     const loginData = await testUtils.createAndLoginUser("testuser");
 

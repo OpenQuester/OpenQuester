@@ -59,7 +59,8 @@ export class AllPlayReviewingToShowingAnswerHandler extends BaseTransitionHandle
       answerFiles: question?.answerFiles ?? null,
       answerText: question?.answerText ?? null,
       nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-      answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question)
+      answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question),
+      ...ShowAnswerLogic.credits(question)
     };
 
     return { data: { question } };

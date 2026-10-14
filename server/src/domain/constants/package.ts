@@ -4,7 +4,9 @@ export type PackageSelectField =
   | "description"
   | "age_restriction"
   | "created_at"
-  | "language";
+  | "language"
+  | "authors"
+  | "sources";
 
 export const PACKAGE_SELECT_FIELDS: PackageSelectField[] = [
   "id",
@@ -13,6 +15,8 @@ export const PACKAGE_SELECT_FIELDS: PackageSelectField[] = [
   "age_restriction",
   "created_at",
   "language",
+  "authors",
+  "sources",
 ];
 
 // Minimal relations for lightweight listings or shallow fetch (used in lists)

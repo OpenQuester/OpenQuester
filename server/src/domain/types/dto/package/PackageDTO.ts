@@ -12,6 +12,10 @@ export interface PackageDTO {
   author: ShortUserInfo;
   ageRestriction: AgeRestriction;
   language?: string | null;
+  /** Who wrote the package (names, not accounts) */
+  authors?: string[] | null;
+  /** Where the package's facts come from */
+  sources?: string[] | null;
   logo?: { file: PackageFileDTO } | null;
   rounds: PackageRoundDTO[];
   tags: PackageTagDTO[];

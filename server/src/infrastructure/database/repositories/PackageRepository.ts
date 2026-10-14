@@ -198,6 +198,8 @@ export class PackageRepository {
         title: packageData.title,
         description: packageData.description,
         language: packageData.language,
+        authors: packageData.authors,
+        sources: packageData.sources,
         logo: logoFile,
         // Saved automatically because of cascade
         tags: tagEntities
@@ -315,6 +317,10 @@ export class PackageRepository {
               textOrder: questionData.textOrder,
               answerHint: questionData.answerHint,
               answerText: questionData.answerText,
+              rightAnswers: questionData.rightAnswers,
+              wrongAnswers: questionData.wrongAnswers,
+              authors: questionData.authors,
+              sources: questionData.sources,
               answerDelay: questionData.answerDelay,
               questionComment: questionData.questionComment,
               subType: questionData.subType,

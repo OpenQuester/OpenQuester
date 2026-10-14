@@ -24,6 +24,14 @@ export interface PackageQuestionDTO {
   textOrder?: number | null;
   answerHint?: string | null;
   answerText?: string | null;
+  /** Other answers that count as right (besides answerText); showman only */
+  rightAnswers?: string[] | null;
+  /** Answers that are known to be wrong; showman only */
+  wrongAnswers?: string[] | null;
+  /** Who wrote the question; shown with the answer */
+  authors?: string[] | null;
+  /** Where the facts come from; shown with the answer */
+  sources?: string[] | null;
   answerDelay: number;
   questionComment?: string | null;
   questionFiles?: PackageQuestionFileDTO[] | null;

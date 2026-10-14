@@ -63,6 +63,7 @@ import { AddViewSystemLogsPermission_0_23_0_1767264810999 as AddViewLogsPerm } f
 import { AddContentSequencingFields_0_24_0_1792000000000 as AddContentSequencingFields } from "./migrations/0.24.0_AddContentSequencingFields_1792000000000";
 import { AddManageGamesPermission_0_25_0_1792100000000 as AddManageGamesPermission } from "./migrations/0.25.0_AddManageGamesPermission_1792100000000";
 import { AddStorageLimits_0_26_0_1792200000000 as AddStorageLimits } from "./migrations/0.26.0_AddStorageLimits_1792200000000";
+import { AddPackageCreditsAndAnswers_0_27_0_1792300000000 as AddPackageCreditsAndAnswers } from "./migrations/0.27.0_AddPackageCreditsAndAnswers_1792300000000";
 import { StorageLimit } from "infrastructure/database/models/StorageLimit";
 
 function createBootstrapDataSourceLogger(): ILogger {
@@ -201,7 +202,8 @@ export const AppDataSource = new DataSource({
     AddViewLogsPerm,
     AddContentSequencingFields,
     AddManageGamesPermission,
-    AddStorageLimits
+    AddStorageLimits,
+    AddPackageCreditsAndAnswers
   ],
   poolSize: env.DB_POOL_SIZE,
   migrationsRun: true,

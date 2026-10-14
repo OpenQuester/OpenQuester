@@ -18,6 +18,9 @@ import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { type PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 
+/** Up to 20 short texts (answers, authors, sources) */
+const textList = () => Joi.array().items(Joi.string().max(500).allow("")).max(20).allow(null);
+
 // File schema for basic file properties
 const fileSchema = Joi.object({
   md5: Joi.string().required(),
@@ -53,6 +56,10 @@ const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
   textOrder: Joi.number().integer().min(0).allow(null),
   answerHint: Joi.string().allow(null, ""),
   answerText: Joi.string().allow(null, ""),
+  rightAnswers: textList(),
+  wrongAnswers: textList(),
+  authors: textList(),
+  sources: textList(),
   answerDelay: Joi.number().allow(null).default(5000),
   showAnswerDuration: Joi.number().required(),
   questionComment: Joi.string().allow(null, ""),
@@ -237,6 +244,8 @@ export const uploadPackageScheme = () =>
       description: Joi.string().allow(null),
       createdAt: Joi.date().default(new Date()).allow(null),
       language: Joi.string().allow(null),
+      authors: textList(),
+      sources: textList(),
       ageRestriction: Joi.string()
         .valid(...Object.values(AgeRestriction))
         .required(),

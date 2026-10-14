@@ -1,3 +1,4 @@
+import { nonEmpty } from "domain/utils/textList";
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
@@ -23,6 +24,10 @@ export interface PackageQuestionImport {
   textOrder?: number | null;
   answerHint?: string | null;
   answerText?: string | null;
+  rightAnswers?: string[] | null;
+  wrongAnswers?: string[] | null;
+  authors?: string[] | null;
+  sources?: string[] | null;
   answerDelay?: number | null;
   questionComment?: string | null;
   subType?: PackageQuestionSubType | null;
@@ -76,6 +81,18 @@ export class PackageQuestion {
   @Column({ type: "text", nullable: true })
   answer_text?: string | null;
 
+  @Column({ type: "text", array: true, nullable: true })
+  right_answers?: string[] | null;
+
+  @Column({ type: "text", array: true, nullable: true })
+  wrong_answers?: string[] | null;
+
+  @Column({ type: "text", array: true, nullable: true })
+  authors?: string[] | null;
+
+  @Column({ type: "text", array: true, nullable: true })
+  sources?: string[] | null;
+
   @Column({ type: "int", nullable: true })
   answer_delay?: number | null;
 
@@ -122,6 +139,10 @@ export class PackageQuestion {
     this.text_order = data.textOrder ?? null;
     this.answer_hint = data.answerHint;
     this.answer_text = data.answerText;
+    this.right_answers = nonEmpty(data.rightAnswers);
+    this.wrong_answers = nonEmpty(data.wrongAnswers);
+    this.authors = nonEmpty(data.authors);
+    this.sources = nonEmpty(data.sources);
     this.answer_delay = data.answerDelay;
     this.question_comment = data.questionComment;
     this.sub_type = data.subType;
@@ -158,6 +179,10 @@ export class PackageQuestion {
       textOrder: this.text_order ?? null,
       answerHint: this.answer_hint,
       answerText: this.answer_text,
+      rightAnswers: this.right_answers ?? null,
+      wrongAnswers: this.wrong_answers ?? null,
+      authors: this.authors ?? null,
+      sources: this.sources ?? null,
       answerDelay: this.answer_delay ?? 5000,
       questionComment: this.question_comment,
       questionFiles: questionFilesDTO,

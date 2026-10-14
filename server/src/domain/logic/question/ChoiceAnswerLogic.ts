@@ -7,8 +7,8 @@ const normalize = (text: string | null | undefined) =>
 /**
  * Checks a picked option of a choice question against its right answer, the
  * way SIGame checks "select" answers. The server only rules when the pick is
- * one of the options and exactly one option is the right answer; otherwise
- * the showman judges as usual.
+ * one of the options and at least one option is a right answer (the main
+ * answer or one of `rightAnswers`); otherwise the showman judges as usual.
  */
 export class ChoiceAnswerLogic {
   /** true/false when the server can rule, null when the showman should */
@@ -22,16 +22,17 @@ export class ChoiceAnswerLogic {
 
     const options = (question.answers ?? []).map((a) => normalize(a.text)).filter(Boolean);
     const pick = normalize(picked);
-    const right = normalize(question.answerText);
+    // The main answer and any extra right answers, as far as they are options
+    const rights = new Set(
+      [question.answerText, ...(question.rightAnswers ?? [])]
+        .map(normalize)
+        .filter((r) => r && options.includes(r))
+    );
 
-    if (!options.includes(pick) || !right) {
+    if (!options.includes(pick) || rights.size === 0) {
       return null;
     }
 
-    if (options.filter((o) => o === right).length !== 1) {
-      return null;
-    }
-
-    return pick === right;
+    return rights.has(pick);
   }
 }

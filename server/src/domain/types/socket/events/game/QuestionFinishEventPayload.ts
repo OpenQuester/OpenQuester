@@ -8,12 +8,18 @@ export interface QuestionFinishEventPayload {
   nextTurnPlayerId: number | null;
   /** Answer files timeline on the SHOWING_ANSWER timer */
   answerContentPlan?: QuestionContentPlanDTO | null;
+  /** Other answers that also counted as right */
+  rightAnswers?: string[] | null;
+  /** Who wrote the question */
+  authors?: string[] | null;
+  /** Where the facts come from */
+  sources?: string[] | null;
 }
 
 export interface QuestionFinishWithAnswerEventPayload
   extends Pick<
     QuestionFinishEventPayload,
-    "answerFiles" | "answerText" | "nextTurnPlayerId" | "answerContentPlan"
+    "answerFiles" | "answerText" | "nextTurnPlayerId" | "answerContentPlan" | "rightAnswers" | "authors" | "sources"
   > {
   answerResult: GameStateAnsweredPlayerData;
 }

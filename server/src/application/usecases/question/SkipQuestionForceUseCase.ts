@@ -83,7 +83,8 @@ export class SkipQuestionForceUseCase implements GameActionHandler<
       answerFiles: question?.answerFiles ?? null,
       answerText: question?.answerText ?? null,
       nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-      answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question)
+      answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question),
+      ...ShowAnswerLogic.credits(question)
     };
     game.gameState.answerShowData = questionFinishPayload;
 
