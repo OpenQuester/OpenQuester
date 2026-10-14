@@ -42,7 +42,7 @@ function encodable(f: MediaFile): boolean {
 
 /**
  * Re-encodes every local media file the way the Flutter desktop encoder does
- * (AVIF pictures, AV1 or VP9 video and AAC or Opus sound, in MP4) and points
+ * (AVIF pictures, VP9 + Opus WebM video, AAC or Opus MP4 sound) and points
  * the content at the new files. Anything this browser can't encode, or that
  * doesn't get smaller, is uploaded as it was.
  */
@@ -108,20 +108,25 @@ async function encodeOne(
   const mime = mimeFor(file.name);
   let bytes: Uint8Array | null = null;
   let ext = "";
+  // A source some devices can't play is converted even when that makes it bigger.
+  let required = false;
   try {
     if (file.type === "image") {
       const r = await encodeImage(file.bytes, mime);
       if (r) ({ bytes, ext } = r);
     } else {
-      bytes = await encodeAv(file.bytes, mime, file.type, onProgress, signal);
-      ext = file.type === "audio" ? "m4a" : "mp4";
+      const r = await encodeAv(file.bytes, mime, file.type, onProgress, signal);
+      bytes = r?.bytes ?? null;
+      required = r?.required ?? false;
+      ext = file.type === "audio" ? "m4a" : "webm";
     }
   } catch (err) {
     if (signal?.aborted) throw err;
     // A file the browser can't decode is uploaded as it is.
     return null;
   }
-  if (!bytes || bytes.byteLength > file.bytes.byteLength * (1 - MIN_SAVING)) return null;
+  if (!bytes) return null;
+  if (!required && bytes.byteLength > file.bytes.byteLength * (1 - MIN_SAVING)) return null;
   const md5 = md5Hex(bytes);
   return { md5, type: file.type, name: `${md5}.${ext}`, bytes };
 }

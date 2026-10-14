@@ -52,7 +52,7 @@ export async function uploadPackage(
   onProgress: (p: UploadProgress) => void,
   /** Replace the content of this published package instead of creating one. */
   replaceId?: number,
-  /** Re-encode media in the browser first (AVIF, AV1/VP9 + Opus WebM). */
+  /** Re-encode media in the browser first (AVIF pictures, VP9 WebM video, AAC MP4 sound). */
   optimize = false,
 ): Promise<UploadResult> {
   let savings: UploadResult["savings"];

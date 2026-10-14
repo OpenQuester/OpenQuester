@@ -6,31 +6,39 @@ import {
   Input,
   Output,
   Mp4OutputFormat,
-  QUALITY_LOW,
+  WebMOutputFormat,
   canEncodeAudio,
   canEncodeVideo,
   type AudioCodec,
   type VideoCodec,
 } from "mediabunny";
 
-import { AAC_BITRATE, fitBox, MAX_FPS, OPUS_BITRATE } from "./limits";
+import { AAC_BITRATE, fitBox, MAX_FPS, OPUS_BITRATE, VP9_BITS_PER_PIXEL } from "./limits";
 
 let videoCodec: Promise<VideoCodec | null> | undefined;
 let audioCodec: Promise<AudioCodec | null> | undefined;
+let opus: Promise<boolean> | undefined;
 
 /**
- * AV1 squeezes the most (it is what the Flutter encoder writes); VP9 is the
- * fallback where the browser has no AV1 encoder.
+ * Video is VP9: AV1 would be smaller, but most iPads can't decode it, while
+ * VP9 plays in every current browser (iPhone and iPad from iOS 17.4). Apple
+ * plays VP9 only in WebM, so video goes in WebM with Opus sound.
  */
 export function pickVideoCodec(): Promise<VideoCodec | null> {
   videoCodec ??= (async () => {
     if (typeof VideoEncoder === "undefined") return null;
-    for (const codec of ["av1", "vp9"] as const)
-      if (await canEncodeVideo(codec, { width: 1280, height: 720 }).catch(() => false))
-        return codec;
-    return null;
+    const ok = await canEncodeVideo("vp9", { width: 1280, height: 720 }).catch(() => false);
+    return ok ? "vp9" : null;
   })();
   return videoCodec;
+}
+
+function canEncodeOpus(): Promise<boolean> {
+  opus ??=
+    typeof AudioEncoder === "undefined"
+      ? Promise.resolve(false)
+      : canEncodeAudio("opus", { numberOfChannels: 2, sampleRate: 48_000 }).catch(() => false);
+  return opus;
 }
 
 /**
@@ -53,9 +61,9 @@ export function pickAudioCodec(): Promise<AudioCodec | null> {
 }
 
 /**
- * Re-encodes audio or video into MP4 (fast start, so playback begins before
- * the whole file arrives). Returns null when this browser can't decode the
- * source or encode the target, so the caller keeps the original.
+ * Re-encodes sound into MP4 (fast start) and video into WebM. Returns null
+ * when this browser can't decode the source or encode the target, so the
+ * caller keeps the original.
  */
 export async function encodeAv(
   bytes: Uint8Array,
@@ -63,19 +71,33 @@ export async function encodeAv(
   kind: "audio" | "video",
   onProgress: (ratio: number) => void,
   signal?: AbortSignal,
-): Promise<Uint8Array | null> {
-  const sound = await pickAudioCodec();
-  if (!sound) return null;
+): Promise<{ bytes: Uint8Array; required: boolean } | null> {
   const codec = kind === "video" ? await pickVideoCodec() : null;
   if (kind === "video" && !codec) return null;
+  // WebM holds Opus (not AAC), so video sound is Opus.
+  const sound: AudioCodec | null =
+    kind === "video" ? ((await canEncodeOpus()) ? "opus" : null) : await pickAudioCodec();
+  if (!sound) return null;
 
   const input = new Input({
     source: new BlobSource(new Blob([bytes as BlobPart], { type: mime })),
     formats: ALL_FORMATS,
   });
   try {
+    // AV1 or HEVC video doesn't play on most iPads; WebM sound is silent on
+    // iPhone and iPad. Those are converted even if the result is bigger.
+    const video = await input.getPrimaryVideoTrack();
+    const audio = await input.getPrimaryAudioTrack();
+    const sourceFormat = await input.getFormat().catch(() => null);
+    const required =
+      (video !== null && !["vp9", "vp8", "avc"].includes(video.codec ?? "")) ||
+      (kind === "audio" &&
+        audio !== null &&
+        (sourceFormat?.name ?? "").toLowerCase().includes("webm"));
     const target = new BufferTarget();
-    const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target });
+    const format =
+      kind === "video" ? new WebMOutputFormat() : new Mp4OutputFormat({ fastStart: "in-memory" });
+    const output = new Output({ format, target });
     const conversion = await Conversion.init({
       input,
       output,
@@ -87,12 +109,15 @@ export async function encodeAv(
               const size = fitBox(await track.getDisplayWidth(), await track.getDisplayHeight());
               const stats = await track.computePacketStats(60).catch(() => null);
               const fps = stats?.averagePacketRate ?? MAX_FPS;
+              const outFps = Math.min(fps, MAX_FPS);
               return {
                 codec: codec!,
                 ...size,
                 fit: "contain",
                 ...(fps > MAX_FPS + 0.5 ? { frameRate: MAX_FPS } : {}),
-                bitrate: QUALITY_LOW,
+                // Chrome's VP9 encoder overshoots badly on a quality preset;
+                // a fixed bits-per-pixel budget lands near the Flutter AV1 size.
+                bitrate: Math.round(size.width * size.height * outFps * VP9_BITS_PER_PIXEL),
                 forceTranscode: true,
               };
             },
@@ -120,7 +145,7 @@ export async function encodeAv(
       signal?.removeEventListener("abort", abort);
     }
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    return target.buffer ? new Uint8Array(target.buffer) : null;
+    return target.buffer ? { bytes: new Uint8Array(target.buffer), required } : null;
   } finally {
     input.dispose();
   }

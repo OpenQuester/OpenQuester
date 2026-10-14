@@ -10,6 +10,8 @@ export const MAX_FPS = 20;
 export const OPUS_BITRATE = 64_000;
 /** AAC needs a bit more than Opus for the same quality. */
 export const AAC_BITRATE = 96_000;
+/** VP9 budget: about 650 kbps at 1280×720 and 20 fps. */
+export const VP9_BITS_PER_PIXEL = 0.035;
 
 /** A result is kept only when it saves at least this share of the original. */
 export const MIN_SAVING = 0.05;
