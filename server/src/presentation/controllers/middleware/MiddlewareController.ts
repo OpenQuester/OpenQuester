@@ -60,6 +60,8 @@ export class MiddlewareController {
       helmet({
         contentSecurityPolicy: {
           directives: {
+            // The web app compiles its AVIF encoder (WebAssembly) before upload.
+            scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
             imgSrc: ["'self'", "data:", "blob:", "https://cdn.discordapp.com", ...s3],
             mediaSrc: ["'self'", "blob:", ...s3],
             connectSrc: ["'self'", "https://discord.com", ...s3],

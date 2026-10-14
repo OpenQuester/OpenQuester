@@ -3,6 +3,7 @@ import { api, ApiError, unwrap } from "@/api/client";
 import { md5Base64, mimeFor, readZip } from "./archive";
 import { parseOq } from "./oq";
 import { parseSiq } from "./siq";
+import type { OptimizeProgress } from "./optimize";
 import type { MediaFile, ParsedPackage } from "./types";
 
 export const ACCEPT = ".siq,.oq";
@@ -16,18 +17,22 @@ export async function readPackageFile(file: File): Promise<ParsedPackage> {
 }
 
 export interface UploadProgress {
-  phase: "creating" | "media" | "done";
+  phase: "optimizing" | "creating" | "media" | "done";
   /** Media files finished, and the total the server asked for. */
   done: number;
   total: number;
   sentBytes: number;
   totalBytes: number;
+  /** Set while media is re-encoded before the upload. */
+  optimize?: OptimizeProgress;
 }
 
 export interface UploadResult {
   id: number;
   /** Files the server asked for that failed; retry with `retryMedia`. */
   failed: PendingFile[];
+  /** Media size before and after re-encoding, when it ran. */
+  savings?: { before: number; after: number };
 }
 
 export interface PendingFile {
@@ -47,7 +52,26 @@ export async function uploadPackage(
   onProgress: (p: UploadProgress) => void,
   /** Replace the content of this published package instead of creating one. */
   replaceId?: number,
+  /** Re-encode media in the browser first (AVIF, AV1/VP9 + Opus WebM). */
+  optimize = false,
 ): Promise<UploadResult> {
+  let savings: UploadResult["savings"];
+  if (optimize && parsed.files.size > 0) {
+    // Its own chunk: the encoders are only downloaded by people who upload.
+    const { optimizePackage } = await import("./optimize");
+    const result = await optimizePackage(parsed, (p) =>
+      onProgress({
+        phase: "optimizing",
+        done: 0,
+        total: 0,
+        sentBytes: 0,
+        totalBytes: 0,
+        optimize: p,
+      }),
+    );
+    parsed = result.parsed;
+    savings = { before: result.bytesBefore, after: result.bytesAfter };
+  }
   onProgress({ phase: "creating", done: 0, total: 0, sentBytes: 0, totalBytes: 0 });
   // The generated union types are stricter than the server's scheme.
   const body = { content: parsed.content } as never;
@@ -64,7 +88,7 @@ export async function uploadPackage(
     if (file && file.bytes.byteLength > 0) pending.push({ url, file });
   }
   const failed = await uploadMedia(pending, onProgress);
-  return { id: res.id, failed };
+  return { id: res.id, failed, savings };
 }
 
 export function retryMedia(

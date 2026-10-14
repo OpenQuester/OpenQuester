@@ -691,7 +691,13 @@
     "tryAgain": "Try again",
     "networkError": "Lost connection while uploading. Check your network and try again.",
     "serverRejected": "The server didn't accept this package: {{message}}",
-    "editFirst": "Edit before uploading"
+    "editFirst": "Edit before uploading",
+    "compress": {
+      "label": "Compress media before upload",
+      "help": "Pictures become AVIF, video AV1 or VP9 and sound Opus, like the desktop app does. The first time, the browser downloads the encoders once. Files this browser can't encode are uploaded as they are.",
+      "progress": "Compressing media: {{done}} of {{total}} · {{before}} → {{after}}",
+      "saved": "Media compressed from {{before}} to {{after}}."
+    }
   },
   "editor": {
     "drafts": "Drafts",

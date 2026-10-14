@@ -68,6 +68,14 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   its storage `url` instead of bytes; Publish then saves over it with
   `PUT /v1/packages/{id}` (author or `edit_package`) and skips files already
   stored.
+- Media is re-encoded in the browser before upload and publish
+  (`features/upload/optimize/`, on by default, `compressMedia` setting):
+  pictures to AVIF (libavif WebAssembly in a worker, WebP fallback), video to
+  AV1 (VP9 fallback) + Opus WebM and sound to Opus WebM through WebCodecs and
+  mediabunny, with the Flutter encoder's limits (1280×720, 20 fps, 64 kbps).
+  The encoders are a lazy chunk, so only uploaders download them. A file the
+  browser can't decode or encode, or that doesn't shrink by 5 %, is uploaded
+  as it was. The server's CSP allows `'wasm-unsafe-eval'` for the encoder.
 - Question media: players ACK `media-downloaded` only once every file is
   loaded (images decoded), so the question timer starts when everyone can see
   it. Audio and video have no controls and play only in the `showing` phase;

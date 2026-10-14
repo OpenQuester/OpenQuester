@@ -15,6 +15,10 @@ import { Card } from "@/ui/Card";
 import { BackIcon, CheckIcon, EditIcon, UploadIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 
+import { Toggle } from "@/features/settings/SettingsPage";
+import { useSettings } from "@/features/settings/settingsStore";
+
+import type { OptimizeProgress } from "./optimize";
 import type { ImportWarning, ParsedPackage } from "./types";
 import {
   ACCEPT,
@@ -32,7 +36,7 @@ type Step =
   | { kind: "review"; name: string; parsed: ParsedPackage }
   | { kind: "uploading"; parsed: ParsedPackage; progress: UploadProgress }
   | { kind: "partial"; parsed: ParsedPackage; id: number; failed: PendingFile[] }
-  | { kind: "done"; id: number; title: string }
+  | { kind: "done"; id: number; title: string; savings?: { before: number; after: number } }
   | { kind: "failed"; parsed: ParsedPackage; name: string; error: string };
 
 export function UploadPackagePage() {
@@ -69,12 +73,17 @@ export function UploadPackagePage() {
     const onProgress = (progress: UploadProgress) =>
       setStep({ kind: "uploading", parsed, progress });
     try {
-      const { id, failed } = await uploadPackage(parsed, onProgress);
+      const { id, failed, savings } = await uploadPackage(
+        parsed,
+        onProgress,
+        undefined,
+        useSettings.getState().compressMedia,
+      );
       void qc.invalidateQueries({ queryKey: ["packages"] });
       setStep(
         failed.length
           ? { kind: "partial", parsed, id, failed }
-          : { kind: "done", id, title: parsed.content.title },
+          : { kind: "done", id, title: parsed.content.title, savings },
       );
     } catch (err) {
       setStep({ kind: "failed", parsed, name, error: uploadError(err, t) });
@@ -200,6 +209,14 @@ export function UploadPackagePage() {
               <p className="m-0 text-soft [overflow-wrap:anywhere]">
                 {t("upload.doneHelp", { title: step.title })}
               </p>
+              {step.savings && step.savings.after < step.savings.before && (
+                <p className="m-0 text-sm text-muted" data-testid="upload-savings">
+                  {t("upload.compress.saved", {
+                    before: formatBytes(step.savings.before),
+                    after: formatBytes(step.savings.after),
+                  })}
+                </p>
+              )}
               <div className="flex flex-wrap gap-3">
                 <Link
                   to="/games/new"
@@ -373,6 +390,8 @@ function Review({
 
       {parsed.warnings.length > 0 && <Warnings warnings={parsed.warnings} />}
 
+      {totals.mediaCount > 0 && <CompressToggle />}
+
       <div className="flex flex-col gap-3 sm:flex-row">
         <Button
           variant="accent"
@@ -435,8 +454,12 @@ function Warnings({ warnings }: { warnings: ImportWarning[] }) {
 
 function Progress({ title, progress }: { title: string; progress: UploadProgress }) {
   const { t } = useTranslation();
-  const ratio =
-    progress.phase === "creating"
+  const o = progress.optimize;
+  const ratio = o
+    ? o.total > 0
+      ? (o.done + o.current) / o.total
+      : 1
+    : progress.phase === "creating"
       ? 0.03
       : progress.totalBytes > 0
         ? 0.05 + 0.95 * (progress.sentBytes / progress.totalBytes)
@@ -460,18 +483,46 @@ function Progress({ title, progress }: { title: string; progress: UploadProgress
           />
         </div>
         <p className="m-0 text-sm text-soft" aria-live="polite">
-          {progress.phase === "creating"
-            ? t("upload.creating")
-            : t("upload.sending", {
-                done: progress.done,
-                total: progress.total,
-                sent: formatBytes(progress.sentBytes),
-                size: formatBytes(progress.totalBytes),
-              })}
+          {o
+            ? compressLabel(o, t)
+            : progress.phase === "creating"
+              ? t("upload.creating")
+              : t("upload.sending", {
+                  done: progress.done,
+                  total: progress.total,
+                  sent: formatBytes(progress.sentBytes),
+                  size: formatBytes(progress.totalBytes),
+                })}
         </p>
         <p className="m-0 text-sm text-muted">{t("upload.keepOpen")}</p>
       </div>
     </Card>
+  );
+}
+
+export function compressLabel(o: OptimizeProgress, t: TFunction): string {
+  return t("upload.compress.progress", {
+    done: Math.min(o.done + 1, o.total),
+    total: o.total,
+    before: formatBytes(o.bytesBefore),
+    after: formatBytes(o.bytesAfter),
+  });
+}
+
+/** Whether media is re-encoded before upload; remembered on this device. */
+export function CompressToggle() {
+  const { t } = useTranslation();
+  const on = useSettings((s) => s.compressMedia);
+  const update = useSettings((s) => s.update);
+  return (
+    <div className="flex flex-col gap-1" data-testid="compress-toggle">
+      <Toggle
+        label={t("upload.compress.label")}
+        checked={on}
+        onChange={(v) => update({ compressMedia: v })}
+      />
+      <p className="m-0 text-sm text-muted">{t("upload.compress.help")}</p>
+    </div>
   );
 }
 
@@ -485,7 +536,7 @@ function uploadError(err: unknown, t: TFunction): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function formatBytes(n: number): string {
+export function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
   if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;

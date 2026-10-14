@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+
 import { expect, test, type Page } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
 
@@ -151,5 +154,115 @@ test.describe("package upload", () => {
     );
     await expect(page.locator("#package-file")).toHaveCount(0);
     await expectNoHorizontalScroll(page);
+  });
+});
+
+/** 16-bit mono PCM: a few seconds of tones, big enough to be worth compressing. */
+function makeWav(seconds = 3, rate = 44_100): Uint8Array {
+  const samples = seconds * rate;
+  const buf = Buffer.alloc(44 + samples * 2);
+  buf.write("RIFF", 0);
+  buf.writeUInt32LE(36 + samples * 2, 4);
+  buf.write("WAVEfmt ", 8);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(rate, 24);
+  buf.writeUInt32LE(rate * 2, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write("data", 36);
+  buf.writeUInt32LE(samples * 2, 40);
+  for (let i = 0; i < samples; i++)
+    buf.writeInt16LE(
+      Math.round(8000 * Math.sin((2 * Math.PI * (330 + (i % rate) / 200) * i) / rate)),
+      44 + i * 2,
+    );
+  return new Uint8Array(buf);
+}
+
+/** An .oq with a big picture, a WAV and an H.264 clip, all of which the browser can shrink. */
+function mediaOq(title: string) {
+  const files = {
+    image: new Uint8Array(makePng(1920, 1080, [40, 90, 200])),
+    audio: makeWav(),
+    video: new Uint8Array(readFileSync(new URL("./fixtures/clip-h264.mp4", import.meta.url))),
+  };
+  const md5 = (b: Uint8Array) => createHash("md5").update(b).digest("hex");
+  const q = (order: number, type: "image" | "audio" | "video") => ({
+    type: "simple",
+    order,
+    price: (order + 1) * 100,
+    text: `A ${type} question`,
+    answerText: type,
+    showAnswerDuration: 5000,
+    questionFiles: [{ file: { md5: md5(files[type]), type }, order: 0, displayTime: 5000 }],
+  });
+  const content = {
+    title,
+    ageRestriction: "NONE",
+    language: "en",
+    tags: [],
+    rounds: [
+      {
+        name: "Media",
+        order: 0,
+        type: "simple",
+        themes: [
+          { name: "Mixed", order: 0, questions: [q(0, "image"), q(1, "audio"), q(2, "video")] },
+        ],
+      },
+    ],
+  };
+  const zip: Record<string, Uint8Array> = { "content.json": strToU8(JSON.stringify(content)) };
+  for (const b of Object.values(files)) zip[`files/${md5(b)}`] = b;
+  return { buffer: Buffer.from(zipSync(zip)), originals: Object.values(files).map(md5) };
+}
+
+test.describe("media compression", () => {
+  test("pictures, sound and video are re-encoded before upload", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await signInAsAuthor(page);
+    await page.goto("/packages/upload");
+    const title = `Compressed pack ${Date.now()}`;
+    const { buffer, originals } = mediaOq(title);
+    await page.locator("#package-file").setInputFiles({
+      name: "media.oq",
+      mimeType: "application/zip",
+      buffer,
+    });
+    const review = page.getByTestId("upload-review");
+    await expect(review.getByRole("heading", { name: title })).toBeVisible();
+    const toggle = page.getByTestId("compress-toggle").getByRole("checkbox");
+    await expect(toggle).toBeChecked();
+    await expectNoHorizontalScroll(page);
+
+    await page.getByRole("button", { name: "Upload package" }).click();
+    const done = page.getByTestId("upload-done");
+    await expect(done.getByText("Package uploaded")).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByTestId("upload-savings")).toContainText("Media compressed from");
+    await shot(page, `upload-compressed-${test.info().project.name}`);
+
+    await done.getByRole("link", { name: "View package" }).click();
+    const id = Number(new URL(page.url()).searchParams.get("id"));
+    const pkg = await (await page.request.get(`/v1/packages/${id}`)).json();
+    const questions = pkg.rounds[0].themes[0].questions as {
+      price: number;
+      questionFiles: { file: { md5: string; link: string } }[];
+    }[];
+    const expected: Record<number, string> = {
+      100: "image/avif",
+      200: "audio/webm",
+      300: "video/webm",
+    };
+    for (const q of questions) {
+      const file = q.questionFiles[0].file;
+      expect(originals, "the content points at the re-encoded file").not.toContain(file.md5);
+      const res = await page.request.get(file.link);
+      expect(res.status()).toBe(200);
+      expect(res.headers()["content-type"]).toBe(expected[q.price]);
+    }
+    expect(errors).toEqual([]);
   });
 });

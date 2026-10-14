@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 import { ApiError } from "@/api/client";
 import { discordEnabled, startDiscordLogin } from "@/features/auth/discord";
 import { useMe } from "@/features/auth/useMe";
+import { useSettings } from "@/features/settings/settingsStore";
+import { compressLabel, CompressToggle } from "@/features/upload/UploadPackagePage";
 import { uploadPackage, type UploadProgress } from "@/features/upload/upload";
 import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
@@ -88,6 +90,7 @@ function PublishBody({
         parsed,
         (progress) => setStep({ kind: "uploading", progress }),
         replace ? publishedId : undefined,
+        useSettings.getState().compressMedia,
       );
       setPublished(id);
       void qc.invalidateQueries({ queryKey: ["package", id] });
@@ -110,13 +113,18 @@ function PublishBody({
 
   if (step.kind === "uploading") {
     const p = step.progress;
+    const o = p.optimize;
     const pct = Math.round(
       100 *
-        (p.phase === "creating"
-          ? 0.03
-          : p.totalBytes
-            ? 0.05 + 0.95 * (p.sentBytes / p.totalBytes)
-            : 1),
+        (o
+          ? o.total
+            ? (o.done + o.current) / o.total
+            : 1
+          : p.phase === "creating"
+            ? 0.03
+            : p.totalBytes
+              ? 0.05 + 0.95 * (p.sentBytes / p.totalBytes)
+              : 1),
     );
     return (
       <div className="flex flex-col gap-4 p-5" data-testid="publish-progress">
@@ -134,9 +142,11 @@ function PublishBody({
           />
         </div>
         <p className="m-0 text-sm text-soft" aria-live="polite">
-          {p.phase === "creating"
-            ? t("upload.creating")
-            : t("editor.publish.sending", { done: p.done, total: p.total })}
+          {o
+            ? compressLabel(o, t)
+            : p.phase === "creating"
+              ? t("upload.creating")
+              : t("editor.publish.sending", { done: p.done, total: p.total })}
         </p>
         <p className="m-0 text-sm text-muted">{t("upload.keepOpen")}</p>
       </div>
@@ -225,6 +235,7 @@ function PublishBody({
           </ul>
         </section>
       ))}
+      {signedIn && report.critical === 0 && <CompressToggle />}
       {step.kind === "failed" && (
         <p role="alert" className="m-0 text-danger [overflow-wrap:anywhere]">
           {step.error}

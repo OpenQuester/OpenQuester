@@ -86,6 +86,7 @@ const MIME: Record<string, string> = {
   mp4: "video/mp4",
   m4v: "video/mp4",
   webm: "video/webm",
+  weba: "audio/webm",
   mov: "video/quicktime",
   mkv: "video/x-matroska",
 };
