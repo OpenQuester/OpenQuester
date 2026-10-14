@@ -566,7 +566,8 @@
       "other": "{{name}} is answering",
       "wait": "Wait for the showman's call",
       "otherNext": "If {{name}} is wrong, the buzzer reopens for everyone else.",
-      "otherNextSingle": "Only {{name}} answers this question."
+      "otherNextSingle": "Only {{name}} answers this question.",
+      "showmanChoice": "When {{name}} picks an option, the game checks it and scores it. Judge only if they answer out loud."
     },
     "reveal": {
       "correct": "{{name}} was right · {{points}}",

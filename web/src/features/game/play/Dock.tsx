@@ -393,9 +393,15 @@ function useDockModel(session: GameSession, myId: number): DockModel {
               </Button>
             </div>
           ),
-          next: single
-            ? t("dock.answering.showmanNextSingle", { name: name(answerer) })
-            : t("dock.answering.showmanNext", { name: name(answerer), points: formatScore(value) }),
+          next:
+            q?.type === "choice"
+              ? t("dock.answering.showmanChoice", { name: name(answerer) })
+              : single
+                ? t("dock.answering.showmanNextSingle", { name: name(answerer) })
+                : t("dock.answering.showmanNext", {
+                    name: name(answerer),
+                    points: formatScore(value),
+                  }),
         };
       }
       if (answerer === myId) {

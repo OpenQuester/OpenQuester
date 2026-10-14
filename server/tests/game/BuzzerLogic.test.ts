@@ -7,6 +7,7 @@ import {
   GAME_QUESTION_ANSWER_TIME
 } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { BuzzerLogic } from "domain/logic/question/BuzzerLogic";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
@@ -120,6 +121,18 @@ describe("Buzzer opening time", () => {
     expect(QuestionContentPlanLogic.questionTimerDuration(game)).toBe(
       CONTENT_TEXT_MIN_TIME + 1_000 + GAME_QUESTION_ANSWER_TIME
     );
+  });
+
+  it("waits for a choice question's options before opening", () => {
+    const game = showingGame(0, 0);
+    const question = game.gameState.currentQuestion!;
+    question.type = PackageQuestionType.CHOICE;
+    question.text = "Short";
+    question.showDelay = 3_000;
+
+    QuestionContentPlanLogic.applyToGame(game);
+
+    expect(game.gameState.buzzerOpensAtMs).toBe(CONTENT_TEXT_MIN_TIME + 3_000);
   });
 
   it("opens right away when false starts are off, but still times the content", () => {

@@ -9,6 +9,7 @@ import {
 } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import {
   QuestionContentItemKind,
@@ -158,7 +159,8 @@ export class QuestionContentPlanLogic {
   /**
    * When the buzzer opens, as a position on the SHOWING timer: after the
    * content timeline, after the reading time of a caption text (text shown
-   * the whole time rather than as a step), plus the question's answer delay.
+   * the whole time rather than as a step), plus a choice question's options
+   * delay and the question's answer delay.
    * 0 when the game allows pressing at any time (`falseStart` off).
    */
   public static buzzerOpensAt(game: Game): number {
@@ -172,9 +174,12 @@ export class QuestionContentPlanLogic {
     const isCaption =
       !!caption && (question.textOrder === null || question.textOrder === undefined);
     const readingMs = isCaption ? this.textDuration(caption) : 0;
+    // Choice options appear showDelay after the question, then the buzzer
+    const optionsMs =
+      question.type === PackageQuestionType.CHOICE ? Math.max(0, question.showDelay ?? 0) : 0;
     const delayMs = Math.max(0, question.answerDelay ?? 0);
 
-    return Math.max(contentMs, readingMs) + delayMs;
+    return Math.max(contentMs, readingMs) + optionsMs + delayMs;
   }
 
   /**

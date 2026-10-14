@@ -2,6 +2,8 @@ import { cn } from "@/lib/cn";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { timerElapsed } from "@/game/contentPlan";
+import type { GameSession } from "@/game/reducer";
 import { boardQuestionMeta, findPlayer, myRole, phaseOf, seatedPlayers } from "@/game/selectors";
 import { formatScore, formatSigned } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
@@ -116,6 +118,24 @@ function MediaWait() {
   );
 }
 
+/**
+ * Milliseconds until a choice question's options appear. With false starts
+ * on, the server times them on the question timer just before the buzzer
+ * opens (`buzzerOpensAtMs` minus the answer delay); otherwise they follow
+ * the package's show delay from now.
+ */
+function optionsShowIn(session: GameSession): number {
+  const s = session.state;
+  const q = s.currentQuestion;
+  const opensAt = s.buzzerOpensAtMs ?? 0;
+  if (opensAt > 0 && phaseOf(session) === "showing") {
+    const at = opensAt - Math.max(0, q?.answerDelay ?? 0);
+    return Math.max(0, at - timerElapsed(s.timer, s.isPaused));
+  }
+  if (opensAt > 0) return 0;
+  return Math.max(0, q?.showDelay ?? 0);
+}
+
 function ChoiceOptions() {
   const { t } = useTranslation();
   const session = useSession();
@@ -124,14 +144,14 @@ function ChoiceOptions() {
   const q = s.currentQuestion!;
   const role = myRole(session, myId);
   const answering = s.answeringPlayer === myId && phaseOf(session) === "answering";
-  const [visible, setVisible] = useState((q.showDelay ?? 0) <= 0);
+  const [visible, setVisible] = useState(() => optionsShowIn(session) <= 0);
   const [picked, setPicked] = useState<number | null>(null);
 
   useEffect(() => {
     if (visible) return;
-    const id = window.setTimeout(() => setVisible(true), q.showDelay ?? 0);
+    const id = window.setTimeout(() => setVisible(true), optionsShowIn(session));
     return () => window.clearTimeout(id);
-  }, [visible, q.showDelay]);
+  }, [visible, session]);
 
   if (!visible) return <p className="m-0 text-muted">{t("question.optionsSoon")}</p>;
   const answers = [...(q.answers ?? [])].sort((a, b) => a.order - b.order);
