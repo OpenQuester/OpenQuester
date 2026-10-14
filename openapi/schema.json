@@ -2870,6 +2870,17 @@
           },
           "settings": {
             "$ref": "#/components/schemas/GameSettings"
+          },
+          "joinMode": {
+            "description": "Who may join right now; open when null",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GameJoinMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -4909,6 +4920,17 @@
             "type": ["number", "null"],
             "description": "When the current pause began (epoch ms)"
           },
+          "joinMode": {
+            "description": "Who may join right now (set by the showman); open when null",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GameJoinMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "allPlay": {
             "description": "\"Everyone answers\" question in play",
             "oneOf": [
@@ -5225,6 +5247,9 @@
           "player-restricted",
           "player-role-change",
           "score-changed",
+          "question-toggle",
+          "answer-result-undo",
+          "game-join-mode",
           "player-slot-change",
           "turn-player-changed",
           "final-bid-submit",
@@ -5270,6 +5295,9 @@
           "player-restricted",
           "player-role-change",
           "score-changed",
+          "question-toggle",
+          "answer-result-undo",
+          "game-join-mode",
           "player-slot-change",
           "turn-player-changed",
           "final-bid-submit",
@@ -7712,6 +7740,74 @@
           }
         },
         "required": ["x", "y"]
+      },
+      "GameJoinMode": {
+        "type": "string",
+        "enum": ["open", "spectators_only", "closed"],
+        "default": "open",
+        "description": "Who may join right now: everyone, spectators only, or nobody new. People already in the game can always come back",
+        "examples": ["open"]
+      },
+      "SocketIOQuestionToggleInput": {
+        "type": "object",
+        "description": "Showman only, while a question is being picked: remove an unplayed question from the board, or put a removed one back",
+        "properties": {
+          "questionId": {
+            "type": "integer"
+          }
+        },
+        "required": ["questionId"]
+      },
+      "SocketIOQuestionToggleEventPayload": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "integer"
+          },
+          "isPlayed": {
+            "type": "boolean",
+            "description": "True when the question is now off the board"
+          }
+        },
+        "required": ["questionId", "isPlayed"]
+      },
+      "SocketIOAnswerResultUndoEventPayload": {
+        "type": "object",
+        "description": "answer-result-undo (showman only, no input): the last ruling on the current question is taken back and its score change reverted. After a wrong answer the player may buzz again",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "revertedResult": {
+            "type": "integer"
+          },
+          "newScore": {
+            "type": "integer"
+          },
+          "canAnswerAgain": {
+            "type": "boolean"
+          }
+        },
+        "required": ["playerId", "revertedResult", "newScore", "canAnswerAgain"]
+      },
+      "SocketIOGameJoinModeInput": {
+        "type": "object",
+        "description": "Showman only",
+        "properties": {
+          "joinMode": {
+            "$ref": "#/components/schemas/GameJoinMode"
+          }
+        },
+        "required": ["joinMode"]
+      },
+      "SocketIOGameJoinModeEventPayload": {
+        "type": "object",
+        "properties": {
+          "joinMode": {
+            "$ref": "#/components/schemas/GameJoinMode"
+          }
+        },
+        "required": ["joinMode"]
       }
     }
   }

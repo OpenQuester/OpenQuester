@@ -1,3 +1,4 @@
+import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 import { GameSettingsDTO } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageListItemDTO } from "domain/types/dto/game/items/PackageIListItemDTO";
@@ -26,6 +27,8 @@ export interface GameListItemDTO {
   players: GameListItemPlayersStats[];
   maxPlayers: number;
   settings: GameSettingsDTO;
+  /** Who may join right now; open when missing */
+  joinMode?: GameJoinMode | null;
   startedAt: Date | null;
   finishedAt: Date | null;
   package: PackageListItemDTO;

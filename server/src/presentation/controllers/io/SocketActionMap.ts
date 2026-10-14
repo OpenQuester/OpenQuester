@@ -1,4 +1,8 @@
 import {
+  type GameJoinModeInputData,
+  type QuestionToggleInputData
+} from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
+import {
   type AllPlayAnswerInputData,
   type AllPlayReviewInputData,
   type AllPlayStakeInputData
@@ -147,6 +151,23 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
     inputValidator: (data) =>
       GameValidator.validateTurnPlayerChange(data as TurnPlayerChangeInputData)
+  },
+  {
+    event: SocketIOGameEvents.QUESTION_TOGGLE,
+    actionType: GameActionType.QUESTION_TOGGLE,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) => GameValidator.validateQuestionToggle(data as QuestionToggleInputData)
+  },
+  {
+    event: SocketIOGameEvents.ANSWER_RESULT_UNDO,
+    actionType: GameActionType.ANSWER_RESULT_UNDO,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION
+  },
+  {
+    event: SocketIOGameEvents.GAME_JOIN_MODE,
+    actionType: GameActionType.GAME_JOIN_MODE,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) => GameValidator.validateGameJoinMode(data as GameJoinModeInputData)
   },
   {
     event: SocketIOGameEvents.SCORE_CHANGED,

@@ -43,6 +43,11 @@ import {
   AllPlayReviewUseCase,
   AllPlayStakeUseCase
 } from "application/usecases/question/AllPlayUseCases";
+import {
+  AnswerResultUndoUseCase,
+  GameJoinModeUseCase,
+  QuestionToggleUseCase
+} from "application/usecases/game/ShowmanToolsUseCases";
 import { SecretQuestionPriceUseCase } from "application/usecases/question/SecretQuestionPriceUseCase";
 import { SecretQuestionTransferUseCase } from "application/usecases/question/SecretQuestionTransferUseCase";
 import { SkipQuestionForceUseCase } from "application/usecases/question/SkipQuestionForceUseCase";
@@ -161,6 +166,9 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   );
 
   registry.register(GameActionType.TURN_PLAYER_CHANGE, new TurnPlayerChangeUseCase());
+  registry.register(GameActionType.QUESTION_TOGGLE, new QuestionToggleUseCase());
+  registry.register(GameActionType.ANSWER_RESULT_UNDO, new AnswerResultUndoUseCase());
+  registry.register(GameActionType.GAME_JOIN_MODE, new GameJoinModeUseCase());
 
   // =====================================
   // Question Handlers

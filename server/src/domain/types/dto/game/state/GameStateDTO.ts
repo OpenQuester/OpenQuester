@@ -21,6 +21,12 @@ export interface GameStateAnsweredPlayerData {
   answerType: AnswerResultType;
 }
 
+export enum GameJoinMode {
+  OPEN = "open",
+  SPECTATORS_ONLY = "spectators_only",
+  CLOSED = "closed"
+}
+
 export interface BuzzerWindowDTO {
   /** When the first press arrived (epoch ms) */
   openedAt: number;
@@ -61,6 +67,11 @@ export interface GameStateDTO {
   roundPausedMs?: number | null;
   /** When the current pause began (epoch ms) */
   pausedAt?: number | null;
+  /**
+   * Who may join right now (set by the showman): open to everyone, spectators
+   * only, or closed. People already in the game can always come back.
+   */
+  joinMode?: GameJoinMode | null;
   /** "Everyone answers" question (stake / no-risk for everyone) in play */
   allPlay?: AllPlayDataDTO | null;
   /** Final round specific data */

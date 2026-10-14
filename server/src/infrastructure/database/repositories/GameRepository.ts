@@ -528,6 +528,7 @@ export class GameRepository {
       isPrivate: game.isPrivate,
       maxPlayers: game.maxPlayers,
       settings: game.settings,
+      joinMode: game.gameState.joinMode ?? null,
       players: game.players.map((p) => ({
         id: p.meta.id,
         role: p.role,

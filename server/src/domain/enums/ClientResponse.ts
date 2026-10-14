@@ -79,6 +79,10 @@ export enum ClientResponse {
   SOMEONE_ALREADY_ANSWERING = "someone_already_answering",
   /** Player pressed too early and is still locked out */
   BUZZER_LOCKED = "buzzer_locked",
+  GAME_JOIN_CLOSED = "game_join_closed",
+  GAME_JOIN_SPECTATORS_ONLY = "game_join_spectators_only",
+  NOTHING_TO_UNDO = "nothing_to_undo",
+  QUESTION_TOGGLE_ONLY_WHILE_CHOOSING = "question_toggle_only_while_choosing",
   ALL_PLAY_ALREADY_SUBMITTED = "all_play_already_submitted",
   ALL_PLAY_ALREADY_REVIEWED = "all_play_already_reviewed",
   ALL_PLAY_INVALID_STAKE = "all_play_invalid_stake",

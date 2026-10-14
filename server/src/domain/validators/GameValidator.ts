@@ -1,3 +1,8 @@
+import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
+import {
+  GameJoinModeInputData,
+  QuestionToggleInputData
+} from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
 import { ALL_PLAY_ANSWER_MAX_LENGTH } from "domain/constants/game";
 import {
   AllPlayAnswerInputData,
@@ -134,6 +139,22 @@ export class GameValidator {
     });
 
     return this._validate<SecretQuestionTransferInputData>(data, schema);
+  }
+
+  public static validateQuestionToggle(data: QuestionToggleInputData) {
+    return this._validate<QuestionToggleInputData>(
+      data,
+      Joi.object<QuestionToggleInputData>({ questionId: Joi.number().integer().required() })
+    );
+  }
+
+  public static validateGameJoinMode(data: GameJoinModeInputData) {
+    return this._validate<GameJoinModeInputData>(
+      data,
+      Joi.object<GameJoinModeInputData>({
+        joinMode: Joi.valid(...Object.values(GameJoinMode)).required()
+      })
+    );
   }
 
   public static validateAllPlayStake(data: AllPlayStakeInputData) {
