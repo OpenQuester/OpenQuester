@@ -104,7 +104,7 @@ test.describe("full game", () => {
     await expect(dockStatus(bob.page)).toHaveText("Alice was right · +100");
     await expect(sam.page.getByTestId("answer-reveal")).toContainText("Paris");
     await shot(bob.page, "10-reveal-tablet");
-    expect(await chipScore(sam.page, "Alice")).toBe("100");
+    await expect.poll(() => chipScore(sam.page, "Alice")).toBe("100");
     await host.page.getByTestId("continue").click();
     await expectPhase(all, "Choosing");
     await expect(dockStatus(alice.page)).toHaveText("Your turn to pick");
@@ -130,7 +130,7 @@ test.describe("full game", () => {
     await host.page.getByTestId("judge-wrong").click();
     await expectPhase([alice.page, bob.page], "Ready to buzz");
     await expect(bob.page.getByTestId("dock-info")).toHaveText("You already answered this one");
-    expect(await chipScore(host.page, "Bob")).toBe("−200");
+    await expect.poll(() => chipScore(host.page, "Bob")).toBe("−200");
     await alice.page.getByRole("button", { name: "Pass on this question" }).click();
     await expectPhase(all, "Answer");
     await expect(dockStatus(alice.page)).toHaveText("Here's the answer");
@@ -163,7 +163,7 @@ test.describe("full game", () => {
     await expectPhase([host.page], "Answering");
     await host.page.keyboard.press("w");
     await expectPhase(all, "Answer");
-    expect(await chipScore(host.page, "Bob")).toBe("−200");
+    await expect.poll(() => chipScore(host.page, "Bob")).toBe("−200");
     await host.page.getByTestId("continue").click();
     await expectPhase(all, "Choosing");
 
@@ -192,7 +192,7 @@ test.describe("full game", () => {
     await expect(dockStatus(bob.page)).toHaveText("You're answering!");
     await host.page.getByTestId("judge-correct").click();
     await expectPhase(all, "Answer");
-    expect(await chipScore(host.page, "Bob")).toBe("100");
+    await expect.poll(() => chipScore(host.page, "Bob")).toBe("100");
     await host.page.getByTestId("continue").click();
     await expectPhase(all, "Choosing");
 
