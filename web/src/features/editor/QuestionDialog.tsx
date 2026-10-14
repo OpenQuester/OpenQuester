@@ -8,8 +8,10 @@ import { Dialog } from "@/ui/Dialog";
 import { FieldError, inputClass, Label, TextInput } from "@/ui/Field";
 import { CheckIcon, CloseIcon, PlusIcon, TrashIcon, UploadIcon } from "@/ui/icons";
 
+import { PointPicker } from "@/features/game/play/PointPicker";
+
 import { LinesField } from "./LinesField";
-import { readMediaFile } from "./media";
+import { mediaUrl, readMediaFile } from "./media";
 import { newId, QUESTION_TYPES, type EditorMedia, type EditorQuestion } from "./model";
 import * as ops from "./ops";
 import { MediaView, QuestionPreview } from "./QuestionPreview";
@@ -485,6 +487,7 @@ function TypeSettings({
           onChange={(showDelay) => set({ showDelay })}
         />
       )}
+      {type !== "choice" && !final && <AnswerCheckSettings q={q} set={set} />}
       <span className="text-xs font-bold tracking-[0.08em] text-faint uppercase">
         {t("editor.form.timing")}
       </span>
@@ -771,6 +774,81 @@ function MediaList({
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+/** How players answer: typed/said, a number, or a spot on the first picture. */
+function AnswerCheckSettings({
+  q,
+  set,
+}: {
+  q: EditorQuestion;
+  set: (p: Partial<EditorQuestion>) => void;
+}) {
+  const { t } = useTranslation();
+  const image = q.questionFiles.find((f) => f.type === "image");
+  const file = useEditor((s) => (image ? s.media.get(image.md5) : undefined));
+  const src = mediaUrl(file);
+  return (
+    <div className="flex flex-col gap-3">
+      <Label htmlFor="qf-answer-type">{t("editor.form.answerType")}</Label>
+      <select
+        id="qf-answer-type"
+        value={q.answerType}
+        onChange={(e) =>
+          set({ answerType: e.target.value as EditorQuestion["answerType"], answerDeviation: null })
+        }
+        className={inputClass}
+      >
+        {(["text", "number", "point"] as const).map((v) => (
+          <option key={v} value={v}>
+            {t(`editor.form.answerTypes.${v}`)}
+          </option>
+        ))}
+      </select>
+      {q.answerType === "number" && (
+        <div className="grid grid-cols-2 gap-3">
+          <NumberField
+            id="qf-number"
+            label={t("editor.form.answerNumber")}
+            value={q.answerNumber}
+            allowEmpty
+            onChange={(answerNumber) => set({ answerNumber })}
+            error={q.answerNumber == null ? t("editor.form.answerNumberMissing") : undefined}
+          />
+          <NumberField
+            id="qf-deviation"
+            label={t("editor.form.deviation")}
+            value={q.answerDeviation}
+            allowEmpty
+            help={t("editor.form.deviationHelp")}
+            onChange={(answerDeviation) => set({ answerDeviation })}
+          />
+        </div>
+      )}
+      {q.answerType === "point" &&
+        (src ? (
+          <div className="flex flex-col gap-2">
+            <span className="text-sm text-faint">{t("editor.form.pointHelp")}</span>
+            <PointPicker
+              src={src}
+              target={q.answerPoint}
+              radius={q.answerDeviation}
+              onPick={(answerPoint) => set({ answerPoint })}
+            />
+            <NumberField
+              id="qf-radius"
+              label={t("editor.form.radius")}
+              value={q.answerDeviation == null ? null : Math.round(q.answerDeviation * 100)}
+              allowEmpty
+              help={t("editor.form.radiusHelp")}
+              onChange={(v) => set({ answerDeviation: v == null ? null : v / 100 })}
+            />
+          </div>
+        ) : (
+          <FieldError>{t("editor.form.pointNeedsImage")}</FieldError>
+        ))}
     </div>
   );
 }

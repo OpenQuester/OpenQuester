@@ -225,6 +225,9 @@ function backToChoosing(session: GameSession): GameSession {
       stakeQuestionData: null,
       questionEligiblePlayers: null,
       timer: null,
+      allPlay: null,
+      buzzerOpensAtMs: null,
+      buzzerLocks: null,
     }),
     submittedAnswer: null,
     content: null,
@@ -288,6 +291,9 @@ function onQuestionData(
       buzzerOpensAtMs:
         buzzerOpensAtMs !== undefined ? buzzerOpensAtMs : newPick ? null : s.buzzerOpensAtMs,
       buzzerLocks: newPick ? null : s.buzzerLocks,
+      // An "everyone answers" question announces itself just before its data;
+      // anything left from an earlier question is dropped.
+      allPlay: s.allPlay?.questionId === data.id ? s.allPlay : null,
     }),
     submittedAnswer: newPick ? null : session.submittedAnswer,
     content: questionContent(session, questionState, data, timer, sentPlan),

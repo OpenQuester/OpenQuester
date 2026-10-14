@@ -439,7 +439,9 @@
     "alreadyAnswered": "Already answered",
     "comment": "Comment for players",
     "alsoRight": "Also right: {{answers}}",
-    "notRight": "Not right: {{answers}}"
+    "notRight": "Not right: {{answers}}",
+    "number": "Right number: {{number}}{{deviation}}",
+    "autoChecked": "The game checks this answer itself."
   },
   "reveal": {
     "answer": "The answer",
@@ -597,7 +599,8 @@
       "wait": "Wait for the showman's call",
       "otherNext": "If {{name}} is wrong, the buzzer reopens for everyone else.",
       "otherNextSingle": "Only {{name}} answers this question.",
-      "showmanChoice": "When {{name}} picks an option, the game checks it and scores it. Judge only if they answer out loud."
+      "showmanChoice": "When {{name}} picks an option, the game checks it and scores it. Judge only if they answer out loud.",
+      "numberPlaceholder": "Type a number"
     },
     "reveal": {
       "correct": "{{name}} was right · {{points}}",
@@ -949,7 +952,21 @@
       "wrongAnswersHelp": "One per line. Common mistakes, so the showman can judge faster. Players never see them.",
       "authors": "Authors",
       "sources": "Sources",
-      "sourcesHelp": "One per line: links or books. Shown with the answer."
+      "sourcesHelp": "One per line: links or books. Shown with the answer.",
+      "answerType": "How players answer",
+      "answerTypes": {
+        "text": "Say or type it (the showman judges)",
+        "number": "A number (checked automatically)",
+        "point": "A spot on the picture (checked automatically)"
+      },
+      "answerNumber": "Right number",
+      "answerNumberMissing": "Enter the right number",
+      "deviation": "Allowed difference",
+      "deviationHelp": "0 means exactly this number.",
+      "pointHelp": "Click the right spot on the question's first picture.",
+      "radius": "Radius (% of the width)",
+      "radiusHelp": "How close a click must be. 5% when empty.",
+      "pointNeedsImage": "Add a picture to the question first."
     },
     "move": {
       "questionTitle": "Move question",
@@ -1231,5 +1248,10 @@
     "ruleNoRisk": "Everyone writes an answer. Right wins {{points}}, wrong costs nothing.",
     "stakePrompt": "Make your stake — nobody sees it until the answers are in",
     "players": "Players"
+  },
+  "point": {
+    "pick": "Click where the answer is",
+    "picture": "Question picture",
+    "prompt": "Click the spot on the picture"
   }
 }

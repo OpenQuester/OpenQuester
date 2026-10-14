@@ -99,6 +99,13 @@ When changing gameplay state, make sure:
   scores +price, wrong −price, and the showman does not judge. Otherwise the
   showman judges as usual. Options appear `showDelay` after the content, and
   the buzzer opens then.
+- **Number and point answers** (`answerType`): a typed number is checked
+  against `answerNumber` ± `answerDeviation`; a point answer is a click on the
+  question's first picture, sent as `"x,y"` fractions and checked against
+  `answerPoint` within `answerDeviation` (a share of the width, 5% by
+  default). Right +price, wrong −price, no showman ruling; text that isn't a
+  number / point goes to the showman. In "everyone answers" questions these
+  answers are ruled when the review starts.
 - **Secret, customPrice:** after the transfer, the receiver picks the price
   from `allowedPrices` (`secret-question-price`, 30 s; on timeout the lowest
   price). The question is then shown and answered at that price.

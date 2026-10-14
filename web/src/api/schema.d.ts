@@ -3283,6 +3283,13 @@ export interface components {
              */
             answerHint?: string | null;
             answerText?: components["schemas"]["QuestionAnswerText"] | null;
+            answerType?: components["schemas"]["AnswerType"] | null;
+            /** @description Number answers: the right number. Showman only */
+            answerNumber?: number | null;
+            /** @description Point answers: the right spot. Showman only until the answer is revealed */
+            answerPoint?: components["schemas"]["AnswerPoint"] | null;
+            /** @description How far off still counts: an amount for numbers, a fraction of the picture's width for points */
+            answerDeviation?: number | null;
             /** @description Other answers that count as right (besides answerText). Only the showman sees them during the question; revealed with the answer */
             rightAnswers?: string[] | null;
             /** @description Answers known to be wrong, to help the showman judge. Never sent to players */
@@ -4432,6 +4439,9 @@ export interface components {
             authors?: string[] | null;
             /** @description Where the facts come from */
             sources?: string[] | null;
+            /** @description Point answers: the right spot */
+            answerPoint?: components["schemas"]["AnswerPoint"] | null;
+            answerDeviation?: number | null;
         };
         /** @description Data sent when a player automatically loses in final round */
         SocketIOFinalAutoLossEventPayload: {
@@ -5100,6 +5110,18 @@ export interface components {
              * @default 0
              */
             roundMs: number;
+        };
+        /**
+         * @description How the answer is given and checked. text: the showman judges. number: checked against answerNumber within answerDeviation. point: the player clicks the question's picture; the answer is sent as "x,y" fractions of its width and height and checked against answerPoint within answerDeviation (a fraction of the width, 0.05 by default)
+         * @default text
+         * @example number
+         * @enum {string}
+         */
+        AnswerType: "text" | "number" | "point";
+        /** @description A spot on a picture, as fractions (0–1) of its width and height */
+        AnswerPoint: {
+            x: number;
+            y: number;
         };
     };
     responses: never;

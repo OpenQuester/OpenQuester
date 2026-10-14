@@ -336,3 +336,23 @@ export function roundTimeLeft(session: GameSession, now = serverNow()): number |
   const pausedNow = s.pausedAt ? now - s.pausedAt : 0;
   return Math.max(0, limit - (now - s.roundStartedAt - (s.roundPausedMs ?? 0) - pausedNow));
 }
+
+/** The picture a point answer is given on: the question's first image. */
+export function pointPicture(question: Question | null | undefined): string | null {
+  if (question?.answerType !== "point") return null;
+  const image = [...(question.questionFiles ?? [])]
+    .sort((a, b) => a.order - b.order)
+    .find((f) => f.file.type === "image");
+  return image?.file.link ?? null;
+}
+
+/** I'm the one who should answer now, in writing (buzzer answerer or everyone). */
+export function canAnswerNow(session: GameSession, myId: number): boolean {
+  const phase = phaseOf(session);
+  if (phase === "answering") return session.state.answeringPlayer === myId;
+  if (phase === "all_play_answering") {
+    const entry = session.state.allPlay?.entries.find((e) => e.playerId === myId);
+    return !!entry && !entry.submitted;
+  }
+  return false;
+}

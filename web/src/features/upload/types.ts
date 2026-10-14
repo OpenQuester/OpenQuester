@@ -31,6 +31,10 @@ export interface UploadQuestion {
   questionComment?: string | null;
   answerText?: string | null;
   answerHint?: string | null;
+  answerType?: "text" | "number" | "point" | null;
+  answerNumber?: number | null;
+  answerPoint?: { x: number; y: number } | null;
+  answerDeviation?: number | null;
   /** Other answers that count as right; the showman sees them. */
   rightAnswers?: string[] | null;
   /** Answers known to be wrong; the showman sees them. */

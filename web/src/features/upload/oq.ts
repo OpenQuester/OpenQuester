@@ -110,6 +110,7 @@ export function toContent(
       questionComment: str(q.questionComment),
       answerText: str(q.answerText),
       answerHint: str(q.answerHint),
+      ...answerCheckOf(q),
       rightAnswers: strList(q.rightAnswers),
       wrongAnswers: strList(q.wrongAnswers),
       authors: strList(q.authors),
@@ -187,4 +188,20 @@ export function toContent(
       .filter(isObject)
       .map((r, i) => round(r, i)),
   };
+}
+
+function answerCheckOf(q: Json): Partial<UploadQuestion> {
+  const deviation = num(q.answerDeviation);
+  if (q.answerType === "number" && num(q.answerNumber) != null) {
+    return { answerType: "number", answerNumber: num(q.answerNumber), answerDeviation: deviation };
+  }
+  const p = q.answerPoint;
+  if (q.answerType === "point" && isObject(p) && num(p.x) != null && num(p.y) != null) {
+    return {
+      answerType: "point",
+      answerPoint: { x: num(p.x)!, y: num(p.y)! },
+      answerDeviation: deviation,
+    };
+  }
+  return {};
 }

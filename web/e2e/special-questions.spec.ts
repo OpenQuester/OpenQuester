@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  buzz,
   cell,
   chipScore,
   dockPhase,
@@ -80,6 +81,19 @@ test.describe("everyone answers", () => {
     await answers.filter({ hasText: "Ag" }).getByTestId("all-play-wrong").click();
     await expectPhase([page, kim.page], "Answer");
     await expect.poll(() => chipScore(host.page, "Kim")).not.toBe("0");
+    await host.page.getByTestId("continue").click();
+    await expectPhase([page, kim.page], "Choosing");
+
+    // ── Number answer, checked by the game ──────────────────────────────────
+    await cell(host.page, "Everyone", 300).click();
+    await expect(host.page.getByTestId("showman-number")).toContainText("1969 ± 1");
+    const patBefore = await chipScore(host.page, "Pat");
+    await buzz(page);
+    await expect(dockPhase(page)).toHaveText("Answering");
+    await page.getByLabel("Your answer").fill("1970");
+    await page.keyboard.press("Enter");
+    await expectPhase([page, kim.page], "Answer");
+    await expect.poll(() => chipScore(host.page, "Pat")).not.toBe(patBefore);
 
     await host.context.close();
     await kim.context.close();

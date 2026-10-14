@@ -52,6 +52,12 @@ export interface EditorQuestion {
   answerText: string;
   answerFiles: EditorMedia[];
   answerHint: string;
+  /** How players answer: typed/said (the showman judges), a number or a spot. */
+  answerType: "text" | "number" | "point";
+  answerNumber: number | null;
+  answerPoint: { x: number; y: number } | null;
+  /** Numbers: how far off still counts. Points: radius as a share of the width. */
+  answerDeviation: number | null;
   /** Other answers that count as right. */
   rightAnswers: string[];
   /** Answers known to be wrong, to help the showman. */
@@ -123,6 +129,10 @@ export function newQuestion(
     answerText: "",
     answerFiles: [],
     answerHint: "",
+    answerType: "text",
+    answerNumber: null,
+    answerPoint: null,
+    answerDeviation: null,
     rightAnswers: [],
     wrongAnswers: [],
     authors: [],
@@ -251,6 +261,10 @@ export function fromUpload(c: UploadContent): EditorPackage {
             answerText: q.answerText ?? "",
             answerFiles: toMedia(q.answerFiles),
             answerHint: q.answerHint ?? "",
+            answerType: q.answerType ?? "text",
+            answerNumber: q.answerNumber ?? null,
+            answerPoint: q.answerPoint ?? null,
+            answerDeviation: q.answerDeviation ?? null,
             rightAnswers: q.rightAnswers ?? [],
             wrongAnswers: q.wrongAnswers ?? [],
             authors: q.authors ?? [],
@@ -345,6 +359,7 @@ function toUploadQuestion(q: EditorQuestion, order: number, final: boolean): Upl
     answerText: orNull(q.answerText),
     answerHint: orNull(q.answerHint),
     rightAnswers: listOrNull(q.rightAnswers),
+    ...answerCheck(q, type),
     wrongAnswers: listOrNull(q.wrongAnswers),
     authors: listOrNull(q.authors),
     sources: listOrNull(q.sources),
@@ -377,4 +392,20 @@ function toUploadQuestion(q: EditorQuestion, order: number, final: boolean): Upl
       break;
   }
   return out;
+}
+
+/** Number / point answer fields, only for the type that uses them. */
+function answerCheck(q: EditorQuestion, type: QuestionType): Partial<UploadQuestion> {
+  if (type === "choice") return {};
+  if (q.answerType === "number" && q.answerNumber != null) {
+    return {
+      answerType: "number",
+      answerNumber: q.answerNumber,
+      answerDeviation: q.answerDeviation,
+    };
+  }
+  if (q.answerType === "point" && q.answerPoint) {
+    return { answerType: "point", answerPoint: q.answerPoint, answerDeviation: q.answerDeviation };
+  }
+  return {};
 }

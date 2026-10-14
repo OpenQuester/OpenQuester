@@ -197,6 +197,27 @@ class SiqReader {
       questionFiles: body.questionFiles,
       answerFiles: body.answerFiles,
     };
+    // SIQ v5 number and point answers: the right answer holds the number / "x,y".
+    const answerType = "answerType" in body ? body.answerType : null;
+    const deviation =
+      "answerDeviation" in body && Number.isFinite(body.answerDeviation)
+        ? body.answerDeviation
+        : null;
+    if (answerType === "number" && right[0] != null) {
+      const n = Number(right[0].replace(",", ".").replace(/\s/g, ""));
+      if (Number.isFinite(n)) {
+        base.answerType = "number";
+        base.answerNumber = n;
+        base.answerDeviation = deviation;
+      }
+    } else if (answerType === "point" && right[0] != null) {
+      const [x, y] = right[0].split(/[,;\s]+/).map(Number);
+      if (x! >= 0 && x! <= 1 && y! >= 0 && y! <= 1) {
+        base.answerType = "point";
+        base.answerPoint = { x: x!, y: y! };
+        base.answerDeviation = deviation;
+      }
+    }
     switch (type) {
       case "stake":
         return { ...base, subType: "simple", maxPrice: null };
@@ -264,6 +285,8 @@ class SiqReader {
       questionFiles: asked.files,
       answerFiles: shown.files,
       selectionMode: byName("selectionMode") ? text(byName("selectionMode")!) : null,
+      answerType: byName("answerType") ? text(byName("answerType")!) : null,
+      answerDeviation: byName("answerDeviation") ? Number(text(byName("answerDeviation")!)) : null,
     };
   }
 

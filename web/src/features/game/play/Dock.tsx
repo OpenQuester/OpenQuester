@@ -15,6 +15,7 @@ import {
   isSingleAnswerer,
   me as findMe,
   myAllPlayEntry,
+  pointPicture,
   myRole,
   phaseOf,
   questionValue,
@@ -414,8 +415,10 @@ function useDockModel(session: GameSession, myId: number): DockModel {
           action:
             q?.type === "choice" ? (
               <Info>{t("dock.answering.pickOption")}</Info>
+            ) : pointPicture(q) ? (
+              <Info>{t("point.prompt")}</Info>
             ) : (
-              <AnswerBox giveUp={single} />
+              <AnswerBox giveUp={single} numeric={q?.answerType === "number"} />
             ),
           next: single ? t("dock.answering.youNextSingle") : t("dock.answering.youNext"),
         };
@@ -560,7 +563,7 @@ function useDockModel(session: GameSession, myId: number): DockModel {
 }
 
 /** Optional typed answer for the showman; most people answer out loud. */
-function AnswerBox({ giveUp }: { giveUp: boolean }) {
+function AnswerBox({ giveUp, numeric = false }: { giveUp: boolean; numeric?: boolean }) {
   const { t } = useTranslation();
   const { connection } = useGame();
   const [text, setText] = useState("");
@@ -582,11 +585,14 @@ function AnswerBox({ giveUp }: { giveUp: boolean }) {
           value={text}
           autoFocus
           maxLength={255}
+          inputMode={numeric ? "decimal" : undefined}
           onChange={(e) => {
             setText(e.target.value);
             setSent(false);
           }}
-          placeholder={t("dock.answering.typePlaceholder")}
+          placeholder={
+            numeric ? t("dock.answering.numberPlaceholder") : t("dock.answering.typePlaceholder")
+          }
           data-no-shortcuts
         />
         <Button type="submit" variant="accent" disabled={!text.trim() || sent}>
@@ -863,17 +869,24 @@ function allPlayAnswerModel({ t, session, myId }: DockCtx): DockModel {
       next,
     };
   }
+  const q = session.state.currentQuestion;
   return {
     status: t("dock.allPlay.typeAnswer"),
-    action: <FinalAnswerBox event="all-play-answer" />,
+    action: pointPicture(q) ? (
+      <Info>{t("point.prompt")}</Info>
+    ) : (
+      <FinalAnswerBox event="all-play-answer" numeric={q?.answerType === "number"} />
+    ),
     next,
   };
 }
 
 function FinalAnswerBox({
   event = "final-answer-submit",
+  numeric = false,
 }: {
   event?: "final-answer-submit" | "all-play-answer";
+  numeric?: boolean;
 }) {
   const { t } = useTranslation();
   const session = useSession();
@@ -908,6 +921,7 @@ function FinalAnswerBox({
         id="final-answer"
         value={text}
         autoFocus
+        inputMode={numeric ? "decimal" : undefined}
         maxLength={255}
         onChange={(e) => setText(e.target.value)}
         placeholder={t("dock.final.answerPlaceholder")}

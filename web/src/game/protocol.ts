@@ -143,6 +143,12 @@ export interface Question {
   textOrder?: number | null;
   /** Showman only. */
   answerHint?: string | null;
+  /** How the answer is given: typed/said, a number, or a spot on the picture. */
+  answerType?: "text" | "number" | "point" | null;
+  /** Showman only: the right number / spot, and how far off still counts. */
+  answerNumber?: number | null;
+  answerPoint?: { x: number; y: number } | null;
+  answerDeviation?: number | null;
   /** Showman only: other right answers and known wrong answers. */
   rightAnswers?: string[] | null;
   wrongAnswers?: string[] | null;
@@ -180,6 +186,9 @@ export interface AnswerShowData {
   rightAnswers?: string[] | null;
   authors?: string[] | null;
   sources?: string[] | null;
+  /** Point answers: the right spot and the radius that counted. */
+  answerPoint?: { x: number; y: number } | null;
+  answerDeviation?: number | null;
 }
 
 export interface FinalAnswer {

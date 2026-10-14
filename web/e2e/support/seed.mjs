@@ -251,6 +251,11 @@ export async function seedAllPlayPackage(base, title = "Everyone answers") {
                     subType: "forEveryone",
                     maxPrice: 300,
                   }),
+                  q(2, 300, "In which year did people first land on the Moon?", "1969", {
+                    answerType: "number",
+                    answerNumber: 1969,
+                    answerDeviation: 1,
+                  }),
                 ],
               },
             ],

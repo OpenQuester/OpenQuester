@@ -4,12 +4,21 @@ import { useTranslation } from "react-i18next";
 
 import { timerElapsed } from "@/game/contentPlan";
 import type { GameSession } from "@/game/reducer";
-import { boardQuestionMeta, findPlayer, myRole, phaseOf, seatedPlayers } from "@/game/selectors";
+import {
+  canAnswerNow,
+  pointPicture,
+  boardQuestionMeta,
+  findPlayer,
+  myRole,
+  phaseOf,
+  seatedPlayers,
+} from "@/game/selectors";
 import { formatScore, formatSigned } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
 
 import { useGame, useSession } from "../GameContext";
 import { ContentStage } from "./ContentStage";
+import { PointPicker, pointAnswer, type Spot } from "./PointPicker";
 import { QuestionMedia } from "./QuestionMedia";
 
 /** Question content, the reveal, and (for the showman) the private answer panel. */
@@ -35,6 +44,9 @@ export function QuestionStage() {
     content?.kind === "question" &&
     content.plan.steps.some((st) => st.items.some((i) => i.kind === "text"));
   const price = s.stakeQuestionData?.highestBid ?? q?.price ?? meta?.question.price ?? null;
+  // Point answers: the player who answers now clicks the spot on the picture.
+  const picture = pointPicture(q);
+  const picking = !!picture && canAnswerNow(session, myId);
 
   return (
     <div className="flex flex-1 flex-col gap-5 lg:flex-row lg:items-start">
@@ -60,7 +72,9 @@ export function QuestionStage() {
             className="flex w-full max-w-[920px] flex-col items-center gap-5 oq-pop 3xl:max-w-[1280px] 4xl:max-w-[1600px]"
             key={q?.id ?? "q"}
           >
-            {showmanPreview ? (
+            {picking ? (
+              <PointAnswer src={picture!} />
+            ) : showmanPreview ? (
               <QuestionMedia files={q?.questionFiles ?? []} playing={false} />
             ) : (
               content?.kind === "question" && (
@@ -99,6 +113,29 @@ export function QuestionStage() {
         )}
       </section>
       {role === "showman" && !reveal && <ShowmanPanel />}
+    </div>
+  );
+}
+
+/** The answering player clicks a spot; it is sent as their answer. */
+function PointAnswer({ src }: { src: string }) {
+  const { t } = useTranslation();
+  const session = useSession();
+  const { connection } = useGame();
+  const [picked, setPicked] = useState<Spot | null>(null);
+  const event = phaseOf(session) === "all_play_answering" ? "all-play-answer" : "answer-submitted";
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <p className="m-0 font-semibold text-accent-strong">{t("point.prompt")}</p>
+      <PointPicker
+        src={src}
+        picked={picked}
+        onPick={(spot) => {
+          if (picked) return;
+          setPicked(spot);
+          connection.emit(event, { answerText: pointAnswer(spot) });
+        }}
+      />
     </div>
   );
 }
@@ -227,6 +264,25 @@ function ShowmanPanel() {
         {q?.answerHint && (
           <span className="text-sm text-soft">{t("showman.hint", { hint: q.answerHint })}</span>
         )}
+        {q?.answerType === "number" && q.answerNumber != null && (
+          <span className="text-sm text-success" data-testid="showman-number">
+            {t("showman.number", {
+              number: q.answerNumber,
+              deviation: q.answerDeviation ? ` ± ${q.answerDeviation}` : "",
+            })}
+          </span>
+        )}
+        {q?.answerType === "point" && q.answerPoint && pointPicture(q) && (
+          <PointPicker
+            src={pointPicture(q)!}
+            target={q.answerPoint}
+            radius={q.answerDeviation}
+            className="max-w-full"
+          />
+        )}
+        {(q?.answerType === "number" || q?.answerType === "point") && (
+          <span className="text-xs text-muted">{t("showman.autoChecked")}</span>
+        )}
         {!!q?.rightAnswers?.length && (
           <span className="text-sm text-success" data-testid="showman-right-answers">
             {t("showman.alsoRight", { answers: q.rightAnswers.join(" · ") })}
@@ -289,6 +345,13 @@ function AnswerReveal() {
         <p className="m-0 text-center font-display text-[clamp(26px,4vw,44px)] font-extrabold 3xl:text-[clamp(44px,2.8vw,72px)] leading-tight text-success [overflow-wrap:anywhere]">
           {answerText}
         </p>
+      )}
+      {data?.answerPoint && pointPicture(s.currentQuestion) && (
+        <PointPicker
+          src={pointPicture(s.currentQuestion)!}
+          target={data.answerPoint}
+          radius={data.answerDeviation}
+        />
       )}
       {!!data?.rightAnswers?.length && (
         <p className="m-0 text-center text-soft">
