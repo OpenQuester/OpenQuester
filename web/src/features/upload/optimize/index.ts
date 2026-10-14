@@ -42,7 +42,7 @@ function encodable(f: MediaFile): boolean {
 
 /**
  * Re-encodes every local media file the way the Flutter desktop encoder does
- * (AVIF pictures, AV1 or VP9 + Opus WebM video, Opus WebM sound) and points
+ * (AVIF pictures, AV1 or VP9 video and AAC or Opus sound, in MP4) and points
  * the content at the new files. Anything this browser can't encode, or that
  * doesn't get smaller, is uploaded as it was.
  */
@@ -114,7 +114,7 @@ async function encodeOne(
       if (r) ({ bytes, ext } = r);
     } else {
       bytes = await encodeAv(file.bytes, mime, file.type, onProgress, signal);
-      ext = file.type === "audio" ? "weba" : "webm";
+      ext = file.type === "audio" ? "m4a" : "mp4";
     }
   } catch (err) {
     if (signal?.aborted) throw err;

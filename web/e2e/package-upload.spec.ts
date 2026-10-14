@@ -253,8 +253,8 @@ test.describe("media compression", () => {
     }[];
     const expected: Record<number, string> = {
       100: "image/avif",
-      200: "audio/webm",
-      300: "video/webm",
+      200: "audio/mp4",
+      300: "video/mp4",
     };
     for (const q of questions) {
       const file = q.questionFiles[0].file;

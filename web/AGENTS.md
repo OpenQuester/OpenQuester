@@ -71,8 +71,10 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
 - Media is re-encoded in the browser before upload and publish
   (`features/upload/optimize/`, on by default, `compressMedia` setting):
   pictures to AVIF (libavif WebAssembly in a worker, WebP fallback), video to
-  AV1 (VP9 fallback) + Opus WebM and sound to Opus WebM through WebCodecs and
-  mediabunny, with the Flutter encoder's limits (1280×720, 20 fps, 64 kbps).
+  AV1 (VP9 fallback) and sound to AAC (Opus fallback), both in fast-start MP4,
+  through WebCodecs and mediabunny, with the Flutter encoder's size and frame
+  limits (1280×720, 20 fps). Not WebM: iPhone and iPad Safari play WebM Opus
+  as silence.
   The encoders are a lazy chunk, so only uploaders download them. A file the
   browser can't decode or encode, or that doesn't shrink by 5 %, is uploaded
   as it was. The server's CSP allows `'wasm-unsafe-eval'` for the encoder.

@@ -5,21 +5,22 @@ import {
   Conversion,
   Input,
   Output,
+  Mp4OutputFormat,
   QUALITY_LOW,
-  WebMOutputFormat,
   canEncodeAudio,
   canEncodeVideo,
+  type AudioCodec,
   type VideoCodec,
 } from "mediabunny";
 
-import { fitBox, MAX_FPS, OPUS_BITRATE } from "./limits";
+import { AAC_BITRATE, fitBox, MAX_FPS, OPUS_BITRATE } from "./limits";
 
 let videoCodec: Promise<VideoCodec | null> | undefined;
-let opus: Promise<boolean> | undefined;
+let audioCodec: Promise<AudioCodec | null> | undefined;
 
 /**
  * AV1 squeezes the most (it is what the Flutter encoder writes); VP9 is the
- * fallback where the browser has no AV1 encoder. Both go in WebM with Opus.
+ * fallback where the browser has no AV1 encoder.
  */
 export function pickVideoCodec(): Promise<VideoCodec | null> {
   videoCodec ??= (async () => {
@@ -32,17 +33,29 @@ export function pickVideoCodec(): Promise<VideoCodec | null> {
   return videoCodec;
 }
 
-export function canEncodeOpus(): Promise<boolean> {
-  opus ??=
-    typeof AudioEncoder === "undefined"
-      ? Promise.resolve(false)
-      : canEncodeAudio("opus", { numberOfChannels: 2, sampleRate: 48_000 }).catch(() => false);
-  return opus;
+/**
+ * Sound is AAC where the browser can encode it: Safari on iPhone and iPad
+ * plays WebM Opus through <audio> as silence (WebKit bug 238546), while AAC
+ * in MP4 plays everywhere. Opus in MP4 is the fallback (Chrome on Linux has
+ * no AAC encoder); recent Safari plays that too.
+ */
+export function pickAudioCodec(): Promise<AudioCodec | null> {
+  audioCodec ??= (async () => {
+    if (typeof AudioEncoder === "undefined") return null;
+    for (const codec of ["aac", "opus"] as const)
+      if (
+        await canEncodeAudio(codec, { numberOfChannels: 2, sampleRate: 48_000 }).catch(() => false)
+      )
+        return codec;
+    return null;
+  })();
+  return audioCodec;
 }
 
 /**
- * Re-encodes audio or video into WebM. Returns null when this browser can't
- * decode the source or encode the target, so the caller keeps the original.
+ * Re-encodes audio or video into MP4 (fast start, so playback begins before
+ * the whole file arrives). Returns null when this browser can't decode the
+ * source or encode the target, so the caller keeps the original.
  */
 export async function encodeAv(
   bytes: Uint8Array,
@@ -51,7 +64,8 @@ export async function encodeAv(
   onProgress: (ratio: number) => void,
   signal?: AbortSignal,
 ): Promise<Uint8Array | null> {
-  if (!(await canEncodeOpus())) return null;
+  const sound = await pickAudioCodec();
+  if (!sound) return null;
   const codec = kind === "video" ? await pickVideoCodec() : null;
   if (kind === "video" && !codec) return null;
 
@@ -61,7 +75,7 @@ export async function encodeAv(
   });
   try {
     const target = new BufferTarget();
-    const output = new Output({ format: new WebMOutputFormat(), target });
+    const output = new Output({ format: new Mp4OutputFormat({ fastStart: "in-memory" }), target });
     const conversion = await Conversion.init({
       input,
       output,
@@ -83,8 +97,8 @@ export async function encodeAv(
               };
             },
       audio: {
-        codec: "opus",
-        bitrate: OPUS_BITRATE,
+        codec: sound,
+        bitrate: sound === "aac" ? AAC_BITRATE : OPUS_BITRATE,
         sampleRate: 48_000,
         forceTranscode: true,
       },
