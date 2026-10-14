@@ -52,6 +52,12 @@ export interface EditorQuestion {
   answerText: string;
   answerFiles: EditorMedia[];
   answerHint: string;
+  /** Other answers that count as right. */
+  rightAnswers: string[];
+  /** Answers known to be wrong, to help the showman. */
+  wrongAnswers: string[];
+  authors: string[];
+  sources: string[];
   questionComment: string;
   /** Milliseconds, as the server stores them. */
   answerDelay: number;
@@ -92,6 +98,8 @@ export interface EditorPackage {
   language: string;
   ageRestriction: AgeRestriction;
   tags: string[];
+  authors: string[];
+  sources: string[];
   logo: FileRef | null;
   rounds: EditorRound[];
 }
@@ -115,6 +123,10 @@ export function newQuestion(
     answerText: "",
     answerFiles: [],
     answerHint: "",
+    rightAnswers: [],
+    wrongAnswers: [],
+    authors: [],
+    sources: [],
     questionComment: "",
     answerDelay: 5000,
     showAnswerDuration: 5000,
@@ -153,6 +165,8 @@ export function emptyPackage(title: string): EditorPackage {
     language: "",
     ageRestriction: "NONE",
     tags: [],
+    authors: [],
+    sources: [],
     logo: null,
     rounds: [],
   };
@@ -216,6 +230,8 @@ export function fromUpload(c: UploadContent): EditorPackage {
     language: c.language ?? "",
     ageRestriction: c.ageRestriction,
     tags: c.tags.map((t) => t.tag),
+    authors: c.authors ?? [],
+    sources: c.sources ?? [],
     logo: c.logo?.file ?? null,
     rounds: byOrder(c.rounds).map((r) => ({
       id: newId(),
@@ -235,6 +251,10 @@ export function fromUpload(c: UploadContent): EditorPackage {
             answerText: q.answerText ?? "",
             answerFiles: toMedia(q.answerFiles),
             answerHint: q.answerHint ?? "",
+            rightAnswers: q.rightAnswers ?? [],
+            wrongAnswers: q.wrongAnswers ?? [],
+            authors: q.authors ?? [],
+            sources: q.sources ?? [],
             questionComment: q.questionComment ?? "",
             answerDelay: q.answerDelay ?? 5000,
             showAnswerDuration: q.showAnswerDuration,
@@ -273,6 +293,12 @@ const fromMedia = (files: EditorMedia[], skip: number | null = null): QuestionFi
 
 const orNull = (s: string): string | null => (s.trim() ? s : null);
 
+/** Trimmed, non-empty entries; null when nothing is left. */
+const listOrNull = (list: string[]): string[] | null => {
+  const items = list.map((s) => s.trim()).filter(Boolean);
+  return items.length ? items : null;
+};
+
 /**
  * The POST /v1/packages body. Mirrors the server's Joi scheme: type-specific
  * fields only on their type, final round questions are simple with no price.
@@ -282,6 +308,8 @@ export function toUpload(pkg: EditorPackage): UploadContent {
     title: pkg.title.trim(),
     description: orNull(pkg.description),
     language: orNull(pkg.language),
+    authors: listOrNull(pkg.authors),
+    sources: listOrNull(pkg.sources),
     ageRestriction: pkg.ageRestriction,
     logo: pkg.logo ? { file: pkg.logo } : null,
     tags: pkg.tags.map((tag) => ({ tag })),
@@ -316,6 +344,10 @@ function toUploadQuestion(q: EditorQuestion, order: number, final: boolean): Upl
     questionComment: orNull(q.questionComment),
     answerText: orNull(q.answerText),
     answerHint: orNull(q.answerHint),
+    rightAnswers: listOrNull(q.rightAnswers),
+    wrongAnswers: listOrNull(q.wrongAnswers),
+    authors: listOrNull(q.authors),
+    sources: listOrNull(q.sources),
     answerDelay: q.answerDelay,
     showAnswerDuration: q.showAnswerDuration,
     questionFiles: fromMedia(q.questionFiles, textStep),

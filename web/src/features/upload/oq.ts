@@ -64,6 +64,10 @@ const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
 const num = (v: unknown): number | null =>
   typeof v === "number" ? v : typeof v === "string" && v.trim() && !isNaN(+v) ? +v : null;
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+const strList = (v: unknown): string[] | null => {
+  const out = list(v).flatMap((s) => (typeof s === "string" && s.trim() ? [s.trim()] : []));
+  return out.length ? out : null;
+};
 
 export function toContent(
   p: Json,
@@ -106,6 +110,10 @@ export function toContent(
       questionComment: str(q.questionComment),
       answerText: str(q.answerText),
       answerHint: str(q.answerHint),
+      rightAnswers: strList(q.rightAnswers),
+      wrongAnswers: strList(q.wrongAnswers),
+      authors: strList(q.authors),
+      sources: strList(q.sources),
       answerDelay: num(q.answerDelay),
       showAnswerDuration: num(q.showAnswerDuration) ?? 5000,
       questionFiles: qFiles(q.questionFiles),
@@ -167,6 +175,8 @@ export function toContent(
     title: str(p.title)?.trim() || "Untitled package",
     description: str(p.description),
     language: str(p.language),
+    authors: strList(p.authors),
+    sources: strList(p.sources),
     ageRestriction: age === "A12" || age === "A16" || age === "A18" ? age : "NONE",
     logo: logo ? { file: logo } : null,
     tags: list(p.tags).flatMap((t) => {

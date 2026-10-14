@@ -93,6 +93,8 @@ class SiqReader {
       title: pkg.getAttribute("name")?.trim() || "Untitled package",
       description: nonEmpty(pkg.getAttribute("description")) ?? comment(pkg),
       language: nonEmpty(pkg.getAttribute("language")),
+      authors: infoList(pkg, "authors", "author"),
+      sources: infoList(pkg, "sources", "source"),
       ageRestriction:
         restriction === "12+"
           ? "A12"
@@ -160,7 +162,8 @@ class SiqReader {
 
     const right = answersOf(q, "right");
     const wrong = answersOf(q, "wrong");
-    const answerText = right.length ? right.join(" / ") : null;
+    // The first right answer is the answer; the rest also count as right.
+    const answerText = right[0] ?? null;
     if (!body.text && body.questionFiles.length === 0) {
       this.warnings.push({ code: "emptyQuestion", where });
       return null;
@@ -185,7 +188,11 @@ class SiqReader {
       textOrder: body.textOrder,
       questionComment: body.comment,
       answerText,
-      answerHint: wrong.length ? `Wrong answers: ${wrong.join(" / ")}` : null,
+      answerHint: null,
+      rightAnswers: right.length > 1 ? right.slice(1) : null,
+      wrongAnswers: wrong.length ? wrong : null,
+      authors: infoList(q, "authors", "author"),
+      sources: infoList(q, "sources", "source"),
       showAnswerDuration: firstType === "video" ? 15_000 : firstType === "audio" ? 10_000 : 5_000,
       questionFiles: body.questionFiles,
       answerFiles: body.answerFiles,
@@ -357,6 +364,18 @@ function nonEmpty(s: string | null | undefined): string | null {
 
 function joined(parts: string[]): string | null {
   return parts.length ? parts.join(" ") : null;
+}
+
+/** SIQ <info><authors><author>… (or sources/source) of a package, round, theme or question. */
+function infoList(
+  el: Element,
+  list: "authors" | "sources",
+  item: "author" | "source",
+): string[] | null {
+  const out = [...children(child(child(el, "info"), list), item)]
+    .map((a) => text(a))
+    .filter((v): v is string => !!v);
+  return out.length ? out : null;
 }
 
 function comment(el: Element): string | null {

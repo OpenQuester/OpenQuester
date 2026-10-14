@@ -302,6 +302,16 @@ function PackageSummaryView({
         </span>
       </div>
       {pkg.description && <p className="m-0 text-soft">{pkg.description}</p>}
+      {(!!pkg.authors?.length || !!pkg.sources?.length) && (
+        <p className="m-0 text-sm text-muted" data-testid="package-credits">
+          {[
+            pkg.authors?.length ? t("reveal.authors", { names: pkg.authors.join(", ") }) : null,
+            pkg.sources?.length ? t("reveal.sources", { list: pkg.sources.join(", ") }) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      )}
       <div className="flex flex-col gap-2">
         <span className="font-semibold">{t("packages.rounds")}</span>
         {s.rounds.map((r, i) => (

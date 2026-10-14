@@ -242,6 +242,9 @@ export async function seedAllPlayPackage(base, title = "Everyone answers") {
                     type: "noRisk",
                     subType: "forEveryone",
                     priceMultiplier: 2,
+                    rightAnswers: ["The red planet Mars"],
+                    wrongAnswers: ["Venus"],
+                    sources: ["NASA"],
                   }),
                   q(1, 200, "What is the chemical symbol for gold?", "Au", {
                     type: "stake",

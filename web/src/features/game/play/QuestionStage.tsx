@@ -227,6 +227,16 @@ function ShowmanPanel() {
         {q?.answerHint && (
           <span className="text-sm text-soft">{t("showman.hint", { hint: q.answerHint })}</span>
         )}
+        {!!q?.rightAnswers?.length && (
+          <span className="text-sm text-success" data-testid="showman-right-answers">
+            {t("showman.alsoRight", { answers: q.rightAnswers.join(" · ") })}
+          </span>
+        )}
+        {!!q?.wrongAnswers?.length && (
+          <span className="text-sm text-danger" data-testid="showman-wrong-answers">
+            {t("showman.notRight", { answers: q.wrongAnswers.join(" · ") })}
+          </span>
+        )}
       </div>
       {answering && (
         <div className="flex flex-col gap-1 rounded-md bg-bg/40 p-3">
@@ -280,6 +290,11 @@ function AnswerReveal() {
           {answerText}
         </p>
       )}
+      {!!data?.rightAnswers?.length && (
+        <p className="m-0 text-center text-soft">
+          {t("reveal.alsoRight", { answers: data.rightAnswers.join(" · ") })}
+        </p>
+      )}
       {session.content?.kind === "answer" ? (
         <ContentStage
           content={session.content}
@@ -295,6 +310,16 @@ function AnswerReveal() {
           ? t("reveal.gotIt", { name: winner.meta.username, points: formatSigned(result!.result) })
           : t("reveal.nobody")}
       </p>
+      {(!!data?.authors?.length || !!data?.sources?.length) && (
+        <p className="m-0 text-center text-sm text-muted" data-testid="answer-credits">
+          {[
+            data?.authors?.length ? t("reveal.authors", { names: data.authors.join(", ") }) : null,
+            data?.sources?.length ? t("reveal.sources", { list: data.sources.join(", ") }) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      )}
       {s.currentQuestion?.questionComment && (
         <p className="m-0 max-w-[60ch] text-center text-muted">
           {s.currentQuestion.questionComment}

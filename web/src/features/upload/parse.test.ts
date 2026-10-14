@@ -99,7 +99,8 @@ describe("parseSiq", () => {
       // SIGame shows the text first, then the picture.
       textOrder: 0,
       answerText: "Paris",
-      answerHint: "Wrong answers: Lyon",
+      answerHint: null,
+      wrongAnswers: ["Lyon"],
       questionFiles: [{ file: { md5: md5Hex(png), type: "image" }, order: 1, displayTime: null }],
       // SIGame plays audio in the background by default.
       answerFiles: [

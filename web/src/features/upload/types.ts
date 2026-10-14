@@ -31,6 +31,12 @@ export interface UploadQuestion {
   questionComment?: string | null;
   answerText?: string | null;
   answerHint?: string | null;
+  /** Other answers that count as right; the showman sees them. */
+  rightAnswers?: string[] | null;
+  /** Answers known to be wrong; the showman sees them. */
+  wrongAnswers?: string[] | null;
+  authors?: string[] | null;
+  sources?: string[] | null;
   answerDelay?: number | null;
   showAnswerDuration: number;
   isHidden?: boolean;
@@ -63,6 +69,8 @@ export interface UploadContent {
   title: string;
   description?: string | null;
   language?: string | null;
+  authors?: string[] | null;
+  sources?: string[] | null;
   ageRestriction: "NONE" | "A12" | "A16" | "A18";
   logo?: { file: FileRef } | null;
   tags: { tag: string }[];

@@ -437,12 +437,17 @@
     "answering": "{{name}} answers:",
     "sayingOutLoud": "Answering out loud",
     "alreadyAnswered": "Already answered",
-    "comment": "Comment for players"
+    "comment": "Comment for players",
+    "alsoRight": "Also right: {{answers}}",
+    "notRight": "Not right: {{answers}}"
   },
   "reveal": {
     "answer": "The answer",
     "gotIt": "{{name}} got it · {{points}}",
-    "nobody": "Nobody got this one."
+    "nobody": "Nobody got this one.",
+    "alsoRight": "Also accepted: {{answers}}",
+    "authors": "By {{names}}",
+    "sources": "Source: {{list}}"
   },
   "secret": {
     "youPicked": "You picked a secret question. Who should answer it?",
@@ -937,7 +942,14 @@
       "saveShortcut": "Ctrl+Enter saves",
       "unsaved": "You have unsaved changes to this question.",
       "discard": "Discard changes",
-      "keepEditing": "Keep editing"
+      "keepEditing": "Keep editing",
+      "rightAnswers": "Other right answers",
+      "rightAnswersHelp": "One per line. The showman sees them, they're revealed with the answer, and a choice option matching one counts as right.",
+      "wrongAnswers": "Wrong answers",
+      "wrongAnswersHelp": "One per line. Common mistakes, so the showman can judge faster. Players never see them.",
+      "authors": "Authors",
+      "sources": "Sources",
+      "sourcesHelp": "One per line: links or books. Shown with the answer."
     },
     "move": {
       "questionTitle": "Move question",
@@ -960,7 +972,8 @@
       "age": "Age rating",
       "tags": "Tags",
       "tagsPlaceholder": "movies, music, 90s",
-      "tagsHelp": "Separate tags with commas. They help people find your package."
+      "tagsHelp": "Separate tags with commas. They help people find your package.",
+      "authorsHelp": "One per line. Shown on the package page."
     },
     "confirm": {
       "themeTitle": "Delete theme?",

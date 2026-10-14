@@ -53,6 +53,10 @@ test.describe("everyone answers", () => {
     await answers.filter({ hasText: "Mars" }).getByTestId("all-play-correct").click();
     await answers.filter({ hasText: "Venus" }).getByTestId("all-play-wrong").click();
     await expectPhase([page, kim.page], "Answer");
+    await expect(page.getByTestId("answer-reveal")).toContainText(
+      "Also accepted: The red planet Mars",
+    );
+    await expect(page.getByTestId("answer-credits")).toContainText("Source: NASA");
     await expect.poll(() => chipScore(host.page, "Pat")).toBe("200");
     await expect.poll(() => chipScore(host.page, "Kim")).toBe("0");
     await host.page.getByTestId("continue").click();

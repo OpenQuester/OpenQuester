@@ -8,6 +8,7 @@ import { Dialog } from "@/ui/Dialog";
 import { FieldError, inputClass, Label, TextInput } from "@/ui/Field";
 import { CheckIcon, CloseIcon, PlusIcon, TrashIcon, UploadIcon } from "@/ui/icons";
 
+import { LinesField } from "./LinesField";
 import { readMediaFile } from "./media";
 import { newId, QUESTION_TYPES, type EditorMedia, type EditorQuestion } from "./model";
 import * as ops from "./ops";
@@ -210,6 +211,23 @@ function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => vo
                 </div>
               )}
 
+              <div className="grid gap-4 sm:grid-cols-2">
+                <LinesField
+                  id="qf-right"
+                  label={t("editor.form.rightAnswers")}
+                  help={t("editor.form.rightAnswersHelp")}
+                  value={q.rightAnswers}
+                  onChange={(rightAnswers) => set({ rightAnswers })}
+                />
+                <LinesField
+                  id="qf-wrong"
+                  label={t("editor.form.wrongAnswers")}
+                  help={t("editor.form.wrongAnswersHelp")}
+                  value={q.wrongAnswers}
+                  onChange={(wrongAnswers) => set({ wrongAnswers })}
+                />
+              </div>
+
               <MediaList
                 label={t("editor.form.answerMedia")}
                 help={t("editor.form.answerMediaHelp")}
@@ -228,6 +246,22 @@ function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => vo
                   onChange={(e) => set({ questionComment: e.target.value })}
                 />
                 <span className="text-sm text-faint">{t("editor.form.commentHelp")}</span>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <LinesField
+                  id="qf-authors"
+                  label={t("editor.form.authors")}
+                  value={q.authors}
+                  onChange={(authors) => set({ authors })}
+                />
+                <LinesField
+                  id="qf-sources"
+                  label={t("editor.form.sources")}
+                  help={t("editor.form.sourcesHelp")}
+                  value={q.sources}
+                  onChange={(sources) => set({ sources })}
+                />
               </div>
 
               <div className="lg:hidden">

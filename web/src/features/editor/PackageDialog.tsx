@@ -7,6 +7,7 @@ import { Dialog } from "@/ui/Dialog";
 import { inputClass, Label, Select, TextInput } from "@/ui/Field";
 import { cn } from "@/lib/cn";
 
+import { LinesField } from "./LinesField";
 import type { AgeRestriction, EditorPackage } from "./model";
 import { useEditor } from "./store";
 
@@ -30,7 +31,12 @@ function DetailsForm({ onClose }: { onClose: () => void }) {
   const pkg = useEditor((s) => s.pkg);
   const apply = useEditor((s) => s.apply);
   const [d, setD] =
-    useState<Pick<EditorPackage, "title" | "description" | "language" | "ageRestriction">>(pkg);
+    useState<
+      Pick<
+        EditorPackage,
+        "title" | "description" | "language" | "ageRestriction" | "authors" | "sources"
+      >
+    >(pkg);
   const [tags, setTags] = useState(pkg.tags.join(", "));
   const save = () => {
     const tagList = [
@@ -112,6 +118,22 @@ function DetailsForm({ onClose }: { onClose: () => void }) {
           placeholder={t("editor.details.tagsPlaceholder")}
         />
         <span className="text-sm text-faint">{t("editor.details.tagsHelp")}</span>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <LinesField
+          id="pd-authors"
+          label={t("editor.form.authors")}
+          help={t("editor.details.authorsHelp")}
+          value={d.authors}
+          onChange={(authors) => setD({ ...d, authors })}
+        />
+        <LinesField
+          id="pd-sources"
+          label={t("editor.form.sources")}
+          help={t("editor.form.sourcesHelp")}
+          value={d.sources}
+          onChange={(sources) => setD({ ...d, sources })}
+        />
       </div>
       <div className="flex flex-wrap gap-3">
         <Button type="submit" variant="accent" size="lg">

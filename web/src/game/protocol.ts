@@ -143,6 +143,9 @@ export interface Question {
   textOrder?: number | null;
   /** Showman only. */
   answerHint?: string | null;
+  /** Showman only: other right answers and known wrong answers. */
+  rightAnswers?: string[] | null;
+  wrongAnswers?: string[] | null;
   /** Showman only until the answer is revealed. */
   answerText?: string | null;
   answerDelay: number;
@@ -173,6 +176,10 @@ export interface AnswerShowData {
   nextTurnPlayerId: number | null;
   answerContentPlan?: ContentPlan | null;
   answerResult?: AnsweredPlayer;
+  /** Other answers that also counted as right. */
+  rightAnswers?: string[] | null;
+  authors?: string[] | null;
+  sources?: string[] | null;
 }
 
 export interface FinalAnswer {

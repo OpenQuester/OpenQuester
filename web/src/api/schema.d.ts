@@ -2792,6 +2792,10 @@ export interface components {
             ageRestriction: components["schemas"]["AgeRestriction"];
             /** @example en */
             language?: string | null;
+            /** @description Who wrote the package (names, not accounts) */
+            authors?: string[] | null;
+            /** @description Where the package's facts come from */
+            sources?: string[] | null;
             /** @description Logo file for the package */
             logo?: components["schemas"]["PackageLogoFileItem"] | null;
             /** @description Rounds in the package */
@@ -3279,6 +3283,14 @@ export interface components {
              */
             answerHint?: string | null;
             answerText?: components["schemas"]["QuestionAnswerText"] | null;
+            /** @description Other answers that count as right (besides answerText). Only the showman sees them during the question; revealed with the answer */
+            rightAnswers?: string[] | null;
+            /** @description Answers known to be wrong, to help the showman judge. Never sent to players */
+            wrongAnswers?: string[] | null;
+            /** @description Who wrote the question; shown with the answer */
+            authors?: string[] | null;
+            /** @description Where the facts come from; shown with the answer */
+            sources?: string[] | null;
             /**
              * @description Delay in milliseconds before being able to answer, if applicable
              * @default 4000
@@ -3446,6 +3458,10 @@ export interface components {
              * @example ua
              */
             language?: string | null;
+            /** @description Who wrote the package (names, not accounts) */
+            authors?: string[] | null;
+            /** @description Where the package's facts come from */
+            sources?: string[] | null;
             /** @description Age restriction */
             ageRestriction: components["schemas"]["AgeRestriction"];
             /** @description Logo file for the package */
@@ -3677,7 +3693,7 @@ export interface components {
             mediaDurations?: {
                 [key: string]: number;
             } | null;
-            /** @description Position on the SHOWING timer (ms) when the buzzer opens: after the content timeline, the reading time of a caption text and the question's answer delay. A press before it is a false start. 0 or null: open right away */
+            /** @description Position on the SHOWING timer (ms) when the buzzer opens: after the content timeline, the reading time of a caption text and a choice question's showDelay. A press before it is a false start. 0 or null: open right away */
             buzzerOpensAtMs?: number | null;
             /** @description Presses collected in the buzzer accept window after the first press; the answerer is drawn among them when it closes */
             buzzerWindow?: components["schemas"]["BuzzerWindow"] | null;
@@ -3774,6 +3790,8 @@ export interface components {
              * @example 2
              */
             currentTurnPlayerId?: number | null;
+            /** @description When the first round started (epoch ms), for the round time limit */
+            roundStartedAt?: number | null;
         };
         /** @description This data is sent to all players in room when a player changes their ready status */
         SocketIOPlayerReadinessEventPayload: {
@@ -4408,6 +4426,12 @@ export interface components {
             nextTurnPlayerId?: number | null;
             /** @description Answer files timeline on the SHOWING_ANSWER timer; the answer text stays visible as the headline */
             answerContentPlan?: components["schemas"]["QuestionContentPlan"] | null;
+            /** @description Other answers that also counted as right */
+            rightAnswers?: string[] | null;
+            /** @description Who wrote the question */
+            authors?: string[] | null;
+            /** @description Where the facts come from */
+            sources?: string[] | null;
         };
         /** @description Data sent when a player automatically loses in final round */
         SocketIOFinalAutoLossEventPayload: {
