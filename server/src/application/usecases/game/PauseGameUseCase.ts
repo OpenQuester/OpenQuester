@@ -23,19 +23,23 @@ export class PauseGameUseCase
   implements GameActionHandler<EmptyInputData, GamePauseBroadcastData>
 {
   constructor(
-    private readonly socketGameTimerService: SocketGameTimerService
+    private readonly socketGameTimerService: SocketGameTimerService,
+    /** `moderator: true` is the admin panel action: no showman in the loop. */
+    private readonly options: { moderator: boolean } = { moderator: false }
   ) {}
 
   public async execute(
     ctx: ActionExecutionContext<EmptyInputData>
   ): Promise<ActionHandlerResult<GamePauseBroadcastData>> {
-    GameValidator.validatePlayerAuthenticated(ctx);
+    if (!this.options.moderator) {
+      GameValidator.validatePlayerAuthenticated(ctx);
 
-    const { game, currentPlayer, timer } = ctx;
-
-    if (currentPlayer.role !== PlayerRole.SHOWMAN) {
-      throw new ClientError(ClientResponse.ONLY_SHOWMAN_CAN_PAUSE);
+      if (ctx.currentPlayer.role !== PlayerRole.SHOWMAN) {
+        throw new ClientError(ClientResponse.ONLY_SHOWMAN_CAN_PAUSE);
+      }
     }
+
+    const { game, timer } = ctx;
 
     GameStateValidator.validateGameInProgress(game);
 

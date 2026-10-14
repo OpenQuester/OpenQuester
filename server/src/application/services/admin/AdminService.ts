@@ -5,7 +5,19 @@ import { DI_TOKENS } from "shared/di/tokens";
 import { UserService } from "application/services/user/UserService";
 import { ADMIN_AVERAGE_REDIS_KEY_SIZE_KB, ADMIN_RECENT_USERS_LIMIT } from "domain/constants/admin";
 import {
+  ADMIN_PERMISSIONS,
+  MODERATOR_DEFAULT_PERMISSIONS,
+  StaffRole,
+  staffRoleOf
+} from "domain/constants/staffRoles";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { HttpStatus } from "domain/enums/HttpStatus";
+import { Permissions } from "domain/enums/Permissions";
+import { ClientError } from "domain/errors/ClientError";
+import { type userId } from "domain/types/ids";
+import {
   AdminDashboardData,
+  AdminRolesData,
   AdminSystemHealthData,
   AdminUserListData,
   UsersStats
@@ -154,5 +166,79 @@ export class AdminService {
         guests: stats.guests
       }
     };
+  }
+
+  /** Permission list and the role presets the admin panel offers. */
+  public getRoles(): AdminRolesData {
+    return {
+      permissions: [...ADMIN_PERMISSIONS],
+      roles: [
+        { id: StaffRole.USER, permissions: [] },
+        { id: StaffRole.MODERATOR, permissions: [...MODERATOR_DEFAULT_PERMISSIONS] },
+        { id: StaffRole.ADMIN, permissions: [...ADMIN_PERMISSIONS] }
+      ]
+    };
+  }
+
+  /**
+   * Guards every admin action on another account: nobody acts on themselves,
+   * and only admins act on staff (admins and moderators).
+   */
+  public async assertCanModerateUser(actorId: number | undefined, targetId: userId): Promise<void> {
+    if (actorId === undefined) {
+      throw new ClientError(ClientResponse.ACCESS_DENIED, HttpStatus.UNAUTHORIZED);
+    }
+
+    if (actorId === targetId) {
+      throw new ClientError(ClientResponse.CANNOT_MODERATE_SELF, HttpStatus.FORBIDDEN);
+    }
+
+    const [actorRole, targetRole] = await Promise.all([
+      this.getStaffRole(actorId as userId),
+      this.getStaffRole(targetId)
+    ]);
+
+    if (targetRole !== StaffRole.USER && actorRole !== StaffRole.ADMIN) {
+      throw new ClientError(ClientResponse.CANNOT_MODERATE_STAFF, HttpStatus.FORBIDDEN);
+    }
+  }
+
+  /** Replaces a user's permissions; the admin panel's role and permission editor. */
+  public async setUserPermissions(
+    actorId: number | undefined,
+    targetId: userId,
+    permissionNames: string[]
+  ): Promise<UserDTO> {
+    await this.assertCanModerateUser(actorId, targetId);
+
+    const unknown = permissionNames.filter(
+      (name) => !ADMIN_PERMISSIONS.includes(name as Permissions)
+    );
+    if (unknown.length > 0) {
+      throw new ClientError(ClientResponse.INVALID_INPUT, HttpStatus.BAD_REQUEST);
+    }
+
+    const updated = await this.userService.updateUserPermissionsByNames(targetId, [
+      ...new Set(permissionNames)
+    ]);
+
+    this.logger.audit("Staff permissions changed", {
+      prefix: LogPrefix.ADMIN,
+      adminUserId: actorId,
+      targetUserId: targetId,
+      role: staffRoleOf(permissionNames),
+      permissions: permissionNames
+    });
+
+    return updated;
+  }
+
+  private async getStaffRole(id: userId): Promise<StaffRole> {
+    const user = await this.userService.getRaw(id, {
+      select: ["id"],
+      relations: ["permissions"],
+      relationSelects: { permissions: ["id", "name"] }
+    });
+    return staffRoleOf(user?.permissions?.map((p) => p.name) ?? []);
   }
 }

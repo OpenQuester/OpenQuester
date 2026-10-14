@@ -35,6 +35,12 @@ export enum GameActionType {
   FINAL_ANSWER_SUBMIT = "final-answer-submit",
   FINAL_ANSWER_REVIEW = "final-answer-review",
 
+  // Moderation (admin panel; never mapped to a socket event)
+  ADMIN_PLAYER_KICK = "admin-player-kick",
+  ADMIN_GAME_PAUSE = "admin-game-pause",
+  ADMIN_GAME_UNPAUSE = "admin-game-unpause",
+  ADMIN_GAME_CLOSE = "admin-game-close",
+
   // System
   DISCONNECT = "disconnect",
   CHAT_MESSAGE = "chat-message",

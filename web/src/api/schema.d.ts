@@ -1406,7 +1406,7 @@ export interface paths {
                         "application/json": components["schemas"]["UserBanResponse"];
                     };
                 };
-                /** @description Permission denied */
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -1462,7 +1462,7 @@ export interface paths {
                         "application/json": components["schemas"]["UserBanResponse"];
                     };
                 };
-                /** @description Permission denied */
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -1531,7 +1531,7 @@ export interface paths {
                         "application/json": components["schemas"]["BadRequestResponse"];
                     };
                 };
-                /** @description Permission denied */
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -1587,7 +1587,7 @@ export interface paths {
                         "application/json": components["schemas"]["UserMuteResponse"];
                     };
                 };
-                /** @description Permission denied */
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -1642,7 +1642,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description Permission denied */
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -1697,7 +1697,7 @@ export interface paths {
                         "application/json": components["schemas"]["UserRestoreResponse"];
                     };
                 };
-                /** @description Permission denied */
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -1723,6 +1723,463 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/api/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Staff permissions and role presets
+         * @description Requires admin_panel_access.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Permission list and presets */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminRoles"];
+                    };
+                };
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PermissionDeniedResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/api/users/{id}/permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace a user's permissions (role editor)
+         * @description Requires manage_permissions. Refuses your own account.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UserPermissionsUpdate"];
+                };
+            };
+            responses: {
+                /** @description Updated user */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResponseUser"];
+                    };
+                };
+                /** @description Unknown permission name */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PermissionDeniedResponse"];
+                    };
+                };
+                /** @description User not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserNotFoundResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/api/games": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List every game, private ones included
+         * @description Requires manage_games.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    offset?: number;
+                    /** @description Title prefix */
+                    search?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Games, newest first */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PaginatedGames"];
+                    };
+                };
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PermissionDeniedResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/api/games/{gameId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Game details with everyone in it
+         * @description Requires manage_games.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    gameId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Game */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminGameDetails"];
+                    };
+                };
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PermissionDeniedResponse"];
+                    };
+                };
+                /** @description Game or player not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GameNotFoundResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /**
+         * Close a game for everyone
+         * @description Requires manage_games. Everyone in the game receives game-closed; the game is deleted.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    gameId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Done */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PermissionDeniedResponse"];
+                    };
+                };
+                /** @description Game or player not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GameNotFoundResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/api/games/{gameId}/players/{playerId}/kick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove someone from a game
+         * @description Requires manage_games. Works on the showman too; the room receives player-kicked.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    gameId: string;
+                    playerId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Done */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PermissionDeniedResponse"];
+                    };
+                };
+                /** @description Game or player not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GameNotFoundResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/api/games/{gameId}/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pause a running game
+         * @description Requires manage_games. The room receives game-pause.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    gameId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Done */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Game not running */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PermissionDeniedResponse"];
+                    };
+                };
+                /** @description Game or player not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GameNotFoundResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/api/games/{gameId}/unpause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume a paused game
+         * @description Requires manage_games. The room receives game-unpause.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    gameId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Done */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Game not paused or not started */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Permission denied, or the target is staff and you are not an admin, or it is your own account */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PermissionDeniedResponse"];
+                    };
+                };
+                /** @description Game or player not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GameNotFoundResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1732,7 +2189,7 @@ export interface components {
             total: number;
         };
         /** @enum {string} */
-        PermissionName: "get_all_users" | "get_another_user" | "change_another_user" | "delete_another_user" | "delete_file" | "delete_package" | "edit_package" | "manage_permissions" | "admin_panel_access" | "view_system_health" | "view_users_info" | "ban_users" | "mute_player" | "view_system_logs";
+        PermissionName: "get_all_users" | "get_another_user" | "change_another_user" | "delete_another_user" | "delete_file" | "delete_package" | "edit_package" | "manage_permissions" | "admin_panel_access" | "view_system_health" | "view_users_info" | "ban_users" | "mute_player" | "view_system_logs" | "manage_games";
         PackageCreationInput: {
             content: components["schemas"]["PackageCreateInputData"];
         };
@@ -3119,7 +3576,7 @@ export interface components {
          * @example join
          * @enum {string}
          */
-        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
+        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
         /** @description Data sent to all players when player skips a question */
         SocketIOGameSkipEventPayload: {
             /**
@@ -4038,6 +4495,39 @@ export interface components {
             skipped: number;
             /** @description Number of entries returned (0 to limit) */
             matched: number;
+        };
+        /**
+         * @description Admin panel role. Not stored: admin = has manage_permissions, moderator = has admin_panel_access.
+         * @enum {string}
+         */
+        StaffRole: "user" | "moderator" | "admin";
+        AdminRoles: {
+            permissions: components["schemas"]["PermissionName"][];
+            roles: {
+                id: components["schemas"]["StaffRole"];
+                permissions: components["schemas"]["PermissionName"][];
+            }[];
+        };
+        AdminGamePlayer: {
+            id: number;
+            username: string;
+            avatar: string | null;
+            role: components["schemas"]["PlayerRole"];
+            /** @enum {string} */
+            status: "in-game" | "disconnected";
+            score: number;
+            slot: number | null;
+        };
+        AdminGameDetails: {
+            game: components["schemas"]["GameListItem"];
+            isPaused: boolean;
+            players: components["schemas"]["AdminGamePlayer"][];
+        };
+        /** @description Sent to everyone in a game an admin or moderator closed. The game no longer exists. */
+        SocketIOGameClosedEventPayload: {
+            gameId: string;
+            /** @enum {string} */
+            reason: "moderator";
         };
     };
     responses: never;

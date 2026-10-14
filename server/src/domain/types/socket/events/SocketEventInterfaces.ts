@@ -176,6 +176,12 @@ export interface PlayerKickBroadcastData {
   playerId: number;
 }
 
+/** Sent to everyone in a game an admin or moderator closed. */
+export interface GameClosedBroadcastData {
+  gameId: string;
+  reason: "moderator";
+}
+
 export interface PlayerScoreChangeBroadcastData {
   playerId: number;
   newScore: number;

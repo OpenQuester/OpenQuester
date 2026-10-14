@@ -25,19 +25,23 @@ export class UnpauseGameUseCase
 {
   constructor(
     private readonly socketGameTimerService: SocketGameTimerService,
-    private readonly gameService: GameService
+    private readonly gameService: GameService,
+    /** `moderator: true` is the admin panel action: no showman in the loop. */
+    private readonly options: { moderator: boolean } = { moderator: false }
   ) {}
 
   public async execute(
     ctx: ActionExecutionContext<EmptyInputData>
   ): Promise<ActionHandlerResult<GameUnpauseBroadcastData>> {
-    GameValidator.validatePlayerAuthenticated(ctx);
+    if (!this.options.moderator) {
+      GameValidator.validatePlayerAuthenticated(ctx);
 
-    const { game, currentPlayer } = ctx;
-
-    if (currentPlayer.role !== PlayerRole.SHOWMAN) {
-      throw new ClientError(ClientResponse.ONLY_SHOWMAN_CAN_UNPAUSE);
+      if (ctx.currentPlayer.role !== PlayerRole.SHOWMAN) {
+        throw new ClientError(ClientResponse.ONLY_SHOWMAN_CAN_UNPAUSE);
+      }
     }
+
+    const { game } = ctx;
 
     GameStateValidator.validateGameNotFinished(game);
     GameStateValidator.validateGameStarted(game);

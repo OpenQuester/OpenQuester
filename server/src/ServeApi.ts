@@ -8,6 +8,7 @@ import { type ApiContext } from "shared/context/ApiContext";
 import { bootstrapContainer, container } from "./bootstrap/bootstrapContainer";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { AdminDiagnosticsService } from "application/services/admin/AdminDiagnosticsService";
+import { AdminGameService } from "application/services/admin/AdminGameService";
 import { AdminService } from "application/services/admin/AdminService";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { FileService } from "application/services/file/FileService";
@@ -269,6 +270,7 @@ export class ServeApi {
       fileStorageService: container.resolve(FileStorageService),
       adminService: container.resolve(AdminService),
       adminDiagnosticsService: container.resolve(AdminDiagnosticsService),
+      adminGameService: container.resolve(AdminGameService),
       socketGameContextService: container.resolve(SocketGameContextService),
       gameActionExecutor: container.resolve(GameActionExecutor)
     };
@@ -293,7 +295,8 @@ export class ServeApi {
       deps.userService,
       this._context.logger,
       deps.adminService,
-      deps.adminDiagnosticsService
+      deps.adminDiagnosticsService,
+      deps.adminGameService
     );
     new SwaggerRestApiController(deps.app, this._context.logger);
 
@@ -304,7 +307,8 @@ export class ServeApi {
         this._context.env,
         deps.game,
         deps.storage,
-        this._context.logger
+        this._context.logger,
+        container.resolve(PermissionService)
       );
     }
 

@@ -302,8 +302,9 @@ export class UserService {
     // Update user permissions (replace all)
     user.permissions = newPermissions;
 
-    // Save the user with updated permissions
-    await this.userRepository.update(user);
+    // save(), not update(): update() writes columns only and drops the
+    // many-to-many permission links
+    await this.userRepository.save(user);
 
     this.logger.audit("User permissions updated", {
       prefix: LogPrefix.USER,

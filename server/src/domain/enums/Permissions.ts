@@ -22,6 +22,9 @@ export enum Permissions {
   BAN_USERS = "ban_users",
   MUTE_PLAYER = "mute_player",
 
+  // Game moderation: list every game (private included), kick, pause, close
+  MANAGE_GAMES = "manage_games",
+
   // Logging
   VIEW_SYSTEM_LOGS = "view_system_logs",
 }

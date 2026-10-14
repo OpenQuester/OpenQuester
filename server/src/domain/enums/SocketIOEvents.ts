@@ -27,6 +27,7 @@ export enum SocketIOGameEvents {
   SKIP_SHOW_ANSWER = "skip-show-answer",
   NEXT_ROUND = "next-round",
   GAME_FINISHED = "game-finished",
+  GAME_CLOSED = "game-closed",
   SKIP_QUESTION_FORCE = "skip-question-force",
   QUESTION_SKIP = "question-skip",
   QUESTION_UNSKIP = "question-unskip",

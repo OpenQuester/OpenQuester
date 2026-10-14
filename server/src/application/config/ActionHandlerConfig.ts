@@ -12,6 +12,7 @@ import { GameStatisticsCollectorService } from "application/services/statistics/
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { UserService } from "application/services/user/UserService";
+import { AdminGameCloseUseCase } from "application/usecases/admin/AdminGameCloseUseCase";
 import { FinalAnswerReviewUseCase } from "application/usecases/finalround/FinalAnswerReviewUseCase";
 import { FinalAnswerSubmitUseCase } from "application/usecases/finalround/FinalAnswerSubmitUseCase";
 import { FinalBidSubmitUseCase } from "application/usecases/finalround/FinalBidSubmitUseCase";
@@ -251,6 +252,26 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
       transitionResourceService
     )
   );
+
+  // =====================================
+  // Moderation Handlers (admin panel, not socket events)
+  // =====================================
+  registry.register(
+    GameActionType.ADMIN_PLAYER_KICK,
+    new PlayerKickUseCase(playerLeaveService, { moderator: true })
+  );
+
+  registry.register(
+    GameActionType.ADMIN_GAME_PAUSE,
+    new PauseGameUseCase(socketGameTimerService, { moderator: true })
+  );
+
+  registry.register(
+    GameActionType.ADMIN_GAME_UNPAUSE,
+    new UnpauseGameUseCase(socketGameTimerService, gameService, { moderator: true })
+  );
+
+  registry.register(GameActionType.ADMIN_GAME_CLOSE, new AdminGameCloseUseCase());
 
   // =====================================
   // System Handlers

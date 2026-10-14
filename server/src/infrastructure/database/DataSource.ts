@@ -61,6 +61,7 @@ import { AddMutedUntilToUser_0_21_0_1767095976000 as AddMutedUntilToUser } from 
 import { AddShowAnswerDurationToPackageQuestion_0_22_0_1766934959798 as AddShowAnswerDuration } from "./migrations/0.22.0_AddShowAnswerDurationToPackageQuestion_1766934959798";
 import { AddViewSystemLogsPermission_0_23_0_1767264810999 as AddViewLogsPerm } from "./migrations/0.23.0_AddViewSystemLogsPermission_1767264810999";
 import { AddContentSequencingFields_0_24_0_1792000000000 as AddContentSequencingFields } from "./migrations/0.24.0_AddContentSequencingFields_1792000000000";
+import { AddManageGamesPermission_0_25_0_1792100000000 as AddManageGamesPermission } from "./migrations/0.25.0_AddManageGamesPermission_1792100000000";
 
 function createBootstrapDataSourceLogger(): ILogger {
   const performanceLog: PerformanceLog = {
@@ -195,7 +196,8 @@ export const AppDataSource = new DataSource({
     AddMutedUntilToUser,
     AddShowAnswerDuration,
     AddViewLogsPerm,
-    AddContentSequencingFields
+    AddContentSequencingFields,
+    AddManageGamesPermission
   ],
   poolSize: env.DB_POOL_SIZE,
   migrationsRun: true,

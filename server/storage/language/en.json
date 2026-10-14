@@ -103,5 +103,7 @@
   "you_cannot_answer_right_after_becoming_player": "You cannot answer the question right after becoming a player. You will be able to answer the next question.",
   "you_cannot_participate_in_current_question": "You cannot participate in the current question right after becoming a player. You will be able to participate in the next question.",
   "failed_to_transition": "Failed to transition game state",
-  "target_player_cannot_participate_in_current_question": "Target player cannot participate in the current question"
+  "target_player_cannot_participate_in_current_question": "Target player cannot participate in the current question",
+  "cannot_moderate_staff": "Only an admin can do this to another admin or moderator",
+  "cannot_moderate_self": "You can't do this to your own account"
 }

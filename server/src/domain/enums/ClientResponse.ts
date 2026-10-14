@@ -126,6 +126,10 @@ export enum ClientResponse {
   INVALID_TRANSFER_TARGET = "invalid_transfer_target",
   CANNOT_TRANSFER_TO_SELF = "cannot_transfer_to_self",
 
+  // Moderation
+  CANNOT_MODERATE_STAFF = "cannot_moderate_staff",
+  CANNOT_MODERATE_SELF = "cannot_moderate_self",
+
   // Other
   DELETE_REQUEST_SENT = "delete_request_sent"
 }

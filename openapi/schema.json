@@ -1600,7 +1600,7 @@
             }
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1648,7 +1648,7 @@
             }
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1716,7 +1716,7 @@
             }
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1764,7 +1764,7 @@
             }
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1805,7 +1805,7 @@
             "description": "User deleted successfully"
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1853,7 +1853,7 @@
             }
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1868,6 +1868,387 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/roles": {
+      "get": {
+        "summary": "Staff permissions and role presets",
+        "tags": ["Admin"],
+        "description": "Requires admin_panel_access.",
+        "responses": {
+          "200": {
+            "description": "Permission list and presets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRoles"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/{id}/permissions": {
+      "put": {
+        "summary": "Replace a user's permissions (role editor)",
+        "tags": ["Admin"],
+        "description": "Requires manage_permissions. Refuses your own account.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPermissionsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown permission name"
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/games": {
+      "get": {
+        "summary": "List every game, private ones included",
+        "tags": ["Admin"],
+        "description": "Requires manage_games.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Title prefix"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Games, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedGames"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/games/{gameId}": {
+      "get": {
+        "summary": "Game details with everyone in it",
+        "tags": ["Admin"],
+        "description": "Requires manage_games.",
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Game",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGameDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or player not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Close a game for everyone",
+        "tags": ["Admin"],
+        "description": "Requires manage_games. Everyone in the game receives game-closed; the game is deleted.",
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or player not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/games/{gameId}/players/{playerId}/kick": {
+      "post": {
+        "summary": "Remove someone from a game",
+        "tags": ["Admin"],
+        "description": "Requires manage_games. Works on the showman too; the room receives player-kicked.",
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or player not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/games/{gameId}/pause": {
+      "post": {
+        "summary": "Pause a running game",
+        "tags": ["Admin"],
+        "description": "Requires manage_games. The room receives game-pause.",
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "Game not running"
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or player not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/games/{gameId}/unpause": {
+      "post": {
+        "summary": "Resume a paused game",
+        "tags": ["Admin"],
+        "description": "Requires manage_games. The room receives game-unpause.",
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "Game not paused or not started"
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or player not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameNotFoundResponse"
                 }
               }
             }
@@ -1912,7 +2293,8 @@
           "view_users_info",
           "ban_users",
           "mute_player",
-          "view_system_logs"
+          "view_system_logs",
+          "manage_games"
         ]
       },
       "PackageCreationInput": {
@@ -4439,6 +4821,7 @@
           "answer-show-end",
           "next-round",
           "game-finished",
+          "game-closed",
           "game-pause",
           "game-unpause",
           "theme-eliminate",
@@ -6088,6 +6471,109 @@
             "description": "Number of entries returned (0 to limit)"
           }
         }
+      },
+      "StaffRole": {
+        "type": "string",
+        "enum": ["user", "moderator", "admin"],
+        "description": "Admin panel role. Not stored: admin = has manage_permissions, moderator = has admin_panel_access."
+      },
+      "AdminRoles": {
+        "type": "object",
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionName"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/StaffRole"
+                },
+                "permissions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PermissionName"
+                  }
+                }
+              },
+              "required": ["id", "permissions"]
+            }
+          }
+        },
+        "required": ["permissions", "roles"]
+      },
+      "AdminGamePlayer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          },
+          "avatar": {
+            "type": ["string", "null"]
+          },
+          "role": {
+            "$ref": "#/components/schemas/PlayerRole"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["in-game", "disconnected"]
+          },
+          "score": {
+            "type": "integer"
+          },
+          "slot": {
+            "type": ["integer", "null"]
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "avatar",
+          "role",
+          "status",
+          "score",
+          "slot"
+        ]
+      },
+      "AdminGameDetails": {
+        "type": "object",
+        "properties": {
+          "game": {
+            "$ref": "#/components/schemas/GameListItem"
+          },
+          "isPaused": {
+            "type": "boolean"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGamePlayer"
+            }
+          }
+        },
+        "required": ["game", "isPaused", "players"]
+      },
+      "SocketIOGameClosedEventPayload": {
+        "type": "object",
+        "description": "Sent to everyone in a game an admin or moderator closed. The game no longer exists.",
+        "properties": {
+          "gameId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": ["moderator"]
+          }
+        },
+        "required": ["gameId", "reason"]
       }
     }
   }
