@@ -24,6 +24,9 @@ import { S3FileUrlBuilder } from "infrastructure/storage/S3FileUrlBuilder";
 import { ValueUtils } from "domain/utils/ValueUtils";
 import { PackageStorageService } from "application/services/package/PackageStorageService";
 import { UserSessionService } from "application/services/user/UserSessionService";
+import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
+import { StorageQuotaService } from "application/services/storage/StorageQuotaService";
+import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
 
 /**
  * Service for package management operations.
@@ -35,6 +38,9 @@ export class PackageService {
     private readonly packageStorageService: PackageStorageService,
     private readonly fileUrlBuilder: S3FileUrlBuilder,
     private readonly userSessionService: UserSessionService,
+    private readonly storageQuotaService: StorageQuotaService,
+    private readonly storageCleanupService: StorageCleanupService,
+    private readonly storageRepository: StorageRepository,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -93,13 +99,21 @@ export class PackageService {
   public async uploadPackage(
     author: User | null,
     packageData: PackageDTO,
-    expiresIn: number = UPLOAD_PACKAGE_LINKS_EXPIRES_IN
+    expiresIn: number = UPLOAD_PACKAGE_LINKS_EXPIRES_IN,
+    /** Bytes per MD5 as the client measured them; checked against the storage limits. */
+    fileSizes?: Record<string, number>
   ): Promise<PackageUploadResponse> {
     if (!author || !author.id) {
       throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND);
     }
 
+    const declared = await this.storageQuotaService.assertPackageFits(
+      author,
+      packageData,
+      fileSizes
+    );
     const { pack, files } = await this.packageRepository.create(packageData, author);
+    await this.storageRepository.setDeclaredSizes(declared);
 
     const links = await this.packageStorageService.generateUploadLinks(files, expiresIn);
     return {
@@ -112,6 +126,7 @@ export class PackageService {
     sessionUserId: number | undefined;
     packageData: PackageDTO;
     expiresIn?: number;
+    fileSizes?: Record<string, number>;
   }): Promise<PackageUploadResponse> {
     const author = await this.userSessionService.getValidatedSessionUser({
       sessionUserId: input.sessionUserId
@@ -121,7 +136,7 @@ export class PackageService {
       throw new ClientError(ClientResponse.CANNOT_UPLOAD_PACKAGE_AS_GUEST, HttpStatus.FORBIDDEN);
     }
 
-    return this.uploadPackage(author, input.packageData, input.expiresIn);
+    return this.uploadPackage(author, input.packageData, input.expiresIn, input.fileSizes);
   }
 
   /**
@@ -134,14 +149,27 @@ export class PackageService {
     packageId: number;
     packageData: PackageDTO;
     expiresIn?: number;
+    fileSizes?: Record<string, number>;
   }): Promise<PackageUploadResponse> {
     const user = await this.assertCanEditPackage(input);
 
+    // Limits are the author's: an editor with EDIT_PACKAGE fixes someone else's package.
+    const author = (await this.getPackageRaw(input.packageId, ["id"], ["author"])).author;
+    const declared = await this.storageQuotaService.assertPackageFits(
+      author ?? user,
+      input.packageData,
+      input.fileSizes,
+      input.packageId
+    );
+    const before = await this.storageRepository.getPackageFilenames(input.packageId);
     const { pack, files } = await this.packageRepository.create(
       input.packageData,
       user,
       input.packageId
     );
+    await this.storageRepository.setDeclaredSizes(declared);
+    // Media the edit dropped is deleted unless something else still uses it.
+    await this.storageCleanupService.removeIfUnused(before);
     const links = await this.packageStorageService.generateUploadLinks(
       files,
       input.expiresIn ?? UPLOAD_PACKAGE_LINKS_EXPIRES_IN

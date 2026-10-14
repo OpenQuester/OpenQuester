@@ -2,6 +2,7 @@ import { Router, type Express, type Request, type Response } from "express";
 
 import { type FileStorageService } from "application/services/file/FileStorageService";
 import { TranslateService as ts } from "domain/utils/TranslateService";
+import { ClientError } from "domain/errors/ClientError";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
@@ -30,6 +31,10 @@ export class FileRestApiController {
   };
 
   private uploadFile = async (req: Request, res: Response) => {
+    // Reading a link stays public; storing a file needs an account (guests included).
+    if (!req.session.userId) {
+      throw new ClientError(ClientResponse.STORAGE_SIGN_IN_TO_UPLOAD, HttpStatus.UNAUTHORIZED);
+    }
     const validatedData = this._validateParamsFilename(req);
 
     const url = await this.fileStorageService.upload(validatedData.filename);

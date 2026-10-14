@@ -144,6 +144,21 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Sign in (a guest account is enough) to get an upload link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -217,6 +232,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PackageCorruptedResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "A file, the package or the uploader's total storage is over its limit; the message says which and by how much",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "The storage bucket is full; uploads are paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -453,6 +498,36 @@
           },
           "404": {
             "description": "Package not found"
+          },
+          "413": {
+            "description": "A file, the package or the uploader's total storage is over its limit; the message says which and by how much",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "The storage bucket is full; uploads are paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -2255,6 +2330,180 @@
           }
         }
       }
+    },
+    "/v1/me/storage": {
+      "get": {
+        "summary": "Your storage use and limits",
+        "tags": ["Users"],
+        "responses": {
+          "200": {
+            "description": "Usage and limits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyStorage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/storage": {
+      "get": {
+        "summary": "Bucket usage, group limits and the heaviest users",
+        "tags": ["Admin"],
+        "description": "Requires admin_panel_access.",
+        "responses": {
+          "200": {
+            "description": "Storage overview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStorage"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/storage/groups/{group}": {
+      "put": {
+        "summary": "Change a group's storage limits",
+        "tags": ["Admin"],
+        "description": "Requires manage_storage.",
+        "parameters": [
+          {
+            "name": "group",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/StorageGroup"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageLimits"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved limits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageGroupLimits"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/storage/users/{id}": {
+      "put": {
+        "summary": "Set or clear one user's storage quota",
+        "tags": ["Admin"],
+        "description": "Requires manage_storage. A null quota goes back to the group's.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "quotaBytes": {
+                    "type": ["integer", "null"]
+                  }
+                },
+                "required": ["quotaBytes"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Saved"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2302,6 +2551,14 @@
         "properties": {
           "content": {
             "$ref": "#/components/schemas/PackageCreateInputData"
+          },
+          "fileSizes": {
+            "type": "object",
+            "description": "Bytes of each media file, keyed by MD5. Checked against the uploader's storage limits before any upload link is issued; files already stored use their recorded size.",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         },
         "required": ["content"]
@@ -6574,6 +6831,154 @@
           }
         },
         "required": ["gameId", "reason"]
+      },
+      "StorageLimits": {
+        "type": "object",
+        "description": "Bytes; null means no limit.",
+        "properties": {
+          "userQuotaBytes": {
+            "type": ["integer", "null"],
+            "description": "Total a user may store"
+          },
+          "packageBytes": {
+            "type": ["integer", "null"],
+            "description": "Media in one package"
+          },
+          "imageBytes": {
+            "type": ["integer", "null"],
+            "description": "One picture"
+          },
+          "audioBytes": {
+            "type": ["integer", "null"],
+            "description": "One sound file"
+          },
+          "videoBytes": {
+            "type": ["integer", "null"],
+            "description": "One video"
+          }
+        },
+        "required": [
+          "userQuotaBytes",
+          "packageBytes",
+          "imageBytes",
+          "audioBytes",
+          "videoBytes"
+        ]
+      },
+      "StorageGroup": {
+        "type": "string",
+        "enum": ["guest", "user", "moderator", "admin"],
+        "description": "Derived from the user: guests, everyone else, moderators (admin panel access) and admins (manage permissions)."
+      },
+      "StorageGroupLimits": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StorageLimits"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "group": {
+                "$ref": "#/components/schemas/StorageGroup"
+              }
+            },
+            "required": ["group"]
+          }
+        ]
+      },
+      "MyStorage": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/StorageGroup"
+          },
+          "usedBytes": {
+            "type": "integer",
+            "description": "Distinct files your packages and avatar use; a file in several of your packages counts once."
+          },
+          "quotaBytes": {
+            "type": ["integer", "null"]
+          },
+          "quotaOverridden": {
+            "type": "boolean",
+            "description": "True when an admin set your own quota."
+          },
+          "limits": {
+            "$ref": "#/components/schemas/StorageLimits"
+          }
+        },
+        "required": [
+          "group",
+          "usedBytes",
+          "quotaBytes",
+          "quotaOverridden",
+          "limits"
+        ]
+      },
+      "StorageUserUsage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          },
+          "group": {
+            "$ref": "#/components/schemas/StorageGroup"
+          },
+          "usedBytes": {
+            "type": "integer"
+          },
+          "quotaBytes": {
+            "type": ["integer", "null"]
+          },
+          "quotaOverridden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "group",
+          "usedBytes",
+          "quotaBytes",
+          "quotaOverridden"
+        ]
+      },
+      "AdminStorage": {
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "object",
+            "properties": {
+              "usedBytes": {
+                "type": "integer"
+              },
+              "fileCount": {
+                "type": "integer"
+              },
+              "quotaBytes": {
+                "type": ["integer", "null"],
+                "description": "S3_BUCKET_QUOTA_BYTES; uploads stop at 95 %."
+              }
+            },
+            "required": ["usedBytes", "fileCount", "quotaBytes"]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageGroupLimits"
+            }
+          },
+          "topUsers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageUserUsage"
+            }
+          }
+        },
+        "required": ["bucket", "groups", "topUsers"]
       }
     }
   }

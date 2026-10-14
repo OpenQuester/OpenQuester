@@ -25,6 +25,9 @@ export enum Permissions {
   // Game moderation: list every game (private included), kick, pause, close
   MANAGE_GAMES = "manage_games",
 
+  // Storage: change per-group limits and per-user quotas
+  MANAGE_STORAGE = "manage_storage",
+
   // Logging
   VIEW_SYSTEM_LOGS = "view_system_logs",
 }

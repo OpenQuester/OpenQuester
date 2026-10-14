@@ -283,7 +283,7 @@ export class S3StorageService {
    */
   public async *listS3FilesInBatches(
     batchSize: number = 1000
-  ): AsyncGenerator<{ filename: string; s3Key: string }[]> {
+  ): AsyncGenerator<{ filename: string; s3Key: string; size?: number }[]> {
     let totalProcessed = 0;
 
     try {
@@ -293,7 +293,11 @@ export class S3StorageService {
       )) {
         if (files.length > 0) {
           totalProcessed += files.length;
-          yield files.map((file) => ({ filename: file.filename, s3Key: file.key }));
+          yield files.map((file) => ({
+            filename: file.filename,
+            s3Key: file.key,
+            size: file.size
+          }));
 
           // Log progress for large buckets
           if (totalProcessed % 10000 === 0) {

@@ -45,11 +45,13 @@ export class PackageRestApiController {
     // Validate and get data that can be safely saved in DB
     const validatedData = new RequestDataValidator<{
       content: PackageDTO;
+      fileSizes?: Record<string, number>;
     }>(req.body, uploadPackageScheme()).validate();
 
     const data = await this.packageService.uploadPackageForSession({
       sessionUserId: req.session.userId,
-      packageData: validatedData.content
+      packageData: validatedData.content,
+      fileSizes: validatedData.fileSizes
     });
     return res.status(HttpStatus.OK).send(data);
   };
@@ -66,12 +68,14 @@ export class PackageRestApiController {
     });
     const validatedData = new RequestDataValidator<{
       content: PackageDTO;
+      fileSizes?: Record<string, number>;
     }>(req.body, uploadPackageScheme()).validate();
 
     const data = await this.packageService.updatePackageForSession({
       sessionUserId: req.session.userId,
       packageId,
-      packageData: validatedData.content
+      packageData: validatedData.content,
+      fileSizes: validatedData.fileSizes
     });
     return res.status(HttpStatus.OK).send(data);
   };

@@ -2,6 +2,7 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client
@@ -116,6 +117,21 @@ export class S3ObjectStorage implements ObjectStorage {
     await this.client.send(command);
   }
 
+  public async headObject(bucket: string, key: string): Promise<{ size: number } | null> {
+    try {
+      const result = await this.client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+      return { size: Number(result.ContentLength ?? 0) };
+    } catch (error) {
+      const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata
+        ?.httpStatusCode;
+      // Hetzner answers 403 rather than 404 for a missing key.
+      if (status === 404 || status === 403) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   public async deleteObjects(bucket: string, keys: string[]): Promise<ObjectStorageDeleteResult> {
     if (keys.length === 0) {
       return { errors: [] };
@@ -163,7 +179,7 @@ export class S3ObjectStorage implements ObjectStorage {
           const key = obj.Key!;
           const parts = key.split("/");
           const filename = parts[parts.length - 1];
-          return { filename, key };
+          return { filename, key, size: obj.Size };
         });
       }
 

@@ -227,7 +227,11 @@ const rounds = Joi.array()
 
 // Top-level upload package schema
 export const uploadPackageScheme = () =>
-  Joi.object<Record<"content", PackageDTO>>({
+  Joi.object<{ content: PackageDTO; fileSizes?: Record<string, number> }>({
+    // Bytes per media file (MD5 → size), checked against the storage limits.
+    fileSizes: Joi.object()
+      .pattern(/^[a-fA-F0-9]{32}(\.[A-Za-z0-9]+)?$/, Joi.number().integer().min(0).required())
+      .optional(),
     content: Joi.object({
       title: Joi.string().required(),
       description: Joi.string().allow(null),

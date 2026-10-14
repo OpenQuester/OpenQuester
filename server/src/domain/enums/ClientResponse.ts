@@ -130,6 +130,13 @@ export enum ClientResponse {
   CANNOT_MODERATE_STAFF = "cannot_moderate_staff",
   CANNOT_MODERATE_SELF = "cannot_moderate_self",
 
+  // Storage limits
+  STORAGE_FILE_TOO_LARGE = "storage_file_too_large",
+  STORAGE_PACKAGE_TOO_LARGE = "storage_package_too_large",
+  STORAGE_QUOTA_EXCEEDED = "storage_quota_exceeded",
+  STORAGE_FULL = "storage_full",
+  STORAGE_SIGN_IN_TO_UPLOAD = "storage_sign_in_to_upload",
+
   // Other
   DELETE_REQUEST_SENT = "delete_request_sent"
 }

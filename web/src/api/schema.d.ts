@@ -74,6 +74,17 @@ export interface paths {
                         "application/json": components["schemas"]["BadFilenameResponse"];
                     };
                 };
+                /** @description Sign in (a guest account is enough) to get an upload link */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
             };
         };
         /** Delete file from bucket */
@@ -209,6 +220,28 @@ export interface paths {
                         "application/json": components["schemas"]["PackageCorruptedResponse"];
                     };
                 };
+                /** @description A file, the package or the uploader's total storage is over its limit; the message says which and by how much */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description The storage bucket is full; uploads are paused */
+                507: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
             };
         };
         delete?: never;
@@ -304,6 +337,28 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description A file, the package or the uploader's total storage is over its limit; the message says which and by how much */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description The storage bucket is full; uploads are paused */
+                507: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
                 };
             };
         };
@@ -2180,6 +2235,215 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/storage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your storage use and limits */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Usage and limits */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MyStorage"];
+                    };
+                };
+                /** @description Invalid session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/api/storage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Bucket usage, group limits and the heaviest users
+         * @description Requires admin_panel_access.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Storage overview */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminStorage"];
+                    };
+                };
+                /** @description Permission denied */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/api/storage/groups/{group}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change a group's storage limits
+         * @description Requires manage_storage.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    group: components["schemas"]["StorageGroup"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["StorageLimits"];
+                };
+            };
+            responses: {
+                /** @description Saved limits */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StorageGroupLimits"];
+                    };
+                };
+                /** @description Permission denied */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/api/storage/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set or clear one user's storage quota
+         * @description Requires manage_storage. A null quota goes back to the group's.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        quotaBytes: number | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Saved */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Permission denied */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2192,6 +2456,10 @@ export interface components {
         PermissionName: "get_all_users" | "get_another_user" | "change_another_user" | "delete_another_user" | "delete_file" | "delete_package" | "edit_package" | "manage_permissions" | "admin_panel_access" | "view_system_health" | "view_users_info" | "ban_users" | "mute_player" | "view_system_logs" | "manage_games";
         PackageCreationInput: {
             content: components["schemas"]["PackageCreateInputData"];
+            /** @description Bytes of each media file, keyed by MD5. Checked against the uploader's storage limits before any upload link is issued; files already stored use their recorded size. */
+            fileSizes?: {
+                [key: string]: number;
+            };
         };
         ResponseUser: {
             /** @example 1 */
@@ -4528,6 +4796,54 @@ export interface components {
             gameId: string;
             /** @enum {string} */
             reason: "moderator";
+        };
+        /** @description Bytes; null means no limit. */
+        StorageLimits: {
+            /** @description Total a user may store */
+            userQuotaBytes: number | null;
+            /** @description Media in one package */
+            packageBytes: number | null;
+            /** @description One picture */
+            imageBytes: number | null;
+            /** @description One sound file */
+            audioBytes: number | null;
+            /** @description One video */
+            videoBytes: number | null;
+        };
+        /**
+         * @description Derived from the user: guests, everyone else, moderators (admin panel access) and admins (manage permissions).
+         * @enum {string}
+         */
+        StorageGroup: "guest" | "user" | "moderator" | "admin";
+        StorageGroupLimits: components["schemas"]["StorageLimits"] & {
+            group: components["schemas"]["StorageGroup"];
+        };
+        MyStorage: {
+            group: components["schemas"]["StorageGroup"];
+            /** @description Distinct files your packages and avatar use; a file in several of your packages counts once. */
+            usedBytes: number;
+            quotaBytes: number | null;
+            /** @description True when an admin set your own quota. */
+            quotaOverridden: boolean;
+            limits: components["schemas"]["StorageLimits"];
+        };
+        StorageUserUsage: {
+            id: number;
+            username: string;
+            group: components["schemas"]["StorageGroup"];
+            usedBytes: number;
+            quotaBytes: number | null;
+            quotaOverridden: boolean;
+        };
+        AdminStorage: {
+            bucket: {
+                usedBytes: number;
+                fileCount: number;
+                /** @description S3_BUCKET_QUOTA_BYTES; uploads stop at 95 %. */
+                quotaBytes: number | null;
+            };
+            groups: components["schemas"]["StorageGroupLimits"][];
+            topUsers: components["schemas"]["StorageUserUsage"][];
         };
     };
     responses: never;

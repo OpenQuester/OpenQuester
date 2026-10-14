@@ -15,6 +15,7 @@ import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { ValueUtils } from "domain/utils/ValueUtils";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
+import { UserActivityService } from "application/services/user/UserActivityService";
 
 const isPublicEndpoint = (env: Environment, url: string, method: string): boolean => {
   // Only the API needs a session; everything else is the web app's static files.
@@ -86,6 +87,7 @@ export const verifySession =
 
     // Refresh session expire time
     req.session.touch();
+    touchLastSeen(user.id, logger);
     req.auth = {
       userId: user.id,
       isGuest: user.is_guest
@@ -93,6 +95,27 @@ export const verifySession =
 
     next();
   };
+
+/** In-process throttle so a busy user costs one write an hour, not one per request. */
+const lastSeenWritten = new Map<number, number>();
+const LAST_SEEN_EVERY_MS = 60 * 60 * 1000;
+
+function touchLastSeen(userId: number, logger: ILogger): void {
+  const now = Date.now();
+  if (now - (lastSeenWritten.get(userId) ?? 0) < LAST_SEEN_EVERY_MS) return;
+  lastSeenWritten.set(userId, now);
+  if (lastSeenWritten.size > 50_000) lastSeenWritten.clear();
+  container
+    .resolve(UserActivityService)
+    .touchLastSeen(userId)
+    .catch((error: unknown) =>
+      logger.warn("Could not record last seen time", {
+        prefix: LogPrefix.USER,
+        userId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    );
+}
 
 function validateSession(session: Session, isGuest: boolean): SessionDTO {
   return new RequestDataValidator<SessionDTO>(

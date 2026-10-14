@@ -2,7 +2,10 @@ import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
 import { LogArchivalJob } from "application/jobs/LogArchivalJob";
+import { GuestCleanupJob } from "application/jobs/GuestCleanupJob";
 import { S3FilesCleanupJob } from "application/jobs/S3FilesCleanupJob";
+import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
+import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
 import { FileService } from "application/services/file/FileService";
 import { CRON_EXP_2_AM_DAILY, CRON_EXP_3_AM_DAILY } from "domain/constants/cron";
 import { ICronJob } from "domain/types/cron/ICronJob";
@@ -22,7 +25,9 @@ export class CronJobFactory {
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
     private readonly s3Service: S3StorageService,
     private readonly fileService: FileService,
-    private readonly logArchivalService: LogArchivalService
+    private readonly logArchivalService: LogArchivalService,
+    private readonly storageCleanupService: StorageCleanupService,
+    private readonly storageRepository: StorageRepository
   ) {
     this.env = Environment.getInstance(this.logger);
   }
@@ -33,7 +38,25 @@ export class CronJobFactory {
   public createS3FilesCleanupJob(): S3FilesCleanupJob {
     const cronExpression = this.env.CRON_S3_CLEANUP_EXPRESSION || CRON_EXP_2_AM_DAILY;
 
-    return new S3FilesCleanupJob(this.logger, this.s3Service, this.fileService, cronExpression);
+    return new S3FilesCleanupJob(
+      this.logger,
+      this.s3Service,
+      this.fileService,
+      this.storageCleanupService,
+      this.storageRepository,
+      cronExpression
+    );
+  }
+
+  /** Removes guests nobody has used for GUEST_INACTIVE_DAYS, with their avatars. */
+  public createGuestCleanupJob(): GuestCleanupJob {
+    return new GuestCleanupJob(
+      this.logger,
+      this.storageRepository,
+      this.storageCleanupService,
+      this.env.GUEST_INACTIVE_DAYS,
+      this.env.CRON_GUEST_CLEANUP_EXPRESSION
+    );
   }
 
   /**
@@ -51,6 +74,6 @@ export class CronJobFactory {
    * This method should be updated when adding new cron jobs
    */
   public createAllCronJobs(): ICronJob[] {
-    return [this.createS3FilesCleanupJob(), this.createLogArchivalJob()];
+    return [this.createS3FilesCleanupJob(), this.createLogArchivalJob(), this.createGuestCleanupJob()];
   }
 }
