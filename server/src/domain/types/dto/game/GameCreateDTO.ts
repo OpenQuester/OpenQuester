@@ -1,5 +1,5 @@
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
-import { GameSettingsDTO } from "domain/types/dto/game/settings/GameSettingsDTO";
+import { GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
 
 export interface GameCreateDTO {
   title: string;
@@ -8,5 +8,5 @@ export interface GameCreateDTO {
   ageRestriction: AgeRestriction;
   maxPlayers: number;
   password?: string;
-  settings?: Partial<GameSettingsDTO>;
+  settings?: GameSettingsInput;
 }

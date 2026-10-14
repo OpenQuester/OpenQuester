@@ -7,11 +7,7 @@ import { StakeQuestionService } from "application/services/question/StakeQuestio
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import {
-  GAME_QUESTION_ANSWER_SUBMIT_TIME,
-  GAME_TTL_IN_SECONDS,
-  SYSTEM_PLAYER_ID
-} from "domain/constants/game";
+import { GAME_TTL_IN_SECONDS, SYSTEM_PLAYER_ID } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { MIN_TIMER_TTL_MS } from "domain/constants/timer";
 import { type Game } from "domain/entities/game/Game";
@@ -221,7 +217,7 @@ export class TimerExpirationService {
           op: "set",
           key: timerKey(game.id, QuestionState.SHOWING),
           value: JSON.stringify(savedTimer),
-          pxTtl: Math.ceil(GAME_QUESTION_ANSWER_SUBMIT_TIME * 1.5)
+          pxTtl: Math.ceil(game.settings.timers.answerSubmitMs * 1.5)
         },
         ...transitionResult.timerMutations
       ]

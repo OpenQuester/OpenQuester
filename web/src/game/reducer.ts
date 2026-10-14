@@ -372,6 +372,9 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           currentRound: event.payload.currentRound,
           questionState: "choosing",
           readyPlayers: null,
+          roundStartedAt: event.payload.roundStartedAt ?? serverNow(),
+          roundPausedMs: 0,
+          pausedAt: null,
           currentTurnPlayerId:
             event.payload.currentTurnPlayerId !== undefined
               ? event.payload.currentTurnPlayerId
@@ -382,13 +385,23 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
 
     case "game-pause":
       return {
-        ...patchState(session, { isPaused: true, timer: event.payload.timer ?? s.timer }),
+        ...patchState(session, {
+          isPaused: true,
+          timer: event.payload.timer ?? s.timer,
+          pausedAt: serverNow(),
+        }),
         content: retime(session.content, event.payload.timer),
       };
 
     case "game-unpause":
       return {
-        ...patchState(session, { isPaused: false, timer: event.payload.timer ?? null }),
+        ...patchState(session, {
+          isPaused: false,
+          timer: event.payload.timer ?? null,
+          roundPausedMs:
+            (s.roundPausedMs ?? 0) + (s.pausedAt ? Math.max(0, serverNow() - s.pausedAt) : 0),
+          pausedAt: null,
+        }),
         content: retime(session.content, event.payload.timer),
       };
 

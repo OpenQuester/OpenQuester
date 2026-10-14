@@ -42,8 +42,9 @@ Per-game settings (`GameSettings`, chosen when the game is created):
 
 - `falseStart` (default on): the buzzer opens at `gameState.buzzerOpensAtMs`
   on the SHOWING timer — after the content timeline, the reading time of a
-  caption text (`QuestionContentPlanLogic.textDuration`) and the question's
-  `answerDelay`. A press before that is a false start: the server broadcasts
+  caption text (`QuestionContentPlanLogic.textDuration`) and, for choice
+  questions, `showDelay`. The package's `answerDelay` is not used here: editors
+  default it to 5 s and label it an answer window. A press before that is a false start: the server broadcasts
   `buzzer-false-start { playerId, lockMs }`, records the lock in
   `gameState.buzzerLocks`, and rejects that player's presses with
   `buzzer_locked` for 3 s. With `falseStart` off the buzzer is open from the

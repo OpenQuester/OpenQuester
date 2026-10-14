@@ -7,6 +7,7 @@ import { reduce } from "./reducer";
 import {
   buzzerLockLeft,
   buzzerOpensIn,
+  roundTimeLeft,
   canBuzz,
   canPick,
   initials,
@@ -178,5 +179,35 @@ describe("buzzer timing", () => {
     expect(buzzerLockLeft(s, BOB)).toBe(0);
     expect(canBuzz(s, ALICE)).toEqual({ ok: false, reason: "false_start" });
     expect(canBuzz(s, BOB)).toEqual({ ok: true });
+  });
+});
+
+describe("game rules", () => {
+  it("makes a wrong buzzer answer free when the game has no penalty", () => {
+    const s = showing({ currentQuestion: question(100) });
+    expect(wrongCostsPoints(s)).toBe(true);
+    expect(
+      wrongCostsPoints({
+        ...s,
+        settings: { falseStart: true, buttonPressMode: "first_wins", wrongAnswerPenalty: "none" },
+      }),
+    ).toBe(false);
+  });
+
+  it("counts down a round with a time limit, not counting pauses", () => {
+    const now = Date.now();
+    const s = {
+      ...showing({
+        roundStartedAt: now - 12 * 60_000,
+        roundPausedMs: 3 * 60_000,
+      }),
+      settings: {
+        falseStart: true,
+        buttonPressMode: "first_wins" as const,
+        timers: { roundMs: 10 * 60_000 },
+      },
+    };
+    expect(roundTimeLeft(s, now)).toBe(60_000);
+    expect(roundTimeLeft({ ...s, settings: null }, now)).toBeNull();
   });
 });

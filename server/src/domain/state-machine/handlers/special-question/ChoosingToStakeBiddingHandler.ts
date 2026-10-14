@@ -1,5 +1,4 @@
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
-import { STAKE_QUESTION_BID_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -154,7 +153,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    const timer = new GameStateTimer(STAKE_QUESTION_BID_TIME);
+    const timer = new GameStateTimer(game.settings.timers.stakeMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -165,7 +164,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: STAKE_QUESTION_BID_TIME,
+          pxTtl: game.settings.timers.stakeMs,
         },
       ],
     };

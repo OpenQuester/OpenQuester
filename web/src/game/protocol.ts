@@ -229,6 +229,8 @@ export interface GameSettings {
   /** The buzzer opens after the content; pressing earlier locks you out. */
   falseStart: boolean;
   buttonPressMode: ButtonPressMode;
+  wrongAnswerPenalty?: "subtract" | "none";
+  timers?: { roundMs: number } & Record<string, number>;
 }
 
 export type AllPlayMode = "noRisk" | "stake";
@@ -270,6 +272,10 @@ export interface GameState {
   /** Players locked out after a false start: id -> epoch ms (server clock) the lock ends. */
   buzzerLocks?: Record<string, number> | null;
   allPlay?: AllPlayData | null;
+  /** Round time limit bookkeeping (epoch ms / ms on the server clock). */
+  roundStartedAt?: number | null;
+  roundPausedMs?: number | null;
+  pausedAt?: number | null;
   finalRoundData?: FinalRoundData | null;
   currentTurnPlayerId?: number | null;
   skippedPlayers: number[] | null;
@@ -308,7 +314,11 @@ export interface ServerEvents {
   "game-data": GameJoinData;
   join: Player;
   "user-leave": { user: number };
-  start: { currentRound: Round; currentTurnPlayerId?: number | null };
+  start: {
+    currentRound: Round;
+    currentTurnPlayerId?: number | null;
+    roundStartedAt?: number | null;
+  };
   "game-pause": { timer: Timer | null };
   "game-unpause": { timer: Timer | null };
   "player-ready": {

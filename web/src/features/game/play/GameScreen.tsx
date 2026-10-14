@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useSettings, type PanelId } from "@/features/settings/settingsStore";
-import { myRole, phaseOf, seatedPlayers } from "@/game/selectors";
+import { myRole, phaseOf, roundTimeLeft, seatedPlayers } from "@/game/selectors";
+import { formatSeconds } from "@/lib/timer";
 import { cn } from "@/lib/cn";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { Button } from "@/ui/Button";
@@ -144,6 +145,7 @@ export function GameScreen() {
             >
               {roundLabel}
             </span>
+            <RoundClock />
             <div className="order-last w-full">
               <PlayerChips
                 onManage={(id) => {
@@ -279,5 +281,25 @@ export function GameScreen() {
         <span className="sr-only">{t("game.noPlayers")}</span>
       )}
     </div>
+  );
+}
+
+/** Time left in a round with a time limit. */
+function RoundClock() {
+  const { t } = useTranslation();
+  const session = useSession();
+  const [, setTick] = useState(0);
+  const left = roundTimeLeft(session);
+  const limited = left != null;
+  useEffect(() => {
+    if (!limited) return;
+    const id = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [limited]);
+  if (left == null) return null;
+  return (
+    <span className="text-sm font-semibold text-muted" data-testid="round-clock">
+      {left > 0 ? t("game.roundEndsIn", { time: formatSeconds(left) }) : t("game.roundTimeUp")}
+    </span>
   );
 }

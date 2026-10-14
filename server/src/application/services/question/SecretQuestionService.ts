@@ -1,10 +1,6 @@
 import { singleton } from "tsyringe";
 
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
-import {
-  GAME_QUESTION_ANSWER_TIME,
-  SECRET_QUESTION_TRANSFER_TIME
-} from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -160,7 +156,7 @@ export class SecretQuestionService {
       timer:
         transitionResult.timer !== null
           ? GameStateTimer.fromDTO(transitionResult.timer)
-          : this._startedTimer(GAME_QUESTION_ANSWER_TIME),
+          : this._startedTimer(game.settings.timers.answerMs),
       question: price !== undefined ? { ...question, price } : question,
       allowedPrices: null,
       price: price ?? null,
@@ -188,7 +184,7 @@ export class SecretQuestionService {
     secretData.transferDecisionPhase = false;
     secretData.priceSelection = { playerId: targetPlayerId, allowedPrices };
 
-    const timer = this._startedTimer(SECRET_QUESTION_TRANSFER_TIME);
+    const timer = this._startedTimer(game.settings.timers.secretTransferMs);
     game.gameState.timer = timer.value();
 
     return {
@@ -206,7 +202,7 @@ export class SecretQuestionService {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()),
-          pxTtl: SECRET_QUESTION_TRANSFER_TIME
+          pxTtl: game.settings.timers.secretTransferMs
         }
       ]
     };

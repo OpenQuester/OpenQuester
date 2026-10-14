@@ -1,4 +1,4 @@
-import { GameSettingsDTO } from "domain/types/dto/game/settings/GameSettingsDTO";
+import { GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { type Express } from "express";
 import { Socket as ClientSocket } from "socket.io-client";
 import { Repository } from "typeorm";
@@ -170,7 +170,7 @@ export class SocketGameTestUtils {
   }
 
   /** Settings for games this helper creates (instant buzzer by default) */
-  public set gameSettings(settings: Partial<GameSettingsDTO>) {
+  public set gameSettings(settings: GameSettingsInput) {
     this.lobbyUtils.gameSettings = settings;
   }
 

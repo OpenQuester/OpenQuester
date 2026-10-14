@@ -3685,6 +3685,12 @@ export interface components {
             buzzerLocks?: {
                 [key: string]: number;
             } | null;
+            /** @description When the current round started (epoch ms), for the round time limit */
+            roundStartedAt?: number | null;
+            /** @description Time the current round spent paused (ms) */
+            roundPausedMs?: number | null;
+            /** @description When the current pause began (epoch ms) */
+            pausedAt?: number | null;
             /** @description "Everyone answers" question in play */
             allPlay?: components["schemas"]["AllPlayData"] | null;
             finalRoundData?: components["schemas"]["FinalRoundGameData"] | null;
@@ -4895,6 +4901,8 @@ export interface components {
              */
             falseStart: boolean;
             buttonPressMode: components["schemas"]["ButtonPressMode"];
+            wrongAnswerPenalty: components["schemas"]["WrongAnswerPenalty"];
+            timers: components["schemas"]["GameTimerSettings"];
         };
         /** @description Game settings on creation; omitted fields use their defaults */
         GameSettingsInput: {
@@ -4904,6 +4912,8 @@ export interface components {
              */
             falseStart: boolean;
             buttonPressMode?: components["schemas"]["ButtonPressMode"];
+            wrongAnswerPenalty?: components["schemas"]["WrongAnswerPenalty"];
+            timers?: components["schemas"]["GameTimerSettingsInput"];
         };
         SecretPriceSelection: {
             /** @description The player who received the question and picks its price */
@@ -4983,6 +4993,89 @@ export interface components {
         SocketIOAllPlayReviewInput: {
             playerId: number;
             isCorrect: boolean;
+        };
+        /**
+         * @description What a wrong answer to a buzzer question (simple, choice, hidden) costs: the question's price, or nothing
+         * @default subtract
+         * @example subtract
+         * @enum {string}
+         */
+        WrongAnswerPenalty: "subtract" | "none";
+        /** @description How long each step may take, in milliseconds */
+        GameTimerSettings: {
+            /**
+             * @description To press the buzzer once the question has played (3000–120000 ms)
+             * @default 20500
+             */
+            answerMs: number;
+            /**
+             * @description To give the answer after pressing (5000–180000 ms)
+             * @default 60000
+             */
+            answerSubmitMs: number;
+            /**
+             * @description For each stake: auction bids and stakes for everyone (5000–120000 ms)
+             * @default 30000
+             */
+            stakeMs: number;
+            /**
+             * @description To hand a secret question over, and to pick its price (5000–120000 ms)
+             * @default 30000
+             */
+            secretTransferMs: number;
+            /**
+             * @description To write the answer when everyone answers (10000–300000 ms)
+             * @default 45000
+             */
+            allPlayAnswerMs: number;
+            /**
+             * @description To write the final answer (10000–300000 ms)
+             * @default 75000
+             */
+            finalAnswerMs: number;
+            /**
+             * @description Length of a regular round: 0 for no limit, otherwise 300000–10800000 ms. Once it has passed (not counting pauses), the round ends after the question in play
+             * @default 0
+             */
+            roundMs: number;
+        };
+        /** @description Timer settings on creation; omitted fields use their defaults */
+        GameTimerSettingsInput: {
+            /**
+             * @description To press the buzzer once the question has played (3000–120000 ms)
+             * @default 20500
+             */
+            answerMs: number;
+            /**
+             * @description To give the answer after pressing (5000–180000 ms)
+             * @default 60000
+             */
+            answerSubmitMs: number;
+            /**
+             * @description For each stake: auction bids and stakes for everyone (5000–120000 ms)
+             * @default 30000
+             */
+            stakeMs: number;
+            /**
+             * @description To hand a secret question over, and to pick its price (5000–120000 ms)
+             * @default 30000
+             */
+            secretTransferMs: number;
+            /**
+             * @description To write the answer when everyone answers (10000–300000 ms)
+             * @default 45000
+             */
+            allPlayAnswerMs: number;
+            /**
+             * @description To write the final answer (10000–300000 ms)
+             * @default 75000
+             */
+            finalAnswerMs: number;
+            /**
+             * @description Length of a regular round: 0 for no limit, otherwise 300000–10800000 ms. Once it has passed (not counting pauses), the round ends after the question in play
+             * @default 0
+             */
+            roundMs: number;
         };
     };
     responses: never;

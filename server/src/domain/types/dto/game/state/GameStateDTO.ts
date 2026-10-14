@@ -55,6 +55,12 @@ export interface GameStateDTO {
   buzzerWindow?: BuzzerWindowDTO | null;
   /** Players locked out after a false start: player id -> epoch ms when the lock ends */
   buzzerLocks?: Record<string, number> | null;
+  /** When the current round started (epoch ms), for the round time limit */
+  roundStartedAt?: number | null;
+  /** Time the current round spent paused (ms); paused time doesn't count */
+  roundPausedMs?: number | null;
+  /** When the current pause began (epoch ms) */
+  pausedAt?: number | null;
   /** "Everyone answers" question (stake / no-risk for everyone) in play */
   allPlay?: AllPlayDataDTO | null;
   /** Final round specific data */

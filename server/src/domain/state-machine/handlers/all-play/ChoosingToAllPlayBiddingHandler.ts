@@ -1,4 +1,3 @@
-import { ALL_PLAY_BID_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -70,7 +69,7 @@ export class ChoosingToAllPlayBiddingHandler extends BaseTransitionHandler {
 
   protected async handleTimer(ctx: ChoosingToStakeBiddingCtx): Promise<TimerResult> {
     const { game } = ctx;
-    const timer = new GameStateTimer(ALL_PLAY_BID_TIME);
+    const timer = new GameStateTimer(game.settings.timers.stakeMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -81,7 +80,7 @@ export class ChoosingToAllPlayBiddingHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: ALL_PLAY_BID_TIME
+          pxTtl: game.settings.timers.stakeMs
         }
       ]
     };

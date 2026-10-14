@@ -216,7 +216,11 @@ export function questionValue(session: GameSession): number {
 
 /** Whether a wrong answer costs points on the current question. */
 export function wrongCostsPoints(session: GameSession): boolean {
-  return session.state.currentQuestion?.type !== "noRisk";
+  const type = session.state.currentQuestion?.type;
+  if (type === "noRisk") return false;
+  // The game's rules can make wrong answers to buzzer questions free
+  const buzzerQuestion = type === "simple" || type === "choice" || type === "hidden";
+  return !(buzzerQuestion && session.settings?.wrongAnswerPenalty === "none");
 }
 
 /** Final round: players who can still play (score above zero when the round began). */
@@ -319,4 +323,16 @@ export function allPlayStakes(
     return { win: stake, lose: -stake };
   }
   return { win: Math.round(data.price * (data.priceMultiplier ?? 1)), lose: 0 };
+}
+
+/**
+ * Milliseconds left in a regular round with a time limit, not counting
+ * pauses; null when the round has no limit.
+ */
+export function roundTimeLeft(session: GameSession, now = serverNow()): number | null {
+  const s = session.state;
+  const limit = session.settings?.timers?.roundMs ?? 0;
+  if (!limit || !s.roundStartedAt || s.currentRound?.type === "final") return null;
+  const pausedNow = s.pausedAt ? now - s.pausedAt : 0;
+  return Math.max(0, limit - (now - s.roundStartedAt - (s.roundPausedMs ?? 0) - pausedNow));
 }

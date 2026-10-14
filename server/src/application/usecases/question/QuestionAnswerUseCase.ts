@@ -1,5 +1,4 @@
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
-import { GAME_QUESTION_ANSWER_SUBMIT_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -149,7 +148,7 @@ export class QuestionAnswerUseCase
       const saveMutation =
         this.socketGameTimerService.buildSaveElapsedTimerMutation(
           game,
-          GAME_QUESTION_ANSWER_SUBMIT_TIME,
+          game.settings.timers.answerSubmitMs,
           QuestionState.SHOWING
         );
       timerMutations.push(

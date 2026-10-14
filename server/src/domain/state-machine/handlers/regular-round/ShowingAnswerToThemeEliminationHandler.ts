@@ -45,7 +45,7 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
       return false;
     }
 
-    const isRoundFinished = game.isAllQuestionsPlayed() ?? false;
+    const isRoundFinished = game.isRoundOver();
     if (!isRoundFinished) {
       return false;
     }
@@ -63,6 +63,8 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
 
     const roundHandler = RoundHandlerFactory.createFromGame(game);
     const progressionResult = await roundHandler.handleRoundProgression(game, {
+      // A round whose time is up ends even with questions left
+      forced: game.isRoundTimeUp(),
       nextRound: ctx.resources?.nextRound ?? null
     });
 

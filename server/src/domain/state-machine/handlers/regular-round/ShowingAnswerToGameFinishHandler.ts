@@ -41,7 +41,7 @@ export class ShowingAnswerToGameFinishHandler extends BaseTransitionHandler {
       return false;
     }
 
-    const isRoundFinished = game.isAllQuestionsPlayed() ?? false;
+    const isRoundFinished = game.isRoundOver();
     if (!isRoundFinished) {
       return false;
     }

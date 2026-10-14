@@ -4,7 +4,6 @@ import { GameService } from "application/services/game/GameService";
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
-import { STAKE_QUESTION_BID_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -89,6 +88,7 @@ export class StakeQuestionService {
     const allPlayers = game.getInGamePlayers().map((player) => player.toDTO());
 
     const bidResult = StakeBiddingMapper.placeBid({
+      bidTimeMs: game.settings.timers.stakeMs,
       playerId: biddingPlayer.meta.id,
       bid,
       stakeData,
@@ -204,7 +204,7 @@ export class StakeQuestionService {
 
     const timerEntity = await this.socketQuestionStateService.setupQuestionTimer(
       game,
-      STAKE_QUESTION_BID_TIME
+      game.settings.timers.stakeMs
     );
 
     return timerEntity.start();
@@ -258,7 +258,7 @@ export class StakeQuestionService {
     timer: GameStateTimerDTO;
     timerMutations: TimerMutation[];
   } {
-    const timer = new GameStateTimer(STAKE_QUESTION_BID_TIME).start();
+    const timer = new GameStateTimer(game.settings.timers.stakeMs).start();
     game.gameState.timer = timer;
 
     return {
@@ -269,7 +269,7 @@ export class StakeQuestionService {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer),
-          pxTtl: STAKE_QUESTION_BID_TIME
+          pxTtl: game.settings.timers.stakeMs
         }
       ]
     };

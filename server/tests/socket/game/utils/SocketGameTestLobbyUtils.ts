@@ -6,7 +6,7 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import {
   ButtonPressMode,
-  GameSettingsDTO
+  GameSettingsInput
 } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
@@ -30,7 +30,7 @@ import { GameClientSocket, GameTestSetup } from "./SocketIOGameTestUtils";
  * and the first press answers, so a test can buzz right after the question
  * shows. Buzzer tests opt into the real defaults through `gameSettings`.
  */
-export const INSTANT_BUZZER_SETTINGS: Partial<GameSettingsDTO> = Object.freeze({
+export const INSTANT_BUZZER_SETTINGS: GameSettingsInput = Object.freeze({
   falseStart: false,
   buttonPressMode: ButtonPressMode.FIRST_WINS
 });
@@ -41,7 +41,7 @@ export class SocketGameTestLobbyUtils {
   private readonly packageUtils = new PackageUtils();
 
   /** Settings for games created by this helper */
-  public gameSettings: Partial<GameSettingsDTO> = INSTANT_BUZZER_SETTINGS;
+  public gameSettings: GameSettingsInput = INSTANT_BUZZER_SETTINGS;
 
   /** Optional change to the fixture package before it is uploaded */
   public packageTransform: ((pkg: PackageCreateTestInput) => void) | null = null;

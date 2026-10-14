@@ -15,9 +15,11 @@ import {
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import {
   GameSettingsDTO,
-  normalizeGameSettings
+  normalizeGameSettings,
+  WrongAnswerPenalty
 } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GetPlayerOptions } from "domain/types/game/GetPlayerOptions";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -32,6 +34,13 @@ type PlayerAndIndex = {
 };
 
 export class Game {
+  /** Questions answered by whoever buzzes first; the wrong-answer penalty applies to these */
+  private static readonly BUZZER_QUESTION_TYPES: ReadonlySet<PackageQuestionType> = new Set([
+    PackageQuestionType.SIMPLE,
+    PackageQuestionType.CHOICE,
+    PackageQuestionType.HIDDEN
+  ]);
+
   private readonly _id: string;
   private _title: string;
   private readonly _createdBy: userId;
@@ -287,6 +296,25 @@ export class Game {
     );
   }
 
+  /**
+   * The round's time limit (settings.timers.roundMs) has passed, not counting
+   * paused time. Regular rounds only; 0 means no limit.
+   */
+  public isRoundTimeUp(now: number = Date.now()): boolean {
+    const limit = this._settings.timers.roundMs;
+    const startedAt = this._gameState.roundStartedAt;
+    if (!limit || !startedAt || this._gameState.currentRound?.type === PackageRoundType.FINAL) {
+      return false;
+    }
+    const pausedNow = this._gameState.pausedAt ? now - this._gameState.pausedAt : 0;
+    return now - startedAt - (this._gameState.roundPausedMs ?? 0) - pausedNow >= limit;
+  }
+
+  /** Every question is played, or the round's time is up */
+  public isRoundOver(): boolean {
+    return (this.isAllQuestionsPlayed() ?? false) || this.isRoundTimeUp();
+  }
+
   public isAllQuestionsPlayed() {
     if (!this.gameState || !this.gameState.currentRound) {
       return;
@@ -316,12 +344,18 @@ export class Game {
 
   public pause() {
     this._gameState.isPaused = true;
+    this._gameState.pausedAt = Date.now();
     // Presses waiting for the draw are dropped; players press again after the pause
     this._gameState.buzzerWindow = null;
   }
 
   public unpause() {
     this._gameState.isPaused = false;
+    if (this._gameState.pausedAt) {
+      this._gameState.roundPausedMs =
+        (this._gameState.roundPausedMs ?? 0) + Math.max(0, Date.now() - this._gameState.pausedAt);
+    }
+    this._gameState.pausedAt = null;
   }
 
   public isPlayerMuted(playerId: number) {
@@ -379,6 +413,17 @@ export class Game {
 
     // For NoRisk questions, prevent score loss by setting negative results to 0
     if (scoreResult < 0 && this.gameState.currentQuestion?.type === PackageQuestionType.NO_RISK) {
+      modifiedScoreResult = 0;
+    }
+
+    // The game's rules can make wrong answers to buzzer questions free
+    if (
+      scoreResult < 0 &&
+      this._settings.wrongAnswerPenalty === WrongAnswerPenalty.NONE &&
+      Game.BUZZER_QUESTION_TYPES.has(
+        this.gameState.currentQuestion?.type ?? PackageQuestionType.SIMPLE
+      )
+    ) {
       modifiedScoreResult = 0;
     }
 

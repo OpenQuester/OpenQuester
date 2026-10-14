@@ -110,16 +110,16 @@ describe("BuzzerLogic", () => {
 });
 
 describe("Buzzer opening time", () => {
-  it("waits for a caption's reading time and the answer delay", () => {
+  it("waits for a caption's reading time, ignoring the answer delay", () => {
     const game = showingGame(0, 0);
     game.gameState.currentQuestion!.text = "Short";
     game.gameState.currentQuestion!.answerDelay = 1_000;
 
     QuestionContentPlanLogic.applyToGame(game);
 
-    expect(game.gameState.buzzerOpensAtMs).toBe(CONTENT_TEXT_MIN_TIME + 1_000);
+    expect(game.gameState.buzzerOpensAtMs).toBe(CONTENT_TEXT_MIN_TIME);
     expect(QuestionContentPlanLogic.questionTimerDuration(game)).toBe(
-      CONTENT_TEXT_MIN_TIME + 1_000 + GAME_QUESTION_ANSWER_TIME
+      CONTENT_TEXT_MIN_TIME + GAME_QUESTION_ANSWER_TIME
     );
   });
 

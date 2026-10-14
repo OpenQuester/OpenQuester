@@ -18,3 +18,5 @@ export type PlayerRole = S["PlayerRole"];
 export type GameEventSubscription = S["GameEventSubscription"];
 export type GameSettings = S["GameSettings"];
 export type ButtonPressMode = S["ButtonPressMode"];
+export type GameTimerSettings = S["GameTimerSettings"];
+export type WrongAnswerPenalty = S["WrongAnswerPenalty"];

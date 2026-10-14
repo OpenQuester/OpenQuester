@@ -1,4 +1,3 @@
-import { GAME_QUESTION_ANSWER_SUBMIT_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -88,7 +87,7 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    const timer = new GameStateTimer(GAME_QUESTION_ANSWER_SUBMIT_TIME);
+    const timer = new GameStateTimer(game.settings.timers.answerSubmitMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -99,7 +98,7 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: GAME_QUESTION_ANSWER_SUBMIT_TIME,
+          pxTtl: game.settings.timers.answerSubmitMs,
         },
       ],
     };

@@ -1,12 +1,10 @@
 import {
-  ALL_PLAY_ANSWER_TIME,
   CONTENT_IMAGE_TIME,
   CONTENT_ITEM_MAX_TIME,
   CONTENT_MEDIA_UNKNOWN_TIME,
   CONTENT_TEXT_MAX_TIME,
   CONTENT_TEXT_MIN_TIME,
   CONTENT_TEXT_MS_PER_CHAR,
-  GAME_QUESTION_ANSWER_TIME,
 } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
@@ -161,7 +159,8 @@ export class QuestionContentPlanLogic {
    * When the buzzer opens, as a position on the SHOWING timer: after the
    * content timeline, after the reading time of a caption text (text shown
    * the whole time rather than as a step), plus a choice question's options
-   * delay and the question's answer delay.
+   * delay. `answerDelay` is not used: editors default it to 5 s and present it
+   * as an answer window, so honouring it would slow every question down.
    * 0 when the game allows pressing at any time (`falseStart` off).
    */
   public static buzzerOpensAt(game: Game): number {
@@ -178,9 +177,7 @@ export class QuestionContentPlanLogic {
     // Choice options appear showDelay after the question, then the buzzer
     const optionsMs =
       question.type === PackageQuestionType.CHOICE ? Math.max(0, question.showDelay ?? 0) : 0;
-    const delayMs = Math.max(0, question.answerDelay ?? 0);
-
-    return Math.max(contentMs, readingMs) + optionsMs + delayMs;
+    return Math.max(contentMs, readingMs) + optionsMs;
   }
 
   /**
@@ -190,7 +187,8 @@ export class QuestionContentPlanLogic {
   public static questionTimerDuration(game: Game): number {
     const contentMs = game.gameState.questionContentPlan?.totalMs ?? 0;
     const opensAtMs = game.gameState.buzzerOpensAtMs ?? 0;
-    const answerMs = game.gameState.allPlay ? ALL_PLAY_ANSWER_TIME : GAME_QUESTION_ANSWER_TIME;
+    const timers = game.settings.timers;
+    const answerMs = game.gameState.allPlay ? timers.allPlayAnswerMs : timers.answerMs;
     return Math.max(contentMs, opensAtMs) + answerMs;
   }
 

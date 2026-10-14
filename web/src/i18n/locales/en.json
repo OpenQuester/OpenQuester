@@ -167,6 +167,22 @@
       "modeHelp": {
         "random_within_window": "Everyone who presses within 0.3 s of the first press has an equal chance, so a faster connection doesn't win.",
         "first_wins": "The first press that reaches the server answers."
+      },
+      "penalty": "Wrong answers cost points",
+      "penaltyHelp": "A wrong answer after pressing the buzzer subtracts the question's price. Turn off for a friendlier game. Stakes are always lost on a wrong answer.",
+      "roundLimit": "Round time limit",
+      "roundLimitHelp": "When time is up, the round ends after the question being played, even if questions are left.",
+      "noLimit": "No limit",
+      "minutes": "{{count}} min",
+      "seconds": "{{count}} s",
+      "timers": "Timers",
+      "timer": {
+        "answerMs": "Time to press the buzzer",
+        "answerSubmitMs": "Time to answer after pressing",
+        "stakeMs": "Time for each stake",
+        "secretTransferMs": "Time to hand over a secret question",
+        "allPlayAnswerMs": "Time to write when everyone answers",
+        "finalAnswerMs": "Time for the final answer"
       }
     }
   },
@@ -240,7 +256,9 @@
     "delete": "Delete game",
     "deleteConfirm": "Delete this game for everyone?",
     "deleteYes": "Yes, delete",
-    "deleteNo": "Cancel"
+    "deleteNo": "Cancel",
+    "roundEndsIn": "Round ends in {{time}}",
+    "roundTimeUp": "Last question of the round"
   },
   "lobby": {
     "leave": "Leave lobby",

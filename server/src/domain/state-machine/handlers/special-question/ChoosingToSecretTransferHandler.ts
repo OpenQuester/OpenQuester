@@ -19,7 +19,6 @@ import {
   ChoosingToSecretTransferMutationData,
 } from "domain/types/socket/transition/choosing";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
-import { SECRET_QUESTION_TRANSFER_TIME } from "domain/constants/game";
 
 /**
  * Handles transition from CHOOSING to SECRET_QUESTION_TRANSFER when a secret
@@ -101,7 +100,7 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    const timer = new GameStateTimer(SECRET_QUESTION_TRANSFER_TIME);
+    const timer = new GameStateTimer(game.settings.timers.secretTransferMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -112,7 +111,7 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: SECRET_QUESTION_TRANSFER_TIME,
+          pxTtl: game.settings.timers.secretTransferMs,
         },
       ],
     };

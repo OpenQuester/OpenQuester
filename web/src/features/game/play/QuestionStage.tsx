@@ -121,7 +121,7 @@ function MediaWait() {
 /**
  * Milliseconds until a choice question's options appear. With false starts
  * on, the server times them on the question timer just before the buzzer
- * opens (`buzzerOpensAtMs` minus the answer delay); otherwise they follow
+ * opens (`buzzerOpensAtMs`); otherwise they follow
  * the package's show delay from now.
  */
 function optionsShowIn(session: GameSession): number {
@@ -129,7 +129,7 @@ function optionsShowIn(session: GameSession): number {
   const q = s.currentQuestion;
   const opensAt = s.buzzerOpensAtMs ?? 0;
   if (opensAt > 0 && phaseOf(session) === "showing") {
-    const at = opensAt - Math.max(0, q?.answerDelay ?? 0);
+    const at = opensAt;
     return Math.max(0, at - timerElapsed(s.timer, s.isPaused));
   }
   if (opensAt > 0) return 0;

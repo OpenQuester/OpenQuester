@@ -98,7 +98,7 @@ When changing gameplay state, make sure:
   right answer is exactly one of the options (`ChoiceAnswerLogic`); right
   scores +price, wrong −price, and the showman does not judge. Otherwise the
   showman judges as usual. Options appear `showDelay` after the content, and
-  the buzzer opens then (plus `answerDelay`).
+  the buzzer opens then.
 - **Secret, customPrice:** after the transfer, the receiver picks the price
   from `allowedPrices` (`secret-question-price`, 30 s; on timeout the lowest
   price). The question is then shown and answered at that price.

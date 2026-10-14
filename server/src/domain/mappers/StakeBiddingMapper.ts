@@ -27,6 +27,8 @@ export interface PlaceBidParams {
   currentPlayer: PlayerDTO;
   questionPrice: number;
   allPlayers: PlayerDTO[];
+  /** Time for the next bid; defaults to the standard stake time */
+  bidTimeMs?: number;
 }
 
 export interface PlaceBidResult extends StakeBidSubmitOutputData {
@@ -103,7 +105,7 @@ export class StakeBiddingMapper {
     }
 
     // Create timer for next bid or null if phase complete
-    const timer = nextBidder.isPhaseComplete ? null : this.createBidTimer();
+    const timer = nextBidder.isPhaseComplete ? null : this.createBidTimer(params.bidTimeMs);
 
     return {
       playerId,
@@ -271,9 +273,9 @@ export class StakeBiddingMapper {
   /**
    * Creates a timer for the next bid
    */
-  private static createBidTimer(): GameStateTimerDTO {
+  private static createBidTimer(durationMs: number = STAKE_QUESTION_BID_TIME): GameStateTimerDTO {
     return {
-      durationMs: STAKE_QUESTION_BID_TIME,
+      durationMs,
       startedAt: new Date(),
       elapsedMs: 0,
       resumedAt: null

@@ -99,6 +99,8 @@ export interface GameStartBroadcastData {
   currentRound: GameStateRoundDTO;
   /** Player who picks the first question */
   currentTurnPlayerId: number | null;
+  /** When the first round started (epoch ms), for the round time limit */
+  roundStartedAt?: number | null;
 }
 
 export interface GamePauseBroadcastData {

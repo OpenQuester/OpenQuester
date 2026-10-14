@@ -1,4 +1,3 @@
-import { GAME_FINAL_ANSWER_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
@@ -108,7 +107,7 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     const { game } = ctx;
 
     // Setup the answering timer (75 seconds for final round)
-    const timer = new GameStateTimer(GAME_FINAL_ANSWER_TIME);
+    const timer = new GameStateTimer(game.settings.timers.finalAnswerMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -119,7 +118,7 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: GAME_FINAL_ANSWER_TIME
+          pxTtl: game.settings.timers.finalAnswerMs
         }
       ]
     };
