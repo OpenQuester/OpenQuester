@@ -1,3 +1,4 @@
+import { AnswerType } from "domain/enums/package/AnswerType";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { HttpStatus } from "domain/enums/HttpStatus";
@@ -306,6 +307,42 @@ describe("Choice Question Flow Tests", () => {
         );
         await scenario.waitForNoEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT, 500);
         expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.ANSWERING);
+      });
+    });
+  });
+
+  describe("Number answers", () => {
+    it("scores a number within the allowed deviation without the showman", async () => {
+      await suite.scenario(async (scenario) => {
+        utils.packageTransform = (pkg) => {
+          const q = pkg.rounds[0].themes[0].questions.find(
+            (x) => x.type === PackageQuestionType.SIMPLE
+          )!;
+          q.answerType = AnswerType.NUMBER;
+          q.answerNumber = 42;
+          q.answerDeviation = 2;
+        };
+        const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          1,
+          0
+        );
+        await utils.startGame(showmanSocket);
+        const question = await utils.findQuestionByType(PackageQuestionType.SIMPLE, gameId);
+        await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () =>
+            scenario
+              .actor(playerSockets[0])
+              .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "43" })
+        );
+        expect(result.answerResult.answerType).toBe(AnswerResultType.CORRECT);
+        utils.packageTransform = null;
       });
     });
   });

@@ -4032,6 +4032,35 @@
               }
             ]
           },
+          "answerType": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AnswerType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answerNumber": {
+            "type": ["number", "null"],
+            "description": "Number answers: the right number. Showman only"
+          },
+          "answerPoint": {
+            "description": "Point answers: the right spot. Showman only until the answer is revealed",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AnswerPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answerDeviation": {
+            "type": ["number", "null"],
+            "description": "How far off still counts: an amount for numbers, a fraction of the picture's width for points"
+          },
           "rightAnswers": {
             "type": ["array", "null"],
             "items": {
@@ -6231,6 +6260,20 @@
             },
             "maxItems": 20,
             "description": "Where the facts come from"
+          },
+          "answerPoint": {
+            "description": "Point answers: the right spot",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AnswerPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answerDeviation": {
+            "type": ["number", "null"]
           }
         },
         "required": ["answerFiles", "answerText"]
@@ -7645,6 +7688,30 @@
             "description": "Length of a regular round: 0 for no limit, otherwise 300000–10800000 ms. Once it has passed (not counting pauses), the round ends after the question in play"
           }
         }
+      },
+      "AnswerType": {
+        "type": "string",
+        "enum": ["text", "number", "point"],
+        "default": "text",
+        "description": "How the answer is given and checked. text: the showman judges. number: checked against answerNumber within answerDeviation. point: the player clicks the question's picture; the answer is sent as \"x,y\" fractions of its width and height and checked against answerPoint within answerDeviation (a fraction of the width, 0.05 by default)",
+        "examples": ["number"]
+      },
+      "AnswerPoint": {
+        "type": "object",
+        "description": "A spot on a picture, as fractions (0–1) of its width and height",
+        "properties": {
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": ["x", "y"]
       }
     }
   }

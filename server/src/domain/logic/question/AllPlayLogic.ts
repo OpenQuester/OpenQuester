@@ -3,6 +3,7 @@ import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
+import { AnswerCheckLogic } from "domain/logic/question/AnswerCheckLogic";
 import {
   AllPlayDataDTO,
   AllPlayEntryDTO,
@@ -136,15 +137,17 @@ export class AllPlayLogic {
 
   /**
    * Starts the review: a missing or empty answer is wrong without the
-   * showman's ruling. Returns the entries that were ruled automatically.
+   * showman's ruling, and answers the server can check (choice, number,
+   * point) are ruled right away. Returns the entries ruled automatically.
    */
-  public static startReview(game: Game): AllPlayEntryDTO[] {
+  public static startReview(game: Game, question?: PackageQuestionDTO | null): AllPlayEntryDTO[] {
     const data = game.gameState.allPlay;
     if (!data) return [];
     const auto: AllPlayEntryDTO[] = [];
     for (const entry of data.entries) {
-      if (!entry.answer) {
-        this._rule(game, data, entry, false);
+      const verdict = entry.answer ? AnswerCheckLogic.check(question, entry.answer) : false;
+      if (verdict !== null) {
+        this._rule(game, data, entry, verdict);
         auto.push(entry);
       }
     }

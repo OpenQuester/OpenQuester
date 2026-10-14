@@ -32,6 +32,8 @@ export class GameQuestionMapper {
     return {
       id: question.id,
       answerDelay: question.answerDelay,
+      // How to answer is public; the right number or spot is not
+      answerType: question.answerType ?? null,
       isHidden: question.isHidden,
       order: question.order,
       price: question.price,

@@ -1,8 +1,9 @@
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
 import { AnswerResultUseCase } from "application/usecases/question/AnswerResultUseCase";
 import { type Game } from "domain/entities/game/Game";
+import { AnswerType } from "domain/enums/package/AnswerType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { ChoiceAnswerLogic } from "domain/logic/question/ChoiceAnswerLogic";
+import { AnswerCheckLogic } from "domain/logic/question/AnswerCheckLogic";
 import { AnswerSubmittedLogic } from "domain/logic/question/AnswerSubmittedLogic";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
@@ -21,8 +22,8 @@ import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
  * IN pipeline and returns pure results — no Redis calls.
  *
  * Usually read-only: the typed answer goes to the showman, who judges it.
- * A picked option of a choice question is checked by the server instead
- * ({@link ChoiceAnswerLogic}) and judged right away.
+ * Choice, number and point answers are checked by the server instead
+ * ({@link AnswerCheckLogic}) and judged right away.
  */
 export class AnswerSubmittedUseCase implements GameActionHandler<
   AnswerSubmittedInputData,
@@ -45,7 +46,7 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
     const result = AnswerSubmittedLogic.buildResult({ game, answerText });
     const submitted = DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts);
 
-    const verdict = await this._checkChoice(game, answerText);
+    const verdict = await this._check(game, answerText);
     if (verdict === null) {
       return {
         success: true,
@@ -68,12 +69,17 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
     };
   }
 
-  private async _checkChoice(game: Game, answerText: string | null): Promise<boolean | null> {
-    if (game.gameState.currentQuestion?.type !== PackageQuestionType.CHOICE) {
+  /** Choice, number and point answers are judged by the server */
+  private async _check(game: Game, answerText: string | null): Promise<boolean | null> {
+    const current = game.gameState.currentQuestion;
+    const checkable =
+      current?.type === PackageQuestionType.CHOICE ||
+      (!!current?.answerType && current.answerType !== AnswerType.TEXT);
+    if (!checkable) {
       return null;
     }
 
     const resources = await this.transitionResourceService.getCurrentQuestionWithTheme(game);
-    return ChoiceAnswerLogic.check(resources?.questionWithTheme?.question, answerText);
+    return AnswerCheckLogic.check(resources?.questionWithTheme?.question, answerText);
   }
 }

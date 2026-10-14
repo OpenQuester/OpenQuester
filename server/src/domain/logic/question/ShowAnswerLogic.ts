@@ -5,7 +5,7 @@ import {
 } from "domain/constants/game";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
-import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { AnswerPointDTO, PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 
 /**
  * Logic class for handling show answer phase.
@@ -55,12 +55,16 @@ export class ShowAnswerLogic {
   }
 
   /** Extra right answers and credits revealed together with the answer */
-  public static credits(question: PackageQuestionDTO | null | undefined): {
+  public static revealDetails(question: PackageQuestionDTO | null | undefined): {
     rightAnswers: string[] | null;
     authors: string[] | null;
     sources: string[] | null;
+    answerPoint: AnswerPointDTO | null;
+    answerDeviation: number | null;
   } {
     return {
+      answerPoint: question?.answerPoint ?? null,
+      answerDeviation: question?.answerDeviation ?? null,
       rightAnswers: question?.rightAnswers ?? null,
       authors: question?.authors ?? null,
       sources: question?.sources ?? null

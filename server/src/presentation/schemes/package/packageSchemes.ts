@@ -3,6 +3,7 @@ import Joi from "joi";
 import { MAX_QUESTION_PRICE_UPLOAD } from "domain/constants/game";
 import { LIMIT_MAX, LIMIT_MIN, OFFSET_MIN } from "domain/constants/pagination";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { AnswerType } from "domain/enums/package/AnswerType";
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
@@ -56,6 +57,20 @@ const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
   textOrder: Joi.number().integer().min(0).allow(null),
   answerHint: Joi.string().allow(null, ""),
   answerText: Joi.string().allow(null, ""),
+  answerType: Joi.string()
+    .valid(...Object.values(AnswerType))
+    .allow(null),
+  answerNumber: Joi.when("answerType", {
+    is: AnswerType.NUMBER,
+    then: Joi.number().required(),
+    otherwise: Joi.number().allow(null),
+  }),
+  answerPoint: Joi.when("answerType", {
+    is: AnswerType.POINT,
+    then: Joi.object({ x: Joi.number().min(0).max(1).required(), y: Joi.number().min(0).max(1).required() }).required(),
+    otherwise: Joi.object({ x: Joi.number().min(0).max(1), y: Joi.number().min(0).max(1) }).allow(null),
+  }),
+  answerDeviation: Joi.number().min(0).allow(null),
   rightAnswers: textList(),
   wrongAnswers: textList(),
   authors: textList(),

@@ -98,7 +98,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
       answerText: question?.answerText ?? null,
       nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
       answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question),
-      ...ShowAnswerLogic.credits(question),
+      ...ShowAnswerLogic.revealDetails(question),
     };
 
     return {

@@ -40,7 +40,7 @@ export class ShowingToAllPlayReviewingHandler extends BaseTransitionHandler {
   protected async mutate(ctx: TransitionContext): Promise<MutationResult> {
     const { game } = ctx;
     game.setQuestionState(QuestionState.REVIEWING);
-    AllPlayLogic.startReview(game);
+    AllPlayLogic.startReview(game, ctx.resources?.questionWithTheme?.question ?? null);
     return {};
   }
 

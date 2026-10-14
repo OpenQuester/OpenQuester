@@ -99,7 +99,7 @@ export class NextRoundUseCase implements GameActionHandler<
             answerText: questionData.answerText ?? null,
             nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
             answerContentPlan: ShowAnswerLogic.buildAnswerPlan(questionData),
-            ...ShowAnswerLogic.credits(questionData)
+            ...ShowAnswerLogic.revealDetails(questionData)
           }
         : null
     });

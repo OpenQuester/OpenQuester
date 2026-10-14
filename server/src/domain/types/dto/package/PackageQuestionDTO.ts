@@ -1,3 +1,4 @@
+import { AnswerType } from "domain/enums/package/AnswerType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { PackageAnswerDTO } from "domain/types/dto/package/PackageAnswerDTO";
 import { PackageAnswerFileDTO } from "domain/types/dto/package/PackageAnswerFileDTO";
@@ -24,6 +25,17 @@ export interface PackageQuestionDTO {
   textOrder?: number | null;
   answerHint?: string | null;
   answerText?: string | null;
+  /** How the answer is given and checked; text when missing */
+  answerType?: AnswerType | null;
+  /** Number answers: the right number; showman only */
+  answerNumber?: number | null;
+  /** Point answers: the right spot as fractions of the picture; showman only */
+  answerPoint?: AnswerPointDTO | null;
+  /**
+   * How far off still counts: an absolute amount for numbers, a fraction of
+   * the picture's width for points (0.05 when missing)
+   */
+  answerDeviation?: number | null;
   /** Other answers that count as right (besides answerText); showman only */
   rightAnswers?: string[] | null;
   /** Answers that are known to be wrong; showman only */
@@ -45,4 +57,10 @@ export interface PackageQuestionDTO {
   priceMultiplier?: number | null; // NoRisk question
   showDelay?: number | null; // Choice question
   answers?: PackageAnswerDTO[] | null; // Choice question
+}
+
+/** A spot on a picture, as fractions (0–1) of its width and height */
+export interface AnswerPointDTO {
+  x: number;
+  y: number;
 }
