@@ -345,7 +345,16 @@
     "leave": "Leave game",
     "skipReveal": "Skip the answer",
     "managePlayers": "Manage players",
-    "hostShort": "Host"
+    "hostShort": "Host",
+    "undoRuling": "Undo last ruling",
+    "boardEdit": "Remove questions",
+    "boardEditDone": "Done removing",
+    "joinMode": "Who can join",
+    "joinModes": {
+      "open": "Anyone",
+      "spectators_only": "Spectators only",
+      "closed": "Nobody new"
+    }
   },
   "keys": {
     "space": "Space"
@@ -400,7 +409,8 @@
     "caption": "Round board: {{round}}",
     "picker": "{{name}} picks",
     "cell": "{{theme}}, {{price}}",
-    "played": "{{theme}}, {{price}}, already played"
+    "played": "{{theme}}, {{price}}, already played",
+    "editHint": "Click a question to take it off the board, or click a crossed-out one to put it back."
   },
   "question": {
     "region": "Question",

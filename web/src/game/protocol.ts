@@ -251,6 +251,8 @@ export interface GameSettings {
 
 export type AllPlayMode = "noRisk" | "stake";
 
+export type GameJoinMode = "open" | "spectators_only" | "closed";
+
 export interface AllPlayEntry {
   playerId: number;
   /** Stake mode: the stake (0 = staked, amount hidden until the review). */
@@ -288,6 +290,8 @@ export interface GameState {
   /** Players locked out after a false start: id -> epoch ms (server clock) the lock ends. */
   buzzerLocks?: Record<string, number> | null;
   allPlay?: AllPlayData | null;
+  /** Who may join right now; open when missing. */
+  joinMode?: GameJoinMode | null;
   /** Round time limit bookkeeping (epoch ms / ms on the server clock). */
   roundStartedAt?: number | null;
   roundPausedMs?: number | null;
@@ -404,6 +408,14 @@ export interface ServerEvents {
   };
   /** The receiver of a customPrice secret question picked its price. */
   "secret-question-price": { playerId: number; price: number; questionId: number };
+  "question-toggle": { questionId: number; isPlayed: boolean };
+  "answer-result-undo": {
+    playerId: number;
+    revertedResult: number;
+    newScore: number;
+    canAnswerAgain: boolean;
+  };
+  "game-join-mode": { joinMode: GameJoinMode };
   "stake-question-picked": {
     pickerPlayerId: number;
     questionId: number;
@@ -478,6 +490,9 @@ export interface ClientEvents {
   "question-unskip": undefined;
   "secret-question-transfer": { targetPlayerId: number };
   "secret-question-price": { price: number };
+  "question-toggle": { questionId: number };
+  "answer-result-undo": undefined;
+  "game-join-mode": { joinMode: GameJoinMode };
   "all-play-stake": { amount: number };
   "all-play-answer": { answerText: string };
   "all-play-review": { playerId: number; isCorrect: boolean };
@@ -521,6 +536,9 @@ export const SERVER_EVENT_NAMES: ServerEventName[] = [
   "secret-question-transfer",
   "secret-question-price",
   "all-play-start",
+  "question-toggle",
+  "answer-result-undo",
+  "game-join-mode",
   "all-play-stake",
   "all-play-answer",
   "all-play-reviewing",

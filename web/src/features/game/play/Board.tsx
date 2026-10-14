@@ -2,7 +2,8 @@ import { cn } from "@/lib/cn";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { canPick, findPlayer } from "@/game/selectors";
+import { canPick, findPlayer, myRole } from "@/game/selectors";
+import { useGameStore } from "@/game/store";
 import { formatScore } from "@/lib/format";
 
 import { useGame, useSession } from "../GameContext";
@@ -12,6 +13,7 @@ export function Board() {
   const { t } = useTranslation();
   const session = useSession();
   const { connection, myId } = useGame();
+  const boardEdit = useGameStore((s) => s.boardEdit);
   const themes = [...(session.state.currentRound?.themes ?? [])].sort((a, b) => a.order - b.order);
   const columns = Math.max(1, ...themes.map((th) => th.questions.length));
   const picker = findPlayer(session, session.state.currentTurnPlayerId);
@@ -32,6 +34,14 @@ export function Board() {
         {t("board.caption", { round: session.state.currentRound?.name ?? "" })}
         {picker ? `. ${t("board.picker", { name: picker.meta.username })}` : ""}
       </h2>
+      {boardEdit && myRole(session, myId) === "showman" && (
+        <p
+          className="m-0 rounded-md border border-accent-line bg-accent-surface px-4 py-2 text-sm"
+          data-testid="board-edit-hint"
+        >
+          {t("board.editHint")}
+        </p>
+      )}
       <div
         ref={ref}
         className="grid gap-2 sm:gap-2.5"
@@ -68,7 +78,9 @@ export function Board() {
             {[...theme.questions]
               .sort((a, b) => a.order - b.order)
               .map((q) => {
-                const can = canPick(session, myId, q);
+                // Showman board editing: any cell toggles between on and off the board
+                const editing = boardEdit && myRole(session, myId) === "showman";
+                const can = editing ? { ok: true as const } : canPick(session, myId, q);
                 const label = q.isPlayed
                   ? t("board.played", { theme: theme.name, price: q.price ?? "?" })
                   : t("board.cell", { theme: theme.name, price: q.price ?? "?" });
@@ -77,8 +89,13 @@ export function Board() {
                     <button
                       type="button"
                       aria-label={label}
-                      disabled={q.isPlayed || !can.ok}
-                      onClick={() => connection.emit("question-pick", { questionId: q.id })}
+                      disabled={editing ? false : q.isPlayed || !can.ok}
+                      onClick={() =>
+                        editing
+                          ? connection.emit("question-toggle", { questionId: q.id })
+                          : connection.emit("question-pick", { questionId: q.id })
+                      }
+                      data-editing={editing || undefined}
                       data-testid="board-cell"
                       data-question-id={q.id}
                       className={cn(

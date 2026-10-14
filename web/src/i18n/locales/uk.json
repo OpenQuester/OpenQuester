@@ -357,7 +357,16 @@
     "leave": "Вийти з гри",
     "skipReveal": "Пропустити показ відповіді",
     "managePlayers": "Керувати гравцями",
-    "hostShort": "Ведучий"
+    "hostShort": "Ведучий",
+    "undoRuling": "Скасувати останню оцінку",
+    "boardEdit": "Прибрати питання",
+    "boardEditDone": "Готово",
+    "joinMode": "Хто може увійти",
+    "joinModes": {
+      "open": "Усі",
+      "spectators_only": "Лише глядачі",
+      "closed": "Ніхто новий"
+    }
   },
   "keys": {
     "space": "Пробіл"
@@ -412,7 +421,8 @@
     "caption": "Табло раунду: {{round}}",
     "picker": "Обирає {{name}}",
     "cell": "{{theme}}, {{price}}",
-    "played": "{{theme}}, {{price}}, уже зіграно"
+    "played": "{{theme}}, {{price}}, уже зіграно",
+    "editHint": "Натисніть на питання, щоб прибрати його з табло, або на закреслене, щоб повернути."
   },
   "question": {
     "region": "Питання",

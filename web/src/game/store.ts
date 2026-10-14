@@ -24,6 +24,9 @@ interface GameStore {
   toasts: GameToast[];
   /** Set once the local player left or was removed; the page navigates away. */
   left: { gameId: string; why: "left" | "kicked" | "deleted" | "closed" } | null;
+  /** Showman: board clicks remove or restore questions instead of picking. */
+  boardEdit: boolean;
+  setBoardEdit: (on: boolean) => void;
 
   begin: (gameId: string) => void;
   dispatch: (event: ServerEvent) => void;
@@ -45,6 +48,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   pending: null,
   toasts: [],
   left: null,
+  boardEdit: false,
+  setBoardEdit: (boardEdit) => set({ boardEdit }),
 
   begin: (gameId) =>
     set({

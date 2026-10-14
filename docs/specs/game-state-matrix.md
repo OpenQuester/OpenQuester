@@ -121,6 +121,18 @@ When changing gameplay state, make sure:
   −stake. No-risk: right +price × multiplier, wrong ±0. Answers and stakes
   stay hidden from players until the review.
 
+## Showman tools
+
+- **Remove / restore a question** (`question-toggle`, while choosing): the
+  question's `isPlayed` flips. A removed question can't be picked; the round
+  still ends only after a question is played or the showman moves on.
+- **Undo the last ruling** (`answer-result-undo`, while the question is open
+  or its answer is shown): the score change is reverted. After a wrong answer
+  on an open question the player may buzz again.
+- **Who can join** (`game-join-mode`: open / spectators only / closed): blocks
+  newcomers; people already in the game can always come back. Shown in the
+  game list as `joinMode`.
+
 ## Common disabled reason categories
 
 Use consistent categories in UI copy and server/client logic:

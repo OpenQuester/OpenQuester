@@ -646,6 +646,44 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       };
     }
 
+    case "question-toggle": {
+      const { questionId, isPlayed } = event.payload;
+      const round = s.currentRound;
+      if (!round) return session;
+      return patchState(session, {
+        currentRound: {
+          ...round,
+          themes: round.themes.map((t) => ({
+            ...t,
+            questions: t.questions.map((q) => (q.id === questionId ? { ...q, isPlayed } : q)),
+          })),
+        },
+      });
+    }
+
+    case "answer-result-undo": {
+      const { playerId, newScore, canAnswerAgain } = event.payload;
+      const answered = s.answeredPlayers ?? [];
+      // The last ruling for this player is the one taken back.
+      const at = answered.map((a) => a.player).lastIndexOf(playerId);
+      const next = patchState(session, {
+        answeredPlayers: canAnswerAgain && at >= 0 ? answered.filter((_, i) => i !== at) : answered,
+        answerShowData: s.answerShowData
+          ? { ...s.answerShowData, answerResult: undefined }
+          : s.answerShowData,
+      });
+      return {
+        ...next,
+        players: patchPlayer(next.players, playerId, (p) => ({ ...p, score: newScore })),
+        lastResult: null,
+      };
+    }
+
+    case "game-join-mode":
+      return patchState(session, {
+        joinMode: event.payload.joinMode === "open" ? null : event.payload.joinMode,
+      });
+
     case "secret-question-price":
       return patchState(session, {
         answeringPlayer: event.payload.playerId,

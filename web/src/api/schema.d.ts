@@ -2638,6 +2638,8 @@ export interface components {
             finishedAt?: string | null;
             package: components["schemas"]["PackageItem"];
             settings: components["schemas"]["GameSettings"];
+            /** @description Who may join right now; open when null */
+            joinMode?: components["schemas"]["GameJoinMode"] | null;
         };
         GameCreateData: {
             /** @example Game Title */
@@ -3714,6 +3716,8 @@ export interface components {
             roundPausedMs?: number | null;
             /** @description When the current pause began (epoch ms) */
             pausedAt?: number | null;
+            /** @description Who may join right now (set by the showman); open when null */
+            joinMode?: components["schemas"]["GameJoinMode"] | null;
             /** @description "Everyone answers" question in play */
             allPlay?: components["schemas"]["AllPlayData"] | null;
             finalRoundData?: components["schemas"]["FinalRoundGameData"] | null;
@@ -3882,13 +3886,13 @@ export interface components {
          * @example join
          * @enum {string}
          */
-        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "secret-question-price" | "all-play-stake" | "all-play-answer" | "all-play-review" | "stake-bid-submit" | "media-downloaded";
+        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-toggle" | "answer-result-undo" | "game-join-mode" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "secret-question-price" | "all-play-stake" | "all-play-answer" | "all-play-review" | "stake-bid-submit" | "media-downloaded";
         /**
          * @description Server-to-client game events emitted on the /games namespace.
          * @example join
          * @enum {string}
          */
-        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "all-play-start" | "all-play-stake" | "all-play-answer" | "all-play-reviewing" | "all-play-review" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
+        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-toggle" | "answer-result-undo" | "game-join-mode" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "all-play-start" | "all-play-stake" | "all-play-answer" | "all-play-reviewing" | "all-play-review" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
         /** @description Data sent to all players when player skips a question */
         SocketIOGameSkipEventPayload: {
             /**
@@ -5122,6 +5126,36 @@ export interface components {
         AnswerPoint: {
             x: number;
             y: number;
+        };
+        /**
+         * @description Who may join right now: everyone, spectators only, or nobody new. People already in the game can always come back
+         * @default open
+         * @example open
+         * @enum {string}
+         */
+        GameJoinMode: "open" | "spectators_only" | "closed";
+        /** @description Showman only, while a question is being picked: remove an unplayed question from the board, or put a removed one back */
+        SocketIOQuestionToggleInput: {
+            questionId: number;
+        };
+        SocketIOQuestionToggleEventPayload: {
+            questionId: number;
+            /** @description True when the question is now off the board */
+            isPlayed: boolean;
+        };
+        /** @description answer-result-undo (showman only, no input): the last ruling on the current question is taken back and its score change reverted. After a wrong answer the player may buzz again */
+        SocketIOAnswerResultUndoEventPayload: {
+            playerId: number;
+            revertedResult: number;
+            newScore: number;
+            canAnswerAgain: boolean;
+        };
+        /** @description Showman only */
+        SocketIOGameJoinModeInput: {
+            joinMode: components["schemas"]["GameJoinMode"];
+        };
+        SocketIOGameJoinModeEventPayload: {
+            joinMode: components["schemas"]["GameJoinMode"];
         };
     };
     responses: never;

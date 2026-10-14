@@ -357,7 +357,16 @@
     "leave": "Выйти из игры",
     "skipReveal": "Пропустить показ ответа",
     "managePlayers": "Управлять игроками",
-    "hostShort": "Ведущий"
+    "hostShort": "Ведущий",
+    "undoRuling": "Отменить последнюю оценку",
+    "boardEdit": "Убрать вопросы",
+    "boardEditDone": "Готово",
+    "joinMode": "Кто может войти",
+    "joinModes": {
+      "open": "Все",
+      "spectators_only": "Только зрители",
+      "closed": "Никто новый"
+    }
   },
   "keys": {
     "space": "Пробел"
@@ -412,7 +421,8 @@
     "caption": "Табло раунда: {{round}}",
     "picker": "Выбирает {{name}}",
     "cell": "{{theme}}, {{price}}",
-    "played": "{{theme}}, {{price}}, уже сыгран"
+    "played": "{{theme}}, {{price}}, уже сыгран",
+    "editHint": "Нажмите на вопрос, чтобы убрать его с табло, или на зачёркнутый, чтобы вернуть."
   },
   "question": {
     "region": "Вопрос",
