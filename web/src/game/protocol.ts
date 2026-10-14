@@ -342,6 +342,8 @@ export interface ServerEvents {
   };
   "next-round": { gameState: GameState };
   "game-finished": unknown;
+  /** An admin or moderator closed the game; it no longer exists. */
+  "game-closed": { gameId: string; reason: "moderator" };
   "player-role-change": { playerId: number; newRole: PlayerRole; players: Player[] };
   "player-slot-change": { playerId: number; newSlot: number; players: Player[] };
   "score-changed": { playerId: number; newScore: number };
@@ -427,6 +429,7 @@ export const SERVER_EVENT_NAMES: ServerEventName[] = [
   "final-answer-review",
   "next-round",
   "game-finished",
+  "game-closed",
   "player-role-change",
   "player-slot-change",
   "score-changed",

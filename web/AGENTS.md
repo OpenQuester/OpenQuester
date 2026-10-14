@@ -88,6 +88,9 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   and up, never modals over the game; pins are per device in settings
   (`pins`). Below `lg` they open as sheets. `3xl`/`4xl` breakpoints scale the
   board and question for 1920 px+ and 2400 px+ monitors.
+- The admin panel (`features/admin/`) shows each tab only when the account
+  holds its permission; staff roles and game moderation are described in
+  `docs/specs/admin-moderation.md`. A `game-closed` event sends everyone home.
 - Layouts must work at 375 px wide with no horizontal scroll; the e2e
   `expectNoHorizontalScroll` check runs on phone, tablet and desktop.
 

@@ -23,7 +23,7 @@ interface GameStore {
   pending: { action: string; at: number } | null;
   toasts: GameToast[];
   /** Set once the local player left or was removed; the page navigates away. */
-  left: { gameId: string; why: "left" | "kicked" | "deleted" } | null;
+  left: { gameId: string; why: "left" | "kicked" | "deleted" | "closed" } | null;
 
   begin: (gameId: string) => void;
   dispatch: (event: ServerEvent) => void;
@@ -32,7 +32,7 @@ interface GameStore {
   setPending: (action: string | null) => void;
   toast: (kind: GameToast["kind"], text: string) => void;
   dismissToast: (id: number) => void;
-  markLeft: (why: "left" | "kicked" | "deleted") => void;
+  markLeft: (why: "left" | "kicked" | "deleted" | "closed") => void;
 }
 
 let toastId = 0;

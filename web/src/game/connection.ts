@@ -202,6 +202,10 @@ export class GameConnection {
           this.close();
         }
         break;
+      case "game-closed":
+        store.markLeft("closed");
+        this.close();
+        break;
       case "player-restricted":
         if (event.payload.playerId === this.myId && event.payload.banned) {
           store.markLeft("kicked");

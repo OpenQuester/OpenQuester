@@ -101,3 +101,102 @@ export function useUserAction() {
     onSettled: () => void qc.invalidateQueries({ queryKey: ["admin"] }),
   });
 }
+
+export type StaffRole = S["StaffRole"];
+export type AdminGameDetails = S["AdminGameDetails"];
+export type AdminGamePlayer = S["AdminGamePlayer"];
+
+/** Admin when they can manage permissions, moderator with panel access; mirrors the server. */
+export function staffRoleOf(user: Pick<User, "permissions"> | null | undefined): StaffRole {
+  if (can(user as User, "manage_permissions")) return "admin";
+  if (can(user as User, "admin_panel_access")) return "moderator";
+  return "user";
+}
+
+export function useRoles(enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin", "roles"],
+    enabled,
+    staleTime: Infinity,
+    queryFn: () => unwrap(api.GET("/v1/admin/api/roles")),
+  });
+}
+
+export function useSetPermissions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (a: { id: number; permissions: PermissionName[] }) =>
+      unwrap(
+        api.PUT("/v1/admin/api/users/{id}/permissions", {
+          params: { path: { id: a.id } },
+          body: { permissions: a.permissions },
+        }),
+      ),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["admin", "users"] }),
+  });
+}
+
+export function useAdminGames(search: string, page: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["admin", "games", search, page],
+    enabled,
+    placeholderData: keepPreviousData,
+    refetchInterval: 10_000,
+    queryFn: () =>
+      unwrap(
+        api.GET("/v1/admin/api/games", {
+          params: {
+            query: {
+              limit: ADMIN_PAGE_SIZE,
+              offset: page * ADMIN_PAGE_SIZE,
+              ...(search.trim() ? { search: search.trim() } : {}),
+            },
+          },
+        }),
+      ),
+  });
+}
+
+/** One game with everyone in it; polls while it is open on screen. */
+export function useAdminGame(gameId: string | null) {
+  return useQuery({
+    queryKey: ["admin", "game", gameId],
+    enabled: !!gameId,
+    refetchInterval: 3000,
+    retry: false,
+    queryFn: () =>
+      unwrap(api.GET("/v1/admin/api/games/{gameId}", { params: { path: { gameId: gameId! } } })),
+  });
+}
+
+export type GameAction =
+  | { kind: "kick"; gameId: string; playerId: number }
+  | { kind: "pause" | "unpause" | "close"; gameId: string };
+
+export function useGameAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (a: GameAction) => {
+      const game = { params: { path: { gameId: a.gameId } } };
+      switch (a.kind) {
+        case "kick":
+          return unwrap(
+            api.POST("/v1/admin/api/games/{gameId}/players/{playerId}/kick", {
+              params: { path: { gameId: a.gameId, playerId: a.playerId } },
+            }),
+          );
+        case "pause":
+          return unwrap(api.POST("/v1/admin/api/games/{gameId}/pause", game));
+        case "unpause":
+          return unwrap(api.POST("/v1/admin/api/games/{gameId}/unpause", game));
+        case "close":
+          return unwrap(api.DELETE("/v1/admin/api/games/{gameId}", game));
+      }
+    },
+    onSettled: (_d, _e, a) => {
+      void qc.invalidateQueries({ queryKey: ["admin", "games"] });
+      if (a.kind === "close") qc.removeQueries({ queryKey: ["admin", "game", a.gameId] });
+      else void qc.invalidateQueries({ queryKey: ["admin", "game", a.gameId] });
+    },
+  });
+}

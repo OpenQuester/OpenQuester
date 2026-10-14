@@ -14,9 +14,13 @@ import { Card } from "@/ui/Card";
 import { Select, TextInput } from "@/ui/Field";
 import { Spinner } from "@/ui/Spinner";
 
+import { AdminGames } from "./AdminGames";
+import { AdminPackages } from "./AdminPackages";
+import { StaffEditor } from "./StaffEditor";
 import {
   ADMIN_PAGE_SIZE,
   can,
+  staffRoleOf,
   useAdminUsers,
   useDashboard,
   useSystemHealth,
@@ -25,9 +29,12 @@ import {
   type UserQuery,
 } from "./useAdmin";
 
-type Tab = "overview" | "users" | "system";
+type Tab = "overview" | "users" | "packages" | "games" | "system";
 
-/** Same scope as the Flutter admin dashboard: stats, user moderation, system health. */
+/**
+ * Admin and moderator panel: stats, people, packages, live games and system
+ * health. Each tab shows only when the account holds its permission.
+ */
 export function AdminPage() {
   const { t } = useTranslation();
   const me = useMe();
@@ -51,18 +58,38 @@ export function AdminPage() {
       </PageContainer>
     );
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "overview", label: t("adminPanel.overview") },
-    { id: "users", label: t("adminPanel.users") },
-    { id: "system", label: t("adminPanel.system") },
-  ];
+  const tabs = (
+    [
+      { id: "overview", label: t("adminPanel.overview"), show: true },
+      {
+        id: "users",
+        label: t("adminPanel.users"),
+        show: can(user, "view_users_info") || can(user, "get_all_users"),
+      },
+      {
+        id: "packages",
+        label: t("adminPanel.packages"),
+        show: can(user, "delete_package") || can(user, "edit_package"),
+      },
+      { id: "games", label: t("adminPanel.games"), show: can(user, "manage_games") },
+      { id: "system", label: t("adminPanel.system"), show: can(user, "view_system_health") },
+    ] satisfies { id: Tab; label: string; show: boolean }[]
+  ).filter((x) => x.show);
+  const role = staffRoleOf(user);
 
   return (
     <PageContainer width={1240}>
       <div className="flex flex-col gap-6">
-        <h1 className="m-0 font-display text-4xl font-extrabold tracking-tight">
-          {t("adminPanel.title")}
-        </h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="m-0 font-display text-4xl font-extrabold tracking-tight">
+            {t("adminPanel.title")}
+          </h1>
+          <span data-testid="admin-my-role">
+            <Badge tone="accent">
+              {t(role === "admin" ? "adminPanel.roleAdmin" : "adminPanel.roleModerator")}
+            </Badge>
+          </span>
+        </div>
         <div role="tablist" aria-label={t("adminPanel.title")} className="flex flex-wrap gap-1">
           {tabs.map((x) => (
             <button
@@ -83,6 +110,8 @@ export function AdminPage() {
         <div role="tabpanel">
           {tab === "overview" && <Overview />}
           {tab === "users" && <Users me={user} />}
+          {tab === "packages" && <AdminPackages me={user} />}
+          {tab === "games" && <AdminGames />}
           {tab === "system" && <System enabled={can(user, "view_system_health")} />}
         </div>
       </div>
@@ -289,9 +318,14 @@ function UserRow({
 }) {
   const { t } = useTranslation();
   const [confirm, setConfirm] = useState<"ban" | "delete" | null>(null);
+  const [editing, setEditing] = useState(false);
   const muted = user.mutedUntil && Date.parse(user.mutedUntil) > now;
   const self = user.id === me.id;
   const id = user.id;
+  const role = staffRoleOf(user);
+  const iAmAdmin = staffRoleOf(me) === "admin";
+  // Only admins act on staff; the server refuses it too
+  const canAct = !self && (role === "user" || iAmAdmin);
   return (
     <li
       className="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-md border border-line bg-surface px-4 py-3"
@@ -306,6 +340,11 @@ function UserRow({
         </span>
       </div>
       <div className="flex flex-wrap gap-1.5">
+        {role !== "user" && (
+          <Badge tone="accent">
+            {t(role === "admin" ? "adminPanel.roleAdmin" : "adminPanel.roleModerator")}
+          </Badge>
+        )}
         {user.isGuest && <Badge>{t("adminPanel.guest")}</Badge>}
         {user.isBanned && <Badge tone="danger">{t("adminPanel.statusBanned")}</Badge>}
         {user.isDeleted && <Badge tone="danger">{t("adminPanel.statusDeleted")}</Badge>}
@@ -317,8 +356,13 @@ function UserRow({
           </Badge>
         )}
       </div>
-      {!self && (
+      {canAct && (
         <div className="flex flex-wrap gap-2">
+          {can(me, "manage_permissions") && !user.isDeleted && !user.isGuest && (
+            <Button size="sm" aria-expanded={editing} onClick={() => setEditing((x) => !x)}>
+              {t("adminPanel.editRole")}
+            </Button>
+          )}
           {can(me, "mute_player") &&
             !user.isDeleted &&
             (muted ? (
@@ -394,6 +438,7 @@ function UserRow({
           )}
         </div>
       )}
+      {editing && canAct && <StaffEditor user={user} onDone={() => setEditing(false)} />}
     </li>
   );
 }

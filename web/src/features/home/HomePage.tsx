@@ -53,7 +53,7 @@ export function HomePage() {
   return (
     <PageContainer>
       <div className="flex flex-col gap-10">
-        {(notice === "kicked" || notice === "deleted") && (
+        {(notice === "kicked" || notice === "deleted" || notice === "closed") && (
           <div
             role="status"
             className="rounded-md border border-line-strong bg-surface-2 px-5 py-4 text-soft"
