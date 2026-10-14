@@ -17,6 +17,8 @@ export interface BoardActions extends Omit<CardActions, "dropQuestion"> {
   moveTheme: (id: string) => void;
   removeTheme: (id: string) => void;
   removeRound: (id: string) => void;
+  setPrices: (roundId: string) => void;
+  pasteQuestions: (roundId: string) => void;
 }
 
 export function RoundBoard({
@@ -120,6 +122,18 @@ export function RoundBoard({
               size={44}
               className="border border-line-strong"
               items={[
+                ...(final
+                  ? []
+                  : [
+                      {
+                        label: t("editor.tools.pricesTitle"),
+                        onSelect: () => actions.setPrices(round.id),
+                      },
+                    ]),
+                {
+                  label: t("editor.tools.pasteTitle"),
+                  onSelect: () => actions.pasteQuestions(round.id),
+                },
                 {
                   label: t("editor.actions.deleteRound"),
                   icon: <TrashIcon size={16} />,

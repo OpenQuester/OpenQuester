@@ -1024,7 +1024,9 @@
       "roundDeleted": "Round deleted",
       "roundType": "Round type changed",
       "duplicated": "Duplicated",
-      "detailsSaved": "Details saved"
+      "detailsSaved": "Details saved",
+      "pricesSet": "Prices set",
+      "questionsPasted": "Questions added"
     },
     "empty": {
       "title": "An empty package",
@@ -1083,6 +1085,27 @@
       "noLanguage": "Set a language so players can find the package.",
       "noDescription": "Add a short description.",
       "noTags": "Add a few tags."
+    },
+    "tools": {
+      "pricesTitle": "Set prices for the round",
+      "pricesHelp": "Every theme in this round gets the same prices, counting up from the first.",
+      "firstPrice": "First price",
+      "step": "Step",
+      "pricesPreview": "Prices: {{prices}}…",
+      "applyPrices": "Set prices",
+      "pasteTitle": "Paste questions as text",
+      "pasteHelp": "Each block is a theme: its name on the first line, then one question per line with the answer after “|” or “ — ”. A blank line starts the next theme. A number at the start of a line is the price.",
+      "pasteLabel": "Questions",
+      "pastePlaceholder": "Capitals\n100. The capital of France? | Paris\n200. The capital of Japan? | Tokyo\n\nPlanets\n100. The red planet? | Mars",
+      "pasteSummary": "{{themes}} themes, {{questions}} questions.",
+      "pasteMissing_one": "{{count}} question has no answer yet.",
+      "pasteMissing_other": "{{count}} questions have no answer yet.",
+      "pasteAdd": "Add to the round",
+      "searchTitle": "Search the package",
+      "searchPlaceholder": "Question, answer or theme",
+      "searchCount_one": "{{count}} question found",
+      "searchCount_other": "{{count}} questions found",
+      "noText": "(no text)"
     }
   },
   "panels": {

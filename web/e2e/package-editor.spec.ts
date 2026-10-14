@@ -89,6 +89,35 @@ test.describe("package editor", () => {
     await expect(page.getByTestId("save-status")).toContainText("Saved in this browser");
   });
 
+  test("paste questions as text, set the round's prices and search", async ({ page }) => {
+    await openInEditor(page, `Editor ${Date.now()}`);
+    await page.getByRole("button", { name: "Round actions" }).click();
+    await page.getByRole("menuitem", { name: "Paste questions as text" }).click();
+    await page
+      .getByTestId("paste-text")
+      .fill("Birds\n100. Fastest bird? | Peregrine falcon\n200. Largest bird? | Ostrich");
+    await expect(page.getByTestId("paste-summary")).toContainText("1 themes, 2 questions");
+    await page.getByRole("button", { name: "Add to the round" }).click();
+    await expect(page.getByTestId("theme-row")).toHaveCount(2);
+    await expect(themeCards(page, 1)).toHaveCount(2);
+
+    await page.getByRole("button", { name: "Round actions" }).click();
+    await page.getByRole("menuitem", { name: "Set prices for the round" }).click();
+    await page.getByLabel("First price").fill("300");
+    await page.getByLabel("Step", { exact: true }).fill("300");
+    await page.getByRole("button", { name: "Set prices" }).click();
+    await expect(themeCards(page, 1).nth(1)).toContainText("600");
+
+    await page.getByRole("button", { name: "Search the package" }).click();
+    await page.getByPlaceholder("Question, answer or theme").fill("ostrich");
+    await expect(page.getByTestId("search-hit")).toHaveCount(1);
+    await page.getByTestId("search-hit").click();
+    await expect(page.getByTestId("question-dialog")).toBeVisible();
+    await expect(page.getByTestId("question-dialog").getByLabel("Correct answer")).toHaveValue(
+      "Ostrich",
+    );
+  });
+
   test("hovering a compact card previews the question", async ({ page, isMobile }) => {
     test.skip(isMobile, "hover previews are for mouse pointers");
     await openInEditor(page, `Editor ${Date.now()}`);

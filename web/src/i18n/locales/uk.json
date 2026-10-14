@@ -1054,7 +1054,9 @@
       "roundDeleted": "Раунд видалено",
       "roundType": "Тип раунду змінено",
       "duplicated": "Продубльовано",
-      "detailsSaved": "Збережено"
+      "detailsSaved": "Збережено",
+      "pricesSet": "Ціни задано",
+      "questionsPasted": "Питання додано"
     },
     "empty": {
       "title": "Порожній пакет",
@@ -1119,6 +1121,31 @@
       "noLanguage": "Вкажіть мову, щоб гравцям було легше знайти пакет.",
       "noDescription": "Додайте короткий опис.",
       "noTags": "Додайте кілька тегів."
+    },
+    "tools": {
+      "pricesTitle": "Задати ціни в раунді",
+      "pricesHelp": "Усі теми раунду отримають однакові ціни, починаючи з першої.",
+      "firstPrice": "Перша ціна",
+      "step": "Крок",
+      "pricesPreview": "Ціни: {{prices}}…",
+      "applyPrices": "Задати ціни",
+      "pasteTitle": "Вставити питання текстом",
+      "pasteHelp": "Кожен блок — тема: назва в першому рядку, далі по питанню в рядку, відповідь після «|» або « — ». Порожній рядок починає наступну тему. Число на початку рядка — ціна.",
+      "pasteLabel": "Питання",
+      "pastePlaceholder": "Столиці\n100. Столиця Франції? | Париж\n200. Столиця Японії? | Токіо\n\nПланети\n100. Червона планета? | Марс",
+      "pasteSummary": "Тем: {{themes}}, питань: {{questions}}.",
+      "pasteMissing_one": "У {{count}} питання поки немає відповіді.",
+      "pasteMissing_few": "У {{count}} питань поки немає відповіді.",
+      "pasteMissing_many": "У {{count}} питань поки немає відповіді.",
+      "pasteMissing_other": "У {{count}} питань поки немає відповіді.",
+      "pasteAdd": "Додати до раунду",
+      "searchTitle": "Пошук у пакеті",
+      "searchPlaceholder": "Питання, відповідь або тема",
+      "searchCount_one": "Знайдено {{count}} питання",
+      "searchCount_few": "Знайдено {{count}} питання",
+      "searchCount_many": "Знайдено {{count}} питань",
+      "searchCount_other": "Знайдено {{count}} питань",
+      "noText": "(без тексту)"
     }
   },
   "panels": {

@@ -257,3 +257,72 @@ export function duplicateQuestion(
   const copy = cloneQuestion(at.question);
   return { pkg: addQuestion(pkg, at.theme.id, copy, at.index + 1), id: copy.id };
 }
+
+/** Sets every question's price in a round: base for the first, then + step. */
+export function setRoundPrices(
+  pkg: EditorPackage,
+  roundId: string,
+  base: number,
+  step: number,
+): EditorPackage {
+  return {
+    ...pkg,
+    rounds: pkg.rounds.map((r) =>
+      r.id !== roundId || r.type === "final"
+        ? r
+        : {
+            ...r,
+            themes: r.themes.map((t) => ({
+              ...t,
+              questions: t.questions.map((q, i) => ({ ...q, price: base + i * step })),
+            })),
+          },
+    ),
+  };
+}
+
+/** Adds themes at the end of a round. */
+export function appendThemes(
+  pkg: EditorPackage,
+  roundId: string,
+  themes: EditorTheme[],
+): EditorPackage {
+  return {
+    ...pkg,
+    rounds: pkg.rounds.map((r) =>
+      r.id === roundId ? { ...r, themes: [...r.themes, ...themes] } : r,
+    ),
+  };
+}
+
+export interface SearchHit {
+  roundId: string;
+  roundName: string;
+  themeName: string;
+  question: EditorQuestion;
+}
+
+/** Questions whose text, answer, comment or extra answers contain the query. */
+export function searchQuestions(pkg: EditorPackage, query: string): SearchHit[] {
+  const q = query.trim().toLocaleLowerCase();
+  if (!q) return [];
+  const hits: SearchHit[] = [];
+  for (const r of pkg.rounds)
+    for (const t of r.themes)
+      for (const question of t.questions) {
+        const haystack = [
+          question.text,
+          question.answerText,
+          question.questionComment,
+          question.answerHint,
+          ...question.rightAnswers,
+          ...question.options.map((o) => o.text),
+          t.name,
+        ]
+          .join("\n")
+          .toLocaleLowerCase();
+        if (haystack.includes(q))
+          hits.push({ roundId: r.id, roundName: r.name, themeName: t.name, question });
+      }
+  return hits;
+}

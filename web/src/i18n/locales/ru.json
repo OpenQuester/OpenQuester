@@ -1054,7 +1054,9 @@
       "roundDeleted": "Раунд удалён",
       "roundType": "Тип раунда изменён",
       "duplicated": "Продублировано",
-      "detailsSaved": "Сохранено"
+      "detailsSaved": "Сохранено",
+      "pricesSet": "Цены заданы",
+      "questionsPasted": "Вопросы добавлены"
     },
     "empty": {
       "title": "Пустой пакет",
@@ -1119,6 +1121,31 @@
       "noLanguage": "Укажите язык, чтобы игрокам было проще найти пакет.",
       "noDescription": "Добавьте короткое описание.",
       "noTags": "Добавьте несколько тегов."
+    },
+    "tools": {
+      "pricesTitle": "Задать цены в раунде",
+      "pricesHelp": "У всех тем раунда будут одинаковые цены, начиная с первой.",
+      "firstPrice": "Первая цена",
+      "step": "Шаг",
+      "pricesPreview": "Цены: {{prices}}…",
+      "applyPrices": "Задать цены",
+      "pasteTitle": "Вставить вопросы текстом",
+      "pasteHelp": "Каждый блок — тема: название в первой строке, затем по вопросу в строке, ответ после «|» или « — ». Пустая строка начинает следующую тему. Число в начале строки — цена.",
+      "pasteLabel": "Вопросы",
+      "pastePlaceholder": "Столицы\n100. Столица Франции? | Париж\n200. Столица Японии? | Токио\n\nПланеты\n100. Красная планета? | Марс",
+      "pasteSummary": "Тем: {{themes}}, вопросов: {{questions}}.",
+      "pasteMissing_one": "У {{count}} вопроса пока нет ответа.",
+      "pasteMissing_few": "У {{count}} вопросов пока нет ответа.",
+      "pasteMissing_many": "У {{count}} вопросов пока нет ответа.",
+      "pasteMissing_other": "У {{count}} вопросов пока нет ответа.",
+      "pasteAdd": "Добавить в раунд",
+      "searchTitle": "Поиск по пакету",
+      "searchPlaceholder": "Вопрос, ответ или тема",
+      "searchCount_one": "Найден {{count}} вопрос",
+      "searchCount_few": "Найдено {{count}} вопроса",
+      "searchCount_many": "Найдено {{count}} вопросов",
+      "searchCount_other": "Найдено {{count}} вопросов",
+      "noText": "(без текста)"
     }
   },
   "panels": {

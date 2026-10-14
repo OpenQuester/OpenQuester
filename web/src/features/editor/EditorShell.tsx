@@ -19,6 +19,7 @@ import {
   PlusIcon,
   RedoIcon,
   TrashIcon,
+  SearchIcon,
   UndoIcon,
   UploadIcon,
 } from "@/ui/icons";
@@ -26,6 +27,7 @@ import {
 import { InlineText } from "./InlineText";
 import { downloadBlob, exportOq, safeFileName } from "./media";
 import { countQuestions, newRound, reachableMedia } from "./model";
+import { PasteQuestionsDialog, RoundPricesDialog, SearchDialog } from "./EditorTools";
 import { MoveDialog, type MoveTarget } from "./MoveDialog";
 import * as ops from "./ops";
 import { Outline } from "./Outline";
@@ -67,6 +69,9 @@ export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
   const wide = useMediaQuery("(min-width: 1280px)");
 
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
+  const [pricesRound, setPricesRound] = useState<string | null>(null);
+  const [pasteRound, setPasteRound] = useState<string | null>(null);
+  const [search, setSearch] = useState(false);
   const [details, setDetails] = useState(false);
   const [publish, setPublish] = useState(false);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -118,6 +123,8 @@ export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
       if (store.getState().selectedId === id) select(null);
     },
     moveTheme: (id) => setMoveTarget({ kind: "theme", id }),
+    setPrices: (roundId) => setPricesRound(roundId),
+    pasteQuestions: (roundId) => setPasteRound(roundId),
     removeTheme: (id) => {
       const at = ops.findTheme(store.getState().pkg, id);
       if (!at) return;
@@ -173,6 +180,7 @@ export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
           onPublish={() => setPublish(true)}
           onDetails={() => setDetails(true)}
           onExport={() => downloadBlob(exportOq(pkg, media), `${safeFileName(pkg.title)}.oq`)}
+          onSearch={() => setSearch(true)}
           report={report}
           mediaBytes={mediaBytes}
         />
@@ -267,6 +275,16 @@ export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
 
       <QuestionDialog />
       <MoveDialog target={moveTarget} onClose={() => setMoveTarget(null)} />
+      <RoundPricesDialog roundId={pricesRound} onClose={() => setPricesRound(null)} />
+      <PasteQuestionsDialog roundId={pasteRound} onClose={() => setPasteRound(null)} />
+      <SearchDialog
+        open={search}
+        onClose={() => setSearch(false)}
+        onOpen={(roundId, questionId) => {
+          selectRound(roundId);
+          edit(questionId);
+        }}
+      />
       <PackageDialog open={details} onClose={() => setDetails(false)} />
       <PublishDialog
         open={publish}
@@ -353,12 +371,14 @@ function EditorHeader({
   onPublish,
   onDetails,
   onExport,
+  onSearch,
   report,
   mediaBytes,
 }: {
   onPublish: () => void;
   onDetails: () => void;
   onExport: () => void;
+  onSearch: () => void;
   report: ReturnType<typeof validate>;
   mediaBytes: number;
 }) {
@@ -414,6 +434,9 @@ function EditorHeader({
           <RedoIcon size={18} />
         </IconButton>
         <DensityToggle />
+        <IconButton label={t("editor.tools.searchTitle")} onClick={onSearch}>
+          <SearchIcon size={18} />
+        </IconButton>
         <div className="flex flex-1 items-center justify-end gap-2 sm:ml-1.5">
           <Button
             icon={<DownloadIcon size={18} />}
