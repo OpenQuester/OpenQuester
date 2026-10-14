@@ -2453,7 +2453,7 @@ export interface components {
             total: number;
         };
         /** @enum {string} */
-        PermissionName: "get_all_users" | "get_another_user" | "change_another_user" | "delete_another_user" | "delete_file" | "delete_package" | "edit_package" | "manage_permissions" | "admin_panel_access" | "view_system_health" | "view_users_info" | "ban_users" | "mute_player" | "view_system_logs" | "manage_games";
+        PermissionName: "get_all_users" | "get_another_user" | "change_another_user" | "delete_another_user" | "delete_file" | "delete_package" | "edit_package" | "manage_permissions" | "admin_panel_access" | "view_system_health" | "view_users_info" | "ban_users" | "mute_player" | "view_system_logs" | "manage_games" | "manage_storage";
         PackageCreationInput: {
             content: components["schemas"]["PackageCreateInputData"];
             /** @description Bytes of each media file, keyed by MD5. Checked against the uploader's storage limits before any upload link is issued; files already stored use their recorded size. */

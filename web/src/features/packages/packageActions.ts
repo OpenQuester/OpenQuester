@@ -34,6 +34,7 @@ export function useDeletePackage() {
     onSuccess: (_data, id) => {
       qc.removeQueries({ queryKey: ["package", id] });
       void qc.invalidateQueries({ queryKey: ["packages"] });
+      void qc.invalidateQueries({ queryKey: ["me", "storage"] });
     },
   });
 }

@@ -11,6 +11,8 @@ import { Card } from "@/ui/Card";
 import { BackIcon, EditIcon, TrashIcon, UploadIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 
+import { StorageMeter } from "@/features/storage/StorageMeter";
+
 import { useDeletePackage, useOpenInEditor } from "./packageActions";
 import { NO_FILTERS, PAGE_SIZE, usePackages, type PackageCard } from "./usePackages";
 
@@ -67,6 +69,12 @@ export function MyPackagesPage() {
             </Link>
           </div>
         </div>
+
+        {authorId != null && (
+          <Card>
+            <StorageMeter />
+          </Card>
+        )}
 
         {authorId == null ? (
           <Card data-testid="my-packages-guest">

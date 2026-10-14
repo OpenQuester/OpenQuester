@@ -74,7 +74,11 @@ export async function uploadPackage(
   }
   onProgress({ phase: "creating", done: 0, total: 0, sentBytes: 0, totalBytes: 0 });
   // The generated union types are stricter than the server's scheme.
-  const body = { content: parsed.content } as never;
+  // Sizes let the server check the storage limits before handing out links.
+  const fileSizes: Record<string, number> = {};
+  for (const f of parsed.files.values())
+    if (f.bytes.byteLength > 0) fileSizes[f.md5] = f.bytes.byteLength;
+  const body = { content: parsed.content, fileSizes } as never;
   const res = await unwrap(
     replaceId != null
       ? api.PUT("/v1/packages/{id}", { params: { path: { id: replaceId } }, body })

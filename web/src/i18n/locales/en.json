@@ -1070,7 +1070,8 @@
       "ban_users": "Ban and unban",
       "mute_player": "Mute and unmute in chat",
       "manage_games": "Moderate games (remove, pause, close)",
-      "view_system_logs": "Read server logs"
+      "view_system_logs": "Read server logs",
+      "manage_storage": "Change storage limits"
     },
     "savePermissions": "Save",
     "editRole": "Role…",
@@ -1098,7 +1099,8 @@
     "byAuthor": "by {{name}}",
     "packageSize": "{{rounds}} rounds, {{questions}} questions",
     "edit": "Edit",
-    "deleteNamed": "Delete {{name}}"
+    "deleteNamed": "Delete {{name}}",
+    "storage": "Storage"
   },
   "myPackages": {
     "title": "My packages",
@@ -1114,5 +1116,38 @@
     "deleteFailed": "Couldn't delete this package. Try again.",
     "openFailed": "Couldn't open this package in the editor. Try again.",
     "link": "My packages"
+  },
+  "storage": {
+    "title": "Storage",
+    "used": "{{used}} of {{quota}} used",
+    "usedNoLimit": "{{used}} used, no limit",
+    "almostFull": "You're close to your limit. Turn on media compression or delete packages you no longer need.",
+    "full": "You've reached your limit. Delete packages you no longer need or ask an admin for more space.",
+    "bucket": "Whole storage",
+    "bucketFiles_one": "{{count}} stored file",
+    "bucketFiles_other": "{{count}} stored files",
+    "groupsTitle": "Limits by group",
+    "groupsHelp": "In megabytes; leave a field empty for no limit. A file shared by several people counts for each of them, while storage keeps one copy.",
+    "usersTitle": "Who uses the most",
+    "noUsers": "Nobody has stored anything yet.",
+    "noLimit": "No limit",
+    "save": "Save",
+    "saved": "Saved",
+    "ownQuota": "Own limit",
+    "ownQuotaLabel": "Storage limit for {{name}}",
+    "groupDefault": "Group limit",
+    "groups": {
+      "guest": "Guests",
+      "user": "Players",
+      "moderator": "Moderators",
+      "admin": "Admins"
+    },
+    "fields": {
+      "userQuotaBytes": "Total per person",
+      "packageBytes": "One package",
+      "imageBytes": "One picture",
+      "audioBytes": "One sound file",
+      "videoBytes": "One video"
+    }
   }
 }

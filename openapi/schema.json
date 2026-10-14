@@ -2543,7 +2543,8 @@
           "ban_users",
           "mute_player",
           "view_system_logs",
-          "manage_games"
+          "manage_games",
+          "manage_storage"
         ]
       },
       "PackageCreationInput": {

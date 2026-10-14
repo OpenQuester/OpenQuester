@@ -95,6 +95,7 @@ function PublishBody({
       setPublished(id);
       void qc.invalidateQueries({ queryKey: ["package", id] });
       void qc.invalidateQueries({ queryKey: ["packages"] });
+      void qc.invalidateQueries({ queryKey: ["me", "storage"] });
       setStep({ kind: "done", id, failed: failed.length });
     } catch (err) {
       setStep({
@@ -103,9 +104,11 @@ function PublishBody({
           err instanceof ApiError
             ? err.status === 0
               ? t("upload.networkError")
-              : err.status === 403 && replace
-                ? t("editor.publish.notYours")
-                : t("upload.serverRejected", { message: err.message })
+              : err.status === 413 || err.status === 507
+                ? err.message
+                : err.status === 403 && replace
+                  ? t("editor.publish.notYours")
+                  : t("upload.serverRejected", { message: err.message })
             : String(err),
       });
     }

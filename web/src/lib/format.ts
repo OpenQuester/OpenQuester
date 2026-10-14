@@ -21,3 +21,10 @@ export function timeAgo(iso: string | null | undefined): string {
   if (Math.abs(h) < 24) return rtf.format(-h, "hour");
   return rtf.format(-Math.round(h / 24), "day");
 }
+
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}

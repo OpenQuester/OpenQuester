@@ -16,6 +16,7 @@ import { Spinner } from "@/ui/Spinner";
 
 import { AdminGames } from "./AdminGames";
 import { AdminPackages } from "./AdminPackages";
+import { AdminStorage } from "./AdminStorage";
 import { StaffEditor } from "./StaffEditor";
 import {
   ADMIN_PAGE_SIZE,
@@ -29,7 +30,7 @@ import {
   type UserQuery,
 } from "./useAdmin";
 
-type Tab = "overview" | "users" | "packages" | "games" | "system";
+type Tab = "overview" | "users" | "packages" | "games" | "storage" | "system";
 
 /**
  * Admin and moderator panel: stats, people, packages, live games and system
@@ -72,6 +73,7 @@ export function AdminPage() {
         show: can(user, "delete_package") || can(user, "edit_package"),
       },
       { id: "games", label: t("adminPanel.games"), show: can(user, "manage_games") },
+      { id: "storage", label: t("adminPanel.storage"), show: true },
       { id: "system", label: t("adminPanel.system"), show: can(user, "view_system_health") },
     ] satisfies { id: Tab; label: string; show: boolean }[]
   ).filter((x) => x.show);
@@ -112,6 +114,7 @@ export function AdminPage() {
           {tab === "users" && <Users me={user} />}
           {tab === "packages" && <AdminPackages me={user} />}
           {tab === "games" && <AdminGames />}
+          {tab === "storage" && <AdminStorage me={user} />}
           {tab === "system" && <System enabled={can(user, "view_system_health")} />}
         </div>
       </div>

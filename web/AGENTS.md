@@ -76,6 +76,10 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   The encoders are a lazy chunk, so only uploaders download them. A file the
   browser can't decode or encode, or that doesn't shrink by 5 %, is uploaded
   as it was. The server's CSP allows `'wasm-unsafe-eval'` for the encoder.
+- Storage limits (`docs/specs/storage-limits.md`): uploads send `fileSizes`
+  so the server can refuse with a 413 that names the limit; the upload and
+  publish screens show that message as is. `features/storage/` holds the
+  usage bar (`GET /v1/me/storage`) and the admin Storage tab.
 - Question media: players ACK `media-downloaded` only once every file is
   loaded (images decoded), so the question timer starts when everyone can see
   it. Audio and video have no controls and play only in the `showing` phase;

@@ -9,6 +9,7 @@ import { ApiError } from "@/api/client";
 import { discordEnabled, startDiscordLogin } from "@/features/auth/discord";
 import { useMe } from "@/features/auth/useMe";
 import { cn } from "@/lib/cn";
+import { formatBytes } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
@@ -17,6 +18,7 @@ import { Spinner } from "@/ui/Spinner";
 
 import { Toggle } from "@/features/settings/SettingsPage";
 import { useSettings } from "@/features/settings/settingsStore";
+import { StorageMeter } from "@/features/storage/StorageMeter";
 
 import type { OptimizeProgress } from "./optimize";
 import type { ImportWarning, ParsedPackage } from "./types";
@@ -80,6 +82,7 @@ export function UploadPackagePage() {
         useSettings.getState().compressMedia,
       );
       void qc.invalidateQueries({ queryKey: ["packages"] });
+      void qc.invalidateQueries({ queryKey: ["me", "storage"] });
       setStep(
         failed.length
           ? { kind: "partial", parsed, id, failed }
@@ -391,6 +394,7 @@ function Review({
       {parsed.warnings.length > 0 && <Warnings warnings={parsed.warnings} />}
 
       {totals.mediaCount > 0 && <CompressToggle />}
+      {totals.mediaCount > 0 && <StorageMeter />}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <Button
@@ -531,14 +535,9 @@ function uploadError(err: unknown, t: TFunction): string {
     if (err.status === 403) return t("upload.guestTitle");
     if (err.status === 401) return t("upload.signInFirst");
     if (err.status === 0) return t("upload.networkError");
+    // Storage limits: the server says which limit and by how much.
+    if (err.status === 413 || err.status === 507) return err.message;
     return t("upload.serverRejected", { message: err.message });
   }
   return err instanceof Error ? err.message : String(err);
-}
-
-export function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
