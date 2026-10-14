@@ -52,11 +52,12 @@ export async function signInAsGuest(page: Page, name: string, redirect = "/"): P
 export async function hostGame(
   page: Page,
   title: string,
-  options: { maxPlayers?: number; packageId?: number } = {},
+  options: { maxPlayers?: number; packageId?: number; falseStarts?: boolean } = {},
 ): Promise<string> {
   await page.goto(`/games/new?packageId=${options.packageId ?? packageId()}`);
   await page.getByLabel("Game name").fill(title);
   if (options.maxPlayers) await page.getByLabel("Players").selectOption(String(options.maxPlayers));
+  if (options.falseStarts === false) await page.getByLabel("False starts").uncheck();
   await page.getByRole("button", { name: "Create & open lobby" }).click();
   await expect(page).toHaveURL(/\/games\/[A-Z0-9]+$/);
   await expect(page.getByText("You are")).toContainText("Showman");
@@ -74,6 +75,16 @@ export async function joinByLink(
   await page.getByLabel("Your name").fill(name);
   await page.getByRole("button", { name: as === "player" ? "Join as player" : "Spectate" }).click();
   await expect(page.getByText("You are")).toContainText(as === "player" ? "Player" : "Spectator");
+}
+
+/**
+ * Presses the buzzer once it has opened. Pressing while it still reads
+ * "Wait for it…" is a false start that locks the player out.
+ */
+export async function buzz(page: Page): Promise<void> {
+  const button = page.getByTestId("buzz");
+  await expect(button).not.toHaveAttribute("data-early", /.*/, { timeout: 20_000 });
+  await button.click();
 }
 
 export function dockStatus(page: Page) {

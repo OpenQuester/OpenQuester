@@ -16,3 +16,5 @@ export type GameUpdateData = S["GameUpdateData"];
 export type AgeRestriction = S["AgeRestriction"];
 export type PlayerRole = S["PlayerRole"];
 export type GameEventSubscription = S["GameEventSubscription"];
+export type GameSettings = S["GameSettings"];
+export type ButtonPressMode = S["ButtonPressMode"];

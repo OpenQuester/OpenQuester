@@ -5,6 +5,8 @@ import { remainingMs } from "@/lib/timer";
 import { ALICE, BOB, choosing, question, round, SAM, session, SHOWMAN, timer } from "./fixtures";
 import { reduce } from "./reducer";
 import {
+  buzzerLockLeft,
+  buzzerOpensIn,
   canBuzz,
   canPick,
   initials,
@@ -138,5 +140,43 @@ describe("helpers", () => {
     expect(remainingMs(t, false, now)).toBe(11_000);
     expect(remainingMs(t, true, now)).toBe(16_000);
     expect(remainingMs(null)).toBeNull();
+  });
+});
+
+describe("buzzer timing", () => {
+  const startedAgo = (ms: number) => ({
+    startedAt: new Date(Date.now() - ms).toISOString(),
+    durationMs: 30_000,
+    elapsedMs: 0,
+    resumedAt: null,
+  });
+
+  it("is closed until the SHOWING timer reaches the opening point", () => {
+    const s = showing({ timer: startedAgo(1_000), buzzerOpensAtMs: 3_000 });
+    expect(buzzerOpensIn(s)).toBeGreaterThan(1_500);
+    expect(buzzerOpensIn(s)).toBeLessThanOrEqual(2_000);
+    // An early press is still allowed: the server turns it into a false start
+    expect(canBuzz(s, ALICE)).toEqual({ ok: true });
+  });
+
+  it("is open once the opening point has passed", () => {
+    expect(buzzerOpensIn(showing({ timer: startedAgo(4_000), buzzerOpensAtMs: 3_000 }))).toBe(0);
+    expect(buzzerOpensIn(showing({ timer: startedAgo(0), buzzerOpensAtMs: null }))).toBe(0);
+  });
+
+  it("is never early for a designated answerer", () => {
+    const s = showing({ timer: startedAgo(0), buzzerOpensAtMs: 3_000, answeringPlayer: ALICE });
+    expect(buzzerOpensIn(s)).toBe(0);
+  });
+
+  it("locks out a player after a false start", () => {
+    const s = reduce(showing(), {
+      type: "buzzer-false-start",
+      payload: { playerId: ALICE, lockMs: 3_000 },
+    });
+    expect(buzzerLockLeft(s, ALICE)).toBeGreaterThan(2_500);
+    expect(buzzerLockLeft(s, BOB)).toBe(0);
+    expect(canBuzz(s, ALICE)).toEqual({ ok: false, reason: "false_start" });
+    expect(canBuzz(s, BOB)).toEqual({ ok: true });
   });
 });

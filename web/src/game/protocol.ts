@@ -220,6 +220,15 @@ export interface StakeQuestionData {
   biddingPhase: boolean;
 }
 
+export type ButtonPressMode = "random_within_window" | "first_wins";
+
+/** Rules the host picked when creating the game. */
+export interface GameSettings {
+  /** The buzzer opens after the content; pressing earlier locks you out. */
+  falseStart: boolean;
+  buttonPressMode: ButtonPressMode;
+}
+
 export interface GameState {
   questionState: QuestionState | null;
   isPaused: boolean;
@@ -230,6 +239,10 @@ export interface GameState {
   readyPlayers: number[] | null;
   timer: Timer | null;
   questionContentPlan?: ContentPlan | null;
+  /** Position on the SHOWING timer (ms) when the buzzer opens; 0/null: open now. */
+  buzzerOpensAtMs?: number | null;
+  /** Players locked out after a false start: id -> epoch ms (server clock) the lock ends. */
+  buzzerLocks?: Record<string, number> | null;
   finalRoundData?: FinalRoundData | null;
   currentTurnPlayerId?: number | null;
   skippedPlayers: number[] | null;
@@ -248,7 +261,7 @@ export interface ChatMessage {
 }
 
 export interface GameJoinData {
-  meta: { title: string };
+  meta: { title: string; settings?: GameSettings };
   players: Player[];
   gameState: GameState;
   chatMessages: ChatMessage[];
@@ -284,14 +297,18 @@ export interface ServerEvents {
     allPlayersReady: boolean;
     timer: Timer | null;
     contentPlan?: ContentPlan | null;
+    buzzerOpensAtMs?: number | null;
   };
   "question-data": {
     data: Question;
     timer: Timer;
     questionEligiblePlayers?: number[] | null;
     contentPlan?: ContentPlan | null;
+    buzzerOpensAtMs?: number | null;
   };
   "question-answer": { userId: number; timer: Timer };
+  /** Someone pressed before the buzzer opened and is locked out for `lockMs`. */
+  "buzzer-false-start": { playerId: number; lockMs: number };
   "answer-submitted": { answerText: string | null };
   "answer-result": { answerResult: AnsweredPlayer; timer: Timer | null };
   "question-finish": AnswerShowData;
@@ -407,6 +424,7 @@ export const SERVER_EVENT_NAMES: ServerEventName[] = [
   "media-download-status",
   "question-data",
   "question-answer",
+  "buzzer-false-start",
   "answer-submitted",
   "answer-result",
   "question-finish",

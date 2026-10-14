@@ -56,6 +56,7 @@ test.describe("layout on this device", () => {
     const box = await buzz.boundingBox();
     expect(box!.height, "buzzer is a big touch target").toBeGreaterThanOrEqual(64);
     await expectNoHorizontalScroll(page);
+    await expect(buzz).not.toHaveAttribute("data-early", /.*/, { timeout: 20_000 });
     await buzz.click();
     await expect(dockPhase(page)).toHaveText("Answering");
     await expect(page.getByLabel("Your answer")).toBeInViewport();

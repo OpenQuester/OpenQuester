@@ -1,3 +1,6 @@
+import { serverNow } from "@/lib/clock";
+
+import { timerElapsed } from "./contentPlan";
 import type { GameSession } from "./reducer";
 import type { BoardQuestion, BoardTheme, Player, PlayerRole, Question } from "./protocol";
 
@@ -15,7 +18,8 @@ export type DisabledReason =
   | "waiting_for_server"
   | "connection_lost"
   | "paused"
-  | "skipped";
+  | "skipped"
+  | "false_start";
 
 export type Availability = { ok: true } | { ok: false; reason: DisabledReason };
 
@@ -128,7 +132,28 @@ export function isSingleAnswerer(question: Question | null | undefined): boolean
   return question?.type === "noRisk" || question?.type === "stake" || question?.type === "secret";
 }
 
-/** Can I press the buzzer right now? */
+/**
+ * Milliseconds until the buzzer opens on this question (0 once it is open).
+ * Pressing before then is a false start. A designated answerer (stake/secret
+ * winner) is never early.
+ */
+export function buzzerOpensIn(session: GameSession, now = serverNow()): number {
+  const s = session.state;
+  const opensAt = s.buzzerOpensAtMs ?? 0;
+  if (opensAt <= 0 || s.answeringPlayer != null || phaseOf(session) !== "showing") return 0;
+  return Math.max(0, opensAt - timerElapsed(s.timer, s.isPaused, now));
+}
+
+/** Milliseconds left on a player's false-start lock (0 when not locked). */
+export function buzzerLockLeft(session: GameSession, id: number, now = serverNow()): number {
+  const until = session.state.buzzerLocks?.[String(id)];
+  return until ? Math.max(0, until - now) : 0;
+}
+
+/**
+ * Can I press the buzzer right now? An early press is allowed — the server
+ * turns it into a false start — so the UI shows it as "wait", not disabled.
+ */
 export function canBuzz(session: GameSession, myId: number, connected = true): Availability {
   const role = myRole(session, myId);
   if (role !== "player") return no("wrong_role");
@@ -143,6 +168,7 @@ export function canBuzz(session: GameSession, myId: number, connected = true): A
   if (!isEligible(session, myId)) return no("not_eligible");
   if (hasAnswered(session, myId)) return no("already_done");
   if (hasSkipped(session, myId)) return no("skipped");
+  if (buzzerLockLeft(session, myId) > 0) return no("false_start");
   return OK;
 }
 

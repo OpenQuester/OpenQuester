@@ -2637,6 +2637,7 @@ export interface components {
              */
             finishedAt?: string | null;
             package: components["schemas"]["PackageItem"];
+            settings: components["schemas"]["GameSettings"];
         };
         GameCreateData: {
             /** @example Game Title */
@@ -2657,6 +2658,7 @@ export interface components {
              * @example null
              */
             password?: string | null;
+            settings?: components["schemas"]["GameSettingsInput"];
         };
         /** @description Data for updating game settings. All fields are optional. Package can only be changed before game starts. */
         GameUpdateData: {
@@ -3645,6 +3647,7 @@ export interface components {
         SocketIOGameJoinMeta: {
             /** @example Game title */
             title: string;
+            settings: components["schemas"]["GameSettings"];
         };
         GameState: {
             /**
@@ -3672,6 +3675,14 @@ export interface components {
             questionContentPlan?: components["schemas"]["QuestionContentPlan"] | null;
             /** @description Reported audio/video lengths in ms for the current question, keyed by file md5 */
             mediaDurations?: {
+                [key: string]: number;
+            } | null;
+            /** @description Position on the SHOWING timer (ms) when the buzzer opens: after the content timeline, the reading time of a caption text and the question's answer delay. A press before it is a false start. 0 or null: open right away */
+            buzzerOpensAtMs?: number | null;
+            /** @description Presses collected in the buzzer accept window after the first press; the answerer is drawn among them when it closes */
+            buzzerWindow?: components["schemas"]["BuzzerWindow"] | null;
+            /** @description Players locked out after a false start: player id -> epoch ms when the lock ends */
+            buzzerLocks?: {
                 [key: string]: number;
             } | null;
             finalRoundData?: components["schemas"]["FinalRoundGameData"] | null;
@@ -3844,7 +3855,7 @@ export interface components {
          * @example join
          * @enum {string}
          */
-        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
+        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
         /** @description Data sent to all players when player skips a question */
         SocketIOGameSkipEventPayload: {
             /**
@@ -3876,6 +3887,8 @@ export interface components {
             timer: components["schemas"]["GameStateTimer"] | null;
             /** @description Sent with the SHOWING timer: the content timeline to play on it */
             contentPlan?: components["schemas"]["QuestionContentPlan"] | null;
+            /** @description Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away */
+            buzzerOpensAtMs?: number | null;
         };
         /** @description Data sent to all players when player unskips a question */
         SocketIOGameUnskipEventPayload: {
@@ -4075,6 +4088,8 @@ export interface components {
             questionEligiblePlayers?: components["schemas"]["QuestionEligiblePlayers"];
             /** @description Content timeline on this payload's timer. Absent during MEDIA_DOWNLOADING (it then arrives with media-download-status) */
             contentPlan?: components["schemas"]["QuestionContentPlan"] | null;
+            /** @description Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away */
+            buzzerOpensAtMs?: number | null;
         };
         /** @description Data sent to all players when a player starts answering a question */
         SocketIOQuestionAnswerEventPayload: {
@@ -4844,6 +4859,43 @@ export interface components {
             };
             groups: components["schemas"]["StorageGroupLimits"][];
             topUsers: components["schemas"]["StorageUserUsage"][];
+        };
+        BuzzerWindow: {
+            /** @description Epoch ms of the first press */
+            openedAt: number;
+            /** @description Players who pressed inside the window, in arrival order */
+            presses: number[];
+        };
+        /** @description A player pressed before the buzzer opened and is locked out for a moment */
+        SocketIOBuzzerFalseStartEventPayload: {
+            playerId: number;
+            /** @description How long the lock lasts (ms) from when the event is sent */
+            lockMs: number;
+        };
+        /**
+         * @description How the answerer is chosen when several players press: random_within_window draws among presses that arrive within 300 ms of the first one; first_wins gives it to the first press the server receives
+         * @default random_within_window
+         * @example random_within_window
+         * @enum {string}
+         */
+        ButtonPressMode: "random_within_window" | "first_wins";
+        /** @description Rules the host picks when creating a game. Missing fields use their defaults. */
+        GameSettings: {
+            /**
+             * @description The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time
+             * @default true
+             */
+            falseStart: boolean;
+            buttonPressMode: components["schemas"]["ButtonPressMode"];
+        };
+        /** @description Game settings on creation; omitted fields use their defaults */
+        GameSettingsInput: {
+            /**
+             * @description The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time
+             * @default true
+             */
+            falseStart: boolean;
+            buttonPressMode?: components["schemas"]["ButtonPressMode"];
         };
     };
     responses: never;

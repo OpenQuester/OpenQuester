@@ -1,6 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { cell, dockPhase, hostGame, joinByLink, person, shot, signInAsGuest } from "./support/game";
+import {
+  buzz,
+  cell,
+  dockPhase,
+  hostGame,
+  joinByLink,
+  person,
+  shot,
+  signInAsGuest,
+} from "./support/game";
 
 const laptop = { viewport: { width: 1280, height: 800 } };
 
@@ -78,7 +87,12 @@ test.describe("question content sequence", () => {
   test("buzzing freezes the sequence and a wrong answer resumes it", async ({ browser, page }) => {
     const host = await person(browser, "Host", laptop);
     await signInAsGuest(host.page, "Host");
-    const code = await hostGame(host.page, "Sequence buzz", { packageId: mediaPackageId() });
+    // Buzzing mid-sequence needs false starts off: otherwise the buzzer only
+    // opens once the whole sequence has played.
+    const code = await hostGame(host.page, "Sequence buzz", {
+      packageId: mediaPackageId(),
+      falseStarts: false,
+    });
     await joinByLink(page, code, "Pat", "player");
     const sam = await person(browser, "Sam", laptop);
     await joinByLink(sam.page, code, "Sam", "player");
@@ -90,7 +104,7 @@ test.describe("question content sequence", () => {
     await expect(page.getByTestId("content-step-label")).toHaveText("Part 2 of 3", {
       timeout: 20_000,
     });
-    await page.getByTestId("buzz").click();
+    await buzz(page);
     await expect(dockPhase(page)).toHaveText("Answering");
     // While Pat answers, nobody moves on to the picture.
     await sam.page.waitForTimeout(8_000);
@@ -103,5 +117,30 @@ test.describe("question content sequence", () => {
     });
     await host.context.close();
     await sam.context.close();
+  });
+
+  test("pressing before the sequence ends is a false start", async ({ browser, page }) => {
+    const host = await person(browser, "Host", laptop);
+    await signInAsGuest(host.page, "Host");
+    const code = await hostGame(host.page, "False start", { packageId: mediaPackageId() });
+    await joinByLink(page, code, "Pat", "player");
+    await page.getByRole("button", { name: "I'm ready" }).click();
+    await expect(dockPhase(page)).toHaveText("Choosing");
+
+    await cell(host.page, "Media", 400).click();
+    await expect(page.getByTestId("content-step-label")).toHaveText("Part 1 of 3", {
+      timeout: 15_000,
+    });
+    const button = page.getByTestId("buzz");
+    await expect(button).toHaveText(/Wait for it/);
+    await button.click();
+    await expect(page.getByTestId("dock-info")).toContainText("Too early!");
+    await expect(dockPhase(page)).toHaveText("Ready to buzz");
+    await shot(page, `false-start-${test.info().project.name}`);
+
+    // Once the sequence has played the buzzer opens and the press counts.
+    await buzz(page);
+    await expect(dockPhase(page)).toHaveText("Answering");
+    await host.context.close();
   });
 });

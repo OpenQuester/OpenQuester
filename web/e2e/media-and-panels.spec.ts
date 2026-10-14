@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import {
+  buzz,
   cell,
   dockPhase,
   expectNoHorizontalScroll,
@@ -137,7 +138,7 @@ test.describe("question media", () => {
     await shot(page, `media-video-${test.info().project.name}`);
 
     // Buzzing stops the video for everyone while the answer is given.
-    await page.getByTestId("buzz").click();
+    await buzz(page);
     await expect(dockPhase(page)).toHaveText("Answering");
     for (const p of [page, host.page])
       await expect

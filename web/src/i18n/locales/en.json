@@ -154,7 +154,21 @@
     "package": "Package",
     "changePackage": "Change package",
     "noPackage": "Choose a package first.",
-    "pickPackage": "Browse packages"
+    "pickPackage": "Browse packages",
+    "rules": {
+      "title": "Rules",
+      "falseStart": "False starts",
+      "falseStartHelp": "The buzzer opens once the question has played. A player who presses earlier is locked out for 3 seconds. Turn off to let players press at any time.",
+      "pressMode": "Who answers when several players press",
+      "modes": {
+        "random_within_window": "Fair draw",
+        "first_wins": "Fastest press"
+      },
+      "modeHelp": {
+        "random_within_window": "Everyone who presses within 0.3 s of the first press has an equal chance, so a faster connection doesn't win.",
+        "first_wins": "The first press that reaches the server answers."
+      }
+    }
   },
   "settings": {
     "title": "Settings",
@@ -344,7 +358,8 @@
     "waiting_for_server": "Sending…",
     "connection_lost": "Reconnecting — actions are paused",
     "paused": "The game is paused",
-    "skipped": "You passed on this question"
+    "skipped": "You passed on this question",
+    "false_start": "You pressed too early — wait a moment"
   },
   "chips": {
     "offline": "offline",
@@ -528,7 +543,12 @@
       "next": "First to buzz answers. Right: +{{points}}. {{wrong}}.",
       "showmanStatus": "Waiting for a player to buzz",
       "revealAnswer": "Nobody knows — reveal the answer",
-      "showmanNext": "If the timer runs out with no buzz, the answer is revealed automatically."
+      "showmanNext": "If the timer runs out with no buzz, the answer is revealed automatically.",
+      "wait": "Buzzer opens after the question",
+      "waitButton": "Wait for it…",
+      "earlyHint": "Pressing before the buzzer opens locks you out for 3 seconds.",
+      "locked": "Too early! You can press again in {{seconds}} s",
+      "nextWindow": "Everyone who presses within a split second of the first has an equal chance. Right: +{{points}}. {{wrong}}."
     },
     "answering": {
       "judge": "{{name}} is answering — judge it",

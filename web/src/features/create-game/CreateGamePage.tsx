@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { PageContainer } from "@/app/AppShell";
 import { api, unwrap } from "@/api/client";
-import type { AgeRestriction } from "@/api/types";
+import type { AgeRestriction, GameSettings } from "@/api/types";
 import { displayName, useMe } from "@/features/auth/useMe";
 import { setJoinIntent } from "@/features/game/joinIntent";
 import { gamesKey } from "@/features/home/useGames";
@@ -15,6 +15,8 @@ import { Button } from "@/ui/Button";
 import { FieldError, Label, Select, TextInput } from "@/ui/Field";
 import { BackIcon, EyeIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
+
+import { DEFAULT_GAME_SETTINGS, GameRules } from "./GameRules";
 
 export function CreateGamePage() {
   const { t } = useTranslation();
@@ -28,6 +30,7 @@ export function CreateGamePage() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [password, setPassword] = useState("");
   const [age, setAge] = useState<AgeRestriction>("NONE");
+  const [settings, setSettings] = useState<GameSettings>(DEFAULT_GAME_SETTINGS);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -56,6 +59,7 @@ export function CreateGamePage() {
             isPrivate,
             ageRestriction: age,
             maxPlayers,
+            settings,
             ...(isPrivate ? { password: password || null } : {}),
           },
         }),
@@ -183,6 +187,7 @@ export function CreateGamePage() {
               </div>
             )}
           </section>
+          <GameRules value={settings} onChange={setSettings} />
           <FieldError>{error}</FieldError>
           <div className="flex flex-col gap-2">
             <Button

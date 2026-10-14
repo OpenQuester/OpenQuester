@@ -7,6 +7,7 @@ import type {
   ContentPlan,
   FinalRoundData,
   GameJoinData,
+  GameSettings,
   GameState,
   Player,
   Question,
@@ -41,6 +42,8 @@ export interface ContentClock {
 export interface GameSession {
   gameId: string;
   title: string;
+  /** The game's rules; absent on servers that predate settings. */
+  settings: GameSettings | null;
   players: Player[];
   state: GameState;
   chat: ChatMessage[];
@@ -70,6 +73,7 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
   return {
     gameId,
     title: data.meta.title,
+    settings: data.meta.settings ?? null,
     players: data.players,
     state,
     chat: data.chatMessages ?? [],
@@ -232,6 +236,7 @@ function onQuestionData(
   timer: Timer,
   eligible?: number[] | null,
   sentPlan?: ContentPlan | null,
+  buzzerOpensAtMs?: number | null,
 ) {
   const s = session.state;
   const stake = s.stakeQuestionData;
@@ -274,6 +279,9 @@ function onQuestionData(
       skippedPlayers: newPick ? null : s.skippedPlayers,
       answerShowData: newPick ? null : s.answerShowData,
       questionEligiblePlayers: eligible ?? s.questionEligiblePlayers ?? null,
+      buzzerOpensAtMs:
+        buzzerOpensAtMs !== undefined ? buzzerOpensAtMs : newPick ? null : s.buzzerOpensAtMs,
+      buzzerLocks: newPick ? null : s.buzzerLocks,
     }),
     submittedAnswer: newPick ? null : session.submittedAnswer,
     content: questionContent(session, questionState, data, timer, sentPlan),
@@ -383,7 +391,8 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       return patchState(session, { readyPlayers: event.payload.readyPlayers });
 
     case "media-download-status": {
-      const { playerId, mediaDownloaded, allPlayersReady, timer, contentPlan } = event.payload;
+      const { playerId, mediaDownloaded, allPlayersReady, timer, contentPlan, buzzerOpensAtMs } =
+        event.payload;
       let players = session.players;
       if (allPlayersReady) {
         players = players.map((p) => (p.role === "player" ? { ...p, mediaDownloaded: true } : p));
@@ -395,7 +404,12 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         const plan = questionPlan(s.currentQuestion, contentPlan);
         const clock = timer ?? s.timer;
         return {
-          ...patchState(next, { questionState: "showing", timer: clock }),
+          ...patchState(next, {
+            questionState: "showing",
+            timer: clock,
+            buzzerOpensAtMs: buzzerOpensAtMs ?? s.buzzerOpensAtMs ?? null,
+            buzzerLocks: null,
+          }),
           content: plan ? { kind: "question", plan, timer: clock, frozenAtMs: null } : null,
         };
       }
@@ -409,7 +423,15 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         event.payload.timer,
         event.payload.questionEligiblePlayers,
         event.payload.contentPlan,
+        event.payload.buzzerOpensAtMs,
       );
+
+    case "buzzer-false-start": {
+      const { playerId, lockMs } = event.payload;
+      return patchState(session, {
+        buzzerLocks: { ...(s.buzzerLocks ?? {}), [String(playerId)]: serverNow() + lockMs },
+      });
+    }
 
     case "question-answer":
       return {

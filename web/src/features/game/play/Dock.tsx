@@ -31,6 +31,7 @@ import { TimerRing } from "@/ui/TimerRing";
 
 import { useGame, useSession } from "../GameContext";
 import { useSecretTarget } from "./secretTarget";
+import { useBuzzer } from "./useBuzzer";
 
 const RING_COLORS: Partial<Record<Phase, string>> = {
   media: "var(--oq-info)",
@@ -166,6 +167,7 @@ function useDockModel(session: GameSession, myId: number): DockModel {
   const { connection } = useGame();
   const pending = useGameStore((s) => s.pending);
   const [secretTarget, setSecretTarget] = useSecretTarget();
+  const buzzer = useBuzzer(session, myId);
   const ctx: DockCtx = { t, session, myId, connection, secretTarget, setSecretTarget };
   const phase = phaseOf(session);
   const role = myRole(session, myId);
@@ -252,7 +254,12 @@ function useDockModel(session: GameSession, myId: number): DockModel {
       const wrongPart = wrongCostsPoints(session)
         ? t("dock.showing.wrongCost", { points: formatScore(value) })
         : t("dock.showing.wrongFree");
-      const next = t("dock.showing.next", { points: formatScore(value), wrong: wrongPart });
+      const next = t(
+        session.settings?.buttonPressMode === "random_within_window"
+          ? "dock.showing.nextWindow"
+          : "dock.showing.next",
+        { points: formatScore(value), wrong: wrongPart },
+      );
       if (role === "showman") {
         return {
           status: t("dock.showing.showmanStatus"),
@@ -283,7 +290,11 @@ function useDockModel(session: GameSession, myId: number): DockModel {
           status: t("dock.showing.status"),
           action: (
             <div className="flex w-full flex-col gap-2">
-              <Info>{reason(can.reason)}</Info>
+              <Info>
+                {can.reason === "false_start"
+                  ? t("dock.showing.locked", { seconds: Math.ceil(buzzer.lockLeftMs / 1000) })
+                  : reason(can.reason)}
+              </Info>
               {skipped && (
                 <Button
                   size="sm"
@@ -298,21 +309,35 @@ function useDockModel(session: GameSession, myId: number): DockModel {
           next,
         };
       }
+      // Before the buzzer opens the button stays pressable (an early press is a
+      // false start) but reads as "wait" so nobody mistakes it for open.
+      const early = !buzzer.open;
       return {
-        status: t("dock.showing.open"),
+        status: early ? t("dock.showing.wait") : t("dock.showing.open"),
         action: (
           <div className="flex w-full flex-col items-stretch gap-2 md:flex-row md:items-center">
             <Button
-              variant="accent"
+              variant={early ? "secondary" : "accent"}
               size="xl"
-              className="flex-1 oq-pulse"
+              className={cn("flex-1", !early && "oq-pulse")}
               onClick={() => connection.emit("question-answer")}
               disabled={sending("question-answer")}
+              aria-describedby={early ? "buzz-early-hint" : undefined}
               data-testid="buzz"
+              data-early={early || undefined}
             >
-              {sending("question-answer") ? t("dock.sending") : t("dock.showing.buzz")}
+              {sending("question-answer")
+                ? t("dock.sending")
+                : early
+                  ? t("dock.showing.waitButton")
+                  : t("dock.showing.buzz")}
               <kbd className="hidden font-mono text-sm md:inline">{t("keys.space")}</kbd>
             </Button>
+            {early && (
+              <span id="buzz-early-hint" className="text-sm text-soft md:max-w-[14rem]">
+                {t("dock.showing.earlyHint")}
+              </span>
+            )}
             <Button
               size="sm"
               variant="ghost"

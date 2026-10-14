@@ -36,6 +36,33 @@ Minimum behavior:
 4. If false start has penalty/block semantics, show the penalty/block explicitly.
 5. Do not play repeated fail sounds for key spam; rate-limit local feedback.
 
+### Implemented rules (SIGame parity)
+
+Per-game settings (`GameSettings`, chosen when the game is created):
+
+- `falseStart` (default on): the buzzer opens at `gameState.buzzerOpensAtMs`
+  on the SHOWING timer — after the content timeline, the reading time of a
+  caption text (`QuestionContentPlanLogic.textDuration`) and the question's
+  `answerDelay`. A press before that is a false start: the server broadcasts
+  `buzzer-false-start { playerId, lockMs }`, records the lock in
+  `gameState.buzzerLocks`, and rejects that player's presses with
+  `buzzer_locked` for 3 s. With `falseStart` off the buzzer is open from the
+  start (the question timer still covers the content).
+- `buttonPressMode` (default `random_within_window`): the first press in time
+  opens a 300 ms accept window (`gameState.buzzerWindow`). Everyone who presses
+  inside it takes part in a random draw when it closes; the winner is announced
+  with `question-answer`. `first_wins` gives the answer to the first press the
+  server receives.
+- A designated answerer (stake/secret winner) answers on press, without these
+  rules. Pausing drops a pending window; players press again after the pause.
+
+Server: `BuzzerLogic`, `QuestionAnswerUseCase`,
+`TimerExpirationService._resolveBuzzerWindow` (the window rides on the active
+timer key, so a pause or expiry needs no extra timer). Web: `buzzerOpensIn`,
+`buzzerLockLeft`, `useBuzzer`; the Dock shows "Wait for it…" before the buzzer
+opens (still pressable, so spamming is penalised) and a lock countdown after a
+false start. Flutter does not show these states yet.
+
 ## Input methods
 
 Supported/expected input surfaces:

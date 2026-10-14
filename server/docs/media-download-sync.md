@@ -126,8 +126,10 @@ On entering `SHOWING`, `QuestionContentPlanLogic` builds `questionContentPlan`
 `textOrder` is set), grouped into one step until an item that waits for its
 finish. A step lasts as long as its longest item; non-waiting background audio
 does not stretch it. Item time is `displayTime`, else the reported length
-(audio/video), else a default. The question timer is the plan's `totalMs`
-plus `GAME_QUESTION_ANSWER_TIME`, and clients read the timeline position from
+(audio/video), else a default. The buzzer opens at `buzzerOpensAtMs` (see
+`docs/specs/buzzer-state-machine.md`), sent next to every `contentPlan`. The
+question timer is `max(totalMs, buzzerOpensAtMs)` plus
+`GAME_QUESTION_ANSWER_TIME`, and clients read the timeline position from
 that timer's elapsed time, so pauses, buzzes (the saved SHOWING timer) and
 reconnects stay in step. The plan travels with the completion status
 (`contentPlan`), `question-data` for direct-answer paths, and the game state.
