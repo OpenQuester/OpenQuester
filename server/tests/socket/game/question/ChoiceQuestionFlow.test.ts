@@ -1,3 +1,4 @@
+import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
@@ -239,7 +240,77 @@ describe("Choice Question Flow Tests", () => {
     });
   });
 
-  async function setupChoiceOptions(optionCount: number) {
+  describe("Automatic check", () => {
+    async function buzzOnChoice(answerText: string) {
+      const setup = await setupChoiceOptions(4, answerText);
+      await utils.startGame(setup.showmanSocket);
+      const choiceQuestion = await utils.findQuestionByType(
+        PackageQuestionType.CHOICE,
+        setup.gameId
+      );
+      await utils.pickQuestion(setup.showmanSocket, choiceQuestion!.id, [setup.playerSocket]);
+      await utils.answerQuestion(setup.playerSocket, setup.showmanSocket);
+      return { ...setup, price: choiceQuestion!.price ?? 0 };
+    }
+
+    it("scores a right pick without the showman", async () => {
+      await suite.scenario(async (scenario) => {
+        const { showmanSocket, playerSocket, gameId, price } = await buzzOnChoice("Option B");
+
+        const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () =>
+            scenario
+              .actor(playerSocket)
+              .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "option b " })
+        );
+
+        expect(result.answerResult.answerType).toBe(AnswerResultType.CORRECT);
+        expect(result.answerResult.result).toBe(price);
+        expect((await utils.getGameState(gameId))!.questionState).toBe(
+          QuestionState.SHOWING_ANSWER
+        );
+      });
+    });
+
+    it("costs points for a wrong pick", async () => {
+      await suite.scenario(async (scenario) => {
+        const { showmanSocket, playerSocket, price } = await buzzOnChoice("Option B");
+
+        const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () =>
+            scenario
+              .actor(playerSocket)
+              .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "Option C" })
+        );
+
+        expect(result.answerResult.answerType).toBe(AnswerResultType.WRONG);
+        expect(result.answerResult.result).toBe(-price);
+      });
+    });
+
+    it("leaves the ruling to the showman when the right answer is not an option", async () => {
+      await suite.scenario(async (scenario) => {
+        const { showmanSocket, playerSocket, gameId } = await buzzOnChoice("Something else");
+
+        await scenario.emitAndWaitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SUBMITTED,
+          () =>
+            scenario
+              .actor(playerSocket)
+              .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "Option A" })
+        );
+        await scenario.waitForNoEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT, 500);
+        expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.ANSWERING);
+      });
+    });
+  });
+
+  async function setupChoiceOptions(optionCount: number, answerText?: string) {
     const { socket: showmanSocket, user, cookie } = await utils.createGameClient(app, userRepo);
     const packageInput = new PackageUtils().createTestPackageData(user);
     const question = packageInput.rounds
@@ -251,6 +322,7 @@ describe("Choice Question Flow Tests", () => {
       .slice(0, optionCount)
       .map((text, order) => ({ text, order }));
     question.answers = expectedOptions.map((option) => ({ ...option, file: null }));
+    if (answerText !== undefined) question.answerText = answerText;
 
     const http = createHttpTestClient(suite.serverUrl);
     const packageResponse = await http

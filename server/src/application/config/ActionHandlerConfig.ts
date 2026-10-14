@@ -173,17 +173,19 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     new QuestionAnswerUseCase(phaseTransitionRouter, socketGameTimerService)
   );
 
-  registry.register(GameActionType.ANSWER_SUBMITTED, new AnswerSubmittedUseCase());
+  const answerResultUseCase = new AnswerResultUseCase(
+    phaseTransitionRouter,
+    playerGameStatsService,
+    transitionResourceService,
+    logger
+  );
 
   registry.register(
-    GameActionType.ANSWER_RESULT,
-    new AnswerResultUseCase(
-      phaseTransitionRouter,
-      playerGameStatsService,
-      transitionResourceService,
-      logger
-    )
+    GameActionType.ANSWER_SUBMITTED,
+    new AnswerSubmittedUseCase(answerResultUseCase, transitionResourceService)
   );
+
+  registry.register(GameActionType.ANSWER_RESULT, answerResultUseCase);
 
   registry.register(
     GameActionType.QUESTION_SKIP,

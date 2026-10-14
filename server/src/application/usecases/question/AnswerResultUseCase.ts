@@ -1,5 +1,6 @@
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
+import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
@@ -58,10 +59,23 @@ export class AnswerResultUseCase
       action: QuestionAction.ANSWER_RESULT,
     });
 
+    return this.judge(game, currentPlayer!.meta.id, data);
+  }
+
+  /**
+   * Applies a ruling on the current answer: the showman's, or one the server
+   * makes itself (an auto-checked choice). Callers validate first.
+   */
+  public async judge(
+    game: Game,
+    judgedBy: number,
+    data: AnswerResultData
+  ): Promise<ActionHandlerResult<QuestionAnswerResultEventPayload>> {
     const questionType =
       game.gameState.currentQuestion?.type ?? PackageQuestionType.SIMPLE;
     const transitionResources = await this._getTransitionResources(
-      ctx,
+      game,
+      data.answerType,
       questionType
     );
 
@@ -71,7 +85,7 @@ export class AnswerResultUseCase
         {
           game,
           trigger: TransitionTrigger.USER_ACTION,
-          triggeredBy: { playerId: currentPlayer!.meta.id, isSystem: false },
+          triggeredBy: { playerId: judgedBy, isSystem: false },
           payload: {
             answerType: data.answerType,
             scoreResult: data.scoreResult,
@@ -135,12 +149,10 @@ export class AnswerResultUseCase
   }
 
   private async _getTransitionResources(
-    ctx: ActionExecutionContext<AnswerResultData>,
+    game: Game,
+    answerType: AnswerResultType,
     questionType: PackageQuestionType
   ): Promise<TransitionResources | undefined> {
-    const { game } = ctx;
-    const { answerType } = ctx.action.payload;
-
     const resources: Array<TransitionResources | undefined> = [];
 
     if (

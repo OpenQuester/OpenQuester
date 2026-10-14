@@ -1,6 +1,7 @@
 import { devices, expect, test, type Page } from "@playwright/test";
 
 import {
+  buzz,
   cell,
   chipScore,
   dockPhase,
@@ -10,8 +11,8 @@ import {
   hostGame,
   joinByLink,
   person,
-  signInAsGuest,
   shot,
+  signInAsGuest,
   type Person,
 } from "./support/game";
 
@@ -90,7 +91,7 @@ test.describe("full game", () => {
     await shot(sam.page, "07-question-spectator-desktop");
     await expect(alice.page.getByTestId("showman-answer")).toHaveCount(0);
 
-    await alice.page.getByTestId("buzz").click();
+    await buzz(alice.page);
     await expectPhase(all, "Answering");
     await expect(alice.page.getByTestId("dock-status")).toHaveText("You're answering!");
     await expect(bob.page.getByTestId("dock-status")).toHaveText("Alice is answering");
@@ -125,7 +126,7 @@ test.describe("full game", () => {
     await expect(bob.page.getByRole("img", { name: "Question image" })).toBeVisible();
 
     // Wrong answer reopens the buzzer for the others; passing ends it.
-    await bob.page.getByTestId("buzz").click();
+    await buzz(bob.page);
     await expectPhase([host.page], "Answering");
     await host.page.getByTestId("judge-wrong").click();
     await expectPhase([alice.page, bob.page], "Ready to buzz");
@@ -159,6 +160,9 @@ test.describe("full game", () => {
     await expect(played).toBeDisabled();
     await cell(host.page, "Capitals", 300).click();
     await expectPhase(all, "Ready to buzz");
+    await expect(bob.page.getByTestId("buzz")).not.toHaveAttribute("data-early", /.*/, {
+      timeout: 20_000,
+    });
     await bob.page.keyboard.press("Space");
     await expectPhase([host.page], "Answering");
     await host.page.keyboard.press("w");
@@ -200,13 +204,13 @@ test.describe("full game", () => {
     await cell(host.page, "Specials", 400).click();
     await expectPhase(all, "Ready to buzz");
     await expect(alice.page.getByRole("button", { name: /Dolphin/ })).toBeDisabled();
-    await alice.page.getByTestId("buzz").click();
+    await buzz(alice.page);
     await expect(alice.page.getByRole("button", { name: /Dolphin/ })).toBeEnabled();
     await shot(alice.page, "13-choice-phone");
+    // A picked option is checked by the server: no ruling from the showman.
     await alice.page.getByRole("button", { name: /Dolphin/ }).click();
-    await expect(host.page.getByTestId("showman-panel")).toContainText("“Dolphin”");
-    await host.page.getByTestId("judge-correct").click();
     await expectPhase(all, "Answer");
+    await expect(alice.page.getByTestId("answer-reveal")).toContainText("Dolphin");
     await host.page.getByTestId("continue").click();
 
     // ── Final round ────────────────────────────────────────────────────────
