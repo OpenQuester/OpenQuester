@@ -37,7 +37,8 @@ export function AppShell() {
           </Link>
           <nav
             aria-label={t("nav.main")}
-            className="order-3 flex w-full gap-1 sm:order-none sm:w-auto"
+            // Scrolls sideways on narrow phones instead of widening the page.
+            className="order-3 flex w-full min-w-0 gap-1 overflow-x-auto [scrollbar-width:none] sm:order-none sm:w-auto"
           >
             {nav.map((n) => (
               <Link
@@ -45,7 +46,7 @@ export function AppShell() {
                 to={n.to}
                 aria-current={n.active ? "page" : undefined}
                 className={cn(
-                  "rounded-sm px-3.5 py-2.5 font-medium no-underline",
+                  "shrink-0 whitespace-nowrap rounded-sm px-2.5 py-2.5 font-medium no-underline sm:px-3.5",
                   n.active ? "bg-surface-2 text-text" : "text-muted hover:text-text",
                 )}
               >
