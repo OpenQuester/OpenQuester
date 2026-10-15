@@ -80,157 +80,163 @@ describe("Player stats, leaderboard and question reports", () => {
   }
 
   it("totals a player's games and lists the latest first", async () => {
-    const alice = await signIn("alice");
-    const bob = await signIn("bob");
-    const now = Date.now();
-    await finishedGame(new Date(now - 2 * DAY_MS), [
-      { user: alice.user, score: 300, placement: 1, correct: 3, wrong: 1 },
-      { user: bob.user, score: 100, placement: 2, correct: 1 }
-    ]);
-    await finishedGame(new Date(now - DAY_MS), [
-      { user: bob.user, score: 500, placement: 1, correct: 4 },
-      { user: alice.user, score: -100, placement: 2, wrong: 1 }
-    ]);
+    await suite.scenario(async () => {
+      const alice = await signIn("alice");
+      const bob = await signIn("bob");
+      const now = Date.now();
+      await finishedGame(new Date(now - 2 * DAY_MS), [
+        { user: alice.user, score: 300, placement: 1, correct: 3, wrong: 1 },
+        { user: bob.user, score: 100, placement: 2, correct: 1 }
+      ]);
+      await finishedGame(new Date(now - DAY_MS), [
+        { user: bob.user, score: 500, placement: 1, correct: 4 },
+        { user: alice.user, score: -100, placement: 2, wrong: 1 }
+      ]);
 
-    const mine = await http.get("/v1/stats/me").set("Cookie", alice.cookie);
-    expect(mine.status).toBe(HttpStatus.OK);
-    const stats = mine.body as UserStatsDTO;
-    expect(stats).toMatchObject({
-      userId: alice.user.id,
-      gamesPlayed: 2,
-      wins: 1,
-      totalScore: 200,
-      bestScore: 300,
-      questionsAnswered: 5,
-      correctAnswers: 3,
-      wrongAnswers: 2
+      const mine = await http.get("/v1/stats/me").set("Cookie", alice.cookie);
+      expect(mine.status).toBe(HttpStatus.OK);
+      const stats = mine.body as UserStatsDTO;
+      expect(stats).toMatchObject({
+        userId: alice.user.id,
+        gamesPlayed: 2,
+        wins: 1,
+        totalScore: 200,
+        bestScore: 300,
+        questionsAnswered: 5,
+        correctAnswers: 3,
+        wrongAnswers: 2
+      });
+      expect(stats.recentGames.map((g) => g.finalScore)).toEqual([-100, 300]);
+      expect(stats.recentGames[0]).toMatchObject({ placement: 2, totalPlayers: 2 });
+
+      // Anyone signed in can see another player's totals
+      const other = await http.get(`/v1/stats/users/${bob.user.id}`).set("Cookie", alice.cookie);
+      expect(other.body).toMatchObject({ gamesPlayed: 2, wins: 1, totalScore: 600 });
+
+      // A player with no games gets zeros, not an error
+      const fresh = await signIn("fresh");
+      const empty = await http.get("/v1/stats/me").set("Cookie", fresh.cookie);
+      expect(empty.body).toMatchObject({ gamesPlayed: 0, wins: 0, totalScore: 0, recentGames: [] });
     });
-    expect(stats.recentGames.map((g) => g.finalScore)).toEqual([-100, 300]);
-    expect(stats.recentGames[0]).toMatchObject({ placement: 2, totalPlayers: 2 });
-
-    // Anyone signed in can see another player's totals
-    const other = await http.get(`/v1/stats/users/${bob.user.id}`).set("Cookie", alice.cookie);
-    expect(other.body).toMatchObject({ gamesPlayed: 2, wins: 1, totalScore: 600 });
-
-    // A player with no games gets zeros, not an error
-    const fresh = await signIn("fresh");
-    const empty = await http.get("/v1/stats/me").set("Cookie", fresh.cookie);
-    expect(empty.body).toMatchObject({ gamesPlayed: 0, wins: 0, totalScore: 0, recentGames: [] });
   });
 
   it("ranks the leaderboard by wins, then score, and filters by period", async () => {
-    const carol = await signIn("carol");
-    const dave = await signIn("dave");
-    const erin = await signIn("erin");
-    const now = Date.now();
-    // Dave wins twice, but one of them was long ago
-    await finishedGame(new Date(now - 60 * DAY_MS), [
-      { user: dave.user, score: 900, placement: 1 },
-      { user: carol.user, score: 0, placement: 2 }
-    ]);
-    await finishedGame(new Date(now - DAY_MS), [
-      { user: dave.user, score: 200, placement: 1 },
-      { user: carol.user, score: 100, placement: 2 }
-    ]);
-    await finishedGame(new Date(now - DAY_MS), [
-      { user: carol.user, score: 400, placement: 1 },
-      { user: erin.user, score: 50, placement: 2 }
-    ]);
+    await suite.scenario(async () => {
+      const carol = await signIn("carol");
+      const dave = await signIn("dave");
+      const erin = await signIn("erin");
+      const now = Date.now();
+      // Dave wins twice, but one of them was long ago
+      await finishedGame(new Date(now - 60 * DAY_MS), [
+        { user: dave.user, score: 900, placement: 1 },
+        { user: carol.user, score: 0, placement: 2 }
+      ]);
+      await finishedGame(new Date(now - DAY_MS), [
+        { user: dave.user, score: 200, placement: 1 },
+        { user: carol.user, score: 100, placement: 2 }
+      ]);
+      await finishedGame(new Date(now - DAY_MS), [
+        { user: carol.user, score: 400, placement: 1 },
+        { user: erin.user, score: 50, placement: 2 }
+      ]);
 
-    const ours = (entries: LeaderboardEntryDTO[]) =>
-      entries
-        .filter((e) => [carol, dave, erin].some((a) => Number(a.user.id) === e.user.id))
-        .map((e) => e.user.username);
+      const ours = (entries: LeaderboardEntryDTO[]) =>
+        entries
+          .filter((e) => [carol, dave, erin].some((a) => Number(a.user.id) === e.user.id))
+          .map((e) => e.user.username);
 
-    const all = await http.get("/v1/stats/leaderboard?limit=100").set("Cookie", carol.cookie);
-    expect(all.status).toBe(HttpStatus.OK);
-    expect(ours(all.body.data)).toEqual([
-      dave.user.username,
-      carol.user.username,
-      erin.user.username
-    ]);
-    const first = (all.body.data as LeaderboardEntryDTO[])[0];
-    expect(first.rank).toBe(1);
+      const all = await http.get("/v1/stats/leaderboard?limit=100").set("Cookie", carol.cookie);
+      expect(all.status).toBe(HttpStatus.OK);
+      expect(ours(all.body.data)).toEqual([
+        dave.user.username,
+        carol.user.username,
+        erin.user.username
+      ]);
+      const first = (all.body.data as LeaderboardEntryDTO[])[0];
+      expect(first.rank).toBe(1);
 
-    // This week both have one win; Carol scored more
-    const week = await http
-      .get("/v1/stats/leaderboard?period=week&limit=100")
-      .set("Cookie", carol.cookie);
-    expect(ours(week.body.data)).toEqual([
-      carol.user.username,
-      dave.user.username,
-      erin.user.username
-    ]);
+      // This week both have one win; Carol scored more
+      const week = await http
+        .get("/v1/stats/leaderboard?period=week&limit=100")
+        .set("Cookie", carol.cookie);
+      expect(ours(week.body.data)).toEqual([
+        carol.user.username,
+        dave.user.username,
+        erin.user.username
+      ]);
 
-    const bad = await http.get("/v1/stats/leaderboard?period=year").set("Cookie", carol.cookie);
-    expect(bad.status).toBe(HttpStatus.BAD_REQUEST);
+      const bad = await http.get("/v1/stats/leaderboard?period=year").set("Cookie", carol.cookie);
+      expect(bad.status).toBe(HttpStatus.BAD_REQUEST);
+    });
   });
 
   it("lets a player report a question and the author resolve it", async () => {
-    const { gameId, showmanSocket, showmanUser, playerUsers } =
-      await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-    await utils.startGame(showmanSocket);
-    const questionId = await utils.getFirstAvailableQuestionId(gameId);
-    const player = await utils.loginExistingUser(app, playerUsers[0].id);
-    const author = await utils.loginExistingUser(app, showmanUser.id);
+    await suite.scenario(async () => {
+      const { gameId, showmanSocket, showmanUser, playerUsers } =
+        await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      await utils.startGame(showmanSocket);
+      const questionId = await utils.getFirstAvailableQuestionId(gameId);
+      const player = await utils.loginExistingUser(app, playerUsers[0].id);
+      const author = await utils.loginExistingUser(app, showmanUser.id);
 
-    const sent = await http
-      .post(`/v1/games/${gameId}/reports`)
-      .set("Cookie", player.cookie)
-      .send({ questionId, reason: QuestionReportReason.WRONG_ANSWER, comment: " It's 1945 " });
-    expect(sent.status).toBe(HttpStatus.OK);
-    const report = sent.body as QuestionReportDTO;
-    expect(report).toMatchObject({
-      questionId,
-      reason: QuestionReportReason.WRONG_ANSWER,
-      comment: "It's 1945",
-      resolved: false,
-      reporter: { id: playerUsers[0].id }
+      const sent = await http
+        .post(`/v1/games/${gameId}/reports`)
+        .set("Cookie", player.cookie)
+        .send({ questionId, reason: QuestionReportReason.WRONG_ANSWER, comment: " It's 1945 " });
+      expect(sent.status).toBe(HttpStatus.OK);
+      const report = sent.body as QuestionReportDTO;
+      expect(report).toMatchObject({
+        questionId,
+        reason: QuestionReportReason.WRONG_ANSWER,
+        comment: "It's 1945",
+        resolved: false,
+        reporter: { id: playerUsers[0].id }
+      });
+
+      // One open report per question per player
+      const again = await http
+        .post(`/v1/games/${gameId}/reports`)
+        .set("Cookie", player.cookie)
+        .send({ questionId, reason: QuestionReportReason.OTHER });
+      expect(again.status).toBe(HttpStatus.CONFLICT);
+
+      const unknown = await http
+        .post(`/v1/games/${gameId}/reports`)
+        .set("Cookie", player.cookie)
+        .send({ questionId: 999999999, reason: QuestionReportReason.OTHER });
+      expect(unknown.status).toBe(HttpStatus.NOT_FOUND);
+
+      // Only the author (or an editor) reads the reports
+      const forbidden = await http
+        .get(`/v1/packages/${report.packageId}/reports`)
+        .set("Cookie", player.cookie);
+      expect(forbidden.status).toBe(HttpStatus.FORBIDDEN);
+
+      const list = await http
+        .get(`/v1/packages/${report.packageId}/reports`)
+        .set("Cookie", author.cookie);
+      expect(list.status).toBe(HttpStatus.OK);
+      expect(list.body.open).toBe(1);
+      expect(list.body.data.map((r: QuestionReportDTO) => r.id)).toEqual([report.id]);
+
+      const resolved = await http
+        .patch(`/v1/packages/${report.packageId}/reports/${report.id}`)
+        .set("Cookie", author.cookie)
+        .send({ resolved: true });
+      expect(resolved.status).toBe(HttpStatus.OK);
+      expect(resolved.body.resolved).toBe(true);
+
+      const after = await http
+        .get(`/v1/packages/${report.packageId}/reports`)
+        .set("Cookie", author.cookie);
+      expect(after.body.open).toBe(0);
+
+      // Once resolved, the player may report it again
+      const reopened = await http
+        .post(`/v1/games/${gameId}/reports`)
+        .set("Cookie", player.cookie)
+        .send({ questionId, reason: QuestionReportReason.BROKEN_MEDIA });
+      expect(reopened.status).toBe(HttpStatus.OK);
     });
-
-    // One open report per question per player
-    const again = await http
-      .post(`/v1/games/${gameId}/reports`)
-      .set("Cookie", player.cookie)
-      .send({ questionId, reason: QuestionReportReason.OTHER });
-    expect(again.status).toBe(HttpStatus.CONFLICT);
-
-    const unknown = await http
-      .post(`/v1/games/${gameId}/reports`)
-      .set("Cookie", player.cookie)
-      .send({ questionId: 999999999, reason: QuestionReportReason.OTHER });
-    expect(unknown.status).toBe(HttpStatus.NOT_FOUND);
-
-    // Only the author (or an editor) reads the reports
-    const forbidden = await http
-      .get(`/v1/packages/${report.packageId}/reports`)
-      .set("Cookie", player.cookie);
-    expect(forbidden.status).toBe(HttpStatus.FORBIDDEN);
-
-    const list = await http
-      .get(`/v1/packages/${report.packageId}/reports`)
-      .set("Cookie", author.cookie);
-    expect(list.status).toBe(HttpStatus.OK);
-    expect(list.body.open).toBe(1);
-    expect(list.body.data.map((r: QuestionReportDTO) => r.id)).toEqual([report.id]);
-
-    const resolved = await http
-      .patch(`/v1/packages/${report.packageId}/reports/${report.id}`)
-      .set("Cookie", author.cookie)
-      .send({ resolved: true });
-    expect(resolved.status).toBe(HttpStatus.OK);
-    expect(resolved.body.resolved).toBe(true);
-
-    const after = await http
-      .get(`/v1/packages/${report.packageId}/reports`)
-      .set("Cookie", author.cookie);
-    expect(after.body.open).toBe(0);
-
-    // Once resolved, the player may report it again
-    const reopened = await http
-      .post(`/v1/games/${gameId}/reports`)
-      .set("Cookie", player.cookie)
-      .send({ questionId, reason: QuestionReportReason.BROKEN_MEDIA });
-    expect(reopened.status).toBe(HttpStatus.OK);
   });
 });
