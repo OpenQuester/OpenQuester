@@ -96,7 +96,11 @@ export function GameScreen() {
   };
   const body = (id: PanelId): ReactNode =>
     id === "host" ? (
-      <HostTools focusPlayer={focusPlayer} />
+      <HostTools
+        focusPlayer={focusPlayer}
+        // On phones the tools are a sheet over the board: get it out of the way.
+        onBoardEdit={wide ? undefined : () => setPanel("host", false)}
+      />
     ) : id === "players" ? (
       <PlayersBody />
     ) : (

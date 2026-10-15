@@ -29,6 +29,15 @@ test.describe("showman tools", () => {
     // Take a question off the board and put it back
     await page.getByTestId("host-tools").click();
     const tools = page.getByTestId("host-panel");
+    // Wide screens keep the tools beside the board; phones and tablets show a
+    // sheet that has to be opened for each tool and closed to reach the board.
+    const wide = (page.viewportSize()?.width ?? 0) >= 1024;
+    const openTools = async () => {
+      if (!(await tools.isVisible())) await page.getByTestId("host-tools").click();
+    };
+    const closeTools = async () => {
+      if (!wide && (await tools.isVisible())) await page.keyboard.press("Escape");
+    };
     await tools.getByTestId("board-edit").click();
     await expect(page.getByTestId("board-edit-hint")).toBeVisible();
     await cell(page, "Capitals", 300).click();
@@ -37,9 +46,11 @@ test.describe("showman tools", () => {
     ).toBeVisible();
     await page.getByRole("button", { name: "Capitals, 300, already played" }).click();
     await expect(cell(pat.page, "Capitals", 300)).toBeVisible();
-    await tools.getByTestId("board-edit").click();
+    await page.getByTestId("board-edit-done").click();
+    await expect(page.getByTestId("board-edit-hint")).toHaveCount(0);
 
     // Close the game to newcomers
+    await openTools();
     await tools.getByLabel("Who can join").selectOption("closed");
     const late = await person(browser, "Late", laptop);
     await late.page.goto(`/games/${code}`);
@@ -47,6 +58,7 @@ test.describe("showman tools", () => {
     await late.page.getByRole("button", { name: "Spectate" }).click();
     await expect(late.page.getByText("The showman closed this game to new people")).toBeVisible();
     await tools.getByLabel("Who can join").selectOption("open");
+    await closeTools();
 
     // A wrong ruling taken back: the points return and Pat may buzz again
     await cell(page, "Capitals", 100).click();
@@ -54,7 +66,9 @@ test.describe("showman tools", () => {
     await expect(dockPhase(page)).toHaveText("Answering");
     await page.getByTestId("judge-wrong").click();
     await expect.poll(() => chipScore(page, "Pat")).toBe("−100");
+    await openTools();
     await tools.getByTestId("undo-ruling").click();
+    await closeTools();
     await expect.poll(() => chipScore(page, "Pat")).toBe("0");
     await buzz(pat.page);
     await expect(dockPhase(page)).toHaveText("Answering");

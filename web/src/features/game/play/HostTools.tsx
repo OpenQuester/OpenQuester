@@ -14,7 +14,14 @@ import { PlayersBody } from "./PlayersPanel";
  * Showman tools: game controls and player management in one place, so a
  * pinned panel covers everything the host does besides judging.
  */
-export function HostTools({ focusPlayer }: { focusPlayer?: number | null }) {
+export function HostTools({
+  focusPlayer,
+  onBoardEdit,
+}: {
+  focusPlayer?: number | null;
+  /** Called when board editing starts; a sheet closes so the board is reachable. */
+  onBoardEdit?: () => void;
+}) {
   const { t } = useTranslation();
   const session = useSession();
   const { connection } = useGame();
@@ -67,7 +74,10 @@ export function HostTools({ focusPlayer }: { focusPlayer?: number | null }) {
               size="sm"
               variant={boardEdit ? "accent" : "secondary"}
               aria-pressed={boardEdit}
-              onClick={() => setBoardEdit(!boardEdit)}
+              onClick={() => {
+                if (!boardEdit) onBoardEdit?.();
+                setBoardEdit(!boardEdit);
+              }}
               data-testid="board-edit"
             >
               {boardEdit ? t("menu.boardEditDone") : t("menu.boardEdit")}

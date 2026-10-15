@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { canPick, findPlayer, myRole } from "@/game/selectors";
 import { useGameStore } from "@/game/store";
 import { formatScore } from "@/lib/format";
+import { Button } from "@/ui/Button";
 
 import { useGame, useSession } from "../GameContext";
 
@@ -14,6 +15,7 @@ export function Board() {
   const session = useSession();
   const { connection, myId } = useGame();
   const boardEdit = useGameStore((s) => s.boardEdit);
+  const setBoardEdit = useGameStore((s) => s.setBoardEdit);
   const themes = [...(session.state.currentRound?.themes ?? [])].sort((a, b) => a.order - b.order);
   const columns = Math.max(1, ...themes.map((th) => th.questions.length));
   const picker = findPlayer(session, session.state.currentTurnPlayerId);
@@ -35,12 +37,20 @@ export function Board() {
         {picker ? `. ${t("board.picker", { name: picker.meta.username })}` : ""}
       </h2>
       {boardEdit && myRole(session, myId) === "showman" && (
-        <p
-          className="m-0 rounded-md border border-accent-line bg-accent-surface px-4 py-2 text-sm"
+        <div
+          className="flex flex-wrap items-center gap-3 rounded-md border border-accent-line bg-accent-surface px-4 py-2 text-sm"
           data-testid="board-edit-hint"
         >
-          {t("board.editHint")}
-        </p>
+          <span className="min-w-0 flex-1">{t("board.editHint")}</span>
+          <Button
+            size="sm"
+            variant="accent"
+            onClick={() => setBoardEdit(false)}
+            data-testid="board-edit-done"
+          >
+            {t("menu.boardEditDone")}
+          </Button>
+        </div>
       )}
       <div
         ref={ref}
