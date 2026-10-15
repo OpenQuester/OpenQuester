@@ -8381,16 +8381,14 @@
             "type": "boolean"
           },
           "reporter": {
-            "type": ["object", "null"],
-            "required": ["id", "username"],
-            "properties": {
-              "id": {
-                "type": "integer"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuestionReporter"
               },
-              "username": {
-                "type": "string"
+              {
+                "type": "null"
               }
-            }
+            ]
           },
           "gameId": {
             "type": ["string", "null"]
@@ -8415,6 +8413,18 @@
           "open": {
             "type": "integer",
             "description": "How many reports are still open"
+          }
+        }
+      },
+      "QuestionReporter": {
+        "type": "object",
+        "required": ["id", "username"],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
           }
         }
       }

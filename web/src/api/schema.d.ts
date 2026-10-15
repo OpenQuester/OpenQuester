@@ -5587,10 +5587,7 @@ export interface components {
             reason: components["schemas"]["QuestionReportReason"];
             comment: string | null;
             resolved: boolean;
-            reporter: {
-                id: number;
-                username: string;
-            } | null;
+            reporter: components["schemas"]["QuestionReporter"] | null;
             gameId: string | null;
             /** Format: date-time */
             createdAt: string;
@@ -5600,6 +5597,10 @@ export interface components {
             data: components["schemas"]["QuestionReport"][];
             /** @description How many reports are still open */
             open: number;
+        };
+        QuestionReporter: {
+            id: number;
+            username: string;
         };
     };
     responses: never;
