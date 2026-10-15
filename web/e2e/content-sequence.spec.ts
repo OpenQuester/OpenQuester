@@ -105,10 +105,13 @@ test.describe("question content sequence", () => {
       timeout: 20_000,
     });
     await buzz(page);
-    await expect(dockPhase(page)).toHaveText("Answering");
-    // While Pat answers, nobody moves on to the picture.
+    await expect(dockPhase(sam.page)).toHaveText("Answering");
+    // While Pat answers, the sequence stays where the buzz froze it. A slow
+    // tap can land just after the clip ends, so compare with that moment.
+    const frozen = await sam.page.getByTestId("content-step-label").textContent();
+    expect(frozen).toMatch(/^Part [23] of 3$/);
     await sam.page.waitForTimeout(8_000);
-    await expect(sam.page.getByTestId("content-step-label")).toHaveText("Part 2 of 3");
+    await expect(sam.page.getByTestId("content-step-label")).toHaveText(frozen!);
 
     await host.page.getByTestId("judge-wrong").click();
     await expect(dockPhase(sam.page)).toHaveText("Ready to buzz");
