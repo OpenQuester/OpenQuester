@@ -5557,17 +5557,19 @@ export interface components {
         LeaderboardPeriod: "all" | "month" | "week";
         LeaderboardEntry: {
             rank: number;
-            user: {
-                id: number;
-                username: string;
-                /** @description Display name, when set */
-                name: string | null;
-                avatar: string | null;
-            };
+            user: components["schemas"]["LeaderboardUser"];
             gamesPlayed: number;
             wins: number;
             totalScore: number;
             correctAnswers: number;
+        };
+        /** @description Player shown on the leaderboard */
+        LeaderboardUser: {
+            id: number;
+            username: string;
+            /** @description Display name, when set */
+            name: string | null;
+            avatar: string | null;
         };
         /** @enum {string} */
         QuestionReportReason: "wrong_answer" | "broken_media" | "offensive" | "other";
