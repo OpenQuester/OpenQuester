@@ -18,7 +18,17 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(getIt<GameLobbyController>().join(gameId: widget.gameId));
+    unawaited(_join());
+  }
+
+  Future<void> _join() async {
+    final joined = await getIt<GameLobbyController>().join(
+      gameId: widget.gameId,
+    );
+    // Cancelled the password prompt: nothing to show here
+    if (!joined && getIt<GameLobbyController>().gameId == null && mounted) {
+      await AppRouter.I.replace(const HomeTabsRoute());
+    }
   }
 
   @override

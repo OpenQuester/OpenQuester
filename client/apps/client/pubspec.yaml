@@ -96,6 +96,7 @@ flutter:
   assets:
     - assets/localization/
     - assets/icons/
+    - assets/sounds/
 
 flutter_gen:
   output: lib/generated/

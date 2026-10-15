@@ -529,5 +529,35 @@
   "results_count": "{} package(s) found",
   "themes_count": "{} themes",
   "loading_packages": "Loading packages...",
-  "select_package": "Select Package"
+  "select_package": "Select Package",
+  "game_rules": {
+    "title": "Rules",
+    "false_start": "False starts",
+    "false_start_help": "The buzzer opens once the question has played. A player who presses earlier is locked out for 3 seconds. Turn off to let players press at any time.",
+    "press_mode": "Who answers when several players press",
+    "mode_fair_draw": "Fair draw",
+    "mode_fair_draw_help": "Everyone who presses within 0.3 s of the first press has an equal chance, so a faster connection doesn't win.",
+    "mode_first_wins": "Fastest press",
+    "mode_first_wins_help": "The first press that reaches the server answers.",
+    "penalty": "Wrong answers cost points",
+    "penalty_help": "A wrong answer after pressing the buzzer subtracts the question's price. Turn off for a friendlier game. Stakes are always lost on a wrong answer."
+  },
+  "join_password": {
+    "title": "Game password",
+    "subtitle": "This game is private. Ask the host for its password.",
+    "required": "Enter the password"
+  },
+  "lobby_password": "Password: {}",
+  "buzzer": {
+    "wait": "Wait, the button opens after the question",
+    "locked": "False start! Try again in {} s",
+    "early_hint": "Pressing before the button opens locks it for 3 seconds.",
+    "false_start": "Too early! The button is locked for {} s"
+  },
+  "choice": {
+    "options_soon": "Options appear in a moment…",
+    "pick": "Pick your answer",
+    "options": "Answer options"
+  },
+  "settings_game_sounds": "Game sounds"
 }

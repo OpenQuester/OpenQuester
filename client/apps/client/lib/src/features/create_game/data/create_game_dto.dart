@@ -11,6 +11,13 @@ abstract class CreateGameDto with _$CreateGameDto {
     @Default(AgeRestriction.none) AgeRestriction ageRestriction,
     @Default(false) bool private,
     @Default(10) int maxPlayers,
+
+    /// Empty for a private game: the server makes a 4-letter code
+    String? password,
+    @Default(true) bool falseStart,
+    @Default(ButtonPressMode.randomWithinWindow)
+    ButtonPressMode buttonPressMode,
+    @Default(WrongAnswerPenalty.subtract) WrongAnswerPenalty wrongAnswerPenalty,
   }) = _CreateGameDto;
 }
 
@@ -42,6 +49,12 @@ extension CreateGameDtoX on CreateGameDto {
       isPrivate: private,
       ageRestriction: ageRestriction,
       maxPlayers: maxPlayers,
+      password: private && !password.isEmptyOrNull ? password!.trim() : null,
+      settings: GameSettingsInput(
+        falseStart: falseStart,
+        buttonPressMode: buttonPressMode,
+        wrongAnswerPenalty: wrongAnswerPenalty,
+      ),
     );
   }
 }
