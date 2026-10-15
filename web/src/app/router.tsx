@@ -93,6 +93,14 @@ const createGameRoute = createRoute({
     packageId: num(s.packageId),
   }),
 });
+const leaderboardRoute = createRoute({
+  getParentRoute: () => shell,
+  path: "/leaderboard",
+  component: lazyRouteComponent(
+    () => import("@/features/stats/LeaderboardPage"),
+    "LeaderboardPage",
+  ),
+});
 const settingsRoute = createRoute({
   getParentRoute: () => shell,
   path: "/settings",
@@ -146,6 +154,7 @@ const routeTree = rootRoute.addChildren([
     editorHomeRoute,
     createGameRoute,
     settingsRoute,
+    leaderboardRoute,
     adminRoute,
     myPackagesRoute,
   ]),

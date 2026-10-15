@@ -28,7 +28,7 @@ export enum LeaderboardPeriod {
 
 export interface LeaderboardEntryDTO {
   rank: number;
-  user: { id: number; username: string; avatar: string | null };
+  user: { id: number; username: string; name: string | null; avatar: string | null };
   gamesPlayed: number;
   wins: number;
   totalScore: number;

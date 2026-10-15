@@ -14,7 +14,8 @@
     "packages": "Packages",
     "profile": "Profile and settings",
     "signIn": "Sign in",
-    "admin": "Admin"
+    "admin": "Admin",
+    "leaderboard": "Leaderboard"
   },
   "notFound": {
     "title": "This page doesn't exist"
@@ -1286,5 +1287,62 @@
     "pick": "Click where the answer is",
     "picture": "Question picture",
     "prompt": "Click the spot on the picture"
+  },
+  "stats": {
+    "title": "Your games",
+    "seeLeaderboard": "See the leaderboard",
+    "loadFailed": "Couldn't load your stats.",
+    "noGames": "Finish a game as a player and your results show up here.",
+    "games": "Games",
+    "wins": "Wins",
+    "totalScore": "Total score",
+    "bestScore": "Best game",
+    "accuracy": "Right answers",
+    "answers": "{{right}} right and {{wrong}} wrong answers in all.",
+    "recent": "Latest games",
+    "won": "Won",
+    "place": "Place {{place}} of {{players}}",
+    "played": "Played"
+  },
+  "leaderboard": {
+    "title": "Leaderboard",
+    "help": "Players ranked by games won, then by total score. Guest accounts aren't listed.",
+    "period": "Period",
+    "periods": {
+      "week": "This week",
+      "month": "This month",
+      "all": "All time"
+    },
+    "loadFailed": "Couldn't load the leaderboard.",
+    "empty": "Nobody has finished a game in this period yet.",
+    "player": "Player",
+    "you": "you"
+  },
+  "report": {
+    "open": "Something wrong with this question?",
+    "title": "Report this question",
+    "help": "The package's author sees your note and can fix the question.",
+    "reason": "What's wrong?",
+    "reasons": {
+      "wrong_answer": "The answer is wrong",
+      "broken_media": "A picture, sound or video doesn't work",
+      "offensive": "It's offensive",
+      "other": "Something else"
+    },
+    "comment": "Details (optional)",
+    "commentPlaceholder": "For example, the right answer and a source",
+    "send": "Send report",
+    "sent": "Thanks, the author will see your report.",
+    "already": "You already reported this question.",
+    "failed": "Couldn't send the report. Try again."
+  },
+  "reports": {
+    "short": "Reports",
+    "button": "Reports, {{n}} open",
+    "title": "Reports on {{title}}",
+    "help": "What players flagged during games. Fix the question in the editor, then mark the report resolved.",
+    "noText": "A question without text",
+    "resolve": "Mark resolved",
+    "reopen": "Open again"
   }
 }

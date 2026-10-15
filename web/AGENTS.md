@@ -32,7 +32,7 @@ OQ_WEB_URL=https://<deploy>.pages.dev OQ_LIVE_PACKAGE_ID=3 npx playwright test -
 src/api/        openapi-fetch client, generated schema.d.ts, type aliases
 src/game/       protocol.ts (socket contract), reducer.ts (pure), selectors.ts,
                 connection.ts (socket lifecycle), store.ts (zustand), media.ts
-src/features/   screens: auth, home, packages, upload (.siq/.oq import), editor, create-game, settings, game (lobby + play)
+src/features/   screens: auth, home, packages, upload (.siq/.oq import), editor, create-game, settings, stats, game (lobby + play)
 src/ui/         small design-system components
 src/theme/      token sets ([data-theme] blocks) and the theme registry
 src/i18n/       en / uk / ru resources
@@ -97,6 +97,10 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
 - The admin panel (`features/admin/`) shows each tab only when the account
   holds its permission; staff roles and game moderation are described in
   `docs/specs/admin-moderation.md`. A `game-closed` event sends everyone home.
+- `features/stats/` holds the leaderboard page (`/leaderboard`), the profile
+  stats card on Settings, the "Report question" dialog shown under the answer
+  reveal, and the reports list on My packages (author or `edit_package` only).
+  Totals come from saved `player_game_stats`, so only finished games count.
 - Layouts must work at 375 px wide with no horizontal scroll; the e2e
   `expectNoHorizontalScroll` check runs on phone, tablet and desktop.
 

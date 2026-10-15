@@ -8288,13 +8288,17 @@
           },
           "user": {
             "type": "object",
-            "required": ["id", "username", "avatar"],
+            "required": ["id", "username", "name", "avatar"],
             "properties": {
               "id": {
                 "type": "integer"
               },
               "username": {
                 "type": "string"
+              },
+              "name": {
+                "type": ["string", "null"],
+                "description": "Display name, when set"
               },
               "avatar": {
                 "type": ["string", "null"]

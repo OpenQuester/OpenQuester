@@ -15,6 +15,8 @@ import { Card } from "@/ui/Card";
 import { FieldError, Label, Select, TextInput } from "@/ui/Field";
 import { Spinner } from "@/ui/Spinner";
 
+import { StatsSummary } from "@/features/stats/StatsSummary";
+
 import { AvatarPicker } from "./AvatarPicker";
 import { useSettings } from "./settingsStore";
 
@@ -92,6 +94,10 @@ function SettingsForm({ user }: { user: User }) {
             </div>
             <FieldError>{error}</FieldError>
           </form>
+        </Card>
+
+        <Card>
+          <StatsSummary />
         </Card>
 
         <Card className="flex flex-col gap-4">

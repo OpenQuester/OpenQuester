@@ -40,6 +40,7 @@ export class UserStatsService {
       user: {
         id: row.userId,
         username: row.username,
+        name: row.name,
         avatar: row.avatarFilename ? this.fileUrlBuilder.getUrl(row.avatarFilename) : null
       },
       gamesPlayed: row.gamesPlayed,

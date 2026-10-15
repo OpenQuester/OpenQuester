@@ -24,6 +24,7 @@ export interface RecentGameRow {
 export interface LeaderboardRow {
   userId: number;
   username: string;
+  name: string | null;
   avatarFilename: string | null;
   gamesPlayed: number;
   wins: number;
@@ -53,7 +54,7 @@ const RECENT_GAMES_SQL = `
 
 /** Wins rank first, then total score; guests, deleted and banned accounts are left out. */
 const LEADERBOARD_SQL = `
-  SELECT u."id" AS "userId", u."username", f."filename" AS "avatarFilename",
+  SELECT u."id" AS "userId", u."username", u."name", f."filename" AS "avatarFilename",
          COUNT(*)::int AS "gamesPlayed",
          COUNT(*) FILTER (WHERE s."placement" = 1)::int AS "wins",
          COALESCE(SUM(s."final_score"), 0)::int AS "totalScore",
@@ -64,7 +65,7 @@ const LEADERBOARD_SQL = `
   LEFT JOIN "file" f ON f."id" = u."avatar"
   WHERE u."is_guest" = false AND u."is_deleted" = false AND u."is_banned" = false
     AND ($1::timestamp IS NULL OR g."finished_at" >= $1)
-  GROUP BY u."id", u."username", f."filename"
+  GROUP BY u."id", u."username", u."name", f."filename"
   ORDER BY "wins" DESC, "totalScore" DESC, u."id" ASC
   LIMIT $2`;
 

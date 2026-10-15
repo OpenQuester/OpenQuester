@@ -17,6 +17,8 @@ import { formatScore, formatSigned } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
 
 import { useGame, useSession } from "../GameContext";
+import { ReportQuestion } from "@/features/stats/ReportQuestion";
+
 import { ContentStage } from "./ContentStage";
 import { PointPicker, pointAnswer, type Spot } from "./PointPicker";
 import { QuestionMedia } from "./QuestionMedia";
@@ -387,6 +389,9 @@ function AnswerReveal() {
         <p className="m-0 max-w-[60ch] text-center text-muted">
           {s.currentQuestion.questionComment}
         </p>
+      )}
+      {s.currentQuestion?.id != null && (
+        <ReportQuestion gameId={session.gameId} questionId={s.currentQuestion.id} />
       )}
     </div>
   );

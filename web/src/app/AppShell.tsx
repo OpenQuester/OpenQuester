@@ -15,6 +15,7 @@ export function AppShell() {
   const nav = [
     { to: "/", label: t("nav.games"), active: path === "/" },
     { to: "/packages", label: t("nav.packages"), active: path.startsWith("/packages") },
+    { to: "/leaderboard", label: t("nav.leaderboard"), active: path === "/leaderboard" },
     ...(can(me.data, "admin_panel_access")
       ? [{ to: "/admin", label: t("nav.admin"), active: path.startsWith("/admin") }]
       : []),

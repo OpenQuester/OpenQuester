@@ -2444,6 +2444,376 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/stats/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your game stats */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Totals and recent games */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserStats"];
+                    };
+                };
+                /** @description Invalid session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stats/users/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Another player's game stats */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Totals and recent games */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserStats"];
+                    };
+                };
+                /** @description Invalid session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/stats/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Top players
+         * @description Ranked by wins, then total score. Guest, deleted and banned accounts are left out.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    period?: components["schemas"]["LeaderboardPeriod"];
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Leaderboard */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data: components["schemas"]["LeaderboardEntry"][];
+                        };
+                    };
+                };
+                /** @description Invalid session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/games/{gameId}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a question of the game's package
+         * @description Sent to the package author. One open report per question per player.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    gameId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["QuestionReportInput"];
+                };
+            };
+            responses: {
+                /** @description The saved report */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["QuestionReport"];
+                    };
+                };
+                /** @description Invalid session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Game or question not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message?: string;
+                        };
+                    };
+                };
+                /** @description You already reported this question */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message?: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packages/{id}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reports on a package's questions
+         * @description For the package author or a user with edit_package.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Reports */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["QuestionReportList"];
+                    };
+                };
+                /** @description Invalid session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not the author */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packages/{id}/reports/{reportId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Mark a report resolved or open again */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    reportId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        resolved: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description The updated report */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["QuestionReport"];
+                    };
+                };
+                /** @description Invalid session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not the author */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message?: string;
+                        };
+                    };
+                };
+                /** @description Report not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            message?: string;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5156,6 +5526,78 @@ export interface components {
         };
         SocketIOGameJoinModeEventPayload: {
             joinMode: components["schemas"]["GameJoinMode"];
+        };
+        UserRecentGame: {
+            gameId: string;
+            /** Format: date-time */
+            finishedAt: string;
+            finalScore: number;
+            /** @description 1 = won */
+            placement: number | null;
+            totalPlayers: number | null;
+        };
+        /** @description Totals over every finished game the user played in */
+        UserStats: {
+            userId: number;
+            gamesPlayed: number;
+            /** @description Games finished in first place */
+            wins: number;
+            totalScore: number;
+            bestScore: number;
+            questionsAnswered: number;
+            correctAnswers: number;
+            wrongAnswers: number;
+            /** @description Up to 10, latest first */
+            recentGames: components["schemas"]["UserRecentGame"][];
+        };
+        /**
+         * @description month and week cover the last 30 and 7 days
+         * @enum {string}
+         */
+        LeaderboardPeriod: "all" | "month" | "week";
+        LeaderboardEntry: {
+            rank: number;
+            user: {
+                id: number;
+                username: string;
+                /** @description Display name, when set */
+                name: string | null;
+                avatar: string | null;
+            };
+            gamesPlayed: number;
+            wins: number;
+            totalScore: number;
+            correctAnswers: number;
+        };
+        /** @enum {string} */
+        QuestionReportReason: "wrong_answer" | "broken_media" | "offensive" | "other";
+        QuestionReportInput: {
+            questionId: number;
+            reason: components["schemas"]["QuestionReportReason"];
+            comment?: string | null;
+        };
+        QuestionReport: {
+            id: number;
+            packageId: number;
+            questionId: number;
+            /** @description The question's text when it was reported */
+            questionText: string | null;
+            reason: components["schemas"]["QuestionReportReason"];
+            comment: string | null;
+            resolved: boolean;
+            reporter: {
+                id: number;
+                username: string;
+            } | null;
+            gameId: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        QuestionReportList: {
+            /** @description Open reports first, newest first; up to 200 */
+            data: components["schemas"]["QuestionReport"][];
+            /** @description How many reports are still open */
+            open: number;
         };
     };
     responses: never;

@@ -12,6 +12,7 @@ import { BackIcon, EditIcon, TrashIcon, UploadIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 
 import { StorageMeter } from "@/features/storage/StorageMeter";
+import { PackageReports } from "@/features/stats/PackageReports";
 
 import { useDeletePackage, useOpenInEditor } from "./packageActions";
 import { NO_FILTERS, PAGE_SIZE, usePackages, type PackageCard } from "./usePackages";
@@ -164,6 +165,7 @@ function MyPackageRow({ pkg }: { pkg: PackageCard }) {
         >
           {opening ? t("myPackages.opening") : t("myPackages.edit")}
         </Button>
+        <PackageReports packageId={pkg.id} title={pkg.title} />
         {confirm ? (
           <>
             <Button
