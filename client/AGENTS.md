@@ -11,7 +11,8 @@ Main areas:
 - `apps/client/` — main OpenQuester Flutter app.
 - `packages/openapi/` — generated Dart API/Socket contract package from `openapi/schema.json`.
 - `packages/siq_file/` — SIQ parsing/import support.
-- `packages/oq_editor/` — package editor UI/controller utilities.
+- `apps/client/lib/src/features/package_editor/` — package editor UI,
+  controller, validation, and import/export workflow.
 - `packages/oq_compress/` — package media encoding/compression pipeline.
 - `packages/oq_shared/` — shared client-side utilities/models.
 
@@ -113,7 +114,7 @@ The editor is a strategic product surface, not just a JSON form. For editor/impo
 
 Preserve these concepts:
 
-- local package editing through `OqEditorController`
+- local package editing through the app-owned `PackageEditorController`
 - `.oq` import/export through archive helpers
 - `.siq` import through `siq_file` + `SiqImportHelper`
 - media references by hash

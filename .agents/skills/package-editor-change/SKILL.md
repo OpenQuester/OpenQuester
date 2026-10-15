@@ -21,12 +21,12 @@ Before frontend/editor code changes, use Context7 for current Flutter/Dart docs 
 
 ## Files to inspect
 
-- `client/packages/oq_editor/lib/controllers/oq_editor_controller.dart`
-- `client/packages/oq_editor/lib/utils/siq_import_helper.dart`
-- `client/packages/oq_editor/lib/utils/oq_package_archiver.dart`
-- `client/packages/oq_editor/lib/utils/media_file_encoder.dart`
-- `client/packages/oq_editor/lib/models/**`
-- `client/packages/oq_editor/lib/view/**`
+- `client/apps/client/lib/src/features/package_editor/controllers/**`
+- `client/apps/client/lib/src/features/package_editor/data/**`
+- `client/apps/client/lib/src/features/package_editor/services/**`
+- `client/apps/client/lib/src/features/package_editor/package_editor_screen.dart`
+- `client/apps/client/lib/src/core/services/package_service.dart`
+- `client/apps/client/lib/workers/package_service.dart`
 - `client/packages/siq_file/lib/**`
 - `client/packages/oq_compress/lib/**`
 - `client/apps/client/lib/src/features/package_editor/**`
@@ -49,7 +49,8 @@ Every validation/import/export change should answer:
 ## Implementation steps
 
 1. Identify whether change affects editor state, import/export, validation, media, or backend contract.
-2. Inspect existing `OqEditorController` flow before adding parallel state.
+2. Inspect the existing `PackageEditorController` flow before adding parallel
+   state.
 3. Preserve media reference-by-hash behavior.
 4. Preserve compression/encoding progress behavior.
 5. For SIQ import, classify compatibility status in `docs/specs/siq-compatibility-matrix.md`.

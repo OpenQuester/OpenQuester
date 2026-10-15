@@ -108,7 +108,8 @@ If the import report becomes part of backend API or saved package metadata, upda
 When changing SIQ import:
 
 1. Inspect `client/packages/siq_file/` parser behavior.
-2. Inspect `client/packages/oq_editor/lib/utils/siq_import_helper.dart` conversion behavior.
+2. Inspect `client/apps/client/lib/src/core/services/package_service.dart` and
+   `client/apps/client/lib/workers/package_service.dart` conversion behavior.
 3. Decide compatibility status for the changed feature.
 4. Update this matrix.
 5. Add/adjust report or validation behavior if user-facing risk changes.

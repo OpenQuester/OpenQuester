@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:openquester/common_imports.dart';
-import 'package:oq_editor/router/router.dart';
 
 @AutoRouterConfig(
   deferredLoading: true,
@@ -30,11 +29,7 @@ class AppRouter extends RootStackRouter {
       ),
       AutoRoute(page: GameLobbyRoute.page, path: '/games/:gameId'),
       AutoRoute(page: ClickerRoute.page, path: '/clicker'),
-      AutoRoute(
-        page: PackageEditorRoute.page,
-        path: '/editor',
-        children: OqEditorRouter.editorRoutes(),
-      ),
+      AutoRoute(page: PackageEditorRoute.page, path: '/editor'),
       AutoRoute(page: AdminDashboardRoute.page, path: '/admin'),
     ];
   }

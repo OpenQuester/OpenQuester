@@ -1,11 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
-import 'package:oq_editor/models/media_file_reference.dart';
-import 'package:oq_editor/view/widgets/media_preview_widget.dart';
 
-typedef MediaReferenceProvider = MediaFileReference Function(String url);
+typedef MediaReferenceProvider = String Function(String url);
 
 @RoutePage(deferredLoading: false)
 class PackageDetailDialog extends StatefulWidget {
@@ -19,7 +15,6 @@ class PackageDetailDialog extends StatefulWidget {
 
 class _PackageDetailDialogState extends State<PackageDetailDialog> {
   late final Future<OqPackage> _packageFuture;
-  final _mediaReferences = <String, MediaFileReference>{};
 
   @override
   void initState() {
@@ -27,23 +22,7 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
     _packageFuture = Api.I.api.packages.getV1PackagesId(id: widget.packageId);
   }
 
-  @override
-  void dispose() {
-    for (final ref in _mediaReferences.values) {
-      unawaited(ref.disposeController());
-    }
-    super.dispose();
-  }
-
-  MediaFileReference _getMediaReference(String url) {
-    return _mediaReferences.putIfAbsent(
-      url,
-      () => MediaFileReference(
-        platformFile: PlatformFile(name: 'remote', size: 0),
-        url: url,
-      ),
-    );
-  }
+  String _getMediaReference(String url) => url;
 
   @override
   Widget build(BuildContext context) {
@@ -589,7 +568,7 @@ class _PackageQuestionItem extends StatelessWidget {
               children: questionFiles!
                   .map(
                     (file) => MediaPreviewWidget(
-                      mediaFile: mediaProvider(file.file.link ?? ''),
+                      url: mediaProvider(file.file.link ?? ''),
                       type: file.file.type,
                       size: mediaSize,
                       enablePlayback: true,
@@ -653,7 +632,7 @@ class _PackageQuestionItem extends StatelessWidget {
                           children: answerFiles!
                               .map(
                                 (file) => MediaPreviewWidget(
-                                  mediaFile: mediaProvider(
+                                  url: mediaProvider(
                                     file.file.link ?? '',
                                   ),
                                   type: file.file.type,
