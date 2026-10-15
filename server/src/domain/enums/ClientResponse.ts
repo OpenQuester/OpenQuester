@@ -150,6 +150,10 @@ export enum ClientResponse {
   STORAGE_FULL = "storage_full",
   STORAGE_SIGN_IN_TO_UPLOAD = "storage_sign_in_to_upload",
 
+  // Question reports
+  QUESTION_REPORT_ALREADY_SENT = "question_report_already_sent",
+  QUESTION_REPORT_NOT_FOUND = "question_report_not_found",
+
   // Other
   DELETE_REQUEST_SENT = "delete_request_sent"
 }

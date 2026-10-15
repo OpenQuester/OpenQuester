@@ -122,5 +122,7 @@
   "storage_package_too_large": "This package's media is %size; the limit for one package is %limit.",
   "storage_quota_exceeded": "This would bring your storage to %size; your limit is %limit. Delete packages you no longer need or ask an admin for more space.",
   "storage_full": "Storage is full right now, so uploads are paused. Games keep working; please try again later.",
-  "storage_sign_in_to_upload": "Sign in to upload files."
+  "storage_sign_in_to_upload": "Sign in to upload files.",
+  "question_report_already_sent": "You already reported this question. The author will see it.",
+  "question_report_not_found": "Report not found"
 }

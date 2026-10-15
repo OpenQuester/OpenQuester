@@ -2518,6 +2518,386 @@
           }
         }
       }
+    },
+    "/v1/stats/me": {
+      "get": {
+        "summary": "Your game stats",
+        "tags": ["Stats"],
+        "responses": {
+          "200": {
+            "description": "Totals and recent games",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stats/users/{id}": {
+      "get": {
+        "summary": "Another player's game stats",
+        "tags": ["Stats"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Totals and recent games",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stats/leaderboard": {
+      "get": {
+        "summary": "Top players",
+        "description": "Ranked by wins, then total score. Guest, deleted and banned accounts are left out.",
+        "tags": ["Stats"],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LeaderboardPeriod"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Leaderboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LeaderboardEntry"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/games/{gameId}/reports": {
+      "post": {
+        "summary": "Report a question of the game's package",
+        "description": "Sent to the package author. One open report per question per player.",
+        "tags": ["Games"],
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionReportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or question not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "You already reported this question",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packages/{id}/reports": {
+      "get": {
+        "summary": "Reports on a package's questions",
+        "description": "For the package author or a user with edit_package.",
+        "tags": ["Packages"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reports",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionReportList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packages/{id}/reports/{reportId}": {
+      "patch": {
+        "summary": "Mark a report resolved or open again",
+        "tags": ["Packages"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["resolved"],
+                "properties": {
+                  "resolved": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Report not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7808,6 +8188,227 @@
           }
         },
         "required": ["joinMode"]
+      },
+      "UserRecentGame": {
+        "type": "object",
+        "required": [
+          "gameId",
+          "finishedAt",
+          "finalScore",
+          "placement",
+          "totalPlayers"
+        ],
+        "properties": {
+          "gameId": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finalScore": {
+            "type": "integer"
+          },
+          "placement": {
+            "type": ["integer", "null"],
+            "description": "1 = won"
+          },
+          "totalPlayers": {
+            "type": ["integer", "null"]
+          }
+        }
+      },
+      "UserStats": {
+        "type": "object",
+        "description": "Totals over every finished game the user played in",
+        "required": [
+          "userId",
+          "gamesPlayed",
+          "wins",
+          "totalScore",
+          "bestScore",
+          "questionsAnswered",
+          "correctAnswers",
+          "wrongAnswers",
+          "recentGames"
+        ],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "gamesPlayed": {
+            "type": "integer"
+          },
+          "wins": {
+            "type": "integer",
+            "description": "Games finished in first place"
+          },
+          "totalScore": {
+            "type": "integer"
+          },
+          "bestScore": {
+            "type": "integer"
+          },
+          "questionsAnswered": {
+            "type": "integer"
+          },
+          "correctAnswers": {
+            "type": "integer"
+          },
+          "wrongAnswers": {
+            "type": "integer"
+          },
+          "recentGames": {
+            "type": "array",
+            "description": "Up to 10, latest first",
+            "items": {
+              "$ref": "#/components/schemas/UserRecentGame"
+            }
+          }
+        }
+      },
+      "LeaderboardPeriod": {
+        "type": "string",
+        "enum": ["all", "month", "week"],
+        "description": "month and week cover the last 30 and 7 days"
+      },
+      "LeaderboardEntry": {
+        "type": "object",
+        "required": [
+          "rank",
+          "user",
+          "gamesPlayed",
+          "wins",
+          "totalScore",
+          "correctAnswers"
+        ],
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "user": {
+            "type": "object",
+            "required": ["id", "username", "avatar"],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "username": {
+                "type": "string"
+              },
+              "avatar": {
+                "type": ["string", "null"]
+              }
+            }
+          },
+          "gamesPlayed": {
+            "type": "integer"
+          },
+          "wins": {
+            "type": "integer"
+          },
+          "totalScore": {
+            "type": "integer"
+          },
+          "correctAnswers": {
+            "type": "integer"
+          }
+        }
+      },
+      "QuestionReportReason": {
+        "type": "string",
+        "enum": ["wrong_answer", "broken_media", "offensive", "other"]
+      },
+      "QuestionReportInput": {
+        "type": "object",
+        "required": ["questionId", "reason"],
+        "properties": {
+          "questionId": {
+            "type": "integer"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/QuestionReportReason"
+          },
+          "comment": {
+            "type": ["string", "null"],
+            "maxLength": 500
+          }
+        }
+      },
+      "QuestionReport": {
+        "type": "object",
+        "required": [
+          "id",
+          "packageId",
+          "questionId",
+          "questionText",
+          "reason",
+          "comment",
+          "resolved",
+          "reporter",
+          "gameId",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "packageId": {
+            "type": "integer"
+          },
+          "questionId": {
+            "type": "integer"
+          },
+          "questionText": {
+            "type": ["string", "null"],
+            "description": "The question's text when it was reported"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/QuestionReportReason"
+          },
+          "comment": {
+            "type": ["string", "null"]
+          },
+          "resolved": {
+            "type": "boolean"
+          },
+          "reporter": {
+            "type": ["object", "null"],
+            "required": ["id", "username"],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "username": {
+                "type": "string"
+              }
+            }
+          },
+          "gameId": {
+            "type": ["string", "null"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "QuestionReportList": {
+        "type": "object",
+        "required": ["data", "open"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "description": "Open reports first, newest first; up to 200",
+            "items": {
+              "$ref": "#/components/schemas/QuestionReport"
+            }
+          },
+          "open": {
+            "type": "integer",
+            "description": "How many reports are still open"
+          }
+        }
       }
     }
   }

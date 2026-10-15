@@ -65,6 +65,8 @@ import { AddManageGamesPermission_0_25_0_1792100000000 as AddManageGamesPermissi
 import { AddStorageLimits_0_26_0_1792200000000 as AddStorageLimits } from "./migrations/0.26.0_AddStorageLimits_1792200000000";
 import { AddPackageCreditsAndAnswers_0_27_0_1792300000000 as AddPackageCreditsAndAnswers } from "./migrations/0.27.0_AddPackageCreditsAndAnswers_1792300000000";
 import { AddAnswerTypes_0_28_0_1792400000000 as AddAnswerTypes } from "./migrations/0.28.0_AddAnswerTypes_1792400000000";
+import { AddQuestionReports_0_29_0_1792500000000 as AddQuestionReports } from "./migrations/0.29.0_AddQuestionReports_1792500000000";
+import { QuestionReport } from "infrastructure/database/models/report/QuestionReport";
 import { StorageLimit } from "infrastructure/database/models/StorageLimit";
 
 function createBootstrapDataSourceLogger(): ILogger {
@@ -167,7 +169,8 @@ export const AppDataSource = new DataSource({
     PackageQuestionChoiceAnswer,
     GameStatistics,
     PlayerGameStats,
-    StorageLimit
+    StorageLimit,
+    QuestionReport
   ],
   migrations: [
     createUserAndFileTables,
@@ -205,7 +208,8 @@ export const AppDataSource = new DataSource({
     AddManageGamesPermission,
     AddStorageLimits,
     AddPackageCreditsAndAnswers,
-    AddAnswerTypes
+    AddAnswerTypes,
+    AddQuestionReports
   ],
   poolSize: env.DB_POOL_SIZE,
   migrationsRun: true,

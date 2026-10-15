@@ -50,6 +50,7 @@ import { DevelopmentRestApiController } from "presentation/controllers/rest/Deve
 import { FileRestApiController } from "presentation/controllers/rest/FileRestApiController";
 import { GameRestApiController } from "presentation/controllers/rest/GameRestApiController";
 import { PackageRestApiController } from "presentation/controllers/rest/PackageRestApiController";
+import { StatsRestApiController } from "presentation/controllers/rest/StatsRestApiController";
 import { StorageRestApiController } from "presentation/controllers/rest/StorageRestApiController";
 import { SwaggerRestApiController } from "presentation/controllers/rest/SwaggerRestApiController";
 import { WebAppController } from "presentation/controllers/rest/WebAppController";
@@ -300,6 +301,7 @@ export class ServeApi {
       deps.adminGameService
     );
     new StorageRestApiController(deps.app, this._context.logger);
+    new StatsRestApiController(deps.app);
     new SwaggerRestApiController(deps.app, this._context.logger);
 
     if (this._context.env.ENV === EnvType.DEV) {
