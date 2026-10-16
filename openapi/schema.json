@@ -653,7 +653,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PackageUploadState"
+                  "$ref": "#/components/schemas/PackageUploadProgress"
                 }
               }
             }
@@ -8556,7 +8556,7 @@
         "enum": ["uploading", "ready"],
         "description": "`uploading` while storage lacks some of the package's media files; such a package can't be picked for a game. `ready` once every file is stored."
       },
-      "PackageUploadState": {
+      "PackageUploadProgress": {
         "type": "object",
         "description": "Where a package's media upload stands. Checking asks storage about every file not confirmed yet and marks the package ready once all are stored.",
         "properties": {

@@ -44,7 +44,7 @@ export interface UploadProgress {
 }
 
 /** GET /v1/packages/{id}/upload: which files storage still lacks. */
-export type UploadState = components["schemas"]["PackageUploadState"];
+export type UploadState = components["schemas"]["PackageUploadProgress"];
 
 export interface UploadResult {
   id: number;

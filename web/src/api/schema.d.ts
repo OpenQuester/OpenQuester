@@ -453,7 +453,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["PackageUploadState"];
+                        "application/json": components["schemas"]["PackageUploadProgress"];
                     };
                 };
                 /** @description Invalid session */
@@ -5701,7 +5701,7 @@ export interface components {
          */
         PackageUploadStatus: "uploading" | "ready";
         /** @description Where a package's media upload stands. Checking asks storage about every file not confirmed yet and marks the package ready once all are stored. */
-        PackageUploadState: {
+        PackageUploadProgress: {
             id: number;
             status: components["schemas"]["PackageUploadStatus"];
             /** @description Distinct media files the package uses */
