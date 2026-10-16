@@ -251,7 +251,9 @@ test.describe("full game", () => {
 
     // ── Results ────────────────────────────────────────────────────────────
     await expectPhase(all, "Game over");
-    await expect(sam.page.getByTestId("podium")).toContainText("Alice wins!");
+    // Everyone sees the results, players as well as the showman and spectators
+    for (const p of everyone)
+      await expect(p.page.getByTestId("podium")).toContainText("Alice wins!");
     await shot(sam.page, "18-results-desktop");
     await shot(alice.page, "18-results-phone");
     await expect(dockStatus(alice.page)).toHaveText("You finished #1");

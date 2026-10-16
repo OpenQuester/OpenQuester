@@ -56,7 +56,8 @@ export async function hostGame(
 ): Promise<string> {
   await page.goto(`/games/new?packageId=${options.packageId ?? packageId()}`);
   await page.getByLabel("Game name").fill(title);
-  if (options.maxPlayers) await page.getByLabel("Players").selectOption(String(options.maxPlayers));
+  if (options.maxPlayers)
+    await page.getByLabel("Players", { exact: true }).selectOption(String(options.maxPlayers));
   if (options.falseStarts === false) await page.getByLabel("False starts").uncheck();
   await page.getByRole("button", { name: "Create & open lobby" }).click();
   await expect(page).toHaveURL(/\/games\/[A-Z0-9]+$/);
