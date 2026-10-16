@@ -5,7 +5,14 @@ import { safeStorage } from "@/lib/storage";
 import { reduce, sessionFromSnapshot, type GameSession } from "./reducer";
 import type { ServerEvent } from "./protocol";
 
-export type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "failed";
+export type ConnectionStatus =
+  | "idle"
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "failed"
+  /** This account opened the game somewhere else, which took over the seat. */
+  | "replaced";
 
 export interface GameToast {
   id: number;

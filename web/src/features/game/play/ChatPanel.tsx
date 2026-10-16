@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ChatSystemEntry } from "@/game/protocol";
 import { findPlayer } from "@/game/selectors";
+import { formatScore, formatSigned } from "@/lib/format";
 import { Button } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
 import { TextInput } from "@/ui/Field";
@@ -38,6 +40,20 @@ export function ChatBody() {
       >
         {session.chat.length === 0 && <p className="m-0 text-muted">{t("chat.empty")}</p>}
         {session.chat.map((m) => {
+          if (m.system) {
+            return (
+              <p
+                key={m.uuid}
+                className="m-0 self-center rounded-full border border-accent-line/50 px-3 py-1 text-center text-sm text-soft [overflow-wrap:anywhere]"
+                data-testid="chat-log"
+                data-action={m.system.action}
+              >
+                <span className="font-semibold text-accent-strong">{t("roles.showman")}</span>
+                {" · "}
+                {logLine(t, m.system, m.message)}
+              </p>
+            );
+          }
           const author = findPlayer(session, m.user);
           const isShowman = author?.role === "showman";
           return (
@@ -85,6 +101,75 @@ export function ChatBody() {
       </form>
     </div>
   );
+}
+
+type T = (key: string, options?: Record<string, unknown>) => string;
+
+/** A showman action from the log, in the reader's language. */
+function logLine(t: T, entry: ChatSystemEntry, fallback: string): string {
+  const p = entry.params;
+  const player = typeof p.player === "string" && p.player ? p.player : t("chat.someone");
+  const num = (v: unknown) => (typeof v === "number" ? v : 0);
+  switch (entry.action) {
+    case "start":
+      return t("chat.log.start");
+    case "pause":
+      return t("chat.log.pause");
+    case "unpause":
+      return t("chat.log.unpause");
+    case "skip-question-force":
+      return t("chat.log.reveal");
+    case "buzzer-open":
+      return t("chat.log.buzzerOpen");
+    case "next-round":
+      return p.round ? t("chat.log.nextRoundNamed", { round: p.round }) : t("chat.log.nextRound");
+    case "question-pick":
+      return t("chat.log.pick", { theme: p.theme, price: formatScore(num(p.price)) });
+    case "question-toggle":
+      return t(p.removed ? "chat.log.toggleRemoved" : "chat.log.toggleRestored", {
+        theme: p.theme,
+        price: formatScore(num(p.price)),
+      });
+    case "answer-result":
+      return t(p.answerType === "correct" ? "chat.log.answerRight" : "chat.log.answerWrong", {
+        player,
+        points: formatSigned(num(p.points)),
+      });
+    case "answer-result-undo":
+      return t("chat.log.undo", { player, points: formatSigned(num(p.points)) });
+    case "game-join-mode":
+      return t("chat.log.joinMode", { mode: t(`menu.joinModes.${String(p.joinMode)}`) });
+    case "player-kick":
+      return t("chat.log.kick", { player });
+    case "player-restriction":
+      return t(
+        p.banned
+          ? "chat.log.restrictBanned"
+          : p.restricted
+            ? "chat.log.restrictRestricted"
+            : p.muted
+              ? "chat.log.restrictMuted"
+              : "chat.log.restrictCleared",
+        { player },
+      );
+    case "player-role-change":
+      return t("chat.log.role", { player, role: t(`roles.${String(p.role)}`) });
+    case "player-score-change":
+      return t("chat.log.score", { player, score: formatScore(num(p.score)) });
+    case "player-slot-change":
+      return t("chat.log.slot", { player, slot: num(p.slot) });
+    case "turn-player-change":
+      return p.player ? t("chat.log.turn", { player }) : t("chat.log.turnNone");
+    case "secret-question-transfer":
+      return t("chat.log.secret", { player });
+    case "all-play-review":
+    case "final-answer-review":
+      return t(p.correct ? "chat.log.reviewRight" : "chat.log.reviewWrong", { player });
+    case "theme-eliminate":
+      return t("chat.log.theme", { theme: p.theme ?? "" });
+    default:
+      return fallback;
+  }
 }
 
 /** Chat in a sheet, for screens without a side panel column (the lobby). */

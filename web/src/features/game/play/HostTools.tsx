@@ -9,6 +9,7 @@ import { Label, Select } from "@/ui/Field";
 import { DeleteGameButton } from "../DeleteGameButton";
 import { useGame, useSession } from "../GameContext";
 import { PlayersBody } from "./PlayersPanel";
+import { SkipRoundButton } from "./SkipRoundButton";
 
 /**
  * Showman tools: game controls and player management in one place, so a
@@ -83,9 +84,7 @@ export function HostTools({
               {boardEdit ? t("menu.boardEditDone") : t("menu.boardEdit")}
             </Button>
           )}
-          <Button size="sm" onClick={() => connection.emit("next-round")}>
-            {t("menu.nextRound")}
-          </Button>
+          <SkipRoundButton size="sm" label={t("menu.nextRound")} />
         </section>
       )}
       {phase !== "finished" && (

@@ -161,6 +161,45 @@ describe("reducer: regular question", () => {
     expect(s.state.currentQuestion?.id).toBe(101);
   });
 
+  it("keeps the question paused when it is re-sent while someone answers", () => {
+    // Reloading mid-answer: the snapshot knows the question is frozen. The
+    // re-sent question-data carries the answer timer, which must not restart
+    // the media from the top.
+    const plan = {
+      steps: [{ startMs: 0, durationMs: 10_000, items: [] }],
+      totalMs: 10_000,
+    };
+    let s = session({
+      currentRound: round(),
+      questionState: "answering",
+      answeringPlayer: BOB,
+      currentQuestion: question(101),
+      questionContentPlan: plan,
+      timer: timer(),
+    });
+    expect(s.content?.timer).toBeNull();
+    s = reduce(s, {
+      type: "question-data",
+      payload: { data: question(101), timer: timer(), contentPlan: plan },
+    });
+    expect(phaseOf(s)).toBe("answering");
+    expect(s.content?.kind).toBe("question");
+    expect(s.content?.timer).toBeNull();
+  });
+
+  it("opens the buzzer early when the showman says so", () => {
+    let s = session({
+      currentRound: round(),
+      questionState: "showing",
+      timer: timer(),
+      buzzerOpensAtMs: 8_000,
+      buzzerLocks: { [String(ALICE)]: Date.now() + 3000 },
+    });
+    s = reduce(s, { type: "buzzer-open", payload: { buzzerOpensAtMs: 1200 } });
+    expect(s.state.buzzerOpensAtMs).toBe(1200);
+    expect(s.state.buzzerLocks).toBeNull();
+  });
+
   it("goes straight to showing for a special question with no auction or transfer", () => {
     const s = reduce(choosing(), {
       type: "question-data",

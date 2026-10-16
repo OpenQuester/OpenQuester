@@ -89,6 +89,7 @@ function ConnectedGame({
   const session = useGameStore((s) => s.session);
   const joinError = useGameStore((s) => s.joinError);
   const left = useGameStore((s) => s.left);
+  const replaced = useGameStore((s) => s.connection === "replaced");
 
   useEffect(() => {
     connection.connect();
@@ -128,14 +129,58 @@ function ConnectedGame({
     );
   }
 
+  const takenOver = replaced && <TakenOver onTakeOver={() => connection.takeOver()} />;
+
   if (!session) {
-    return <PageLoader label={t("game.joining")} />;
+    return (
+      <>
+        <PageLoader label={t("game.joining")} />
+        {takenOver}
+      </>
+    );
   }
 
   return (
     <GameContext.Provider value={value}>
       {isStarted(session) ? <GameScreen /> : <LobbyScreen />}
       <Toasts />
+      {takenOver}
     </GameContext.Provider>
+  );
+}
+
+/**
+ * The same account opened this game in another tab or on another device,
+ * which took the seat. Nothing reconnects by itself (that would take the seat
+ * back and start a tug of war); one tap brings the game back here.
+ */
+function TakenOver({ onTakeOver }: { onTakeOver: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-scrim/80 p-4"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="taken-over-title"
+      aria-describedby="taken-over-help"
+      data-testid="taken-over"
+    >
+      <div className="flex w-full max-w-[460px] flex-col gap-4 rounded-lg border border-line-strong bg-surface p-6 shadow-2xl">
+        <h2 id="taken-over-title" className="m-0 font-display text-2xl font-extrabold">
+          {t("game.takenOver")}
+        </h2>
+        <p id="taken-over-help" className="m-0 text-soft">
+          {t("game.takenOverHelp")}
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Button variant="accent" size="lg" onClick={onTakeOver} autoFocus data-testid="take-over">
+            {t("game.takeOver")}
+          </Button>
+          <Link to="/" className="inline-flex min-h-14 items-center px-2">
+            {t("game.backHome")}
+          </Link>
+        </div>
+      </div>
+    </div>
   );
 }

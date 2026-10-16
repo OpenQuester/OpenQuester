@@ -191,3 +191,9 @@ export const PinIcon = (p: { size?: number }) => (
     <path d="M12 17v5M9 3h6l-1 6 4 4H6l4-4z" />
   </Icon>
 );
+export const ReplayIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M3 12a9 9 0 1 0 3-6.7" />
+    <path d="M3 4v5h5" />
+  </Icon>
+);

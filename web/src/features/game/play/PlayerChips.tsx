@@ -41,7 +41,9 @@ export function PlayerChips({ onManage }: { onManage?: (playerId: number) => voi
         {host && (
           <li className="flex shrink-0 items-center gap-2 rounded-full border border-accent-line/60 bg-surface py-1 pl-1 pr-3 text-sm">
             <Avatar name={host.meta.username} src={host.meta.avatar} size={28} />
-            <span className="max-w-[12ch] truncate">{host.meta.username}</span>
+            <span className="max-w-[18ch] truncate sm:max-w-[24ch]" title={host.meta.username}>
+              {host.meta.username}
+            </span>
             <span className="text-xs font-semibold text-accent-strong">{t("roles.showman")}</span>
           </li>
         )}
@@ -56,10 +58,11 @@ export function PlayerChips({ onManage }: { onManage?: (playerId: number) => voi
                 size={28}
                 muted={p.status !== "in-game"}
               />
-              <span className="max-w-[12ch] truncate">
+              {/* "(you)" sits outside the name so a long name never hides it */}
+              <span className="max-w-[18ch] truncate sm:max-w-[24ch]" title={p.meta.username}>
                 {p.meta.username}
-                {isMe && <span className="text-muted"> ({t("common.you")})</span>}
               </span>
+              {isMe && <span className="-ml-1 shrink-0 text-muted">({t("common.you")})</span>}
               <b className="font-mono" data-testid="chip-score">
                 {formatScore(p.score)}
               </b>

@@ -190,6 +190,7 @@ function GameCard({ game }: { game: GameListItem }) {
   const { t } = useTranslation();
   const status: GameStatus = gameStatus(game);
   const full = playerCount(game) >= game.maxPlayers;
+  const canPlay = !full && status !== "finished";
   return (
     <li
       className="flex flex-col gap-3.5 rounded-[18px] border border-line bg-surface p-5"
@@ -228,9 +229,9 @@ function GameCard({ game }: { game: GameListItem }) {
         to="/games/$gameId"
         params={{ gameId: game.id }}
         className="mt-auto flex min-h-11 items-center justify-center rounded-[12px] border border-line-strong font-semibold text-text no-underline hover:bg-surface-2 hover:text-text"
-        aria-label={`${status === "lobby" && !full ? t("home.join") : t("home.watch")}: ${game.title}`}
+        aria-label={`${canPlay ? t("home.join") : t("home.watch")}: ${game.title}`}
       >
-        {status === "lobby" && !full ? t("home.join") : t("home.watch")}
+        {canPlay ? t("home.join") : t("home.watch")}
       </Link>
     </li>
   );

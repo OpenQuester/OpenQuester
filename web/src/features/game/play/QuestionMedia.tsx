@@ -5,7 +5,7 @@ import { useSettings } from "@/features/settings/settingsStore";
 import type { QuestionFile } from "@/game/protocol";
 import { cn } from "@/lib/cn";
 import { Spinner } from "@/ui/Spinner";
-import { VolumeIcon } from "@/ui/icons";
+import { ReplayIcon, VolumeIcon } from "@/ui/icons";
 
 /**
  * Every file of a question at once, in order. Only the showman's preview uses
@@ -139,6 +139,8 @@ function Playback({
   // Browsers block sound until the page has been tapped once. Then we play
   // muted, in sync with everyone, and offer one tap to turn the sound on.
   const [blocked, setBlocked] = useState(false);
+  // Played to the end: offer to hear (or see) it again, on this device only.
+  const [ended, setEnded] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -166,6 +168,14 @@ function Playback({
     });
   }, [playing, volume]);
 
+  function replay() {
+    const el = ref.current;
+    if (!el) return;
+    el.currentTime = 0;
+    setEnded(false);
+    void el.play().catch(() => undefined);
+  }
+
   function enableSound() {
     const el = ref.current;
     if (!el) return;
@@ -180,6 +190,8 @@ function Playback({
     onCanPlay: onLoaded,
     onLoadedData: onLoaded,
     onError: onFailed,
+    onEnded: () => setEnded(true),
+    onPlay: () => setEnded(false),
     "data-testid": `media-${type}`,
   };
 
@@ -206,13 +218,17 @@ function Playback({
           <span
             className={cn(
               "inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent-surface text-accent",
-              playing && loaded && "animate-pulse",
+              playing && loaded && !ended && "animate-pulse",
             )}
           >
             <VolumeIcon size={26} />
           </span>
           <span className="font-semibold">
-            {playing ? t("question.audioPlaying") : t("question.audioWaiting")}
+            {ended
+              ? t("question.audioEnded")
+              : playing
+                ? t("question.audioPlaying")
+                : t("question.audioWaiting")}
           </span>
           <audio
             ref={(el) => {
@@ -224,7 +240,18 @@ function Playback({
           {loading}
         </div>
       )}
-      <div className="flex items-center justify-center gap-3">
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        {ended && (
+          <button
+            type="button"
+            onClick={replay}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-line-strong px-4 font-semibold text-text hover:bg-surface-2"
+            data-testid="media-replay"
+          >
+            <ReplayIcon size={18} />
+            {t("question.replay")}
+          </button>
+        )}
         {blocked ? (
           <button
             type="button"

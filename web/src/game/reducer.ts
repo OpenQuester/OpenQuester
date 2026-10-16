@@ -78,7 +78,10 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
     settings: data.meta.settings ?? null,
     players: data.players,
     state,
-    chat: data.chatMessages ?? [],
+    // The server sends the history newest first; the chat reads top to bottom.
+    chat: [...(data.chatMessages ?? [])].sort(
+      (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
+    ),
     finished: false,
     submittedAnswer: null,
     lastResult: null,
@@ -296,7 +299,7 @@ function onQuestionData(
       allPlay: s.allPlay?.questionId === data.id ? s.allPlay : null,
     }),
     submittedAnswer: newPick ? null : session.submittedAnswer,
-    content: questionContent(session, questionState, data, timer, sentPlan),
+    content: questionContent(session, questionState, data, timer, sentPlan, newPick),
     players:
       newPick && questionState === "media_downloading"
         ? session.players.map((p) => ({ ...p, mediaDownloaded: false }))
@@ -310,13 +313,23 @@ function questionContent(
   question: Question,
   timer: Timer,
   sentPlan: ContentPlan | null | undefined,
+  newPick: boolean,
 ): ContentClock | null {
   // Preloading: the plan and its timer arrive with media-download-status.
   if (questionState === "media_downloading") return null;
-  // Re-sent after a (re)join: keep the snapshot's clock unless a plan came along.
-  if (session.content?.kind === "question" && sentPlan === undefined) return session.content;
+  // Re-sent after a (re)join: the snapshot already placed the timeline (or
+  // knows it is frozen while someone answers). Starting it again from this
+  // event's timer would replay the media from the top.
+  if (!newPick && session.content?.kind === "question") {
+    return sentPlan ? { ...session.content, plan: sentPlan } : session.content;
+  }
   const plan = questionPlan(question, sentPlan);
-  return plan ? { kind: "question", plan, timer, frozenAtMs: null } : null;
+  if (!plan) return null;
+  // While someone answers, this event carries the answer timer, not the
+  // question's: the position is unknown until the question resumes.
+  const running =
+    newPick || questionState === "showing" || isDirectAnswer({ ...session.state, questionState });
+  return { kind: "question", plan, timer: running ? timer : null, frozenAtMs: null };
 }
 
 /** Applies one server event. Pure: never mutates `session`. */
@@ -450,6 +463,13 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         event.payload.contentPlan,
         event.payload.buzzerOpensAtMs,
       );
+
+    case "buzzer-open":
+      // The showman opened the buzzer early; any false-start lock is lifted.
+      return patchState(session, {
+        buzzerOpensAtMs: event.payload.buzzerOpensAtMs,
+        buzzerLocks: null,
+      });
 
     case "buzzer-false-start": {
       const { playerId, lockMs } = event.payload;

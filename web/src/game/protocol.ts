@@ -306,11 +306,19 @@ export interface GameState {
   questionEligiblePlayers?: number[] | null;
 }
 
+/** A line the server wrote itself: the showman action log. */
+export interface ChatSystemEntry {
+  /** The logged action, e.g. "answer-result" or "player-kick". */
+  action: string;
+  params: Record<string, string | number | boolean | null>;
+}
+
 export interface ChatMessage {
   uuid: string;
   timestamp: string;
   user: number;
   message: string;
+  system?: ChatSystemEntry;
 }
 
 export interface GameJoinData {
@@ -366,6 +374,7 @@ export interface ServerEvents {
   "question-answer": { userId: number; timer: Timer };
   /** Someone pressed before the buzzer opened and is locked out for `lockMs`. */
   "buzzer-false-start": { playerId: number; lockMs: number };
+  "buzzer-open": { buzzerOpensAtMs: number };
   "answer-submitted": { answerText: string | null };
   "answer-result": { answerResult: AnsweredPlayer; timer: Timer | null };
   "question-finish": AnswerShowData;
@@ -492,6 +501,7 @@ export interface ClientEvents {
   "secret-question-price": { price: number };
   "question-toggle": { questionId: number };
   "answer-result-undo": undefined;
+  "buzzer-open": undefined;
   "game-join-mode": { joinMode: GameJoinMode };
   "all-play-stake": { amount: number };
   "all-play-answer": { answerText: string };
@@ -525,6 +535,7 @@ export const SERVER_EVENT_NAMES: ServerEventName[] = [
   "question-data",
   "question-answer",
   "buzzer-false-start",
+  "buzzer-open",
   "answer-submitted",
   "answer-result",
   "question-finish",

@@ -238,7 +238,7 @@
     "asPlayer": "Join as player",
     "watch": "Spectate",
     "lobbyHelp": "Players buzz and score. Spectators watch everything but can't answer.",
-    "playingHelp": "The game already started. You can watch now; the showman can seat you if a slot is free.",
+    "playingHelp": "The game is in progress. Take a free seat and play from the next question, or watch.",
     "fullHelp": "All seats are taken. You can watch and take a seat if one frees up."
   },
   "game": {
@@ -263,7 +263,10 @@
     "deleteYes": "Yes, delete",
     "deleteNo": "Cancel",
     "roundEndsIn": "Round ends in {{time}}",
-    "roundTimeUp": "Last question of the round"
+    "roundTimeUp": "Last question of the round",
+    "takenOver": "Opened somewhere else",
+    "takenOverHelp": "Your account joined this game in another tab or on another device, so this one stopped. Your seat and score are safe.",
+    "takeOver": "Play here"
   },
   "lobby": {
     "leave": "Leave lobby",
@@ -329,7 +332,37 @@
     "send": "Send",
     "someone": "Someone",
     "unread_one": "{{count}} unread message",
-    "unread_other": "{{count}} unread messages"
+    "unread_other": "{{count}} unread messages",
+    "log": {
+      "start": "started the game",
+      "pause": "paused the game",
+      "unpause": "resumed the game",
+      "reveal": "revealed the answer",
+      "buzzerOpen": "opened the buzzer early",
+      "nextRound": "skipped to the next round",
+      "nextRoundNamed": "skipped to the next round: {{round}}",
+      "pick": "picked {{theme}} for {{price}}",
+      "toggleRemoved": "removed {{theme}} for {{price}} from the board",
+      "toggleRestored": "put {{theme}} for {{price}} back on the board",
+      "answerRight": "judged {{player}} right ({{points}})",
+      "answerWrong": "judged {{player}} wrong ({{points}})",
+      "undo": "took back the ruling on {{player}} ({{points}})",
+      "joinMode": "set who can join: {{mode}}",
+      "kick": "removed {{player}} from the game",
+      "restrictBanned": "banned {{player}}",
+      "restrictRestricted": "made {{player}} a spectator only",
+      "restrictMuted": "muted {{player}}",
+      "restrictCleared": "lifted the restrictions on {{player}}",
+      "role": "made {{player}} a {{role}}",
+      "score": "set {{player}}'s score to {{score}}",
+      "slot": "moved {{player}} to seat {{slot}}",
+      "turn": "gave the pick to {{player}}",
+      "turnNone": "took the pick",
+      "secret": "gave the question to {{player}}",
+      "reviewRight": "judged {{player}}'s answer right",
+      "reviewWrong": "judged {{player}}'s answer wrong",
+      "theme": "removed the theme {{theme}}"
+    }
   },
   "menu": {
     "title": "Game menu",
@@ -441,7 +474,17 @@
     "enableSound": "Tap to turn the sound on",
     "step": "Part {{current}} of {{total}}",
     "stepsLabel": "Question parts",
-    "recap": "Question: {{text}}"
+    "recap": "Question: {{text}}",
+    "audioEnded": "Finished",
+    "replay": "Play again",
+    "cue": {
+      "open": "The buzzer is open",
+      "soon": "The buzzer opens in a moment",
+      "player": "Know it? Buzz now with the button below or Space.",
+      "showman": "Waiting for a player to buzz. With no buzz, the answer is revealed when time runs out.",
+      "spectator": "Players can buzz now.",
+      "timeLeft": "{{seconds}} s left"
+    }
   },
   "showman": {
     "panel": "Only you can see this",
@@ -516,7 +559,13 @@
   },
   "judge": {
     "correct": "Correct",
-    "wrong": "Wrong"
+    "wrong": "Wrong",
+    "more": "More rulings",
+    "double": "×2 {{points}}",
+    "correctDoubleLabel": "Right, double points: +{{points}}",
+    "wrongDoubleLabel": "Wrong, double penalty: −{{points}}",
+    "correctZero": "Right, 0",
+    "wrongZero": "Wrong, 0"
   },
   "bid": {
     "quick": "Quick bids",
@@ -595,7 +644,10 @@
       "waitButton": "Wait for it…",
       "earlyHint": "Pressing before the buzzer opens locks you out for 3 seconds.",
       "locked": "Too early! You can press again in {{seconds}} s",
-      "nextWindow": "Everyone who presses within a split second of the first has an equal chance. Right: +{{points}}. {{wrong}}."
+      "nextWindow": "Everyone who presses within a split second of the first has an equal chance. Right: +{{points}}. {{wrong}}.",
+      "showmanWait": "The question is playing — the buzzer opens after it",
+      "openBuzzer": "Open buzzer now",
+      "showmanNextEarly": "The buzzer opens when the question finishes. Open it now to let players buzz early."
     },
     "answering": {
       "judge": "{{name}} is answering — judge it",
@@ -1391,5 +1443,12 @@
     "uploadStashed_one": "Upload {{count}} file",
     "uploadStashed_other": "Upload {{count}} files",
     "pickHelp": "Pick the same .siq or .oq file again. Only the media that's missing is uploaded."
+  },
+  "skipRound": {
+    "title": "Skip to the next round?",
+    "help_one": "{{count}} question is still on the board. It won't be played.",
+    "help_other": "{{count}} questions are still on the board. They won't be played.",
+    "helpEmpty": "The next round starts right away.",
+    "confirm": "Skip round"
   }
 }

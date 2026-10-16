@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useSettings, type PanelId } from "@/features/settings/settingsStore";
+import { ReportQuestionDialog } from "@/features/stats/ReportQuestion";
 import { myRole, phaseOf, roundTimeLeft, seatedPlayers } from "@/game/selectors";
 import { formatSeconds } from "@/lib/timer";
 import { cn } from "@/lib/cn";
@@ -276,6 +277,7 @@ export function GameScreen() {
             {body(id)}
           </Dialog>
         ))}
+      <ReportQuestionDialog gameId={session.gameId} />
       <GameMenu
         open={menuOpen}
         onOpenChange={setMenuOpen}

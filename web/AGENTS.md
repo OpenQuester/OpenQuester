@@ -97,6 +97,22 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   server's `contentPlan`; the position is the phase timer's elapsed time
   (`game/contentPlan.ts`, `session.content` in the reducer), frozen while
   someone answers. Players report real audio/video lengths with the ACK.
+  `question-data` re-sent after a rejoin keeps the snapshot's clock: mid-answer
+  the timeline stays frozen instead of replaying from the answer timer. Audio
+  and video that played to the end offer "Play again", on that device only.
+- Showman actions (rulings, score fixes, kicks, pauses, skips, early buzzer...)
+  are logged to the game chat by the server (`ShowmanActionLogLogic`, run from
+  `SocketActionHooks`): a chat line with `system: { action, params }` that the
+  chat shows translated (`chat.log.*`), with an English `message` for other
+  clients. The showman also has ×2 and 0 rulings next to right/wrong, and
+  "Skip round" asks for confirmation.
+- One socket per account: joining from another tab or device makes the server
+  drop the older socket ("io server disconnect"). That page shows "Opened
+  somewhere else" and does not reconnect by itself, which would otherwise take
+  the seat back and loop; "Play here" reconnects it.
+- The game list counts only players with `status: "in-game"`; a leaver keeps
+  their seat for a rejoin but the place shows as free, and players may join a
+  game in progress (the server refuses only in the final round).
 - In-game chat, players and showman tools are side panels at `lg` (1024 px)
   and up, never modals over the game; pins are per device in settings
   (`pins`). Below `lg` they open as sheets. `3xl`/`4xl` breakpoints scale the

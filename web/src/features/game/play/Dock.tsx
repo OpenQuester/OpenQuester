@@ -35,6 +35,7 @@ import { TimerRing } from "@/ui/TimerRing";
 
 import { useGame, useSession } from "../GameContext";
 import { useSecretTarget } from "./secretTarget";
+import { SkipRoundButton } from "./SkipRoundButton";
 import { useBuzzer } from "./useBuzzer";
 
 const RING_COLORS: Partial<Record<Phase, string>> = {
@@ -85,8 +86,8 @@ export function Dock() {
       className="sticky bottom-0 z-30 border-t border-line-strong bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
       data-testid="dock"
     >
-      <div className="mx-auto flex max-w-[1320px] 3xl:max-w-[1760px] 4xl:max-w-[2240px] flex-col gap-3 px-3 py-3 sm:px-6 md:flex-row md:items-center md:gap-6 md:py-4">
-        <div className="flex min-w-0 items-center gap-3.5 md:flex-[1_1_260px]">
+      <div className="mx-auto flex max-w-[1320px] 3xl:max-w-[1760px] 4xl:max-w-[2240px] flex-col gap-3 px-3 py-3 sm:px-6 md:flex-row md:flex-wrap md:items-center md:gap-x-6 md:gap-y-2 md:py-4 lg:flex-nowrap">
+        <div className="flex min-w-0 items-center gap-3.5 md:flex-[1_1_240px]">
           <TimerRing
             fraction={paused || offline ? null : fraction}
             leftMs={left}
@@ -108,14 +109,14 @@ export function Dock() {
               {offline ? t("dock.reconnecting") : paused ? t("dock.paused") : t(`phases.${phase}`)}
             </span>
             <span
-              className="truncate text-[17px] font-semibold 3xl:text-xl"
+              className="text-[17px] font-semibold leading-snug [overflow-wrap:anywhere] 3xl:text-xl"
               data-testid="dock-status"
             >
               {model.status}
             </span>
           </div>
         </div>
-        <div className="flex min-w-0 flex-col items-stretch gap-2 md:flex-[0_1_460px] md:items-center">
+        <div className="flex min-w-0 flex-col items-stretch gap-2 md:flex-[1_1_420px] md:items-center lg:flex-[0_1_480px]">
           {offline ? (
             <Info>{t("dock.offlineInfo")}</Info>
           ) : paused ? (
@@ -125,13 +126,15 @@ export function Dock() {
           )}
         </div>
         {model.next && (
-          <p className="m-0 hidden min-w-0 flex-col gap-0.5 text-sm text-muted md:flex md:flex-[1_1_260px]">
+          <p className="m-0 hidden min-w-0 flex-col gap-0.5 text-sm text-muted lg:flex lg:flex-[1_1_260px]">
             <span className="font-semibold text-text">{t("dock.next")}</span>
             <span>{model.next}</span>
           </p>
         )}
         {model.next && (
-          <p className="m-0 text-[13px] leading-snug text-muted md:hidden">{model.next}</p>
+          <p className="m-0 text-[13px] leading-snug text-muted md:basis-full lg:hidden">
+            {model.next}
+          </p>
         )}
       </div>
     </div>
@@ -201,14 +204,7 @@ function useDockModel(session: GameSession, myId: number): DockModel {
                   ? t("dock.choosing.showmanInfo", { name: name(picker) })
                   : t("dock.choosing.pickAny")}
               </Info>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => connection.emit("next-round")}
-                disabled={sending("next-round")}
-              >
-                {t("dock.choosing.nextRound")}
-              </Button>
+              <SkipRoundButton size="sm" variant="ghost" label={t("dock.choosing.nextRound")} />
             </div>
           ),
           next: t("dock.choosing.next"),
@@ -266,19 +262,33 @@ function useDockModel(session: GameSession, myId: number): DockModel {
         { points: formatScore(value), wrong: wrongPart },
       );
       if (role === "showman") {
+        const early = !buzzer.open;
         return {
-          status: t("dock.showing.showmanStatus"),
+          status: early ? t("dock.showing.showmanWait") : t("dock.showing.showmanStatus"),
           action: (
-            <Button
-              variant="ghost"
-              fullWidth
-              onClick={() => connection.emit("skip-question-force")}
-              disabled={sending("skip-question-force")}
-            >
-              {t("dock.showing.revealAnswer")}
-            </Button>
+            <div className="flex w-full flex-col gap-2 sm:flex-row">
+              {early && (
+                <Button
+                  variant="accent"
+                  className="flex-1"
+                  onClick={() => connection.emit("buzzer-open")}
+                  disabled={sending("buzzer-open")}
+                  data-testid="open-buzzer"
+                >
+                  {t("dock.showing.openBuzzer")}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                className="flex-1"
+                onClick={() => connection.emit("skip-question-force")}
+                disabled={sending("skip-question-force")}
+              >
+                {t("dock.showing.revealAnswer")}
+              </Button>
+            </div>
           ),
-          next: t("dock.showing.showmanNext"),
+          next: early ? t("dock.showing.showmanNextEarly") : t("dock.showing.showmanNext"),
         };
       }
       if (role === "spectator") {
@@ -320,37 +330,40 @@ function useDockModel(session: GameSession, myId: number): DockModel {
       return {
         status: early ? t("dock.showing.wait") : t("dock.showing.open"),
         action: (
-          <div className="flex w-full flex-col items-stretch gap-2 md:flex-row md:items-center">
-            <Button
-              variant={early ? "secondary" : "accent"}
-              size="xl"
-              className={cn("flex-1", !early && "oq-pulse")}
-              onClick={() => connection.emit("question-answer")}
-              disabled={sending("question-answer")}
-              aria-describedby={early ? "buzz-early-hint" : undefined}
-              data-testid="buzz"
-              data-early={early || undefined}
-            >
-              {sending("question-answer")
-                ? t("dock.sending")
-                : early
-                  ? t("dock.showing.waitButton")
-                  : t("dock.showing.buzz")}
-              <kbd className="hidden font-mono text-sm md:inline">{t("keys.space")}</kbd>
-            </Button>
+          <div className="flex w-full flex-col gap-2">
+            <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+              <Button
+                variant={early ? "secondary" : "accent"}
+                size="xl"
+                className={cn("flex-1", !early && "oq-pulse")}
+                onClick={() => connection.emit("question-answer")}
+                disabled={sending("question-answer")}
+                aria-describedby={early ? "buzz-early-hint" : undefined}
+                data-testid="buzz"
+                data-early={early || undefined}
+              >
+                {sending("question-answer")
+                  ? t("dock.sending")
+                  : early
+                    ? t("dock.showing.waitButton")
+                    : t("dock.showing.buzz")}
+                <kbd className="hidden font-mono text-sm md:inline">{t("keys.space")}</kbd>
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="shrink-0"
+                onClick={() => connection.emit("question-skip")}
+                disabled={sending("question-skip")}
+              >
+                {t("dock.showing.pass")}
+              </Button>
+            </div>
             {early && (
-              <span id="buzz-early-hint" className="text-sm text-soft md:max-w-[14rem]">
+              <p id="buzz-early-hint" className="m-0 text-center text-sm text-soft">
                 {t("dock.showing.earlyHint")}
-              </span>
+              </p>
             )}
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => connection.emit("question-skip")}
-              disabled={sending("question-skip")}
-            >
-              {t("dock.showing.pass")}
-            </Button>
           </div>
         ),
         next,
@@ -366,36 +379,39 @@ function useDockModel(session: GameSession, myId: number): DockModel {
         return {
           status: t("dock.answering.judge", { name: name(answerer) }),
           action: (
-            <div className="flex w-full gap-2">
-              <Button
-                variant="success"
-                size="lg"
-                className="flex-1"
-                data-testid="judge-correct"
-                disabled={sending("answer-result")}
-                onClick={() =>
-                  connection.emit("answer-result", { scoreResult: value, answerType: "correct" })
-                }
-              >
-                {t("judge.correct")} {formatSigned(value)}{" "}
-                <kbd className="hidden text-xs opacity-70 md:inline">C</kbd>
-              </Button>
-              <Button
-                variant="danger"
-                size="lg"
-                className="flex-1"
-                data-testid="judge-wrong"
-                disabled={sending("answer-result")}
-                onClick={() =>
-                  connection.emit("answer-result", {
-                    scoreResult: wrong === 0 ? -value : wrong,
-                    answerType: "wrong",
-                  })
-                }
-              >
-                {t("judge.wrong")} {wrong === 0 ? "±0" : formatSigned(wrong)}{" "}
-                <kbd className="hidden text-xs opacity-70 md:inline">W</kbd>
-              </Button>
+            <div className="flex w-full flex-col gap-2">
+              <div className="flex w-full gap-2">
+                <Button
+                  variant="success"
+                  size="lg"
+                  className="flex-1"
+                  data-testid="judge-correct"
+                  disabled={sending("answer-result")}
+                  onClick={() =>
+                    connection.emit("answer-result", { scoreResult: value, answerType: "correct" })
+                  }
+                >
+                  {t("judge.correct")} {formatSigned(value)}{" "}
+                  <kbd className="hidden text-xs opacity-70 md:inline">C</kbd>
+                </Button>
+                <Button
+                  variant="danger"
+                  size="lg"
+                  className="flex-1"
+                  data-testid="judge-wrong"
+                  disabled={sending("answer-result")}
+                  onClick={() =>
+                    connection.emit("answer-result", {
+                      scoreResult: wrong === 0 ? -value : wrong,
+                      answerType: "wrong",
+                    })
+                  }
+                >
+                  {t("judge.wrong")} {wrong === 0 ? "±0" : formatSigned(wrong)}{" "}
+                  <kbd className="hidden text-xs opacity-70 md:inline">W</kbd>
+                </Button>
+              </div>
+              <JudgeExtras value={value} wrongCosts={wrong !== 0} />
             </div>
           ),
           next:
@@ -432,7 +448,7 @@ function useDockModel(session: GameSession, myId: number): DockModel {
         ),
         next: single
           ? t("dock.answering.otherNextSingle", { name: name(answerer) })
-          : t("dock.answering.otherNext"),
+          : t("dock.answering.otherNext", { name: name(answerer) }),
       };
     }
 
@@ -560,6 +576,71 @@ function useDockModel(session: GameSession, myId: number): DockModel {
     default:
       return { status: "", action: null, next: "" };
   }
+}
+
+/**
+ * Rulings beyond plain right/wrong: double points either way, or no points at
+ * all (a right answer that scores nothing, a wrong one that costs nothing).
+ */
+function JudgeExtras({ value, wrongCosts }: { value: number; wrongCosts: boolean }) {
+  const { t } = useTranslation();
+  const { connection } = useGame();
+  const pending = useGameStore((s) => s.pending);
+  const busy = pending?.action === "answer-result";
+  const rule = (answerType: "correct" | "wrong", scoreResult: number) => () =>
+    connection.emit("answer-result", { scoreResult, answerType });
+  return (
+    <div
+      className="flex w-full flex-wrap justify-center gap-2"
+      role="group"
+      aria-label={t("judge.more")}
+    >
+      <Button
+        size="sm"
+        variant="ghost"
+        className="flex-1 text-success"
+        disabled={busy}
+        onClick={rule("correct", value * 2)}
+        aria-label={t("judge.correctDoubleLabel", { points: formatScore(value * 2) })}
+        data-testid="judge-correct-double"
+      >
+        {t("judge.double", { points: formatSigned(value * 2) })}
+      </Button>
+      {wrongCosts && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="flex-1 text-danger"
+          disabled={busy}
+          onClick={rule("wrong", -value * 2)}
+          aria-label={t("judge.wrongDoubleLabel", { points: formatScore(value * 2) })}
+          data-testid="judge-wrong-double"
+        >
+          {t("judge.double", { points: formatSigned(-value * 2) })}
+        </Button>
+      )}
+      <Button
+        size="sm"
+        variant="ghost"
+        className="flex-1"
+        disabled={busy}
+        onClick={rule("correct", 0)}
+        data-testid="judge-correct-zero"
+      >
+        {t("judge.correctZero")}
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="flex-1"
+        disabled={busy}
+        onClick={rule("wrong", 0)}
+        data-testid="judge-wrong-zero"
+      >
+        {t("judge.wrongZero")}
+      </Button>
+    </div>
+  );
 }
 
 /** Optional typed answer for the showman; most people answer out loud. */

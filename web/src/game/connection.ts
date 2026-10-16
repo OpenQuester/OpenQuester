@@ -70,12 +70,19 @@ export class GameConnection {
     socket.on("connect", () => void this.onConnect());
     socket.on("disconnect", (reason) => {
       if (this.closed) return;
-      // "io server disconnect" means the server dropped us on purpose; reconnect anyway.
+      // The server drops a socket on purpose when the same account connects
+      // again (another tab or device). Reconnecting here would drop that one in
+      // turn, and the two would take the seat from each other forever: wait
+      // until the person picks this tab instead.
+      if (reason === "io server disconnect") {
+        useGameStore.getState().setConnection("replaced");
+        return;
+      }
       useGameStore.getState().setConnection("reconnecting");
-      if (reason === "io server disconnect") socket.connect();
     });
     socket.on("connect_error", () => {
-      if (!this.closed) useGameStore.getState().setConnection("reconnecting");
+      if (this.closed || useGameStore.getState().connection === "replaced") return;
+      useGameStore.getState().setConnection("reconnecting");
     });
     socket.on("error", (payload: unknown) => this.onError(payload));
     // The lobby-wide games feed tells us when the showman deletes this game.
@@ -91,6 +98,13 @@ export class GameConnection {
         this.onServerEvent({ type: name, payload } as ServerEvent),
       );
     }
+  }
+
+  /** Take the game back after another tab or device took over. */
+  takeOver(): void {
+    if (this.closed || !this.socket || this.socket.connected) return;
+    useGameStore.getState().setConnection("connecting");
+    this.socket.connect();
   }
 
   /** Leave the game for good (explicit "Leave game"). */

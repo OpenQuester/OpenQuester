@@ -6,6 +6,7 @@ import { timerElapsed } from "@/game/contentPlan";
 import type { GameSession } from "@/game/reducer";
 import {
   canAnswerNow,
+  canBuzz,
   pointPicture,
   boardQuestionMeta,
   findPlayer,
@@ -14,6 +15,7 @@ import {
   seatedPlayers,
 } from "@/game/selectors";
 import { formatScore, formatSigned } from "@/lib/format";
+import { useCountdown } from "@/lib/useCountdown";
 import { Badge } from "@/ui/Badge";
 
 import { useGame, useSession } from "../GameContext";
@@ -22,6 +24,7 @@ import { ReportQuestion } from "@/features/stats/ReportQuestion";
 import { ContentStage } from "./ContentStage";
 import { PointPicker, pointAnswer, type Spot } from "./PointPicker";
 import { QuestionMedia } from "./QuestionMedia";
+import { useBuzzer } from "./useBuzzer";
 
 /** Question content, the reveal, and (for the showman) the private answer panel. */
 export function QuestionStage() {
@@ -49,6 +52,10 @@ export function QuestionStage() {
   // Point answers: the player who answers now clicks the spot on the picture.
   const picture = pointPicture(q);
   const picking = !!picture && canAnswerNow(session, myId);
+  // Once the content has played, the stage would otherwise go quiet (a sound
+  // that ended leaves nothing on it): say what happens now instead.
+  const contentDone = useContentDone(session.content, s.isPaused);
+  const cue = phase === "showing" && contentDone && !picking;
 
   return (
     <div className="flex flex-1 flex-col gap-5 lg:flex-row lg:items-start">
@@ -103,6 +110,7 @@ export function QuestionStage() {
             {!q?.text && (!q?.questionFiles || q.questionFiles.length === 0) && (
               <p className="m-0 text-muted">{t("question.noContent")}</p>
             )}
+            {cue && <BuzzerCue />}
             {q?.type === "choice" && q.answers && (
               <ChoiceOptions key={`${q.id}:${s.answeringPlayer ?? "open"}`} />
             )}
@@ -115,6 +123,67 @@ export function QuestionStage() {
         )}
       </section>
       {role === "showman" && !reveal && <ShowmanPanel />}
+    </div>
+  );
+}
+
+/** True once the question's content timeline has played to the end. */
+function useContentDone(content: GameSession["content"], paused: boolean): boolean {
+  const [, setTick] = useState(0);
+  const running = !!content?.timer && content.frozenAtMs == null && !paused;
+  const elapsed = !content
+    ? 0
+    : (content.frozenAtMs ??
+      (content.timer ? timerElapsed(content.timer, paused) : content.plan.totalMs));
+  const total = content?.plan.totalMs ?? 0;
+  const done = !content || content.kind !== "question" || elapsed >= total;
+  const waitMs = running && !done ? total - elapsed + 30 : null;
+  useEffect(() => {
+    if (waitMs == null) return;
+    const id = window.setTimeout(() => setTick((n) => n + 1), waitMs);
+    return () => window.clearTimeout(id);
+    // Re-armed when the timeline changes, not on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, running, done]);
+  return done;
+}
+
+/** What happens now that the content has played: who can buzz, and how long is left. */
+function BuzzerCue() {
+  const { t } = useTranslation();
+  const session = useSession();
+  const { myId } = useGame();
+  const s = session.state;
+  const role = myRole(session, myId);
+  const buzzer = useBuzzer(session, myId);
+  const { left } = useCountdown(s.timer, s.isPaused);
+  const can = canBuzz(session, myId);
+  const seconds = left != null ? Math.ceil(left / 1000) : null;
+  const help =
+    role === "showman"
+      ? t("question.cue.showman")
+      : role === "spectator"
+        ? t("question.cue.spectator")
+        : can.ok
+          ? t("question.cue.player")
+          : can.reason === "false_start"
+            ? t("dock.showing.locked", { seconds: Math.ceil(buzzer.lockLeftMs / 1000) })
+            : t(`reasons.${can.reason}`);
+  return (
+    <div
+      className="flex w-full max-w-[560px] flex-col items-center gap-1 rounded-lg border border-accent-line bg-accent-surface px-5 py-4 text-center"
+      role="status"
+      data-testid="buzzer-cue"
+    >
+      <span className="font-display text-2xl font-extrabold text-accent-strong 3xl:text-4xl">
+        {buzzer.open ? t("question.cue.open") : t("question.cue.soon")}
+      </span>
+      <span className="text-soft 3xl:text-xl">{help}</span>
+      {seconds != null && seconds > 0 && (
+        <span className="text-sm text-muted" data-testid="buzzer-cue-time">
+          {t("question.cue.timeLeft", { seconds })}
+        </span>
+      )}
     </div>
   );
 }
@@ -390,9 +459,7 @@ function AnswerReveal() {
           {s.currentQuestion.questionComment}
         </p>
       )}
-      {s.currentQuestion?.id != null && (
-        <ReportQuestion gameId={session.gameId} questionId={s.currentQuestion.id} />
-      )}
+      {s.currentQuestion?.id != null && <ReportQuestion questionId={s.currentQuestion.id} />}
     </div>
   );
 }

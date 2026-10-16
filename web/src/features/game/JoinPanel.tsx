@@ -46,7 +46,9 @@ export function JoinPanel({
 
   const status = gameStatus(game);
   const full = playerCount(game) >= game.maxPlayers;
-  const finalStarted = status === "playing";
+  // Players may also join a game in progress; the server refuses only in the
+  // final round and names the reason.
+  const canPlay = !full && status !== "finished";
   const needsPassword = game.isPrivate;
 
   async function go(role: JoinOptions["role"], e?: FormEvent) {
@@ -106,7 +108,7 @@ export function JoinPanel({
         <p className="m-0 text-soft">{t("join.finishedHelp")}</p>
       ) : (
         <form
-          onSubmit={(e) => void go(full || finalStarted ? "spectator" : "player", e)}
+          onSubmit={(e) => void go(canPlay ? "player" : "spectator", e)}
           className="flex flex-col gap-4"
           noValidate
         >
@@ -147,14 +149,14 @@ export function JoinPanel({
           )}
           <FieldError>{error}</FieldError>
           <div className="flex flex-wrap gap-3">
-            {!full && status === "lobby" && (
+            {canPlay && (
               <Button type="submit" variant="accent" size="lg" disabled={guest.isPending}>
                 {t("join.asPlayer")}
               </Button>
             )}
             <Button
               type="button"
-              variant={full || status !== "lobby" ? "accent" : "ghost"}
+              variant={canPlay ? "ghost" : "accent"}
               size="lg"
               disabled={guest.isPending}
               onClick={() => void go("spectator")}

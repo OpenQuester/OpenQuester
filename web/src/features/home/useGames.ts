@@ -28,8 +28,12 @@ export function gameStatus(g: GameListItem): GameStatus {
   return "lobby";
 }
 
+/**
+ * Players sitting in the game now. Someone who left keeps their seat for a
+ * rejoin but is not counted: their place is free for anyone else.
+ */
 export function playerCount(g: GameListItem): number {
-  return g.players.filter((p) => p.role === "player").length;
+  return g.players.filter((p) => p.role === "player" && p.status !== "disconnected").length;
 }
 
 /** Accepts a bare code or any link ending in /games/<code>. */
