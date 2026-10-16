@@ -5,6 +5,7 @@ import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { Package } from "infrastructure/database/models/package/Package";
 import { ValueUtils } from "domain/utils/ValueUtils";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 
 export class PackageSearchQueryHelper {
   constructor(private readonly repository: Repository<Package>) {
@@ -25,6 +26,8 @@ export class PackageSearchQueryHelper {
       authorId,
       tags,
       ageRestriction,
+      sourceHash,
+      uploadStatus,
       minRounds,
       maxRounds,
       minQuestions,
@@ -54,7 +57,9 @@ export class PackageSearchQueryHelper {
       language,
       authorId,
       tags,
-      ageRestriction
+      ageRestriction,
+      sourceHash,
+      uploadStatus
     });
 
     this._applySortingAndPagination(qb, {
@@ -81,7 +86,9 @@ export class PackageSearchQueryHelper {
       language,
       authorId,
       tags,
-      ageRestriction
+      ageRestriction,
+      sourceHash,
+      uploadStatus
     } = searchOpts;
 
     // Simple search without stats filtering - leverages indexes better
@@ -93,7 +100,9 @@ export class PackageSearchQueryHelper {
       language,
       authorId,
       tags,
-      ageRestriction
+      ageRestriction,
+      sourceHash,
+      uploadStatus
     });
 
     this._applySortingAndPagination(qb, {
@@ -119,9 +128,21 @@ export class PackageSearchQueryHelper {
       authorId?: number;
       tags?: string[];
       ageRestriction?: string;
+      sourceHash?: string;
+      uploadStatus?: PackageUploadStatus;
     }
   ): void {
-    const { title, description, language, authorId, tags, ageRestriction } = filters;
+    const { title, description, language, authorId, tags, ageRestriction, sourceHash, uploadStatus } =
+      filters;
+
+    if (sourceHash) {
+      qb.andWhere("package.source_hash = :sourceHash", { sourceHash });
+    }
+
+    // `ready` lists only packages that can be played now.
+    if (uploadStatus) {
+      qb.andWhere("package.upload_status = :uploadStatus", { uploadStatus });
+    }
 
     // Text search using ILIKE with leading wildcard.
     // Note: Leading wildcard prevents GIN trigram index optimization for prefix matches,

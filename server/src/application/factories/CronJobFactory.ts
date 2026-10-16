@@ -7,7 +7,14 @@ import { S3FilesCleanupJob } from "application/jobs/S3FilesCleanupJob";
 import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
 import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
 import { FileService } from "application/services/file/FileService";
-import { CRON_EXP_2_AM_DAILY, CRON_EXP_3_AM_DAILY } from "domain/constants/cron";
+import {
+  CRON_EXP_2_AM_DAILY,
+  CRON_EXP_3_AM_DAILY,
+  CRON_EXP_EVERY_5_MINUTES
+} from "domain/constants/cron";
+import { PackageUploadCheckJob } from "application/jobs/PackageUploadCheckJob";
+import { PackageUploadService } from "application/services/package/PackageUploadService";
+import { PackageRepository } from "infrastructure/database/repositories/PackageRepository";
 import { ICronJob } from "domain/types/cron/ICronJob";
 import { Environment } from "shared/config/Environment";
 import { ILogger } from "shared/logging/ILogger";
@@ -27,7 +34,9 @@ export class CronJobFactory {
     private readonly fileService: FileService,
     private readonly logArchivalService: LogArchivalService,
     private readonly storageCleanupService: StorageCleanupService,
-    private readonly storageRepository: StorageRepository
+    private readonly storageRepository: StorageRepository,
+    private readonly packageRepository: PackageRepository,
+    private readonly packageUploadService: PackageUploadService
   ) {
     this.env = Environment.getInstance(this.logger);
   }
@@ -59,6 +68,16 @@ export class CronJobFactory {
     );
   }
 
+  /** Marks recently uploaded packages ready once storage holds all their media. */
+  public createPackageUploadCheckJob(): PackageUploadCheckJob {
+    return new PackageUploadCheckJob(
+      this.logger,
+      this.packageRepository,
+      this.packageUploadService,
+      CRON_EXP_EVERY_5_MINUTES
+    );
+  }
+
   /**
    * Create an instance of the log archival job
    */
@@ -74,6 +93,11 @@ export class CronJobFactory {
    * This method should be updated when adding new cron jobs
    */
   public createAllCronJobs(): ICronJob[] {
-    return [this.createS3FilesCleanupJob(), this.createLogArchivalJob(), this.createGuestCleanupJob()];
+    return [
+      this.createS3FilesCleanupJob(),
+      this.createLogArchivalJob(),
+      this.createGuestCleanupJob(),
+      this.createPackageUploadCheckJob()
+    ];
   }
 }

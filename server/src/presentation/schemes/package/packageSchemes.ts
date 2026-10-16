@@ -6,6 +6,7 @@ import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { AnswerType } from "domain/enums/package/AnswerType";
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
 import {
@@ -249,7 +250,9 @@ const rounds = Joi.array()
 
 // Top-level upload package schema
 export const uploadPackageScheme = () =>
-  Joi.object<{ content: PackageDTO; fileSizes?: Record<string, number> }>({
+  Joi.object<{ content: PackageDTO; fileSizes?: Record<string, number>; sourceHash?: string | null }>({
+    // Fingerprint of the imported file, so a second upload of it can be spotted.
+    sourceHash: Joi.string().hex().max(64).allow(null).optional(),
     // Bytes per media file (MD5 → size), checked against the storage limits.
     fileSizes: Joi.object()
       .pattern(/^[a-fA-F0-9]{32}(\.[A-Za-z0-9]+)?$/, Joi.number().integer().min(0).required())
@@ -300,6 +303,10 @@ export const packageSearchScheme = () =>
       .optional(),
     ageRestriction: Joi.string()
       .valid(...Object.values(AgeRestriction))
+      .optional(),
+    sourceHash: Joi.string().hex().max(64).optional(),
+    uploadStatus: Joi.string()
+      .valid(...Object.values(PackageUploadStatus))
       .optional(),
     minRounds: Joi.number().min(0).optional(),
     maxRounds: Joi.number().min(0).optional(),

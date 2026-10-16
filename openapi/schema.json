@@ -375,6 +375,25 @@
             }
           },
           {
+            "name": "sourceHash",
+            "in": "query",
+            "description": "Find packages uploaded from the same file (see `sourceHash` on upload). Used to warn before uploading a duplicate.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-fA-F0-9]{1,64}$"
+            }
+          },
+          {
+            "name": "uploadStatus",
+            "in": "query",
+            "description": "`ready` lists only packages that can be played now. Without it, packages still uploading are listed too.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PackageUploadStatus"
+            }
+          },
+          {
             "name": "minRounds",
             "in": "query",
             "description": "Minimum rounds count",
@@ -596,6 +615,75 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Package not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packages/{id}/upload": {
+      "get": {
+        "summary": "Upload state of a package's media",
+        "description": "For the package author or a user with edit_package. Lists the media files storage doesn't have yet, with fresh upload links, so an interrupted upload can be resumed; marks the package ready once every file is stored.",
+        "tags": ["Packages"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upload state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageUploadState"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -1192,6 +1280,21 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The package's media isn't fully uploaded yet (`package_upload_unfinished`), so it can't be played",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -2954,6 +3057,11 @@
               "type": "integer",
               "minimum": 0
             }
+          },
+          "sourceHash": {
+            "type": ["string", "null"],
+            "pattern": "^[a-fA-F0-9]{1,64}$",
+            "description": "Fingerprint of the imported package file's content (hex). Stored so a later upload of the same file can find this package with `GET /v1/packages?sourceHash=`. On PUT, omit to keep the stored value; null clears it."
           }
         },
         "required": ["content"]
@@ -3381,7 +3489,12 @@
             "type": "object",
             "description": "Additional error context (optional, included for errors like invalid_input)",
             "additionalProperties": true,
-            "examples": [{ "maxPlayers": 5, "playersCount": 8 }]
+            "examples": [
+              {
+                "maxPlayers": 5,
+                "playersCount": 8
+              }
+            ]
           }
         },
         "required": ["error"]
@@ -3512,6 +3625,9 @@
               ],
               null
             ]
+          },
+          "uploadStatus": {
+            "$ref": "#/components/schemas/PackageUploadStatus"
           }
         },
         "required": ["ageRestriction", "author", "createdAt", "id", "title"]
@@ -3622,6 +3738,9 @@
               ],
               null
             ]
+          },
+          "uploadStatus": {
+            "$ref": "#/components/schemas/PackageUploadStatus"
           }
         },
         "required": [
@@ -3874,6 +3993,10 @@
                 "uniqueIdentifier": "https://example.com/upload/file.jpg"
               }
             ]
+          },
+          "uploadStatus": {
+            "$ref": "#/components/schemas/PackageUploadStatus",
+            "description": "`ready` when storage already holds every file, so nothing needs uploading."
           }
         },
         "required": ["id", "uploadLinks"]
@@ -8427,6 +8550,53 @@
             "type": "string"
           }
         }
+      },
+      "PackageUploadStatus": {
+        "type": "string",
+        "enum": ["uploading", "ready"],
+        "description": "`uploading` while storage lacks some of the package's media files; such a package can't be picked for a game. `ready` once every file is stored."
+      },
+      "PackageUploadState": {
+        "type": "object",
+        "description": "Where a package's media upload stands. Checking asks storage about every file not confirmed yet and marks the package ready once all are stored.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PackageUploadStatus"
+          },
+          "totalFiles": {
+            "type": "integer",
+            "description": "Distinct media files the package uses"
+          },
+          "uploadedFiles": {
+            "type": "integer",
+            "description": "Of those, how many storage holds"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MD5s storage doesn't have yet"
+          },
+          "uploadLinks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "A fresh presigned PUT link per missing MD5"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "totalFiles",
+          "uploadedFiles",
+          "missing",
+          "uploadLinks"
+        ]
       }
     }
   }

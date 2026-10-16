@@ -28,7 +28,7 @@ export class PackageStorageService {
    * Generate upload links for files declared by an uploaded package.
    */
   public async generateUploadLinks(
-    files: FileDTO[],
+    files: Pick<FileDTO, "path" | "filename">[],
     expiresIn: number
   ): Promise<Record<string, string>> {
     const links: Record<string, string> = {};

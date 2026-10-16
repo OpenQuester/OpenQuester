@@ -9,3 +9,6 @@ export const CRON_EXP_EVERY_MINUTE = "0 * * * * *";
 
 /** Every 30 seconds (for testing) */
 export const CRON_EXP_EVERY_30_SECONDS = "*/30 * * * * *";
+
+/** Every 5 minutes */
+export const CRON_EXP_EVERY_5_MINUTES = "0 */5 * * * *";

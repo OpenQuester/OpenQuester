@@ -4,6 +4,7 @@ import { EntityManager, In, Repository } from "typeorm";
 import { DI_TOKENS } from "shared/di/tokens";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { FileSource } from "domain/enums/file/FileSource";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { FileDTO } from "domain/types/dto/file/FileDTO";
@@ -75,6 +76,35 @@ export class PackageRepository {
     }
 
     return searchHelper.searchWithoutStatsFiltering(searchOpts);
+  }
+
+  /**
+   * Records whether all media reached storage. `sourceHash` is left alone
+   * when undefined; null clears it.
+   */
+  public async setUploadState(
+    id: number,
+    status: PackageUploadStatus,
+    sourceHash?: string | null
+  ): Promise<void> {
+    await this.repository.update(id, {
+      upload_status: status,
+      ...(status === PackageUploadStatus.UPLOADING ? { upload_started_at: new Date() } : {}),
+      ...(sourceHash !== undefined ? { source_hash: sourceHash } : {})
+    });
+  }
+
+  /** Ids of packages still uploading that started after `since`, newest first. */
+  public async getUploadingSince(since: Date, limit: number): Promise<number[]> {
+    const rows = await this.repository
+      .createQueryBuilder("package")
+      .select("package.id", "id")
+      .where("package.upload_status = :status", { status: PackageUploadStatus.UPLOADING })
+      .andWhere("package.upload_started_at > :since", { since })
+      .orderBy("package.upload_started_at", "DESC")
+      .limit(limit)
+      .getRawMany<{ id: number }>();
+    return rows.map((r) => Number(r.id));
   }
 
   public findByIds(ids: number[], selectOptions: SelectOptions<Package>): Promise<Package[]> {

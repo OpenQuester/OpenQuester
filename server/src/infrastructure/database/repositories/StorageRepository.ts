@@ -198,6 +198,26 @@ export class StorageRepository {
     return rows.map((r) => r.filename);
   }
 
+  /** Every MD5 the package uses, and whether storage has confirmed it holds that file. */
+  public async getPackageFileStates(
+    packageId: number
+  ): Promise<{ filename: string; path: string; verified: boolean }[]> {
+    const rows: { filename: string; path: string; verified: boolean }[] = await this.ds.query(
+      `SELECT f."filename", MIN(f."path") AS "path",
+              BOOL_OR(EXISTS (SELECT 1 FROM "file" g
+                              WHERE g."filename" = f."filename" AND g."size_verified_at" IS NOT NULL)) AS "verified"
+       FROM "file_usage" u JOIN "file" f ON f."id" = u."file_id"
+       WHERE u."package_id" = $1
+       GROUP BY f."filename"`,
+      [packageId]
+    );
+    return rows.map((r) => ({
+      filename: r.filename,
+      path: r.path,
+      verified: Boolean(r.verified)
+    }));
+  }
+
   public async deleteFileRows(filenames: string[]): Promise<void> {
     if (filenames.length === 0) return;
     await this.ds.query(`DELETE FROM "file" WHERE "filename" = ANY($1)`, [filenames]);

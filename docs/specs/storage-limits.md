@@ -12,7 +12,8 @@ with automatic cleanup of their files and accounts.
 - `file.size` holds each file's bytes: declared by the uploader
   (`fileSizes` in `POST`/`PUT /v1/packages`), then confirmed from storage
   (`size_verified_at`) by `HeadObject` on the user's next upload and by the
-  nightly bucket listing.
+  nightly bucket listing. The same confirmation decides whether a package's
+  upload is finished (`docs/specs/package-upload-state.md`).
 - **A user's usage** is the sum of distinct MD5s referenced by packages they
   wrote plus their avatar (`StorageRepository.getUserFiles`). A file in
   several of your packages counts once; a file someone else also uses counts

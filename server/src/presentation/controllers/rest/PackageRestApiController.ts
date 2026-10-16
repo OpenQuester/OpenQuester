@@ -30,6 +30,7 @@ export class PackageRestApiController {
     router.post("/", asyncHandler(this.uploadPackage));
     router.get("/", asyncHandler(this.listPackages));
     router.get("/:id", asyncHandler(this.getPackage));
+    router.get("/:id/upload", asyncHandler(this.getUploadState));
     router.put("/:id", asyncHandler(this.updatePackage));
     router.delete(
       "/:id",
@@ -46,12 +47,14 @@ export class PackageRestApiController {
     const validatedData = new RequestDataValidator<{
       content: PackageDTO;
       fileSizes?: Record<string, number>;
+      sourceHash?: string | null;
     }>(req.body, uploadPackageScheme()).validate();
 
     const data = await this.packageService.uploadPackageForSession({
       sessionUserId: req.session.userId,
       packageData: validatedData.content,
-      fileSizes: validatedData.fileSizes
+      fileSizes: validatedData.fileSizes,
+      sourceHash: validatedData.sourceHash
     });
     return res.status(HttpStatus.OK).send(data);
   };
@@ -69,13 +72,15 @@ export class PackageRestApiController {
     const validatedData = new RequestDataValidator<{
       content: PackageDTO;
       fileSizes?: Record<string, number>;
+      sourceHash?: string | null;
     }>(req.body, uploadPackageScheme()).validate();
 
     const data = await this.packageService.updatePackageForSession({
       sessionUserId: req.session.userId,
       packageId,
       packageData: validatedData.content,
-      fileSizes: validatedData.fileSizes
+      fileSizes: validatedData.fileSizes,
+      sourceHash: validatedData.sourceHash
     });
     return res.status(HttpStatus.OK).send(data);
   };
@@ -87,6 +92,20 @@ export class PackageRestApiController {
     ).validate();
 
     const data = await this.packageService.getPackage(validatedData.packageId);
+    return res.status(HttpStatus.OK).send(data);
+  };
+
+  /** Media files still missing from storage, with fresh links (author or EDIT_PACKAGE). */
+  private getUploadState = async (req: Request, res: Response) => {
+    const { packageId } = new RequestDataValidator<PackageInputDTO>(
+      { packageId: Number(req.params.id) },
+      packIdScheme()
+    ).validate();
+
+    const data = await this.packageService.getUploadStateForSession({
+      sessionUserId: req.session.userId,
+      packageId
+    });
     return res.status(HttpStatus.OK).send(data);
   };
 

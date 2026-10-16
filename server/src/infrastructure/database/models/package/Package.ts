@@ -13,6 +13,7 @@ import {
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
@@ -68,6 +69,18 @@ export class Package {
 
   @Column({ type: "enum", enum: AgeRestriction, default: AgeRestriction.NONE })
   age_restriction!: AgeRestriction;
+
+  /** Ready once storage holds every media file the package uses. */
+  @Column({ type: "varchar", length: 16, default: PackageUploadStatus.READY })
+  upload_status!: PackageUploadStatus;
+
+  /** When the package last became `uploading`; the background check skips old ones. */
+  @Column({ type: "timestamp with time zone", nullable: true })
+  upload_started_at!: Date | null;
+
+  /** Fingerprint of the imported file's content, to spot the same package uploaded twice. */
+  @Column({ type: "varchar", length: 64, nullable: true })
+  source_hash!: string | null;
 
   @ManyToOne(() => File, { nullable: true })
   @JoinColumn({ name: "logo_file" })
@@ -141,7 +154,8 @@ export class Package {
       authors: this.authors ?? null,
       sources: this.sources ?? null,
       logo: this.logoDTO(fileUrlBuilder),
-      tags: this.tags.map((tag) => tag.toDTO())
+      tags: this.tags.map((tag) => tag.toDTO()),
+      uploadStatus: this.upload_status ?? PackageUploadStatus.READY
     };
   }
 
@@ -183,7 +197,8 @@ export class Package {
       sources: this.sources ?? null,
       logo: logoDTO,
       rounds: roundsDTO,
-      tags: tagsDTO
+      tags: tagsDTO,
+      uploadStatus: this.upload_status ?? PackageUploadStatus.READY
     };
 
     if (options.fetchIds) {

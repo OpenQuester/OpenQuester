@@ -34,6 +34,7 @@ Top-level areas:
    - `docs/specs/buzzer-state-machine.md`
    - `docs/specs/siq-compatibility-matrix.md`
    - `docs/specs/package-validation-spec.md`
+   - `docs/specs/package-upload-state.md`
    - `docs/specs/admin-moderation.md`
    - `docs/specs/storage-limits.md`
 4. If the task matches a repeatable workflow, use the relevant skill in `.agents/skills/`.

@@ -1,4 +1,5 @@
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { PackageFileDTO } from "domain/types/dto/package/PackageFileDTO";
 import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
 import { PackageTagDTO } from "domain/types/dto/package/PackageTagDTO";
@@ -19,4 +20,6 @@ export interface PackageDTO {
   logo?: { file: PackageFileDTO } | null;
   rounds: PackageRoundDTO[];
   tags: PackageTagDTO[];
+  /** Output only: `uploading` until storage holds every media file. */
+  uploadStatus?: PackageUploadStatus;
 }

@@ -27,6 +27,9 @@ import { UserSessionService } from "application/services/user/UserSessionService
 import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
 import { StorageQuotaService } from "application/services/storage/StorageQuotaService";
 import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
+import { PackageUploadService } from "application/services/package/PackageUploadService";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
+import { type PackageUploadStateDTO } from "domain/types/dto/package/PackageUploadStateDTO";
 
 /**
  * Service for package management operations.
@@ -41,6 +44,7 @@ export class PackageService {
     private readonly storageQuotaService: StorageQuotaService,
     private readonly storageCleanupService: StorageCleanupService,
     private readonly storageRepository: StorageRepository,
+    private readonly packageUploadService: PackageUploadService,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -51,9 +55,17 @@ export class PackageService {
     select?: (keyof Package)[],
     relations?: string[]
   ): Promise<PackageDTO> {
-    return (
-      await this.getPackageRaw(packId, select, relations ?? PACKAGE_DETAILED_RELATIONS)
-    ).toDTO(this.fileUrlBuilder, {
+    const pack = await this.getPackageRaw(packId, select, relations ?? PACKAGE_DETAILED_RELATIONS);
+    if (pack.upload_status === PackageUploadStatus.UPLOADING) {
+      // Uploaders that never report back (Flutter, scripts) would otherwise look
+      // unfinished until the background check; ask storage while someone looks.
+      try {
+        pack.upload_status = (await this.packageUploadService.refresh(pack.id)).status;
+      } catch {
+        // Keep the stored status.
+      }
+    }
+    return pack.toDTO(this.fileUrlBuilder, {
       fetchIds: true
     });
   }
@@ -101,7 +113,8 @@ export class PackageService {
     packageData: PackageDTO,
     expiresIn: number = UPLOAD_PACKAGE_LINKS_EXPIRES_IN,
     /** Bytes per MD5 as the client measured them; checked against the storage limits. */
-    fileSizes?: Record<string, number>
+    fileSizes?: Record<string, number>,
+    sourceHash?: string | null
   ): Promise<PackageUploadResponse> {
     if (!author || !author.id) {
       throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND);
@@ -114,11 +127,13 @@ export class PackageService {
     );
     const { pack, files } = await this.packageRepository.create(packageData, author);
     await this.storageRepository.setDeclaredSizes(declared);
+    const uploadStatus = await this.packageUploadService.markSaved(pack.id, sourceHash ?? null);
 
     const links = await this.packageStorageService.generateUploadLinks(files, expiresIn);
     return {
       id: pack.id,
-      uploadLinks: links
+      uploadLinks: links,
+      uploadStatus
     };
   }
 
@@ -127,6 +142,7 @@ export class PackageService {
     packageData: PackageDTO;
     expiresIn?: number;
     fileSizes?: Record<string, number>;
+    sourceHash?: string | null;
   }): Promise<PackageUploadResponse> {
     const author = await this.userSessionService.getValidatedSessionUser({
       sessionUserId: input.sessionUserId
@@ -136,7 +152,13 @@ export class PackageService {
       throw new ClientError(ClientResponse.CANNOT_UPLOAD_PACKAGE_AS_GUEST, HttpStatus.FORBIDDEN);
     }
 
-    return this.uploadPackage(author, input.packageData, input.expiresIn, input.fileSizes);
+    return this.uploadPackage(
+      author,
+      input.packageData,
+      input.expiresIn,
+      input.fileSizes,
+      input.sourceHash
+    );
   }
 
   /**
@@ -150,6 +172,8 @@ export class PackageService {
     packageData: PackageDTO;
     expiresIn?: number;
     fileSizes?: Record<string, number>;
+    /** Undefined keeps the stored fingerprint; an edited package sends null. */
+    sourceHash?: string | null;
   }): Promise<PackageUploadResponse> {
     const user = await this.assertCanEditPackage(input);
 
@@ -170,11 +194,25 @@ export class PackageService {
     await this.storageRepository.setDeclaredSizes(declared);
     // Media the edit dropped is deleted unless something else still uses it.
     await this.storageCleanupService.removeIfUnused(before);
+    const uploadStatus = await this.packageUploadService.markSaved(pack.id, input.sourceHash);
     const links = await this.packageStorageService.generateUploadLinks(
       files,
       input.expiresIn ?? UPLOAD_PACKAGE_LINKS_EXPIRES_IN
     );
-    return { id: pack.id, uploadLinks: links };
+    return { id: pack.id, uploadLinks: links, uploadStatus };
+  }
+
+  /**
+   * Which media files of a package storage still lacks, with fresh upload
+   * links for them, so its author (or an EDIT_PACKAGE user) can finish an
+   * interrupted upload. Checking also marks the package ready once complete.
+   */
+  public async getUploadStateForSession(input: {
+    sessionUserId: number | undefined;
+    packageId: number;
+  }): Promise<PackageUploadStateDTO> {
+    await this.assertCanEditPackage(input);
+    return this.packageUploadService.getState(input.packageId);
   }
 
   /** Throws 403 unless the session user wrote the package or has EDIT_PACKAGE. */

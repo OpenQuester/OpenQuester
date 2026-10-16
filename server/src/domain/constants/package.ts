@@ -6,7 +6,8 @@ export type PackageSelectField =
   | "created_at"
   | "language"
   | "authors"
-  | "sources";
+  | "sources"
+  | "upload_status";
 
 export const PACKAGE_SELECT_FIELDS: PackageSelectField[] = [
   "id",
@@ -17,6 +18,7 @@ export const PACKAGE_SELECT_FIELDS: PackageSelectField[] = [
   "language",
   "authors",
   "sources",
+  "upload_status",
 ];
 
 // Minimal relations for lightweight listings or shallow fetch (used in lists)
