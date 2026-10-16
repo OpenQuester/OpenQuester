@@ -45,6 +45,7 @@ import {
 } from "application/usecases/question/AllPlayUseCases";
 import {
   AnswerResultUndoUseCase,
+  BuzzerOpenUseCase,
   GameJoinModeUseCase,
   QuestionToggleUseCase
 } from "application/usecases/game/ShowmanToolsUseCases";
@@ -169,6 +170,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   registry.register(GameActionType.QUESTION_TOGGLE, new QuestionToggleUseCase());
   registry.register(GameActionType.ANSWER_RESULT_UNDO, new AnswerResultUndoUseCase());
   registry.register(GameActionType.GAME_JOIN_MODE, new GameJoinModeUseCase());
+  registry.register(GameActionType.BUZZER_OPEN, new BuzzerOpenUseCase());
 
   // =====================================
   // Question Handlers

@@ -2,6 +2,7 @@ import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 import { GameSettingsDTO } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageListItemDTO } from "domain/types/dto/game/items/PackageIListItemDTO";
+import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
 
@@ -13,6 +14,8 @@ export interface GameListItemPlayersStats {
    * Only set for players with PLAYER role.
    */
   slot: number | null;
+  /** In the game now, or gone (their seat is kept for a rejoin) */
+  status: PlayerGameStatus;
 }
 
 export interface GameListItemDTO {

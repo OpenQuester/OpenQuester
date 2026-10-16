@@ -3057,6 +3057,11 @@ export interface components {
              * @example null
              */
             slot?: number | null;
+            /**
+             * @description in-game, or disconnected: gone for now, their seat is kept for a rejoin
+             * @enum {string}
+             */
+            status?: "in-game" | "disconnected";
         };
         GameListItem: {
             /** @example AH2S */
@@ -4082,6 +4087,7 @@ export interface components {
              * @example 2024-01-01T00:00:00Z
              */
             timestamp: string;
+            system?: components["schemas"]["SocketIOChatSystemEntry"];
         };
         /** @description Data sent to subscribed players when a user's information is updated */
         SocketIOUserChangeEventPayload: {
@@ -4349,13 +4355,13 @@ export interface components {
          * @example join
          * @enum {string}
          */
-        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-toggle" | "answer-result-undo" | "game-join-mode" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "secret-question-price" | "all-play-stake" | "all-play-answer" | "all-play-review" | "stake-bid-submit" | "media-downloaded";
+        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-toggle" | "answer-result-undo" | "buzzer-open" | "game-join-mode" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "secret-question-price" | "all-play-stake" | "all-play-answer" | "all-play-review" | "stake-bid-submit" | "media-downloaded";
         /**
          * @description Server-to-client game events emitted on the /games namespace.
          * @example join
          * @enum {string}
          */
-        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-toggle" | "answer-result-undo" | "game-join-mode" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "all-play-start" | "all-play-stake" | "all-play-answer" | "all-play-reviewing" | "all-play-review" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
+        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-toggle" | "answer-result-undo" | "buzzer-open" | "game-join-mode" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "all-play-start" | "all-play-stake" | "all-play-answer" | "all-play-reviewing" | "all-play-review" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
         /** @description Data sent to all players when player skips a question */
         SocketIOGameSkipEventPayload: {
             /**
@@ -5714,6 +5720,33 @@ export interface components {
             uploadLinks: {
                 [key: string]: string;
             };
+        };
+        /** @description Set on chat lines the server writes itself: a log of what the showman did (a ruling, a score change, a kick...). Clients that know `action` show it translated from `params`; others show the English `message`. */
+        SocketIOChatSystemEntry: {
+            /**
+             * @description The game action that was logged, e.g. answer-result, player-kick, score-changed
+             * @example answer-result
+             */
+            action: string;
+            /**
+             * @description Names, points and flags for the line, resolved when it was written
+             * @example {
+             *       "player": "Pat",
+             *       "points": 200,
+             *       "answerType": "correct"
+             *     }
+             */
+            params: {
+                [key: string]: string | number | boolean | null;
+            };
+        };
+        /** @description buzzer-open (showman only, no input, SHOWING phase): opens the buzzer now instead of when the question finishes. Presses from here on are not false starts and running false-start locks are lifted. Broadcast to everyone with the new opening moment. */
+        SocketIOBuzzerOpenEventPayload: {
+            /**
+             * @description Elapsed time on the SHOWING timer at which the buzzer is open (unchanged when it already was)
+             * @example 4200
+             */
+            buzzerOpensAtMs: number;
         };
     };
     responses: never;

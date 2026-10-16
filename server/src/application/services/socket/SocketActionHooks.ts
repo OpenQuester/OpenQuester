@@ -7,7 +7,8 @@ import { SocketIOQuestionService } from "application/services/socket/SocketIOQue
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { type Game } from "domain/entities/game/Game";
 import { GameActionType } from "domain/enums/GameActionType";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { ShowmanActionLogLogic } from "domain/logic/chat/ShowmanActionLogLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { type GameAction, type GameActionResult } from "domain/types/action/GameAction";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
@@ -28,6 +29,8 @@ import {
   type SecretQuestionTransferBroadcastData
 } from "domain/types/socket/game/SecretQuestionTransferData";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
+import { type ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 
@@ -51,6 +54,7 @@ export class SocketActionHooks {
     private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
     private readonly packageStore: PackageStore,
+    private readonly socketChatRepository: SocketChatRepository,
     @inject(DI_TOKENS.RealtimeGateway) private readonly realtimeGateway: RealtimeGateway,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
@@ -68,6 +72,8 @@ export class SocketActionHooks {
    * Run the configured post-execution hook for the completed action.
    */
   public async run(action: GameAction, result: GameActionResult, game: Game): Promise<void> {
+    await this.logShowmanAction(action, result, game);
+
     if (result.data === undefined) {
       return;
     }
@@ -86,6 +92,46 @@ export class SocketActionHooks {
         actionType: action.type,
         gameId: action.gameId,
         socketId: action.socketId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /** Writes what the showman did into the game chat, for everyone to see. */
+  private async logShowmanAction(
+    action: GameAction,
+    result: GameActionResult,
+    game: Game
+  ): Promise<void> {
+    try {
+      const line = ShowmanActionLogLogic.build(action, result, game);
+      if (!line) {
+        return;
+      }
+
+      const saved = await this.socketChatRepository.saveChatMessage({
+        gameId: game.id,
+        gameCreatedAt: game.createdAt,
+        user: action.playerId,
+        message: line.message,
+        system: line.system
+      });
+
+      this.realtimeGateway.publish(
+        RealtimeEvents.toRoom(game.id, SocketIOEvents.CHAT_MESSAGE, {
+          uuid: saved.uuid,
+          timestamp: saved.timestamp,
+          user: saved.user,
+          message: saved.message,
+          system: line.system
+        } satisfies ChatMessageBroadcastData)
+      );
+    } catch (error) {
+      this.logger.warn("Failed to log showman action to chat", {
+        prefix: LogPrefix.SOCKET,
+        actionId: action.id,
+        actionType: action.type,
+        gameId: action.gameId,
         error: error instanceof Error ? error.message : String(error)
       });
     }

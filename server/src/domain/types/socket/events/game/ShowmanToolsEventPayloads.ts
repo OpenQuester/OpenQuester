@@ -26,3 +26,9 @@ export interface GameJoinModeInputData {
 export interface GameJoinModeEventPayload {
   joinMode: GameJoinMode;
 }
+
+/** The showman opened the buzzer before the question finished */
+export interface BuzzerOpenEventPayload {
+  /** The SHOWING timer's elapsed time at which the buzzer is now open */
+  buzzerOpensAtMs: number;
+}

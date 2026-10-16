@@ -19,6 +19,7 @@ export enum SocketIOGameEvents {
   QUESTION_PICK = "question-pick",
   QUESTION_ANSWER = "question-answer",
   BUZZER_FALSE_START = "buzzer-false-start",
+  BUZZER_OPEN = "buzzer-open",
   QUESTION_DATA = "question-data",
   QUESTION_FINISH = "question-finish",
   ANSWER_SUBMITTED = "answer-submitted",

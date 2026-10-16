@@ -4,6 +4,7 @@
  */
 
 import { NotificationType } from "domain/enums/NotificationType";
+import { ChatSystemEntry } from "domain/types/dto/game/chat/ChatSystemEntry";
 import { ChatMessageGamePayloadDTO } from "domain/types/dto/game/chat/ChatMessageEventPayloadDTO";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
@@ -135,6 +136,8 @@ export interface ChatMessageBroadcastData {
   timestamp: Date;
   user: number;
   message: string;
+  /** Set on lines the server wrote itself (showman action log) */
+  system?: ChatSystemEntry;
 }
 
 /**

@@ -532,7 +532,8 @@ export class GameRepository {
       players: game.players.map((p) => ({
         id: p.meta.id,
         role: p.role,
-        slot: p.gameSlot
+        slot: p.gameSlot,
+        status: p.gameStatus
       })),
       createdBy: {
         id: createdBy.id,

@@ -56,13 +56,20 @@ Per-game settings (`GameSettings`, chosen when the game is created):
   server receives.
 - A designated answerer (stake/secret winner) answers on press, without these
   rules. Pausing drops a pending window; players press again after the pause.
+- The showman can open the buzzer early (`buzzer-open`, no input, SHOWING
+  only): `buzzerOpensAtMs` moves to the current timer position, running
+  false-start locks are lifted and everyone gets `buzzer-open { buzzerOpensAtMs }`.
+  The content keeps playing. It changes nothing when the buzzer is already open.
 
 Server: `BuzzerLogic`, `QuestionAnswerUseCase`,
 `TimerExpirationService._resolveBuzzerWindow` (the window rides on the active
 timer key, so a pause or expiry needs no extra timer). Web: `buzzerOpensIn`,
 `buzzerLockLeft`, `useBuzzer`; the Dock shows "Wait for it…" before the buzzer
-opens (still pressable, so spamming is penalised) and a lock countdown after a
-false start. Flutter does not show these states yet.
+opens (still pressable, so spamming is penalised), with the reason under the
+button, and a lock countdown after a false start. The showman's dock has
+"Open buzzer now" while it is closed. Once the content has played, the stage
+shows a "The buzzer is open" card with the time left, so it is never empty.
+Flutter does not show these states yet.
 
 ## Input methods
 

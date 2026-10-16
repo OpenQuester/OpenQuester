@@ -20,6 +20,7 @@ export enum GameActionType {
   // Question Actions
   QUESTION_PICK = "question-pick",
   QUESTION_ANSWER = "question-answer",
+  BUZZER_OPEN = "buzzer-open",
   ANSWER_SUBMITTED = "answer-submitted",
   ANSWER_RESULT = "answer-result",
   QUESTION_SKIP = "question-skip",

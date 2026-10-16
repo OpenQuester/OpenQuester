@@ -164,6 +164,11 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
     gameIdStrategy: GameIdStrategy.FROM_SESSION
   },
   {
+    event: SocketIOGameEvents.BUZZER_OPEN,
+    actionType: GameActionType.BUZZER_OPEN,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION
+  },
+  {
     event: SocketIOGameEvents.GAME_JOIN_MODE,
     actionType: GameActionType.GAME_JOIN_MODE,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
