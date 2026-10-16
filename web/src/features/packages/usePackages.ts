@@ -18,6 +18,9 @@ export interface PackageFilters {
   authorId: number | null;
 }
 
+/** `uploading` while some media isn't in storage yet; such a package can't be played. */
+export type UploadStatus = "uploading" | "ready";
+
 export const NO_FILTERS: Omit<PackageFilters, "title" | "sort"> = {
   language: "",
   age: "",
@@ -60,6 +63,7 @@ export interface PackageCard {
   roundsCount?: number;
   questionsCount?: number;
   tags?: unknown[] | null;
+  uploadStatus?: UploadStatus;
 }
 
 export function usePackages(filters: PackageFilters, page: number, enabled = true) {
@@ -81,7 +85,11 @@ export function usePackages(filters: PackageFilters, page: number, enabled = tru
               ...(filters.maxRounds != null ? { maxRounds: filters.maxRounds } : {}),
               ...(filters.minQuestions != null ? { minQuestions: filters.minQuestions } : {}),
               ...(filters.maxQuestions != null ? { maxQuestions: filters.maxQuestions } : {}),
-              ...(filters.authorId != null ? { authorId: filters.authorId } : {}),
+              // Someone else's half-uploaded package can't be played, so only
+              // an author's own list shows unfinished uploads.
+              ...(filters.authorId != null
+                ? { authorId: filters.authorId }
+                : { uploadStatus: "ready" as const }),
             },
           },
         }),

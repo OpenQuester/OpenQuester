@@ -123,6 +123,7 @@ function MyPackageRow({ pkg }: { pkg: PackageCard }) {
   const { opening, error, open } = useOpenInEditor();
   const del = useDeletePackage();
   const [confirm, setConfirm] = useState(false);
+  const unfinished = pkg.uploadStatus === "uploading";
 
   return (
     <li
@@ -147,16 +148,28 @@ function MyPackageRow({ pkg }: { pkg: PackageCard }) {
           {pkg.ageRestriction && pkg.ageRestriction !== "NONE" && (
             <Badge tone="warning">{pkg.ageRestriction.replace("A", "")}+</Badge>
           )}
+          {unfinished && <Badge tone="warning">{t("packages.uploadUnfinished")}</Badge>}
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Link
-          to="/games/new"
-          search={{ packageId: pkg.id }}
-          className="inline-flex min-h-11 items-center rounded-[12px] bg-accent px-4 font-semibold text-on-accent no-underline hover:text-on-accent"
-        >
-          {t("myPackages.host")}
-        </Link>
+        {unfinished ? (
+          <Link
+            to="/packages/$packageId/upload"
+            params={{ packageId: String(pkg.id) }}
+            className="inline-flex min-h-11 items-center rounded-[12px] bg-accent px-4 font-semibold text-on-accent no-underline hover:text-on-accent"
+            data-testid="my-package-resume"
+          >
+            {t("packages.resumeUpload")}
+          </Link>
+        ) : (
+          <Link
+            to="/games/new"
+            search={{ packageId: pkg.id }}
+            className="inline-flex min-h-11 items-center rounded-[12px] bg-accent px-4 font-semibold text-on-accent no-underline hover:text-on-accent"
+          >
+            {t("myPackages.host")}
+          </Link>
+        )}
         <Button
           icon={<EditIcon size={18} />}
           disabled={opening}
@@ -191,6 +204,9 @@ function MyPackageRow({ pkg }: { pkg: PackageCard }) {
           </Button>
         )}
       </div>
+      {unfinished && (
+        <p className="m-0 w-full text-sm text-muted">{t("packages.uploadUnfinishedAuthor")}</p>
+      )}
       {confirm && <p className="m-0 w-full text-sm text-muted">{t("myPackages.deleteHelp")}</p>}
       {(error || del.isError) && (
         <p role="alert" className="m-0 w-full text-sm text-danger">

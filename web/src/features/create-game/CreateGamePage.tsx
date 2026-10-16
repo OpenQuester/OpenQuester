@@ -10,6 +10,7 @@ import type { AgeRestriction, GameSettings } from "@/api/types";
 import { displayName, useMe } from "@/features/auth/useMe";
 import { setJoinIntent } from "@/features/game/joinIntent";
 import { gamesKey } from "@/features/home/useGames";
+import { UploadUnfinished } from "@/features/packages/UploadUnfinished";
 import { summarize, usePackage } from "@/features/packages/usePackages";
 import { Button } from "@/ui/Button";
 import { FieldError, Label, Select, TextInput } from "@/ui/Field";
@@ -34,6 +35,8 @@ export function CreateGamePage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // The server refuses a game whose package media isn't all uploaded yet.
+  const unfinished = pkg.data?.uploadStatus === "uploading";
   const defaultTitle = me.data ? t("create.defaultTitle", { name: displayName(me.data) }) : "";
 
   async function onSubmit(e: FormEvent) {
@@ -189,13 +192,20 @@ export function CreateGamePage() {
           </section>
           <GameRules value={settings} onChange={setSettings} />
           <FieldError>{error}</FieldError>
+          {unfinished && (
+            <UploadUnfinished
+              packageId={packageId}
+              isAuthor={me.data?.id === pkg.data?.author.id}
+            />
+          )}
           <div className="flex flex-col gap-2">
             <Button
               type="submit"
               variant="accent"
               size="lg"
               className="self-start"
-              disabled={busy || !pkg.data}
+              inactive={unfinished}
+              disabled={busy || !pkg.data || unfinished}
             >
               {busy ? t("create.creating") : t("create.submit")}
             </Button>

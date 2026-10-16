@@ -25,6 +25,7 @@ import {
   type PackageFilters,
   type PackageSort,
 } from "./usePackages";
+import { UploadUnfinished } from "./UploadUnfinished";
 import { useDeletePackage, useOpenInEditor } from "./packageActions";
 
 export function PackagesPage() {
@@ -250,6 +251,11 @@ function PackageTile({
           {pkg.ageRestriction.replace("A", "")}+
         </Badge>
       )}
+      {pkg.uploadStatus === "uploading" && (
+        <Badge tone="warning" className="self-start">
+          {t("packages.uploadUnfinished")}
+        </Badge>
+      )}
     </button>
   );
 }
@@ -340,7 +346,9 @@ function PackageSummaryView({
             })}
         </p>
       )}
-      {canHost ? (
+      {pkg.uploadStatus === "uploading" ? (
+        <UploadUnfinished packageId={pkg.id} isAuthor={isAuthor} />
+      ) : canHost ? (
         <Link
           to="/games/new"
           search={{ packageId: pkg.id }}

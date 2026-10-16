@@ -82,6 +82,13 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   so the server can refuse with a 413 that names the limit; the upload and
   publish screens show that message as is. `features/storage/` holds the
   usage bar (`GET /v1/me/storage`) and the admin Storage tab.
+- Upload state (`docs/specs/package-upload-state.md`): a package whose media
+  isn't all in storage is `uploading` and can't be hosted. The upload screens
+  show a row per file (`UploadProgressCard`), keep unsent files in IndexedDB
+  (`upload/stash.ts`) and ask `GET /v1/packages/{id}/upload` afterwards;
+  `/packages/$packageId/upload` finishes an interrupted upload from that
+  stash or from the same file picked again. Uploads send `sourceHash` and the
+  review warns when the same file is already on the server.
 - Question media: players ACK `media-downloaded` only once every file is
   loaded (images decoded), so the question timer starts when everyone can see
   it. Audio and video have no controls and play only in the `showing` phase;

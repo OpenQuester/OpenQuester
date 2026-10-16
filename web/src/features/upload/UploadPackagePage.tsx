@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,35 +9,46 @@ import { ApiError } from "@/api/client";
 import { discordEnabled, startDiscordLogin } from "@/features/auth/discord";
 import { useMe } from "@/features/auth/useMe";
 import { cn } from "@/lib/cn";
-import { formatBytes } from "@/lib/format";
+import { formatBytes, timeAgo } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
-import { BackIcon, CheckIcon, EditIcon, UploadIcon } from "@/ui/icons";
+import { AlertIcon, BackIcon, CheckIcon, EditIcon, UploadIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 
 import { Toggle } from "@/features/settings/SettingsPage";
 import { useSettings } from "@/features/settings/settingsStore";
 import { StorageMeter } from "@/features/storage/StorageMeter";
 
-import type { OptimizeProgress } from "./optimize";
 import type { ImportWarning, ParsedPackage } from "./types";
 import {
   ACCEPT,
+  contentHash,
   describe,
+  findDuplicates,
   readPackageFile,
-  retryMedia,
+  resumeFromFile,
+  resumeUpload,
   uploadPackage,
   type PendingFile,
   type UploadProgress,
+  type UploadResult,
+  type UploadState,
 } from "./upload";
+import { UploadProgressCard } from "./UploadProgressCard";
 
 type Step =
   | { kind: "pick"; error?: string }
   | { kind: "reading"; name: string }
   | { kind: "review"; name: string; parsed: ParsedPackage }
   | { kind: "uploading"; parsed: ParsedPackage; progress: UploadProgress }
-  | { kind: "partial"; parsed: ParsedPackage; id: number; failed: PendingFile[] }
+  | {
+      kind: "partial";
+      parsed: ParsedPackage;
+      id: number;
+      failed: PendingFile[];
+      state: UploadState | null;
+    }
   | { kind: "done"; id: number; title: string; savings?: { before: number; after: number } }
   | { kind: "failed"; parsed: ParsedPackage; name: string; error: string };
 
@@ -71,22 +82,51 @@ export function UploadPackagePage() {
     }
   }
 
+  /** Done only when the server confirms every file; anything else can be resumed. */
+  function finish(parsed: ParsedPackage, result: UploadResult) {
+    const { id, failed, savings, state } = result;
+    void qc.invalidateQueries({ queryKey: ["packages"] });
+    void qc.invalidateQueries({ queryKey: ["package", id] });
+    void qc.invalidateQueries({ queryKey: ["package-upload", id] });
+    void qc.invalidateQueries({ queryKey: ["me", "storage"] });
+    const complete = state ? state.status === "ready" : failed.length === 0;
+    setStep(
+      complete
+        ? { kind: "done", id, title: parsed.content.title, savings }
+        : { kind: "partial", parsed, id, failed, state },
+    );
+  }
+
   async function upload(parsed: ParsedPackage, name: string) {
     const onProgress = (progress: UploadProgress) =>
       setStep({ kind: "uploading", parsed, progress });
     try {
-      const { id, failed, savings } = await uploadPackage(
+      finish(
         parsed,
-        onProgress,
-        undefined,
-        useSettings.getState().compressMedia,
+        await uploadPackage(
+          parsed,
+          onProgress,
+          undefined,
+          useSettings.getState().compressMedia,
+          contentHash(parsed),
+        ),
       );
-      void qc.invalidateQueries({ queryKey: ["packages"] });
-      void qc.invalidateQueries({ queryKey: ["me", "storage"] });
-      setStep(
-        failed.length
-          ? { kind: "partial", parsed, id, failed }
-          : { kind: "done", id, title: parsed.content.title, savings },
+    } catch (err) {
+      setStep({ kind: "failed", parsed, name, error: uploadError(err, t) });
+    }
+  }
+
+  /** Finishes an earlier upload of this same file instead of creating a copy. */
+  async function resume(parsed: ParsedPackage, name: string, id: number) {
+    try {
+      finish(
+        parsed,
+        await resumeFromFile(
+          id,
+          parsed,
+          (progress) => setStep({ kind: "uploading", parsed, progress }),
+          useSettings.getState().compressMedia,
+        ),
       );
     } catch (err) {
       setStep({ kind: "failed", parsed, name, error: uploadError(err, t) });
@@ -100,14 +140,19 @@ export function UploadPackagePage() {
   }
 
   async function retry(parsed: ParsedPackage, id: number, pending: PendingFile[]) {
-    const failed = await retryMedia(pending, (progress) =>
-      setStep({ kind: "uploading", parsed, progress }),
-    );
-    setStep(
-      failed.length
-        ? { kind: "partial", parsed, id, failed }
-        : { kind: "done", id, title: parsed.content.title },
-    );
+    // Fresh links from the server: the first ones may have expired.
+    const files = new Map(parsed.files);
+    for (const p of pending) files.set(p.file.md5, p.file);
+    try {
+      finish(
+        parsed,
+        await resumeUpload(id, files, (progress) =>
+          setStep({ kind: "uploading", parsed, progress }),
+        ),
+      );
+    } catch {
+      setStep({ kind: "partial", parsed, id, failed: pending, state: null });
+    }
   }
 
   return (
@@ -172,18 +217,24 @@ export function UploadPackagePage() {
             parsed={step.parsed}
             name={step.name}
             onUpload={() => void upload(step.parsed, step.name)}
+            onResume={(id) => void resume(step.parsed, step.name, id)}
             onEdit={() => void edit(step.parsed)}
             onCancel={() => setStep({ kind: "pick" })}
           />
         ) : step.kind === "uploading" ? (
-          <Progress title={step.parsed.content.title} progress={step.progress} />
+          <UploadProgressCard title={step.parsed.content.title} progress={step.progress} />
         ) : step.kind === "partial" ? (
           <Card data-testid="upload-partial">
             <div className="flex flex-col gap-4">
               <p role="alert" className="m-0 font-semibold text-warning">
-                {t("upload.partial", { count: step.failed.length })}
+                {step.state
+                  ? t("upload.unfinished", {
+                      uploaded: step.state.uploadedFiles,
+                      total: step.state.totalFiles,
+                    })
+                  : t("upload.partial", { count: step.failed.length })}
               </p>
-              <p className="m-0 text-soft">{t("upload.partialHelp")}</p>
+              <p className="m-0 text-soft">{t("upload.unfinishedHelp")}</p>
               <div className="flex flex-wrap gap-3">
                 <Button
                   variant="accent"
@@ -193,11 +244,10 @@ export function UploadPackagePage() {
                   {t("upload.retryFiles")}
                 </Button>
                 <Link
-                  to="/packages"
-                  search={{ id: step.id }}
+                  to="/packages/mine"
                   className="flex min-h-14 items-center rounded-md border border-line-strong px-6 font-semibold text-text no-underline hover:text-text"
                 >
-                  {t("upload.viewPackage")}
+                  {t("upload.resumeLater")}
                 </Link>
               </div>
             </div>
@@ -267,7 +317,7 @@ export function UploadPackagePage() {
   );
 }
 
-function DropZone({ onFile, error }: { onFile: (f: File) => void; error?: string }) {
+export function DropZone({ onFile, error }: { onFile: (f: File) => void; error?: string }) {
   const { t } = useTranslation();
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
@@ -328,12 +378,14 @@ function Review({
   parsed,
   name,
   onUpload,
+  onResume,
   onEdit,
   onCancel,
 }: {
   parsed: ParsedPackage;
   name: string;
   onUpload: () => void;
+  onResume: (id: number) => void;
   onEdit: () => void;
   onCancel: () => void;
 }) {
@@ -341,8 +393,12 @@ function Review({
   const c = parsed.content;
   const totals = describe(parsed);
   const empty = totals.questions === 0;
+  const duplicates = useDuplicates(parsed);
+  const hasDuplicates = (duplicates.data?.length ?? 0) > 0;
   return (
     <div className="flex flex-col gap-5" data-testid="upload-review">
+      {/* First, so nobody scrolls past it to the upload button. */}
+      {hasDuplicates && <Duplicates packages={duplicates.data ?? []} onResume={onResume} />}
       <Card>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
@@ -398,7 +454,7 @@ function Review({
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <Button
-          variant="accent"
+          variant={hasDuplicates ? "secondary" : "accent"}
           size="lg"
           inactive={empty}
           disabled={empty}
@@ -406,7 +462,7 @@ function Review({
           className="sm:min-w-[240px]"
           icon={<UploadIcon size={20} />}
         >
-          {t("upload.upload")}
+          {hasDuplicates ? t("upload.uploadAnyway") : t("upload.upload")}
         </Button>
         <Button size="lg" onClick={onEdit} icon={<EditIcon size={20} />} data-testid="upload-edit">
           {t("upload.editFirst")}
@@ -456,61 +512,87 @@ function Warnings({ warnings }: { warnings: ImportWarning[] }) {
   );
 }
 
-function Progress({ title, progress }: { title: string; progress: UploadProgress }) {
+interface Duplicate {
+  id: number;
+  title: string;
+  createdAt: string;
+  author: { id: number; username: string };
+  uploadStatus?: "uploading" | "ready";
+}
+
+/** Packages already uploaded from this same file, so nobody makes a copy by accident. */
+function useDuplicates(parsed: ParsedPackage) {
+  const hash = contentHash(parsed);
+  return useQuery({
+    queryKey: ["package-duplicates", hash],
+    queryFn: async () => (await findDuplicates(hash)) as unknown as Duplicate[],
+    staleTime: 0,
+  });
+}
+
+function Duplicates({
+  packages,
+  onResume,
+}: {
+  packages: Duplicate[];
+  onResume: (id: number) => void;
+}) {
   const { t } = useTranslation();
-  const o = progress.optimize;
-  const ratio = o
-    ? o.total > 0
-      ? (o.done + o.current) / o.total
-      : 1
-    : progress.phase === "creating"
-      ? 0.03
-      : progress.totalBytes > 0
-        ? 0.05 + 0.95 * (progress.sentBytes / progress.totalBytes)
-        : 1;
-  const pct = Math.round(Math.min(1, ratio) * 100);
+  const me = useMe();
   return (
-    <Card data-testid="upload-progress">
-      <div className="flex flex-col gap-4">
-        <p className="m-0 font-semibold [overflow-wrap:anywhere]">{title}</p>
-        <div
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={pct}
-          aria-label={t("upload.progressLabel")}
-          className="h-3 overflow-hidden rounded-full bg-surface-2"
-        >
-          <div
-            className="h-full rounded-full bg-accent transition-[width]"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-        <p className="m-0 text-sm text-soft" aria-live="polite">
-          {o
-            ? compressLabel(o, t)
-            : progress.phase === "creating"
-              ? t("upload.creating")
-              : t("upload.sending", {
-                  done: progress.done,
-                  total: progress.total,
-                  sent: formatBytes(progress.sentBytes),
-                  size: formatBytes(progress.totalBytes),
-                })}
+    <Card tone="raised" data-testid="upload-duplicates">
+      <div className="flex flex-col gap-3">
+        <p className="m-0 flex items-center gap-2 font-semibold text-warning">
+          <AlertIcon size={20} />
+          {t("upload.duplicates.title", { count: packages.length })}
         </p>
-        <p className="m-0 text-sm text-muted">{t("upload.keepOpen")}</p>
+        <p className="m-0 text-sm text-soft">{t("upload.duplicates.help")}</p>
+        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+          {packages.map((p) => {
+            const mine = p.author.id === me.data?.id;
+            const unfinished = p.uploadStatus === "uploading";
+            return (
+              <li
+                key={p.id}
+                data-testid="upload-duplicate"
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[12px] bg-surface-2 px-4 py-3"
+              >
+                <div className="flex min-w-0 flex-[1_1_220px] flex-col gap-0.5">
+                  <span className="font-semibold [overflow-wrap:anywhere]">{p.title}</span>
+                  <span className="text-sm text-muted">
+                    {mine
+                      ? t("upload.duplicates.yours", { when: timeAgo(p.createdAt) })
+                      : t("upload.duplicates.by", {
+                          author: p.author.username,
+                          when: timeAgo(p.createdAt),
+                        })}
+                  </span>
+                  {unfinished && (
+                    <Badge tone="warning" className="self-start">
+                      {t("packages.uploadUnfinished")}
+                    </Badge>
+                  )}
+                </div>
+                {unfinished && mine ? (
+                  <Button variant="accent" onClick={() => onResume(p.id)}>
+                    {t("upload.duplicates.resume")}
+                  </Button>
+                ) : (
+                  <Link
+                    to="/packages"
+                    search={{ id: p.id }}
+                    className="inline-flex min-h-11 items-center rounded-[12px] bg-accent px-4 font-semibold text-on-accent no-underline hover:text-on-accent"
+                  >
+                    {t("upload.duplicates.open")}
+                  </Link>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </Card>
   );
-}
-
-export function compressLabel(o: OptimizeProgress, t: TFunction): string {
-  return t("upload.compress.progress", {
-    done: Math.min(o.done + 1, o.total),
-    total: o.total,
-    before: formatBytes(o.bytesBefore),
-    after: formatBytes(o.bytesAfter),
-  });
 }
 
 /** Whether media is re-encoded before upload; remembered on this device. */
@@ -536,7 +618,7 @@ function uploadError(err: unknown, t: TFunction): string {
     if (err.status === 401) return t("upload.signInFirst");
     if (err.status === 0) return t("upload.networkError");
     // Storage limits: the server says which limit and by how much.
-    if (err.status === 413 || err.status === 507) return err.message;
+    if (err.status === 413 || err.status === 507 || err.status === 409) return err.message;
     return t("upload.serverRejected", { message: err.message });
   }
   return err instanceof Error ? err.message : String(err);

@@ -122,7 +122,11 @@
     "max": "Max",
     "onlyMine": "Only my packages",
     "clearFilters": "Clear filters",
-    "preview": "Preview questions"
+    "preview": "Preview questions",
+    "uploadUnfinished": "Upload not finished",
+    "uploadUnfinishedHelp": "Some of this package's media is still being uploaded by its author, so a game can't be started with it yet.",
+    "uploadUnfinishedAuthor": "Some media files haven't been uploaded, so nobody can start a game with this package yet. Finish the upload to make it playable.",
+    "resumeUpload": "Finish upload"
   },
   "questionTypes": {
     "simple": "Simple",
@@ -768,7 +772,6 @@
     "viewPackage": "View package",
     "partial_one": "{{count}} media file didn't upload",
     "partial_other": "{{count}} media files didn't upload",
-    "partialHelp": "The package exists, but questions that use those files will show a “couldn't load” notice until they're uploaded.",
     "retryFiles": "Retry those files",
     "tryAgain": "Try again",
     "networkError": "Lost connection while uploading. Check your network and try again.",
@@ -779,6 +782,33 @@
       "help": "Pictures become AVIF, video VP9 and sound AAC, playable on every device. The first time, the browser downloads the encoders once. Files this browser can't encode are uploaded as they are.",
       "progress": "Compressing media: {{done}} of {{total}} · {{before}} → {{after}}",
       "saved": "Media compressed from {{before}} to {{after}}."
+    },
+    "checking": "Checking that every file arrived…",
+    "fileType": {
+      "image": "Picture",
+      "audio": "Sound",
+      "video": "Video"
+    },
+    "fileState": {
+      "waiting": "Waiting",
+      "uploading": "Uploading",
+      "done": "Uploaded",
+      "failed": "Failed"
+    },
+    "showAllFiles_one": "Show all {{count}} file",
+    "showAllFiles_other": "Show all {{count}} files",
+    "unfinished": "{{uploaded}} of {{total}} media files are uploaded",
+    "unfinishedHelp": "The package is saved, but nobody can start a game with it until all its media is uploaded. You can finish now or later from My packages.",
+    "resumeLater": "Finish later",
+    "uploadAnyway": "Upload anyway",
+    "duplicates": {
+      "title_one": "This package is already on OpenQuester",
+      "title_other": "This package is already on OpenQuester {{count}} times",
+      "help": "It was uploaded from the same file. Use it instead of making a copy, or upload anyway if you mean to.",
+      "yours": "Your upload · {{when}}",
+      "by": "By {{author}} · {{when}}",
+      "resume": "Finish this upload",
+      "open": "Open it"
     }
   },
   "editor": {
@@ -1344,5 +1374,22 @@
     "noText": "A question without text",
     "resolve": "Mark resolved",
     "reopen": "Open again"
+  },
+  "resume": {
+    "title": "Finish the upload",
+    "notYours": "Only the package's author can finish its upload.",
+    "notFound": "This package doesn't exist any more.",
+    "done": "All media is uploaded",
+    "doneHelp_one": "Its {{count}} media file is in storage, so the package is ready to play.",
+    "doneHelp_other": "All {{count}} media files are in storage, so the package is ready to play.",
+    "notInFile_one": "{{count}} missing file isn't in the file you picked. Pick the file this package was uploaded from.",
+    "notInFile_other": "{{count}} missing files aren't in the file you picked. Pick the file this package was uploaded from.",
+    "otherPackage": "You picked “{{picked}}”, but this is “{{title}}”. Pick the file this package was uploaded from.",
+    "stashAll_one": "This browser still has the missing file from the first try.",
+    "stashAll_other": "This browser still has all {{count}} missing files from the first try.",
+    "stashSome": "This browser still has {{count}} of the {{total}} missing files from the first try. Upload them now, then pick the package file for the rest.",
+    "uploadStashed_one": "Upload {{count}} file",
+    "uploadStashed_other": "Upload {{count}} files",
+    "pickHelp": "Pick the same .siq or .oq file again. Only the media that's missing is uploaded."
   }
 }

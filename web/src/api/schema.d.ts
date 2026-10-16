@@ -151,6 +151,10 @@ export interface paths {
                     tags?: components["schemas"]["PackageTags"];
                     /** @description Filter by age restriction */
                     ageRestriction?: components["schemas"]["AgeRestriction"];
+                    /** @description Find packages uploaded from the same file (see `sourceHash` on upload). Used to warn before uploading a duplicate. */
+                    sourceHash?: string;
+                    /** @description `ready` lists only packages that can be played now. Without it, packages still uploading are listed too. */
+                    uploadStatus?: components["schemas"]["PackageUploadStatus"];
                     /** @description Minimum rounds count */
                     minRounds?: components["schemas"]["PackageMinRounds"];
                     /** @description Maximum rounds count */
@@ -416,6 +420,78 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/packages/{id}/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Upload state of a package's media
+         * @description For the package author or a user with edit_package. Lists the media files storage doesn't have yet, with fresh upload links, so an interrupted upload can be resumed; marks the package ready once every file is stored.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Upload state */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PackageUploadState"];
+                    };
+                };
+                /** @description Invalid session */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not the author */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Package not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PackageNotFoundResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1018,6 +1094,17 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["BadRequestResponse"];
+                    };
+                };
+                /** @description The package's media isn't fully uploaded yet (`package_upload_unfinished`), so it can't be played */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error?: string;
+                        };
                     };
                 };
             };
@@ -2830,6 +2917,8 @@ export interface components {
             fileSizes?: {
                 [key: string]: number;
             };
+            /** @description Fingerprint of the imported package file's content (hex). Stored so a later upload of the same file can find this package with `GET /v1/packages?sourceHash=`. On PUT, omit to keep the stored value; null clears it. */
+            sourceHash?: string | null;
         };
         ResponseUser: {
             /** @example 1 */
@@ -3146,6 +3235,7 @@ export interface components {
              * @example null
              */
             tags?: components["schemas"]["PackageTag"][] | null;
+            uploadStatus?: components["schemas"]["PackageUploadStatus"];
         };
         OqPackage: {
             /** @example 1 */
@@ -3205,6 +3295,7 @@ export interface components {
              * @example null
              */
             tags?: components["schemas"]["PackageTag"][] | null;
+            uploadStatus?: components["schemas"]["PackageUploadStatus"];
         };
         PackageItem: {
             /** @example 1 */
@@ -3333,6 +3424,8 @@ export interface components {
             uploadLinks: {
                 [key: string]: string;
             };
+            /** @description `ready` when storage already holds every file, so nothing needs uploading. */
+            uploadStatus?: components["schemas"]["PackageUploadStatus"];
         };
         FileLinkResponse: {
             /** @example http://localhost:9000/file-get-link */
@@ -5601,6 +5694,26 @@ export interface components {
         QuestionReporter: {
             id: number;
             username: string;
+        };
+        /**
+         * @description `uploading` while storage lacks some of the package's media files; such a package can't be picked for a game. `ready` once every file is stored.
+         * @enum {string}
+         */
+        PackageUploadStatus: "uploading" | "ready";
+        /** @description Where a package's media upload stands. Checking asks storage about every file not confirmed yet and marks the package ready once all are stored. */
+        PackageUploadState: {
+            id: number;
+            status: components["schemas"]["PackageUploadStatus"];
+            /** @description Distinct media files the package uses */
+            totalFiles: number;
+            /** @description Of those, how many storage holds */
+            uploadedFiles: number;
+            /** @description MD5s storage doesn't have yet */
+            missing: string[];
+            /** @description A fresh presigned PUT link per missing MD5 */
+            uploadLinks: {
+                [key: string]: string;
+            };
         };
     };
     responses: never;

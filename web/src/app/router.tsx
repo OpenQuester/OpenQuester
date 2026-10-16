@@ -77,6 +77,14 @@ const uploadRoute = createRoute({
     "UploadPackagePage",
   ),
 });
+const resumeUploadRoute = createRoute({
+  getParentRoute: () => shell,
+  path: "/packages/$packageId/upload",
+  component: lazyRouteComponent(
+    () => import("@/features/upload/ResumeUploadPage"),
+    "ResumeUploadPage",
+  ),
+});
 const editorHomeRoute = createRoute({
   getParentRoute: () => shell,
   path: "/packages/editor",
@@ -151,6 +159,7 @@ const routeTree = rootRoute.addChildren([
     discordRoute,
     packagesRoute,
     uploadRoute,
+    resumeUploadRoute,
     editorHomeRoute,
     createGameRoute,
     settingsRoute,

@@ -190,10 +190,13 @@ export async function seedBigPackage(base, title = "Big board") {
     ),
   }));
   themes[4].questions[9].price = 10;
-  // A file that is never uploaded: the app must show a clear "couldn't load" state.
+  // A stored file that isn't a picture: the app must show a clear "couldn't load"
+  // state. (A file that was never uploaded keeps the package from being played.)
+  const broken = Buffer.from(`not a picture ${title}`);
+  const brokenMd5 = createHash("md5").update(broken).digest("hex");
   themes[0].questions[0].questionFiles = [
     {
-      file: { md5: "0123456789abcdef0123456789abcdef", type: "image" },
+      file: { md5: brokenMd5, type: "image" },
       displayTime: null,
       order: 0,
     },
@@ -212,7 +215,8 @@ export async function seedBigPackage(base, title = "Big board") {
     }),
   });
   if (!res.ok) throw new Error(`big package upload failed: ${res.status} ${await res.text()}`);
-  const { id } = await res.json();
+  const { id, uploadLinks } = await res.json();
+  await uploadFiles(uploadLinks, { [brokenMd5]: { body: broken, type: "image/png" } });
   return { id, title };
 }
 
