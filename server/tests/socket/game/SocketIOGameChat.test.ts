@@ -603,10 +603,17 @@ describe("Socket Game Chat Tests", () => {
 
           const receivePromises = allSockets.map((socket) =>
             scenario.trackExpectation(
-              scenario.waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE).then((response) => {
-                expect(response.message).toBe(message);
-                expect(response.user).toBeDefined();
-              }),
+              // Showman-log lines share the chat event; wait for the player's own message
+              scenario
+                .waitForEventMatching<{ message: string; user?: unknown; system?: unknown }>(
+                  socket,
+                  SocketIOEvents.CHAT_MESSAGE,
+                  (response) => !response.system
+                )
+                .then((response) => {
+                  expect(response.message).toBe(message);
+                  expect(response.user).toBeDefined();
+                }),
               "validated chat broadcast payload"
             )
           );
@@ -701,9 +708,11 @@ describe("Socket Game Chat Tests", () => {
           // 8. Verify chat history includes all 15 messages, in reverse-chronological order
           expect(gameData.chatMessages).toBeDefined();
           expect(Array.isArray(gameData.chatMessages)).toBe(true);
-          expect(gameData.chatMessages.length).toBe(15);
+          // History also holds showman-log lines (e.g. "Showman started the game")
+          const playerMessages = gameData.chatMessages.filter((m) => !m.system);
+          expect(playerMessages.length).toBe(15);
           const expected = [...allMessages, ...disconnectedMessages].reverse();
-          const actual = gameData.chatMessages.map((m) => m.message);
+          const actual = playerMessages.map((m) => m.message);
           expect(actual).toEqual(expected);
         }));
     });

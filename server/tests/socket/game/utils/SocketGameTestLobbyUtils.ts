@@ -1,13 +1,11 @@
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { GameActionType } from "domain/enums/GameActionType";
+import { GameActionLockService } from "application/services/lock/GameActionLockService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { HttpStatus } from "domain/enums/HttpStatus";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
-import {
-  ButtonPressMode,
-  GameSettingsInput
-} from "domain/types/dto/game/settings/GameSettingsDTO";
+import { ButtonPressMode, GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
@@ -534,12 +532,37 @@ export class SocketGameTestLobbyUtils {
     }
   }
 
+  /**
+   * Starts the game and waits until the START action has fully finished: its
+   * showman-log line has reached the chat and the game lock is free again, so
+   * later chat listeners and lock-holding tests start from a quiet game.
+   */
   public async startGame(showmanSocket: GameClientSocket): Promise<GameStartEventPayload> {
-    return this.eventUtils.emitAndWaitForEvent<GameStartEventPayload>(
+    const logLine = this.eventUtils.waitForEventMatching<{ system?: unknown }>(
+      showmanSocket,
+      SocketIOEvents.CHAT_MESSAGE,
+      (message) => Boolean(message.system)
+    );
+    const started = await this.eventUtils.emitAndWaitForEvent<GameStartEventPayload>(
       showmanSocket,
       SocketIOGameEvents.START,
       () => showmanSocket.emit(SocketIOGameEvents.START)
     );
+    await logLine;
+    await this.waitForIdleGameLock(showmanSocket.gameId);
+    return started;
+  }
+
+  private async waitForIdleGameLock(gameId: string | undefined): Promise<void> {
+    if (!gameId) return;
+    const lockService = container.resolve(GameActionLockService);
+    const deadline = Date.now() + 2_000;
+    while (await lockService.isLocked(gameId)) {
+      if (Date.now() > deadline) {
+        throw new Error(`Game ${gameId} still locked after START finished`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
   }
 
   public async pauseGame(showmanSocket: GameClientSocket): Promise<void> {
