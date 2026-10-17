@@ -5,9 +5,7 @@ import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
  * waitForFinish flag, and the question text can take a position in the
  * content order. Defaults keep existing packages valid.
  */
-export class AddContentSequencingFields_0_24_0_1792000000000
-  implements MigrationInterface
-{
+export class AddContentSequencingFields_0_24_0_1792000000000 implements MigrationInterface {
   name = "AddContentSequencingFields_0_24_0_1792000000000";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
@@ -18,14 +16,14 @@ export class AddContentSequencingFields_0_24_0_1792000000000
           type: "varchar",
           length: "16",
           isNullable: false,
-          default: "'screen'",
+          default: "'screen'"
         }),
         new TableColumn({
           name: "wait_for_finish",
           type: "boolean",
           isNullable: false,
-          default: true,
-        }),
+          default: true
+        })
       ]);
     }
 
@@ -37,6 +35,7 @@ export class AddContentSequencingFields_0_24_0_1792000000000
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.dropColumn("package_question", "text_order");
+
     for (const table of ["package_question_file", "package_answer_file"]) {
       await queryRunner.dropColumn(table, "wait_for_finish");
       await queryRunner.dropColumn(table, "placement");

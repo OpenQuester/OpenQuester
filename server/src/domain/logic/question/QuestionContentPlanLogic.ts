@@ -141,6 +141,7 @@ export class QuestionContentPlanLogic {
 
     game.gameState.questionContentPlan = plan;
     game.gameState.buzzerOpensAtMs = this.buzzerOpensAt(game);
+
     return plan?.totalMs ?? 0;
   }
 
@@ -239,6 +240,7 @@ export class QuestionContentPlanLogic {
 
         return file.file.type === PackageFileType.AUDIO ? defaults.audioMs : defaults.videoMs;
       }
+
       case PackageFileType.IMAGE:
       default:
         return defaults.imageMs;

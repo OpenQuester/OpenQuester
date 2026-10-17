@@ -80,6 +80,7 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
     }
 
     const resources = await this.transitionResourceService.getCurrentQuestionWithTheme(game);
+
     return AnswerCheckLogic.check(resources?.questionWithTheme?.question, answerText);
   }
 }

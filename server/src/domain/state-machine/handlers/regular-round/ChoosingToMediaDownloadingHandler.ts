@@ -34,15 +34,21 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
   public canTransition(ctx: ChoosingToMediaDownloadingCtx): boolean {
     const { game, trigger, payload } = ctx;
 
-    if (!payload) return false;
+    if (!payload) {
+      return false;
+    }
 
-    if (getGamePhase(game) !== this.fromPhase) return false;
+    if (getGamePhase(game) !== this.fromPhase) {
+      return false;
+    }
 
     if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.CHOOSING)) {
       return false;
     }
 
-    if (trigger !== TransitionTrigger.USER_ACTION) return false;
+    if (trigger !== TransitionTrigger.USER_ACTION) {
+      return false;
+    }
 
     // Validate question existence and type; silence on failure
     try {
@@ -74,6 +80,7 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
     if (allPlayMode) {
       AllPlayLogic.start(game, question, theme.id!, allPlayMode);
     }
+
     QuestionPickLogic.resetMediaDownloadStatus(game);
 
     game.setQuestionState(QuestionState.MEDIA_DOWNLOADING);

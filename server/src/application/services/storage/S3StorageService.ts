@@ -103,6 +103,7 @@ export class S3StorageService {
             });
             log.finish();
             resolve(false);
+
             return;
           }
 
@@ -157,6 +158,7 @@ export class S3StorageService {
     expiresIn: number = UPLOAD_FILE_LINK_EXPIRES_IN
   ) {
     const links: Record<string, string> = {};
+
     for (const file of files) {
       const filename = ValueUtils.getRawFilename(file.filename.toLowerCase());
 
@@ -198,6 +200,7 @@ export class S3StorageService {
     if (user || pack) {
       await this._writeUsage(file, user, pack);
     }
+
     return link;
   }
 
@@ -213,6 +216,7 @@ export class S3StorageService {
         filename,
         userId: sessionUserId
       });
+
       return;
     }
 
@@ -225,6 +229,7 @@ export class S3StorageService {
       if (u.user) {
         usage.users.push(u.user);
       }
+
       if (u.package?.author) {
         usage.packages.push(u.package);
       }
@@ -237,6 +242,7 @@ export class S3StorageService {
 
     if (usedInPackages && !usedByUsers) {
       const packages = usage.packages.map((p) => p.title).join(", ");
+
       throw new ClientError(ClientResponse.DELETE_FROM_PACKAGE, 400, {
         packages
       });
@@ -317,6 +323,7 @@ export class S3StorageService {
         totalProcessed,
         error: error instanceof Error ? error.message : String(error)
       });
+
       throw error;
     }
   }
@@ -343,6 +350,7 @@ export class S3StorageService {
 
     for (let i = 0; i < s3Keys.length; i += BATCH_SIZE) {
       const batch = s3Keys.slice(i, i + BATCH_SIZE);
+
       try {
         const result = await this.objectStorage.deleteObjects(this.s3Context.bucket, batch);
 
@@ -352,6 +360,7 @@ export class S3StorageService {
         // Log any errors that occurred during batch deletion
         if (result.errors.length > 0) {
           totalErrors += result.errors.length;
+
           for (const error of result.errors) {
             this.logger.error(`Failed to delete file from S3 in batch`, {
               prefix: LogPrefix.S3_CLEANUP,
@@ -421,6 +430,7 @@ export class S3StorageService {
       if (u.avatar?.filename === filename) {
         await this._deleteUserAvatar(u);
         await this._deleteAvatarUsage(filename, u);
+
         return true;
       }
     }

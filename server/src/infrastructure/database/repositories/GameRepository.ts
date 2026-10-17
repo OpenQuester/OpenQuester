@@ -26,7 +26,10 @@ import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO
 import { type PackageMetaDTO } from "domain/types/dto/package/packageMeta";
 import { asUserId } from "domain/types/ids";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
-import { type GamePaginationOpts, type GameSortField } from "domain/types/pagination/game/GamePaginationOpts";
+import {
+  type GamePaginationOpts,
+  type GameSortField
+} from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
 import { PasswordUtils } from "domain/utils/PasswordUtils";
@@ -77,6 +80,7 @@ export class GameRepository {
     }
 
     const validatedData = GameRedisValidator.validateRedisData(data);
+
     return GameMapper.deserializeGameHash(validatedData);
   }
 
@@ -93,6 +97,7 @@ export class GameRepository {
     if (warningTtlSeconds > 0) {
       pipeline.set(warningKey, "1", "PX", warningTtlSeconds * SECOND_MS);
     }
+
     await pipeline.exec();
   }
 
@@ -117,6 +122,7 @@ export class GameRepository {
     if (warningTtlSeconds > 0) {
       pipeline.set(warningKey, "1", "PX", warningTtlSeconds * SECOND_MS);
     }
+
     await pipeline.exec();
   }
 
@@ -129,6 +135,7 @@ export class GameRepository {
 
   public async getGame(gameId: string, updatedTtl?: number): Promise<GameListItemDTO> {
     const game = await this.getGameEntity(gameId, updatedTtl);
+
     return this.getGameListItem(game);
   }
 
@@ -272,6 +279,7 @@ export class GameRepository {
       const warningKey = this.getGameExpirationWarningKey(gameId);
       pipeline.set(warningKey, "1", "PX", warningTtlSeconds * SECOND_MS);
     }
+
     await pipeline.exec();
 
     const packMeta: PackageMetaDTO = {
@@ -513,9 +521,11 @@ export class GameRepository {
 
   private _generateGameId() {
     let result = "";
+
     for (let i = 0; i < GAME_ID_CHARACTERS_LENGTH; i++) {
       result += GAME_ID_CHARACTERS[Math.floor(Math.random() * GAME_ID_CHARACTERS.length)];
     }
+
     return result;
   }
 
@@ -534,6 +544,7 @@ export class GameRepository {
           const validatedData = GameRedisValidator.validateRedisData(
             data as Record<string, string>
           );
+
           return GameMapper.deserializeGameHash(validatedData);
         } catch (error) {
           this.logger.warn("Skipping invalid game Redis data", {

@@ -170,6 +170,7 @@ export class Package {
         missing: "rounds:notLoaded"
       });
     }
+
     if (this.rounds.length < 1) {
       throw new ClientError(ClientResponse.PACKAGE_CORRUPTED, undefined, {
         id: this.id,

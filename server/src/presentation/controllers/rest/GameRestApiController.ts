@@ -40,13 +40,10 @@ export class GameRestApiController {
       gameIdScheme()
     ).validate();
 
-    const user = await this.userService.getUserBySession(
-      req.session.userId,
-      {
-        select: ["id"],
-        relations: []
-      }
-    );
+    const user = await this.userService.getUserBySession(req.session.userId, {
+      select: ["id"],
+      relations: []
+    });
 
     await this.gameService.delete(user.id, validatedData.gameId);
 
@@ -71,6 +68,7 @@ export class GameRestApiController {
     ).validate();
 
     const result = await this.gameService.list(paginationOpts);
+
     return res.status(HttpStatus.OK).send(result);
   };
 
@@ -84,19 +82,17 @@ export class GameRestApiController {
       throw new ClientError(ClientResponse.NO_GAME_DATA);
     }
 
-    const createdByUser = await this.userService.getUserBySession(
-      req.session.userId,
-      {
-        select: ["id", "username", "name"],
-        relations: []
-      }
-    );
+    const createdByUser = await this.userService.getUserBySession(req.session.userId, {
+      select: ["id", "username", "name"],
+      relations: []
+    });
 
     // The games list shows the host by display name, like players see in game
     const result = await this.gameService.create(
       { id: createdByUser.id, username: createdByUser.name?.trim() || createdByUser.username },
       gameCreateDTO
     );
+
     return res.status(HttpStatus.OK).send(result);
   };
 
@@ -115,15 +111,13 @@ export class GameRestApiController {
       throw new ClientError(ClientResponse.NO_GAME_DATA);
     }
 
-    const user = await this.userService.getUserBySession(
-      req.session.userId,
-      {
-        select: ["id"],
-        relations: []
-      }
-    );
+    const user = await this.userService.getUserBySession(req.session.userId, {
+      select: ["id"],
+      relations: []
+    });
 
     const result = await this.gameService.update(user.id, validatedParams.gameId, updateDTO);
+
     return res.status(HttpStatus.OK).send(result);
   };
 }

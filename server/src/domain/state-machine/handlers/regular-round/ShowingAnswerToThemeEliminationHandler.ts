@@ -51,6 +51,7 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
     }
 
     const nextRound = game.getNextRound();
+
     return nextRound?.type === PackageRoundType.FINAL;
   }
 

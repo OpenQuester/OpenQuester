@@ -75,6 +75,7 @@ export class GameJoinLogic {
     if (!existingPlayer && joinMode === GameJoinMode.CLOSED) {
       throw new ClientError(ClientResponse.GAME_JOIN_CLOSED);
     }
+
     if (
       joinMode === GameJoinMode.SPECTATORS_ONLY &&
       role !== PlayerRole.SPECTATOR &&

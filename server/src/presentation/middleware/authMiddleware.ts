@@ -62,19 +62,18 @@ export const verifySession =
       return unauthorizedError(req, res);
     }
 
-    const user = await container
-      .resolve(UserService)
-      .getUserBySession(req.session.userId, {
-        select: USER_SELECT_FIELDS,
-        relations: USER_RELATIONS,
-        relationSelects: {
-          avatar: ["id", "filename"],
-          permissions: ["id", "name"]
-        }
-      });
+    const user = await container.resolve(UserService).getUserBySession(req.session.userId, {
+      select: USER_SELECT_FIELDS,
+      relations: USER_RELATIONS,
+      relationSelects: {
+        avatar: ["id", "filename"],
+        permissions: ["id", "name"]
+      }
+    });
 
     // Validate session with user data
     let validatedSession: SessionDTO;
+
     try {
       validatedSession = validateSession(req.session, user.is_guest);
     } catch (err: unknown) {
@@ -102,9 +101,15 @@ const LAST_SEEN_EVERY_MS = 60 * 60 * 1000;
 
 function touchLastSeen(userId: number, logger: ILogger): void {
   const now = Date.now();
-  if (now - (lastSeenWritten.get(userId) ?? 0) < LAST_SEEN_EVERY_MS) return;
+  if (now - (lastSeenWritten.get(userId) ?? 0) < LAST_SEEN_EVERY_MS) {
+    return;
+  }
+
   lastSeenWritten.set(userId, now);
-  if (lastSeenWritten.size > 50_000) lastSeenWritten.clear();
+  if (lastSeenWritten.size > 50_000) {
+    lastSeenWritten.clear();
+  }
+
   container
     .resolve(UserActivityService)
     .touchLastSeen(userId)
@@ -139,6 +144,7 @@ async function handleSessionValidationError(
   if (err instanceof Error) {
     return unauthorizedError(req, res);
   }
+
   logger.error(`Unknown error during session validation: ${JSON.stringify(err)}`, {
     prefix: LogPrefix.AUTH
   });

@@ -55,6 +55,7 @@ export class StatsRestApiController {
     if (!userId) {
       throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
+
     res.status(HttpStatus.OK).send(await this.stats.getUserStats(userId));
   };
 

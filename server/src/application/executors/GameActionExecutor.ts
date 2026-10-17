@@ -344,6 +344,7 @@ export class GameActionExecutor {
         prefix: LogPrefix.ACTION,
         gameId
       });
+
       return null;
     }
 
@@ -497,6 +498,7 @@ export class GameActionExecutor {
             prefix: LogPrefix.ACTION,
             gameId
           });
+
           return targetResult;
 
         case DrainStatus.QUEUE_EMPTY:
@@ -521,6 +523,7 @@ export class GameActionExecutor {
 
             if (drainedResult.stopDraining) {
               await this.lockService.releaseLock(gameId, currentToken);
+
               return targetResult;
             }
 
@@ -529,6 +532,7 @@ export class GameActionExecutor {
             }
           } catch (error) {
             await this.lockService.releaseLock(gameId, currentToken);
+
             throw error;
           }
 
@@ -551,6 +555,7 @@ export class GameActionExecutor {
   private deserializeAction(raw: string): GameAction | null {
     try {
       const parsed = JSON.parse(raw);
+
       return {
         ...parsed,
         timestamp: new Date(parsed.timestamp),

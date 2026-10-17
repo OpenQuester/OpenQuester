@@ -32,6 +32,7 @@ export class PackageUploadCheckJob extends BaseCronJob {
       BATCH
     );
     let ready = 0;
+
     for (const id of ids) {
       try {
         if ((await this.packageUploadService.refresh(id)).missingFilenames.length === 0) {
@@ -45,6 +46,7 @@ export class PackageUploadCheckJob extends BaseCronJob {
         });
       }
     }
+
     if (ids.length > 0) {
       this.logger.info("Checked unfinished package uploads", {
         prefix: LogPrefix.CRON,

@@ -28,10 +28,18 @@ export class AllPlayBiddingToMediaDownloadingHandler extends BaseTransitionHandl
 
   public canTransition(ctx: TransitionContext): boolean {
     const { game, trigger } = ctx;
-    if (getGamePhase(game) !== this.fromPhase) return false;
-    if (!ctx.resources?.questionWithTheme) return false;
+    if (getGamePhase(game) !== this.fromPhase) {
+      return false;
+    }
 
-    if (trigger === TransitionTrigger.TIMER_EXPIRED) return true;
+    if (!ctx.resources?.questionWithTheme) {
+      return false;
+    }
+
+    if (trigger === TransitionTrigger.TIMER_EXPIRED) {
+      return true;
+    }
+
     return trigger === TransitionTrigger.CONDITION_MET && AllPlayLogic.allStaked(game);
   }
 

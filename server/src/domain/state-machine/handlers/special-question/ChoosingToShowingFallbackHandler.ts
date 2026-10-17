@@ -9,7 +9,7 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
@@ -31,31 +31,31 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
   public canTransition(ctx: ChoosingToShowingFallbackCtx): boolean {
     const { game, trigger, payload } = ctx;
 
-    if (!payload) return false;
-    if (getGamePhase(game) !== this.fromPhase) return false;
-
-    if (
-      !TransitionGuards.canTransitionInRegularRound(
-        game,
-        QuestionState.CHOOSING
-      )
-    ) {
+    if (!payload) {
       return false;
     }
 
-    if (trigger !== TransitionTrigger.USER_ACTION) return false;
+    if (getGamePhase(game) !== this.fromPhase) {
+      return false;
+    }
+
+    if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.CHOOSING)) {
+      return false;
+    }
+
+    if (trigger !== TransitionTrigger.USER_ACTION) {
+      return false;
+    }
 
     try {
-      const { question } = QuestionPickLogic.validateQuestionPick(
-        game,
-        payload.questionData
-      );
+      const { question } = QuestionPickLogic.validateQuestionPick(game, payload.questionData);
 
       const isSpecial =
-        question.type === PackageQuestionType.SECRET ||
-        question.type === PackageQuestionType.STAKE;
+        question.type === PackageQuestionType.SECRET || question.type === PackageQuestionType.STAKE;
 
-      if (!isSpecial) return false;
+      if (!isSpecial) {
+        return false;
+      }
 
       // Fallback when fewer than two eligible players remain
       return !TransitionGuards.hasMultipleEligiblePlayers(game);
@@ -68,14 +68,9 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     GameStateValidator.validateGameInProgress(ctx.game);
   }
 
-  protected async mutate(
-    ctx: ChoosingToShowingFallbackCtx
-  ): Promise<MutationResult> {
+  protected async mutate(ctx: ChoosingToShowingFallbackCtx): Promise<MutationResult> {
     const { game, payload } = ctx;
-    const { question, theme } = QuestionPickLogic.validateQuestionPick(
-      game,
-      payload!.questionData
-    );
+    const { question, theme } = QuestionPickLogic.validateQuestionPick(game, payload!.questionData);
 
     const eligiblePlayers = game
       .getInGamePlayers()
@@ -95,15 +90,14 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     game.gameState.secretQuestionData = null;
     game.gameState.stakeQuestionData = null;
     game.setQuestionState(questionState);
-    game.gameState.currentQuestion =
-      GameQuestionMapper.mapToSimpleQuestion(question);
+    game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(question);
 
     QuestionPickLogic.markQuestionPlayed(game, question.id!, theme.id!);
     QuestionPickLogic.resetMediaDownloadStatus(game);
     QuestionContentPlanLogic.applyToGame(game);
 
     return {
-      data: {},
+      data: {}
     };
   }
 
@@ -125,9 +119,9 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: durationMs,
-        },
-      ],
+          pxTtl: durationMs
+        }
+      ]
     };
   }
 

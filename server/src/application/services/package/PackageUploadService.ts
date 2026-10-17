@@ -48,12 +48,16 @@ export class PackageUploadService {
    * After a package is created or replaced: ready when storage already holds
    * every file it uses (nothing new to upload), otherwise uploading.
    */
-  public async markSaved(packageId: number, sourceHash?: string | null): Promise<PackageUploadStatus> {
+  public async markSaved(
+    packageId: number,
+    sourceHash?: string | null
+  ): Promise<PackageUploadStatus> {
     const files = await this.storageRepository.getPackageFileStates(packageId);
     const status = files.every((file) => file.verified)
       ? PackageUploadStatus.READY
       : PackageUploadStatus.UPLOADING;
     await this.packageRepository.setUploadState(packageId, status, sourceHash);
+
     return status;
   }
 
@@ -68,6 +72,7 @@ export class PackageUploadService {
     const pendingFilenames = files.filter((file) => !file.verified).map((file) => file.filename);
     const missingFilenames: string[] = [];
     const uncheckedFilenames: string[] = [];
+
     for (let i = 0; i < pendingFilenames.length; i += PARALLEL_CHECKS) {
       await Promise.all(
         pendingFilenames.slice(i, i + PARALLEL_CHECKS).map(async (filename) => {
@@ -94,6 +99,7 @@ export class PackageUploadService {
     } else if (uncheckedFilenames.length === 0) {
       status = PackageUploadStatus.READY;
     }
+
     if (status !== pack.upload_status) {
       await this.packageRepository.setUploadState(packageId, status);
       this.logger.info(`Package ${packageId} upload is ${status}`, {
@@ -102,6 +108,7 @@ export class PackageUploadService {
         missing: missingFilenames.length
       });
     }
+
     return { status, files, missingFilenames, uncheckedFilenames };
   }
 
@@ -113,6 +120,7 @@ export class PackageUploadService {
       check.files.filter((file) => notStoredFilenames.has(file.filename)),
       UPLOAD_PACKAGE_LINKS_EXPIRES_IN
     );
+
     return {
       id: packageId,
       status: check.status,
@@ -134,10 +142,12 @@ export class PackageUploadService {
     if (!pack || pack.upload_status !== PackageUploadStatus.UPLOADING) {
       return;
     }
+
     const check = await this.refresh(packageId);
     if (check.missingFilenames.length === 0) {
       return;
     }
+
     throw new ClientError(ClientResponse.PACKAGE_UPLOAD_UNFINISHED, HttpStatus.CONFLICT, {
       missing: check.missingFilenames.length,
       total: check.files.length

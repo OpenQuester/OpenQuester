@@ -104,6 +104,7 @@ export class PackageRepository {
       .orderBy("package.upload_started_at", "DESC")
       .limit(limit)
       .getRawMany<{ id: number }>();
+
     return rows.map((r) => Number(r.id));
   }
 
@@ -173,6 +174,7 @@ export class PackageRepository {
         if (!existing) {
           throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND, 404);
         }
+
         // Themes, questions, their files and choice answers cascade from rounds.
         await transaction.delete(PackageRound, { package: { id: replaceId } });
         await transaction.delete(FileUsage, { package: { id: replaceId } });
@@ -187,6 +189,7 @@ export class PackageRepository {
 
       const newTags: PackageTag[] = [];
       const tagEntities: PackageTag[] = [];
+
       for (const tagName of tagNames) {
         let tag = existingTagMap.get(tagName);
         if (!tag) {
@@ -194,6 +197,7 @@ export class PackageRepository {
           tag.import({ tag: tagName });
           newTags.push(tag);
         }
+
         tagEntities.push(tag);
       }
 
@@ -416,6 +420,7 @@ export class PackageRepository {
 
               files.push(fileEntity.toDTO());
             }
+
             ordersMap.set("questionFiles", new Set());
 
             // Create and save answer files with the saved question
@@ -466,6 +471,7 @@ export class PackageRepository {
 
               files.push(fileEntity.toDTO());
             }
+
             ordersMap.set("answerFiles", new Set());
 
             // Create and save answers for choice questions (if there any)
@@ -518,10 +524,13 @@ export class PackageRepository {
 
               answersToSave.push(answer);
             }
+
             ordersMap.set("answers", new Set());
           }
+
           ordersMap.set("questions", new Set());
         }
+
         ordersMap.set("themes", new Set());
       }
 
@@ -573,11 +582,7 @@ export class PackageRepository {
         transaction,
         packageEntity.tags?.map((tag) => tag.id) ?? []
       );
-      const filesToDelete = this.resolveFilesToDelete(
-        packageId,
-        allFiles,
-        fileUsageByFilename
-      );
+      const filesToDelete = this.resolveFilesToDelete(packageId, allFiles, fileUsageByFilename);
       const tagsToDelete = this.resolveTagsToDelete(packageEntity, tagUsageCountsById);
       const fileIdsToDeleteUsage = this.resolveFileUsageIdsToDelete(
         packageEntity.id,
@@ -607,6 +612,7 @@ export class PackageRepository {
       await transaction.delete(Package, packageEntity.id);
 
       const filesDeletedFromDB: string[] = [];
+
       for (const filename of filesToDelete) {
         const originalUsageRecords = fileUsageByFilename.get(filename) || [];
         const nonPackageUsageRecords = originalUsageRecords.filter(

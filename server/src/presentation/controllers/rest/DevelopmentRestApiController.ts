@@ -77,6 +77,7 @@ export class DevelopmentRestApiController {
             await this.permissionService.grantAllPermissionsByEmails([email]);
           }
         }
+
         req.session.userId = user.id;
         req.session.isGuest = user.is_guest;
         req.session.save((err) => {
@@ -84,8 +85,10 @@ export class DevelopmentRestApiController {
             this.logger.error(`Session save error: ${err}`, {
               prefix: LogPrefix.DEV
             });
+
             return res.status(500).json({ error: "Session save failed" });
           }
+
           // Signed session value to put it in Postman
           const signedSessionID =
             "s:" + cookieSignature.sign(req.sessionID, this.env.SESSION_SECRET!);
@@ -124,6 +127,7 @@ export class DevelopmentRestApiController {
         }
 
         const games: GameListItemDTO[] = [];
+
         for (let i = 0; i < count; i++) {
           const gameData = this.generateRandomGameData(packageId);
           const createdByUser = await this.userService.getUserBySession(req.session.userId, {
@@ -206,9 +210,11 @@ export class DevelopmentRestApiController {
   private generateRandomString(length: number): string {
     const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let result = "";
+
     for (let i = 0; i < length; i++) {
       result += characters.charAt(Math.floor(Math.random() * characters.length));
     }
+
     return result;
   }
 }

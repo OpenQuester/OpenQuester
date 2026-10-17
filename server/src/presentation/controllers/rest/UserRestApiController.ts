@@ -111,6 +111,7 @@ export class UserRestApiController {
     if (!user) {
       throw new ClientError(ClientResponse.USER_NOT_FOUND);
     }
+
     res.status(HttpStatus.OK).send(await container.resolve(StorageQuotaService).getMyStorage(user));
   };
 
@@ -164,6 +165,7 @@ export class UserRestApiController {
       if (avatarFile.filename !== previousAvatar) {
         await container.resolve(StorageQuotaService).assertAvatarFits(user, avatarFile.filename);
       }
+
       userUpdateDTO.avatar = avatarFile;
     }
 
@@ -264,6 +266,7 @@ export class UserRestApiController {
       if (!id) {
         throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
       }
+
       return asUserId(id);
     }
   }

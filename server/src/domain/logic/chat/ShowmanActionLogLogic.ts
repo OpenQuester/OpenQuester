@@ -27,12 +27,20 @@ export class ShowmanActionLogLogic {
     result: GameActionResult,
     game: Game
   ): ShowmanLogLine | null {
-    if (!result.success) return null;
+    if (!result.success) {
+      return null;
+    }
+
     const actor = game.getPlayer(action.playerId, { fetchDisconnected: true });
-    if (actor?.role !== PlayerRole.SHOWMAN) return null;
+    if (actor?.role !== PlayerRole.SHOWMAN) {
+      return null;
+    }
 
     const entry = this._entry(action, result, game);
-    if (!entry) return null;
+    if (!entry) {
+      return null;
+    }
+
     return {
       message: this._english(entry.action, entry.params),
       system: entry
@@ -65,8 +73,12 @@ export class ShowmanActionLogLogic {
       case GameActionType.QUESTION_PICK:
       case GameActionType.QUESTION_EXCLUDE_OR_RESTORE: {
         const cell = this._cell(game, payload.questionId);
-        if (!cell) return null;
+        if (!cell) {
+          return null;
+        }
+
         const played = this._isPlayed(game, payload.questionId);
+
         return entry({
           ...cell,
           ...(action.type === GameActionType.QUESTION_EXCLUDE_OR_RESTORE ? { removed: played } : {})
@@ -76,7 +88,10 @@ export class ShowmanActionLogLogic {
       case GameActionType.ANSWER_RESULT: {
         const data = result.data as QuestionAnswerResultEventPayload | undefined;
         const answer = data?.answerResult;
-        if (!answer) return null;
+        if (!answer) {
+          return null;
+        }
+
         return entry({
           player: name(answer.player),
           points: answer.result,
@@ -86,7 +101,10 @@ export class ShowmanActionLogLogic {
 
       case GameActionType.LAST_ANSWER_RULING_REVERT: {
         const data = result.data as AnswerResultUndoEventPayload | undefined;
-        if (!data) return null;
+        if (!data) {
+          return null;
+        }
+
         return entry({ player: name(data.playerId), points: -data.revertedResult });
       }
 
@@ -106,6 +124,7 @@ export class ShowmanActionLogLogic {
 
       case GameActionType.PLAYER_ROLE_CHANGE: {
         const target = typeof payload.playerId === "number" ? payload.playerId : action.playerId;
+
         return entry({ player: name(target), role: String(payload.newRole ?? "") });
       }
 
@@ -117,8 +136,10 @@ export class ShowmanActionLogLogic {
 
       case GameActionType.PLAYER_SLOT_CHANGE:
         // Moving yourself is a lobby seat change, not a ruling
-        if (typeof payload.playerId !== "number" || payload.playerId === action.playerId)
+        if (typeof payload.playerId !== "number" || payload.playerId === action.playerId) {
           return null;
+        }
+
         return entry({
           player: name(payload.playerId),
           slot: typeof payload.targetSlot === "number" ? payload.targetSlot + 1 : null
@@ -137,11 +158,13 @@ export class ShowmanActionLogLogic {
         const answer = game.gameState.finalRoundData?.answers.find(
           (a) => a.id === payload.answerId
         );
+
         return entry({ player: name(answer?.playerId), correct: Boolean(payload.isCorrect) });
       }
 
       case GameActionType.THEME_ELIMINATE: {
         const theme = game.gameState.currentRound?.themes.find((t) => t.id === payload.themeId);
+
         return entry({ theme: theme?.name ?? null });
       }
 
@@ -153,22 +176,29 @@ export class ShowmanActionLogLogic {
   private static _cell(game: Game, questionId: unknown): Params | null {
     for (const theme of game.gameState.currentRound?.themes ?? []) {
       const question = theme.questions.find((q) => q.id === questionId);
-      if (question) return { theme: theme.name, price: question.price };
+      if (question) {
+        return { theme: theme.name, price: question.price };
+      }
     }
+
     return null;
   }
 
   private static _isPlayed(game: Game, questionId: unknown): boolean {
     for (const theme of game.gameState.currentRound?.themes ?? []) {
       const question = theme.questions.find((q) => q.id === questionId);
-      if (question) return question.isPlayed;
+      if (question) {
+        return question.isPlayed;
+      }
     }
+
     return false;
   }
 
   private static _english(action: string, p: Params): string {
     const who = p.player ?? "a player";
     const signed = (n: unknown) => (typeof n === "number" && n > 0 ? `+${n}` : String(n ?? 0));
+
     switch (action) {
       case GameActionType.START:
         return "Showman started the game";

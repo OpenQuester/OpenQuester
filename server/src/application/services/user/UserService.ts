@@ -107,6 +107,7 @@ export class UserService {
     if (ids.some((id) => !foundIds.has(id))) {
       throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
+
     return users;
   }
 
@@ -218,6 +219,7 @@ export class UserService {
   public async delete(userId: userId) {
     const result = await this._performDelete(userId);
     await this._forceLeaveAllGames(userId);
+
     return result;
   }
 
@@ -354,13 +356,16 @@ export class UserService {
   private async _forceLeaveAllGames(userId: number): Promise<void> {
     const socketId = await this.socketUserDataService.findSocketIdByUserId(userId);
 
-    if (!socketId) return;
+    if (!socketId) {
+      return;
+    }
 
     const sessionAndGame = await this.gamePipelineService.fetchSessionAndGame(socketId);
 
     if (!sessionAndGame) {
       // User is connected but not in any game — just disconnect
       this.realtimeGateway.disconnectSocket(socketId);
+
       return;
     }
 
@@ -390,6 +395,7 @@ export class UserService {
     }
 
     const mutedUntilDate = new Date(mutedUntil);
+
     return mutedUntilDate.getTime() > Date.now() ? mutedUntilDate.toISOString() : null;
   }
 
@@ -432,6 +438,7 @@ export class UserService {
         prefix: LogPrefix.USER,
         userId
       });
+
       throw new ClientError(ClientResponse.USER_NOT_FOUND);
     }
 
@@ -485,6 +492,7 @@ export class UserService {
       if (!ValueUtils.isValidDate(date)) {
         throw new ClientError(ClientResponse.BAD_DATE_FORMAT);
       }
+
       user.birthday = date;
     }
 

@@ -64,45 +64,51 @@ export class StorageQuotaService {
     if (user.is_guest) {
       return StorageGroup.GUEST;
     }
+
     const role = staffRoleOf((user.permissions ?? []).map((permission) => permission.name));
     if (role === StaffRole.ADMIN) {
       return StorageGroup.ADMIN;
     }
+
     if (role === StaffRole.MODERATOR) {
       return StorageGroup.MODERATOR;
     }
+
     return StorageGroup.USER;
   }
 
   public async getGroupLimits(group: StorageGroup): Promise<StorageLimits> {
     const row = await this.storageRepository.getLimit(group);
+
     return row ? this.toLimits(row) : NO_LIMITS;
   }
 
   /** The group's limits with the user's own quota applied. */
-  public async getLimitsFor(
-    user: StorageQuotaUser
-  ): Promise<EffectiveStorageLimits> {
+  public async getLimitsFor(user: StorageQuotaUser): Promise<EffectiveStorageLimits> {
     if (user.id && (user.permissions === undefined || user.is_guest === undefined)) {
       const facts = await this.storageRepository.getUserFacts(user.id);
       user = { ...user, ...facts };
     }
+
     const group = this.groupOf(user);
     const limits = { ...(await this.getGroupLimits(group)) };
     const userQuota = user.id ? await this.storageRepository.getUserQuota(user.id) : null;
     if (userQuota !== null) {
       limits.userQuotaBytes = userQuota;
     }
+
     return { group, limits, overridden: userQuota !== null };
   }
 
   public async getUsage(userId: number, excludePackageId?: number): Promise<number> {
     const files = await this.storageRepository.getUserFiles(userId, excludePackageId);
+
     return files.reduce((total, file) => total + (file.size ?? 0), 0);
   }
 
   public async getMyStorage(user: StorageQuotaUser): Promise<MyStorageDTO> {
     const { group, limits, overridden } = await this.getLimitsFor(user);
+
     return {
       group,
       usedBytes: user.id ? await this.getUsage(user.id) : 0,
@@ -127,10 +133,12 @@ export class StorageQuotaService {
       // Use the storage-confirmed sizes in this upload's file/package checks too.
       await this.verifyUserFiles(user.id);
     }
+
     const fileKinds = collectPackageFiles(content);
     const filenames = [...fileKinds.keys()];
     const knownSizes = await this.storageRepository.getSizes(filenames);
     const sizes = new Map<string, number>();
+
     for (const filename of filenames) {
       const rawFilename = ValueUtils.getRawFilename(filename);
       const size =
@@ -141,6 +149,7 @@ export class StorageQuotaService {
         sizes.set(filename, size);
       }
     }
+
     const unverifiedFileSizes = new Map(
       [...sizes].filter(
         ([filename]) => !knownSizes.has(filename) && declaredFileSizes !== undefined
@@ -150,6 +159,7 @@ export class StorageQuotaService {
     if (!user.id) {
       return unverifiedFileSizes;
     }
+
     const { limits } = await this.getLimitsFor(user);
 
     for (const [filename, kind] of fileKinds) {
@@ -179,9 +189,11 @@ export class StorageQuotaService {
     if (limits.userQuotaBytes !== null) {
       const otherFiles = await this.storageRepository.getUserFiles(user.id, replacePackageId);
       const totalSizes = new Map(otherFiles.map((file) => [file.filename, file.size ?? 0]));
+
       for (const [filename, size] of sizes) {
         totalSizes.set(filename, Math.max(size, totalSizes.get(filename) ?? 0));
       }
+
       const used = [...totalSizes.values()].reduce((total, size) => total + size, 0);
       if (used > limits.userQuotaBytes) {
         throw new ClientError(ClientResponse.STORAGE_QUOTA_EXCEEDED, HttpStatus.PAYLOAD_TOO_LARGE, {
@@ -192,6 +204,7 @@ export class StorageQuotaService {
     }
 
     await this.assertBucketHasRoom(user, filenames, sizes);
+
     return unverifiedFileSizes;
   }
 
@@ -201,6 +214,7 @@ export class StorageQuotaService {
     if (size === null || !user.id) {
       return;
     }
+
     const { limits } = await this.getLimitsFor(user);
     if (limits.imageBytes !== null && size > limits.imageBytes) {
       throw new ClientError(ClientResponse.STORAGE_FILE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE, {
@@ -209,6 +223,7 @@ export class StorageQuotaService {
         limit: formatBytes(limits.imageBytes)
       });
     }
+
     if (limits.userQuotaBytes !== null) {
       const files = await this.storageRepository.getUserFiles(user.id);
       const used =
@@ -233,6 +248,7 @@ export class StorageQuotaService {
     if (!quota || (await this.getLimitsFor(user)).group === StorageGroup.ADMIN) {
       return;
     }
+
     const storedFilenames = await this.storageRepository.getKnownFilenames(filenames);
     const incoming = filenames
       .filter((filename) => !storedFilenames.has(filename))
@@ -245,6 +261,7 @@ export class StorageQuotaService {
         incoming,
         quota
       });
+
       throw new ClientError(ClientResponse.STORAGE_FULL, HttpStatus.INSUFFICIENT_STORAGE);
     }
   }
@@ -258,12 +275,14 @@ export class StorageQuotaService {
     if (head) {
       await this.storageRepository.setVerifiedSize(filename, head.size);
     }
+
     return head?.size ?? null;
   }
 
   /** Confirms a few of the user's declared sizes, so a false declaration is caught on the next upload. */
   private async verifyUserFiles(userId: number): Promise<void> {
     const pending = await this.storageRepository.getUnverifiedFilenames(VERIFY_ON_UPLOAD, userId);
+
     for (const filename of pending) {
       try {
         await this.verifyFile(filename);
@@ -273,6 +292,7 @@ export class StorageQuotaService {
           filename,
           error: error instanceof Error ? error.message : String(error)
         });
+
         return;
       }
     }
@@ -286,6 +306,7 @@ export class StorageQuotaService {
     ]);
     const groups = Object.values(StorageGroup).map((group): StorageGroupLimits => {
       const row = rows.find((limit) => limit.group === group);
+
       return { group, ...(row ? this.toLimits(row) : NO_LIMITS) };
     });
     const topUsers = await Promise.all(
@@ -296,6 +317,7 @@ export class StorageQuotaService {
           permissions: user.permissions.map((name) => ({ name }))
         });
         const groupQuota = groups.find((limits) => limits.group === group)?.userQuotaBytes ?? null;
+
         return {
           id: user.id,
           username: user.username,
@@ -306,6 +328,7 @@ export class StorageQuotaService {
         };
       })
     );
+
     return {
       bucket: { ...bucket, quotaBytes: this.env.S3_BUCKET_QUOTA_BYTES || null },
       groups,
@@ -326,6 +349,7 @@ export class StorageQuotaService {
     row.video_bytes = limits.videoBytes;
     const saved = await this.storageRepository.saveLimit(row);
     this.logger.audit("Storage limits changed", { prefix: LogPrefix.ADMIN, group, limits });
+
     return { group, ...this.toLimits(saved) };
   }
 

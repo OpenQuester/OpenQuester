@@ -79,6 +79,7 @@ export class AdminService {
       since
     );
     const data: UserDTO[] = users.map((u) => this.userService.toDTO(u));
+
     return {
       data,
       pageInfo: {
@@ -90,12 +91,14 @@ export class AdminService {
   private async getRedisSnapshot(): Promise<RedisSnapshot> {
     try {
       const allKeys = await this.redisService.scan("*");
+
       return { keys: allKeys.length, connected: true };
     } catch (error) {
       this.logger.error("Failed to scan Redis keys", {
         prefix: LogPrefix.ADMIN,
         error: error instanceof Error ? error.message : String(error)
       });
+
       return { keys: 0, connected: false };
     }
   }
@@ -133,6 +136,7 @@ export class AdminService {
     if (options?.timeframeDays && options.timeframeDays > 0) {
       since = new Date(Date.now() - options.timeframeDays * 24 * 60 * 60 * 1000);
     }
+
     const recentUsersPaginated = await this.getRecentUsers(undefined, since);
     const redis = await this.getRedisSnapshot();
 
@@ -205,7 +209,10 @@ export class AdminService {
       ])
     );
 
-    if (roles.get(targetId) !== StaffRole.USER && roles.get(asUserId(actorId)) !== StaffRole.ADMIN) {
+    if (
+      roles.get(targetId) !== StaffRole.USER &&
+      roles.get(asUserId(actorId)) !== StaffRole.ADMIN
+    ) {
       throw new ClientError(ClientResponse.CANNOT_MODERATE_STAFF, HttpStatus.FORBIDDEN);
     }
   }

@@ -29,12 +29,14 @@ export class StorageCleanupService {
     try {
       const unused = await this.storageRepository.filterUnused([...new Set(filenames)]);
       await this.remove(unused);
+
       return unused;
     } catch (error) {
       this.logger.error("Failed to clean up unused files", {
         prefix: LogPrefix.S3,
         error: error instanceof Error ? error.message : String(error)
       });
+
       return [];
     }
   }
@@ -45,6 +47,7 @@ export class StorageCleanupService {
       new Date(Date.now() - UNUSED_FILE_GRACE_MS)
     );
     await this.remove(unused);
+
     return unused.length;
   }
 

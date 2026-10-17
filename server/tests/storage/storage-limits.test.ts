@@ -352,13 +352,15 @@ describe("Storage limits", () => {
       )
     );
 
-    await fileRepo.save(fileRepo.create({
-      filename: futureFilename,
-      path: "",
-      source: FileSource.S3,
-      created_at: new Date(Date.now() + 120_000),
-      size: 100
-    }));
+    await fileRepo.save(
+      fileRepo.create({
+        filename: futureFilename,
+        path: "",
+        source: FileSource.S3,
+        created_at: new Date(Date.now() + 120_000),
+        size: 100
+      })
+    );
 
     const repository = container.resolve(StorageRepository);
     const candidates = [...protectedFilenames, unusedFilename, futureFilename];
@@ -408,6 +410,46 @@ describe("Storage limits", () => {
     expect(res.status).toBe(401);
   });
 
+  it("records first and stale activity without changing profile timestamps", async () => {
+    const now = Date.now();
+    const originalUpdatedAt = new Date(now - 48 * 60 * 60 * 1000);
+    const recentSeen = new Date(now - 10 * 60 * 1000);
+    const staleSeen = new Date(now - 2 * 60 * 60 * 1000);
+    const users = await userRepo.save(
+      [null, recentSeen, staleSeen].map((lastSeen, index) =>
+        userRepo.create({
+          username: `activity_${index}_${now}`,
+          is_guest: true,
+          is_deleted: false,
+          last_seen_at: lastSeen
+        })
+      )
+    );
+    await userRepo.update(
+      { id: In(users.map((user) => user.id)) },
+      { updated_at: originalUpdatedAt }
+    );
+
+    const repository = container.resolve(StorageRepository);
+    const startedAt = Date.now();
+    for (const user of users) {
+      await repository.touchLastSeen(user.id);
+    }
+    const finishedAt = Date.now();
+
+    const [first, recent, stale] = await Promise.all(
+      users.map((user) => userRepo.findOneByOrFail({ id: user.id }))
+    );
+    for (const user of [first, recent, stale]) {
+      expect(user.updated_at.getTime()).toBe(originalUpdatedAt.getTime());
+    }
+    expect(recent.last_seen_at?.getTime()).toBe(recentSeen.getTime());
+    for (const user of [first, stale]) {
+      expect(user.last_seen_at!.getTime()).toBeGreaterThanOrEqual(startedAt);
+      expect(user.last_seen_at!.getTime()).toBeLessThanOrEqual(finishedAt);
+    }
+  });
+
   it("removes guests nobody has used for a while", async () => {
     const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
     const [stale, recent] = await userRepo.save([
@@ -446,6 +488,7 @@ describe("Storage limits", () => {
       )
     );
     const [host, player, author, avatarOwner, deletedGuest] = guests;
+    await userRepo.update({ id: In([host.id, player.id, author.id]) }, { updated_at: staleSince });
     const recentGuest = await userRepo.save(
       userRepo.create({
         username: "cleanup_recent",
@@ -541,6 +584,9 @@ describe("Storage limits", () => {
       player.id,
       author.id
     ]);
+    for (const user of remaining.filter((user) => user.is_deleted)) {
+      expect(user.updated_at.getTime()).toBe(staleSince.getTime());
+    }
     expect(await gameRepository.findOneByOrFail({ id: game.id })).toMatchObject({
       created_by: host.id
     });

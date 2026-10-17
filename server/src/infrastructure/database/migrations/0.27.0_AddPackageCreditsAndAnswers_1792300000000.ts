@@ -24,6 +24,7 @@ export class AddPackageCreditsAndAnswers_0_27_0_1792300000000 implements Migrati
     for (const column of ["sources", "authors"]) {
       await queryRunner.dropColumn("package", column);
     }
+
     for (const column of ["sources", "authors", "wrong_answers", "right_answers"]) {
       await queryRunner.dropColumn("package_question", column);
     }

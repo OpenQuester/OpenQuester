@@ -67,6 +67,7 @@ export class PackageService {
         // Keep the stored status.
       }
     }
+
     return pack.toDTO(this.fileUrlBuilder, {
       fetchIds: true
     });
@@ -126,9 +127,13 @@ export class PackageService {
     );
     const { pack, files } = await this.packageRepository.create(request.content, author);
     await this.storageRepository.setDeclaredSizes(unverifiedFileSizes);
-    const uploadStatus = await this.packageUploadService.markSaved(pack.id, request.sourceHash ?? null);
+    const uploadStatus = await this.packageUploadService.markSaved(
+      pack.id,
+      request.sourceHash ?? null
+    );
 
     const links = await this.packageStorageService.generateUploadLinks(files, expiresIn);
+
     return {
       id: pack.id,
       uploadLinks: links,
@@ -179,6 +184,7 @@ export class PackageService {
     await this.storageCleanupService.removeIfUnused(previousFilenames);
     const uploadStatus = await this.packageUploadService.markSaved(pack.id, request.sourceHash);
     const links = await this.packageStorageService.generateUploadLinks(files, expiresIn);
+
     return { id: pack.id, uploadLinks: links, uploadStatus };
   }
 
@@ -192,6 +198,7 @@ export class PackageService {
     packageId: number
   ): Promise<PackageUploadStateDTO> {
     await this.assertCanEditPackage(sessionUserId, packageId);
+
     return this.packageUploadService.getState(packageId);
   }
 
@@ -212,6 +219,7 @@ export class PackageService {
     if (!isAuthor && !this.userSessionService.userHasPermission(user, Permissions.EDIT_PACKAGE)) {
       throw new ClientError(ClientResponse.NO_PERMISSION, HttpStatus.FORBIDDEN);
     }
+
     return { user, packageEntity };
   }
 

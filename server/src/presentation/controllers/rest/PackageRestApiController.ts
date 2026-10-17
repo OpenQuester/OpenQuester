@@ -13,7 +13,7 @@ import { checkPackDeletePermissionMiddleware } from "presentation/middleware/per
 import {
   packageSearchScheme,
   packIdScheme,
-  uploadPackageScheme,
+  uploadPackageScheme
 } from "presentation/schemes/package/packageSchemes";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
@@ -34,10 +34,7 @@ export class PackageRestApiController {
     router.put("/:id", asyncHandler(this.updatePackage));
     router.delete(
       "/:id",
-      checkPackDeletePermissionMiddleware(
-        this.packageService,
-        this.logger
-      ),
+      checkPackDeletePermissionMiddleware(this.packageService, this.logger),
       asyncHandler(this.deletePackage)
     );
   }
@@ -49,7 +46,11 @@ export class PackageRestApiController {
       uploadPackageScheme()
     ).validate();
 
-    const data = await this.packageService.uploadPackageForSession(req.session.userId, validatedData);
+    const data = await this.packageService.uploadPackageForSession(
+      req.session.userId,
+      validatedData
+    );
+
     return res.status(HttpStatus.OK).send(data);
   };
 
@@ -59,13 +60,17 @@ export class PackageRestApiController {
       packIdScheme()
     ).validate();
     // Permission first, so someone else's package answers 403 whatever the body.
-    const editContext = await this.packageService.assertCanEditPackage(req.session.userId, packageId);
+    const editContext = await this.packageService.assertCanEditPackage(
+      req.session.userId,
+      packageId
+    );
     const validatedData = new RequestDataValidator<PackageUploadRequestDTO>(
       req.body,
       uploadPackageScheme()
     ).validate();
 
     const data = await this.packageService.replacePackageContent(editContext, validatedData);
+
     return res.status(HttpStatus.OK).send(data);
   };
 
@@ -76,6 +81,7 @@ export class PackageRestApiController {
     ).validate();
 
     const data = await this.packageService.getPackage(validatedData.packageId);
+
     return res.status(HttpStatus.OK).send(data);
   };
 
@@ -87,6 +93,7 @@ export class PackageRestApiController {
     ).validate();
 
     const data = await this.packageService.getUploadStateForSession(req.session.userId, packageId);
+
     return res.status(HttpStatus.OK).send(data);
   };
 
@@ -113,7 +120,7 @@ export class PackageRestApiController {
     await this.packageService.deletePackage(validatedData.packageId);
 
     return res.status(HttpStatus.OK).send({
-      message: "Package deleted successfully",
+      message: "Package deleted successfully"
     });
   };
 
@@ -131,9 +138,7 @@ export class PackageRestApiController {
       opts.maxQuestions !== undefined &&
       opts.minQuestions > opts.maxQuestions
     ) {
-      throw new ClientError(
-        ClientResponse.PACKAGE_SEARCH_QUESTIONS_MIN_MORE_MAX
-      );
+      throw new ClientError(ClientResponse.PACKAGE_SEARCH_QUESTIONS_MIN_MORE_MAX);
     }
   }
 }

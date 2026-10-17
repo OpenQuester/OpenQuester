@@ -1,9 +1,6 @@
 import { randomInt } from "crypto";
 
-import {
-  BUZZER_ACCEPT_WINDOW,
-  BUZZER_FALSE_START_LOCK_TIME,
-} from "domain/constants/game";
+import { BUZZER_ACCEPT_WINDOW, BUZZER_FALSE_START_LOCK_TIME } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { ButtonPressMode } from "domain/enums/game/GameSettings";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
@@ -44,26 +41,20 @@ export class BuzzerLogic {
   }
 
   /** Epoch ms when the player's false-start lock ends, or null when not locked */
-  public static lockedUntil(
-    game: Game,
-    playerId: number,
-    now: number = Date.now()
-  ): number | null {
+  public static lockedUntil(game: Game, playerId: number, now: number = Date.now()): number | null {
     const until = game.gameState.buzzerLocks?.[String(playerId)];
+
     return until && until > now ? until : null;
   }
 
   /** Locks the player out after a false start; returns when the lock ends */
-  public static lockFalseStart(
-    game: Game,
-    playerId: number,
-    now: number = Date.now()
-  ): number {
+  public static lockFalseStart(game: Game, playerId: number, now: number = Date.now()): number {
     const until = now + BUZZER_FALSE_START_LOCK_TIME;
     game.gameState.buzzerLocks = {
       ...this._activeLocks(game, now),
-      [String(playerId)]: until,
+      [String(playerId)]: until
     };
+
     return until;
   }
 
@@ -71,15 +62,12 @@ export class BuzzerLogic {
    * Records a press inside the accept window.
    * @returns true when this press opened the window
    */
-  public static recordPress(
-    game: Game,
-    playerId: number,
-    now: number = Date.now()
-  ): boolean {
+  public static recordPress(game: Game, playerId: number, now: number = Date.now()): boolean {
     const window = game.gameState.buzzerWindow;
 
     if (!window) {
       game.gameState.buzzerWindow = { openedAt: now, presses: [playerId] };
+
       return true;
     }
 
@@ -110,6 +98,7 @@ export class BuzzerLogic {
 
     const candidates = presses.filter((id) => {
       const player = game.getPlayer(id, { fetchDisconnected: false });
+
       return (
         !!player &&
         player.role === PlayerRole.PLAYER &&

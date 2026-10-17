@@ -37,8 +37,10 @@ export function staffRoleOf(permissionNames: readonly string[]): StaffRole {
   if (permissionNames.includes(Permissions.MANAGE_PERMISSIONS)) {
     return StaffRole.ADMIN;
   }
+
   if (permissionNames.includes(Permissions.ADMIN_PANEL_ACCESS)) {
     return StaffRole.MODERATOR;
   }
+
   return StaffRole.USER;
 }

@@ -443,7 +443,7 @@ describe("Admin panel moderation", () => {
             setup.playerSockets[0],
             SocketIOEvents.ERROR
           );
-          actor.emit(
+          scenario.actor(setup.playerSockets[0]).emit(
             command.event,
             command.type === GameActionType.PLAYER_KICK
               ? { playerId: setup.playerUsers[1].id }

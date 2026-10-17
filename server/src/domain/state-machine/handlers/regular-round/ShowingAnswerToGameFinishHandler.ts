@@ -8,7 +8,7 @@ import {
   MutationResult,
   TimerResult,
   TransitionContext,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { AnswerShowEndEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
@@ -34,10 +34,7 @@ export class ShowingAnswerToGameFinishHandler extends BaseTransitionHandler {
       return false;
     }
 
-    if (
-      trigger !== TransitionTrigger.TIMER_EXPIRED &&
-      trigger !== TransitionTrigger.USER_ACTION
-    ) {
+    if (trigger !== TransitionTrigger.TIMER_EXPIRED && trigger !== TransitionTrigger.USER_ACTION) {
       return false;
     }
 
@@ -47,6 +44,7 @@ export class ShowingAnswerToGameFinishHandler extends BaseTransitionHandler {
     }
 
     const nextRound = game.getNextRound();
+
     return nextRound === null;
   }
 
@@ -58,7 +56,7 @@ export class ShowingAnswerToGameFinishHandler extends BaseTransitionHandler {
     ctx.game.finish();
 
     return {
-      data: {},
+      data: {}
     };
   }
 
@@ -71,7 +69,7 @@ export class ShowingAnswerToGameFinishHandler extends BaseTransitionHandler {
 
     return {
       timer: undefined,
-      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }],
+      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }]
     };
   }
 
@@ -84,13 +82,13 @@ export class ShowingAnswerToGameFinishHandler extends BaseTransitionHandler {
       {
         event: SocketIOGameEvents.ANSWER_SHOW_END,
         data: {} satisfies AnswerShowEndEventPayload,
-        room: ctx.game.id,
+        room: ctx.game.id
       },
       {
         event: SocketIOGameEvents.GAME_FINISHED,
         data: true,
-        room: ctx.game.id,
-      },
+        room: ctx.game.id
+      }
     ];
   }
 }

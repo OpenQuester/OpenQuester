@@ -106,6 +106,7 @@ export class User implements UserModel {
     if (data.id) {
       this.id = data.id;
     }
+
     this.username = data.username;
     this.name = data.name;
     this.email = data.email;

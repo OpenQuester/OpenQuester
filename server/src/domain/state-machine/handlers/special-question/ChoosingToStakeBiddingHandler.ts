@@ -167,7 +167,9 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
   ): BroadcastEvent[] {
     const data = mutationResult.data as ChoosingToStakeBiddingMutationData | undefined;
 
-    if (!data) return [];
+    if (!data) {
+      return [];
+    }
 
     const broadcasts: BroadcastEvent[] = [];
 

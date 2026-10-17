@@ -70,6 +70,7 @@ export class PackageSearchQueryHelper {
     });
 
     const [data, total] = await qb.getManyAndCount();
+
     return { data, pageInfo: { total } };
   }
 
@@ -113,6 +114,7 @@ export class PackageSearchQueryHelper {
     });
 
     const [data, total] = await qb.getManyAndCount();
+
     return { data, pageInfo: { total } };
   }
 
@@ -132,8 +134,16 @@ export class PackageSearchQueryHelper {
       uploadStatus?: PackageUploadStatus;
     }
   ): void {
-    const { title, description, language, authorId, tags, ageRestriction, sourceHash, uploadStatus } =
-      filters;
+    const {
+      title,
+      description,
+      language,
+      authorId,
+      tags,
+      ageRestriction,
+      sourceHash,
+      uploadStatus
+    } = filters;
 
     if (sourceHash) {
       qb.andWhere("package.source_hash = :sourceHash", { sourceHash });
@@ -270,10 +280,12 @@ export class PackageSearchQueryHelper {
   ): boolean {
     if (firstHaving) {
       qb.having(condition, parameters);
+
       return false;
     }
 
     qb.andHaving(condition, parameters);
+
     return false;
   }
 }

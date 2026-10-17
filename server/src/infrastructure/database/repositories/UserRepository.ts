@@ -65,6 +65,7 @@ export class UserRepository {
       });
       const user = new User();
       user.import(cached);
+
       return user;
     }
 
@@ -78,6 +79,7 @@ export class UserRepository {
     if (user) {
       await this.cache.set(user, selectOptions);
     }
+
     return user;
   }
 
@@ -129,6 +131,7 @@ export class UserRepository {
     });
 
     const qb = await QueryBuilder.buildFindQuery<User>(this.repository, where, selectOptions);
+
     return qb.getOne();
   }
 
@@ -168,6 +171,7 @@ export class UserRepository {
       .createQueryBuilder("user")
       .where({ id: In(ids) })
       .select(selectOptions.select.map((field) => `user.${String(field)}`));
+
     return (
       await QueryBuilder.buildRelationsSelect(
         qb,
@@ -256,7 +260,10 @@ export class UserRepository {
     const orderedUsers = users
       .filter((u) => usersByIdSet.has(u.id))
       .sort((a, b) => {
-        if (a.id === b.id) return 0;
+        if (a.id === b.id) {
+          return 0;
+        }
+
         if (order === PaginationOrder.ASC) {
           return a[sortBy]! < b[sortBy]! ? -1 : 1;
         } else {
@@ -349,6 +356,7 @@ export class UserRepository {
     if (data.avatar) {
       await this.fileUsageRepository.writeUsage(data.avatar, user);
     }
+
     return user;
   }
 
@@ -584,6 +592,7 @@ export class UserRepository {
   public async save(user: User): Promise<User> {
     user.updated_at = new Date();
     await this.cache.delete(user.id);
+
     return this.repository.save(user);
   }
 }

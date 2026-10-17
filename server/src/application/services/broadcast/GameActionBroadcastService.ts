@@ -81,6 +81,7 @@ export class GameActionBroadcastService {
               RealtimeEvents.toRoom(gameId, broadcast.event, broadcast.data)
             );
           }
+
           break;
 
         case SocketBroadcastTarget.GAME:
@@ -88,11 +89,7 @@ export class GameActionBroadcastService {
             // Handle role-based broadcasts
             if (broadcast.useRoleBasedBroadcast) {
               if (broadcast.event === SocketIOGameEvents.QUESTION_DATA) {
-                await this.emitQuestionDataWithRoleBasedFiltering(
-                  gameId,
-                  broadcast.data,
-                  game
-                );
+                await this.emitQuestionDataWithRoleBasedFiltering(gameId, broadcast.data, game);
               } else if (broadcast.event === SocketIOGameEvents.FINAL_QUESTION_DATA) {
                 await this.emitFinalQuestionDataWithRoleBasedFiltering(
                   gameId,
@@ -108,6 +105,7 @@ export class GameActionBroadcastService {
               );
             }
           }
+
           break;
 
         case SocketBroadcastTarget.ALL:
@@ -135,6 +133,7 @@ export class GameActionBroadcastService {
         this.realtimeGateway.publish(
           RealtimeEvents.toRoom(game.id, event, { gameState: game.gameState })
         );
+
         return;
       }
 
@@ -146,6 +145,7 @@ export class GameActionBroadcastService {
         this.realtimeGateway.publish(
           RealtimeEvents.toRoom(game.id, event, { gameState: game.gameState })
         );
+
         return;
       }
 
@@ -192,6 +192,7 @@ export class GameActionBroadcastService {
         this.realtimeGateway.publish(
           RealtimeEvents.toRoom(gameId, SocketIOGameEvents.FINAL_QUESTION_DATA, publicPayload)
         );
+
         return;
       }
 

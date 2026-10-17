@@ -47,8 +47,10 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultData, AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
-import { SecretQuestionPriceInputData,
-  SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
+import {
+  SecretQuestionPriceInputData,
+  SecretQuestionTransferInputData
+} from "domain/types/socket/game/SecretQuestionTransferData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { SchemaValidator } from "domain/validators/SchemaValidator";
 
@@ -81,6 +83,7 @@ export class GameValidator {
     if (!ctx.userData) {
       throw new ClientError(ClientResponse.SOCKET_USER_NOT_AUTHENTICATED);
     }
+
     if (!ctx.currentPlayer || !ctx.userData.gameId) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
@@ -115,7 +118,10 @@ export class GameValidator {
         .items(
           Joi.object({
             md5: Joi.string().max(64).required(),
-            durationMs: Joi.number().positive().max(24 * 60 * 60 * 1000).required()
+            durationMs: Joi.number()
+              .positive()
+              .max(24 * 60 * 60 * 1000)
+              .required()
           })
         )
         .max(100)

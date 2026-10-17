@@ -203,6 +203,7 @@ export class Game {
       playerData.gameSlot = slotIdx;
       // Always update meta with current user data
       playerData.updateMeta(meta);
+
       return playerData;
     }
 
@@ -220,6 +221,7 @@ export class Game {
     });
 
     this._players.push(player);
+
     return player;
   }
 
@@ -232,6 +234,7 @@ export class Game {
       if (opts.fetchDisconnected) {
         return true;
       }
+
       return p.gameStatus === PlayerGameStatus.IN_GAME;
     });
 
@@ -247,6 +250,7 @@ export class Game {
       if (opts.fetchDisconnected) {
         return true;
       }
+
       return p.gameStatus === PlayerGameStatus.IN_GAME;
     });
 
@@ -273,8 +277,10 @@ export class Game {
     if (inGamePlayers.length > 0) {
       // Select a random player using Math.random for index
       const randomIndex = Math.floor(Math.random() * inGamePlayers.length);
+
       return inGamePlayers[randomIndex].meta.id;
     }
+
     return null;
   }
 
@@ -304,7 +310,9 @@ export class Game {
     if (!limit || !startedAt || this._gameState.currentRound?.type === PackageRoundType.FINAL) {
       return false;
     }
+
     const pausedNow = this._gameState.pausedAt ? now - this._gameState.pausedAt : 0;
+
     return now - startedAt - (this._gameState.roundPausedMs ?? 0) - pausedNow >= limit;
   }
 
@@ -333,6 +341,7 @@ export class Game {
     }
 
     const nextOrder = this.gameState.currentRound!.order + 1;
+
     return this._roundIndex.find((r) => r.order === nextOrder) ?? null;
   }
 
@@ -353,6 +362,7 @@ export class Game {
       this._gameState.roundPausedMs =
         (this._gameState.roundPausedMs ?? 0) + Math.max(0, Date.now() - this._gameState.pausedAt);
     }
+
     this._gameState.pausedAt = null;
   }
 
@@ -548,6 +558,7 @@ export class Game {
 
     const skippedPlayers = this.gameState.skippedPlayers ?? [];
     const answeredPlayerIds = this.gameState.answeredPlayers?.map((ap) => ap.player) ?? [];
+
     return activePlayers.every(
       (player) =>
         skippedPlayers.includes(player.meta.id) || answeredPlayerIds.includes(player.meta.id)

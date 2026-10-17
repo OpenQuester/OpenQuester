@@ -38,6 +38,7 @@ export class S3FilesCleanupJob extends BaseCronJob {
     if (!ignoredFolder) {
       return false;
     }
+
     return s3Key.startsWith(ignoredFolder);
   }
 
@@ -92,6 +93,7 @@ export class S3FilesCleanupJob extends BaseCronJob {
         const existingSet = new Set(existingFilenames);
 
         const sizes = new Map<string, number>();
+
         for (const file of filteredBatch) {
           if (existingSet.has(file.filename) && typeof file.size === "number") {
             sizes.set(file.filename, file.size);
@@ -140,6 +142,7 @@ export class S3FilesCleanupJob extends BaseCronJob {
         this.logger.info("No orphaned files found in S3", {
           prefix: LogPrefix.S3_CLEANUP
         });
+
         return;
       }
 
@@ -153,6 +156,7 @@ export class S3FilesCleanupJob extends BaseCronJob {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       });
+
       throw error; // Re-throw to trigger the error handling in BaseCronJob
     } finally {
       log.finish();

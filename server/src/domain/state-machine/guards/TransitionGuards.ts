@@ -70,20 +70,14 @@ export class TransitionGuards {
   /**
    * Checks if question state matches expected value.
    */
-  public static isQuestionState(
-    game: Game,
-    expectedState: QuestionState
-  ): boolean {
+  public static isQuestionState(game: Game, expectedState: QuestionState): boolean {
     return game.gameState?.questionState === expectedState;
   }
 
   /**
    * Checks if final round phase matches expected value.
    */
-  public static isFinalRoundPhase(
-    game: Game,
-    expectedPhase: FinalRoundPhase
-  ): boolean {
+  public static isFinalRoundPhase(game: Game, expectedPhase: FinalRoundPhase): boolean {
     return game.gameState?.finalRoundData?.phase === expectedPhase;
   }
 
@@ -109,6 +103,7 @@ export class TransitionGuards {
    */
   public static isSecretTransferPhase(game: Game): boolean {
     const data = game.gameState.secretQuestionData;
+
     return (
       (data?.transferDecisionPhase === true || !!data?.priceSelection) &&
       TransitionGuards.isQuestionState(game, QuestionState.SECRET_TRANSFER)
@@ -124,9 +119,7 @@ export class TransitionGuards {
    */
   public static hasEligiblePlayers(game: Game): boolean {
     return game.players.some(
-      (p) =>
-        p.role === PlayerRole.PLAYER &&
-        p.gameStatus === PlayerGameStatus.IN_GAME
+      (p) => p.role === PlayerRole.PLAYER && p.gameStatus === PlayerGameStatus.IN_GAME
     );
   }
 
@@ -137,10 +130,7 @@ export class TransitionGuards {
     let eligibleCount = 0;
 
     for (const player of game.players) {
-      if (
-        player.role === PlayerRole.PLAYER &&
-        player.gameStatus === PlayerGameStatus.IN_GAME
-      ) {
+      if (player.role === PlayerRole.PLAYER && player.gameStatus === PlayerGameStatus.IN_GAME) {
         eligibleCount += 1;
 
         if (eligibleCount >= 2) {
@@ -157,6 +147,7 @@ export class TransitionGuards {
    */
   public static isPlayerEligible(game: Game, playerId: number): boolean {
     const player = game.getPlayer(playerId, { fetchDisconnected: true });
+
     return (
       player !== null &&
       player.role === PlayerRole.PLAYER &&
@@ -192,22 +183,18 @@ export class TransitionGuards {
   /**
    * Checks if player has submitted final round bid.
    */
-  public static hasPlayerSubmittedFinalBid(
-    game: Game,
-    playerId: number
-  ): boolean {
+  public static hasPlayerSubmittedFinalBid(game: Game, playerId: number): boolean {
     const finalRoundData = FinalRoundStateManager.getFinalRoundData(game);
+
     return finalRoundData?.bids[playerId] !== undefined;
   }
 
   /**
    * Checks if player has submitted final round answer.
    */
-  public static hasPlayerSubmittedFinalAnswer(
-    game: Game,
-    playerId: number
-  ): boolean {
+  public static hasPlayerSubmittedFinalAnswer(game: Game, playerId: number): boolean {
     const finalRoundData = FinalRoundStateManager.getFinalRoundData(game);
+
     return finalRoundData?.answers[playerId] !== undefined;
   }
 
@@ -255,10 +242,7 @@ export class TransitionGuards {
    * Combined check for any round question handling (final or simple).
    * Validates: game in progress + question state
    */
-  public static canTransitionInAnyRound(
-    game: Game,
-    expectedQuestionState: QuestionState
-  ): boolean {
+  public static canTransitionInAnyRound(game: Game, expectedQuestionState: QuestionState): boolean {
     return (
       TransitionGuards.isGameInProgress(game) &&
       TransitionGuards.isQuestionState(game, expectedQuestionState)

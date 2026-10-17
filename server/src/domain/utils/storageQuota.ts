@@ -9,6 +9,7 @@ export function collectPackageFiles(content: PackageDTO): Map<string, PackageFil
     if (!file?.md5) {
       return;
     }
+
     const kind =
       file.type === PackageFileType.AUDIO || file.type === PackageFileType.VIDEO
         ? file.type
@@ -17,21 +18,25 @@ export function collectPackageFiles(content: PackageDTO): Map<string, PackageFil
   };
 
   addFile(content.logo?.file);
+
   for (const round of content.rounds ?? []) {
     for (const theme of round.themes ?? []) {
       for (const question of theme.questions ?? []) {
         for (const questionFile of question.questionFiles ?? []) {
           addFile(questionFile.file);
         }
+
         for (const answerFile of question.answerFiles ?? []) {
           addFile(answerFile.file);
         }
+
         for (const answer of question.answers ?? []) {
           addFile(answer.file);
         }
       }
     }
   }
+
   return fileKinds;
 }
 
@@ -44,8 +49,10 @@ export function formatBytes(bytes: number): string {
   if (bytes < megabyte) {
     return `${Math.max(1, Math.round(bytes / kilobyte))} KB`;
   }
+
   if (bytes < gigabyte) {
     return `${(bytes / megabyte).toFixed(1).replace(/\.0$/, "")} MB`;
   }
+
   return `${(bytes / gigabyte).toFixed(2).replace(/\.?0+$/, "")} GB`;
 }

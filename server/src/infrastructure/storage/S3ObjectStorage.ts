@@ -62,6 +62,7 @@ export class S3ObjectStorage implements ObjectStorage {
   private _viaProxy(signedUrl: string): string {
     const signed = new URL(signedUrl);
     const prefix = this.s3Context.urlPrefix.replace(/\/+$/, "");
+
     return `${prefix}${signed.pathname}${signed.search}`;
   }
 
@@ -84,6 +85,7 @@ export class S3ObjectStorage implements ObjectStorage {
         expiresIn: input.expiresInSeconds,
         unhoistableHeaders: new Set(["Content-MD5", "If-None-Match"])
       });
+
       return this.proxyUploadClient ? this._viaProxy(signed) : signed;
     }
 
@@ -120,6 +122,7 @@ export class S3ObjectStorage implements ObjectStorage {
   public async headObject(bucket: string, key: string): Promise<{ size: number } | null> {
     try {
       const result = await this.client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+
       return { size: Number(result.ContentLength ?? 0) };
     } catch (error) {
       const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata
@@ -128,6 +131,7 @@ export class S3ObjectStorage implements ObjectStorage {
       if (status === 404 || status === 403) {
         return null;
       }
+
       throw error;
     }
   }
@@ -149,6 +153,7 @@ export class S3ObjectStorage implements ObjectStorage {
     this.applyMinioContentMD5Workaround(command, objects);
 
     const result = await this.client.send(command);
+
     return {
       errors:
         result.Errors?.map((error) => ({
@@ -179,6 +184,7 @@ export class S3ObjectStorage implements ObjectStorage {
           const key = obj.Key!;
           const parts = key.split("/");
           const filename = parts[parts.length - 1];
+
           return { filename, key, size: obj.Size };
         });
       }
@@ -199,6 +205,7 @@ export class S3ObjectStorage implements ObjectStorage {
         if (args.request && args.request.headers) {
           args.request.headers["content-md5"] = contentMD5;
         }
+
         return next(args);
       },
       {

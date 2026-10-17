@@ -35,6 +35,7 @@ export class FileRestApiController {
     if (!req.session.userId) {
       throw new ClientError(ClientResponse.STORAGE_SIGN_IN_TO_UPLOAD, HttpStatus.UNAUTHORIZED);
     }
+
     const validatedData = this._validateParamsFilename(req);
 
     const url = await this.fileStorageService.upload(validatedData.filename);

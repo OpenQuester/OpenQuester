@@ -92,6 +92,7 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     if (questionData) {
       game.gameState.currentQuestion = questionData;
     }
+
     QuestionContentPlanLogic.applyToGame(game);
 
     game.setQuestionState(QuestionState.ANSWERING);
@@ -146,7 +147,9 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     const broadcasts: BroadcastEvent[] = [];
     const data = mutationResult.data as StakeBiddingToAnsweringMutationData | undefined;
 
-    if (!data) return broadcasts;
+    if (!data) {
+      return broadcasts;
+    }
 
     // 1. STAKE_QUESTION_WINNER - announces winner
     broadcasts.push({

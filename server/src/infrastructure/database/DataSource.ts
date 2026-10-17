@@ -133,6 +133,7 @@ try {
   if (err instanceof Error) {
     message = err.message;
   }
+
   logger.error(ServerResponse.FAILED_TO_LOAD_ENV, {
     prefix: LogPrefix.SERVER
   });

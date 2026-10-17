@@ -15,7 +15,9 @@ export class AnswerCheckLogic {
     question: PackageQuestionDTO | null | undefined,
     answer: string | null
   ): boolean | null {
-    if (!question || !answer?.trim()) return null;
+    if (!question || !answer?.trim()) {
+      return null;
+    }
 
     if (question.type === PackageQuestionType.CHOICE) {
       return ChoiceAnswerLogic.check(question, answer);
@@ -34,32 +36,47 @@ export class AnswerCheckLogic {
   /** "1 234,5" → 1234.5; null when it isn't a number */
   public static parseNumber(text: string): number | null {
     const cleaned = text.trim().replace(/[\s ]/g, "").replace(",", ".");
-    if (!/^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i.test(cleaned)) return null;
+    if (!/^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i.test(cleaned)) {
+      return null;
+    }
+
     const value = Number(cleaned);
+
     return Number.isFinite(value) ? value : null;
   }
 
   /** "0.42,0.61" → { x: 0.42, y: 0.61 }; null when it isn't a point */
   public static parsePoint(text: string): { x: number; y: number } | null {
-    const parts = text.split(/[,;\s]+/).filter(Boolean).map(Number);
+    const parts = text
+      .split(/[,;\s]+/)
+      .filter(Boolean)
+      .map(Number);
     if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n) || n < 0 || n > 1)) {
       return null;
     }
+
     return { x: parts[0], y: parts[1] };
   }
 
   private static _checkNumber(question: PackageQuestionDTO, answer: string): boolean | null {
     const right = question.answerNumber;
     const value = this.parseNumber(answer);
-    if (right === null || right === undefined || value === null) return null;
+    if (right === null || right === undefined || value === null) {
+      return null;
+    }
+
     return Math.abs(value - right) <= Math.max(0, question.answerDeviation ?? 0);
   }
 
   private static _checkPoint(question: PackageQuestionDTO, answer: string): boolean | null {
     const right = question.answerPoint;
     const point = this.parsePoint(answer);
-    if (!right || !point) return null;
+    if (!right || !point) {
+      return null;
+    }
+
     const radius = question.answerDeviation ?? DEFAULT_POINT_DEVIATION;
+
     return Math.hypot(point.x - right.x, point.y - right.y) <= radius;
   }
 }

@@ -28,8 +28,15 @@ export class AllPlayLogic {
     if (question?.subType !== PackageQuestionSubType.FOR_EVERYONE) {
       return null;
     }
-    if (question.type === PackageQuestionType.STAKE) return AllPlayMode.STAKE;
-    if (question.type === PackageQuestionType.NO_RISK) return AllPlayMode.NO_RISK;
+
+    if (question.type === PackageQuestionType.STAKE) {
+      return AllPlayMode.STAKE;
+    }
+
+    if (question.type === PackageQuestionType.NO_RISK) {
+      return AllPlayMode.NO_RISK;
+    }
+
     return null;
   }
 
@@ -66,6 +73,7 @@ export class AllPlayLogic {
     };
 
     game.gameState.allPlay = data;
+
     return data;
   }
 
@@ -73,6 +81,7 @@ export class AllPlayLogic {
   public static maxStakeFor(game: Game, data: AllPlayDataDTO, playerId: number): number {
     const score = game.getPlayer(playerId, { fetchDisconnected: true })?.score ?? 0;
     const affordable = Math.max(score, data.price, ALL_PLAY_MIN_STAKE);
+
     return data.maxStake !== null
       ? Math.max(ALL_PLAY_MIN_STAKE, Math.min(affordable, data.maxStake))
       : affordable;
@@ -95,13 +104,17 @@ export class AllPlayLogic {
     }
 
     entry.stake = amount;
+
     return entry;
   }
 
   /** Players who haven't staked get the lower of the price and what they may stake */
   public static fillMissingStakes(game: Game): void {
     const data = game.gameState.allPlay;
-    if (!data) return;
+    if (!data) {
+      return;
+    }
+
     for (const entry of data.entries) {
       if (entry.stake === null) {
         entry.stake = Math.min(
@@ -122,6 +135,7 @@ export class AllPlayLogic {
 
     entry.answer = answer.trim();
     entry.submitted = true;
+
     return entry;
   }
 
@@ -142,8 +156,12 @@ export class AllPlayLogic {
    */
   public static startReview(game: Game, question?: PackageQuestionDTO | null): AllPlayEntryDTO[] {
     const data = game.gameState.allPlay;
-    if (!data) return [];
+    if (!data) {
+      return [];
+    }
+
     const auto: AllPlayEntryDTO[] = [];
+
     for (const entry of data.entries) {
       const verdict = entry.answer ? AnswerCheckLogic.check(question, entry.answer) : false;
       if (verdict !== null) {
@@ -151,6 +169,7 @@ export class AllPlayLogic {
         auto.push(entry);
       }
     }
+
     return auto;
   }
 
@@ -164,6 +183,7 @@ export class AllPlayLogic {
     }
 
     this._rule(game, data, entry, isCorrect);
+
     return entry;
   }
 
@@ -178,8 +198,10 @@ export class AllPlayLogic {
   ): number {
     if (data.mode === AllPlayMode.STAKE) {
       const stake = entry.stake ?? data.price;
+
       return isCorrect ? stake : -stake;
     }
+
     return isCorrect ? Math.round(data.price * (data.priceMultiplier ?? 1)) : 0;
   }
 
@@ -190,7 +212,10 @@ export class AllPlayLogic {
   ): AllPlayDataDTO {
     const revealed =
       questionState === QuestionState.REVIEWING || questionState === QuestionState.SHOWING_ANSWER;
-    if (revealed) return data;
+    if (revealed) {
+      return data;
+    }
+
     return {
       ...data,
       entries: data.entries.map((e) => ({
@@ -218,9 +243,13 @@ export class AllPlayLogic {
 
   private static _activeEntries(game: Game): AllPlayEntryDTO[] {
     const data = game.gameState.allPlay;
-    if (!data) return [];
+    if (!data) {
+      return [];
+    }
+
     return data.entries.filter((e) => {
       const player = game.getPlayer(e.playerId, { fetchDisconnected: false });
+
       return !!player && player.role === PlayerRole.PLAYER;
     });
   }
@@ -230,6 +259,7 @@ export class AllPlayLogic {
     if (!data || game.gameState.questionState !== state) {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
+
     return data;
   }
 
@@ -238,6 +268,7 @@ export class AllPlayLogic {
     if (!entry) {
       throw new ClientError(ClientResponse.ALL_PLAY_NOT_PARTICIPANT);
     }
+
     return entry;
   }
 }

@@ -29,14 +29,21 @@ export class ChoosingToAllPlayBiddingHandler extends BaseTransitionHandler {
   public canTransition(ctx: ChoosingToStakeBiddingCtx): boolean {
     const { game, trigger, payload } = ctx;
 
-    if (!payload || trigger !== TransitionTrigger.USER_ACTION) return false;
-    if (getGamePhase(game) !== this.fromPhase) return false;
+    if (!payload || trigger !== TransitionTrigger.USER_ACTION) {
+      return false;
+    }
+
+    if (getGamePhase(game) !== this.fromPhase) {
+      return false;
+    }
+
     if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.CHOOSING)) {
       return false;
     }
 
     try {
       const { question } = QuestionPickLogic.validateQuestionPick(game, payload.questionData);
+
       return (
         AllPlayLogic.modeOf(question) === AllPlayMode.STAKE &&
         TransitionGuards.hasEligiblePlayers(game)

@@ -419,6 +419,7 @@ export class TimerExpirationService {
         eligiblePlayers,
         targetPlayerId
       });
+
       return { success: false, broadcasts: [] };
     }
 

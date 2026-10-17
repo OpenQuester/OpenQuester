@@ -152,6 +152,7 @@ export class SecretQuestionService {
     }
 
     const prices = [...new Set(question.allowedPrices ?? [])].sort((a, b) => a - b);
+
     return prices.length > 0 ? prices : null;
   }
 
@@ -201,6 +202,7 @@ export class SecretQuestionService {
   private _startedTimer(duration: number): GameStateTimer {
     const timer = new GameStateTimer(duration);
     timer.start();
+
     return timer;
   }
 }

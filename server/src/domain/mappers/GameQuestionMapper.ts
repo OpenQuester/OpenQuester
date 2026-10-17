@@ -105,7 +105,9 @@ export class GameQuestionMapper {
     for (const theme of gameState.currentRound.themes) {
       for (const question of theme.questions) {
         all.push(question);
-        if (question.isPlayed) played.push(question);
+        if (question.isPlayed) {
+          played.push(question);
+        }
       }
     }
 

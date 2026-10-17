@@ -30,6 +30,7 @@ export class ShowmanToolsLogic {
       const question = theme.questions.find((q) => q.id === questionId);
       if (question) {
         question.isPlayed = !question.isPlayed;
+
         return question.isPlayed;
       }
     }
@@ -49,7 +50,10 @@ export class ShowmanToolsLogic {
     if (state.questionState === QuestionState.SHOWING && state.answeredPlayers?.length) {
       last = state.answeredPlayers[state.answeredPlayers.length - 1];
       state.answeredPlayers = state.answeredPlayers.slice(0, -1);
-      if (state.answeredPlayers.length === 0) state.answeredPlayers = null;
+      if (state.answeredPlayers.length === 0) {
+        state.answeredPlayers = null;
+      }
+
       canAnswerAgain = true;
     } else if (state.questionState === QuestionState.SHOWING_ANSWER && state.answerShowData) {
       const data = state.answerShowData as { answerResult?: GameStateAnsweredPlayerData };
@@ -70,6 +74,7 @@ export class ShowmanToolsLogic {
     if (!player) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
+
     player.score = ValueUtils.clampAbs(player.score - last.result, SCORE_ABS_LIMIT);
 
     return {

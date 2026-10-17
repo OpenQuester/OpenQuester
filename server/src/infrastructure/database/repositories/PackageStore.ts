@@ -234,6 +234,7 @@ export class PackageStore {
     const questionResults = await this.redisRepository.hmget(key, questionFields);
 
     const questionMap = new Map<number, PackageQuestionDTO>();
+
     for (let i = 0; i < questionIds.length; i++) {
       const questionRaw = questionResults[i];
       if (questionRaw) {

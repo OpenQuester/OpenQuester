@@ -10,13 +10,13 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   ChoosingToSecretTransferCtx,
-  ChoosingToSecretTransferMutationData,
+  ChoosingToSecretTransferMutationData
 } from "domain/types/socket/transition/choosing";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
@@ -31,28 +31,29 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
   public canTransition(ctx: ChoosingToSecretTransferCtx): boolean {
     const { game, trigger, payload } = ctx;
 
-    if (!payload) return false;
-    if (getGamePhase(game) !== this.fromPhase) return false;
-
-    if (
-      !TransitionGuards.canTransitionInRegularRound(
-        game,
-        QuestionState.CHOOSING
-      )
-    ) {
+    if (!payload) {
       return false;
     }
 
-    if (trigger !== TransitionTrigger.USER_ACTION) return false;
+    if (getGamePhase(game) !== this.fromPhase) {
+      return false;
+    }
+
+    if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.CHOOSING)) {
+      return false;
+    }
+
+    if (trigger !== TransitionTrigger.USER_ACTION) {
+      return false;
+    }
 
     // Validate question existence and type; silence on failure
     try {
-      const { question } = QuestionPickLogic.validateQuestionPick(
-        game,
-        payload.questionData
-      );
+      const { question } = QuestionPickLogic.validateQuestionPick(game, payload.questionData);
 
-      if (question.type !== PackageQuestionType.SECRET) return false;
+      if (question.type !== PackageQuestionType.SECRET) {
+        return false;
+      }
 
       // Require at least two eligible players to enter transfer phase
       return TransitionGuards.hasMultipleEligiblePlayers(game);
@@ -65,22 +66,17 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
     GameStateValidator.validateGameInProgress(ctx.game);
   }
 
-  protected async mutate(
-    ctx: ChoosingToSecretTransferCtx
-  ): Promise<MutationResult> {
+  protected async mutate(ctx: ChoosingToSecretTransferCtx): Promise<MutationResult> {
     const { game, payload, triggeredBy } = ctx;
     const pickerPlayerId = QuestionPickLogic.resolvePickerPlayerId(game, triggeredBy.playerId!);
 
-    const { question, theme } = QuestionPickLogic.validateQuestionPick(
-      game,
-      payload!.questionData
-    );
+    const { question, theme } = QuestionPickLogic.validateQuestionPick(game, payload!.questionData);
 
     const secretData = {
       pickerPlayerId,
       transferType: question.transferType!,
       questionId: question.id!,
-      transferDecisionPhase: true,
+      transferDecisionPhase: true
     } satisfies ChoosingToSecretTransferMutationData;
 
     game.setQuestionState(QuestionState.SECRET_TRANSFER);
@@ -111,9 +107,9 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: game.settings.timers.secretTransferMs,
-        },
-      ],
+          pxTtl: game.settings.timers.secretTransferMs
+        }
+      ]
     };
   }
 
@@ -122,11 +118,11 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
     mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {
-    const data = mutationResult.data as
-      | ChoosingToSecretTransferMutationData
-      | undefined;
+    const data = mutationResult.data as ChoosingToSecretTransferMutationData | undefined;
 
-    if (!data) return [];
+    if (!data) {
+      return [];
+    }
 
     return [
       {
@@ -135,10 +131,10 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
           pickerPlayerId: data.pickerPlayerId,
           transferType: data.transferType,
           questionId: data.questionId,
-          questionEligiblePlayers: ctx.game.getQuestionEligiblePlayers(),
+          questionEligiblePlayers: ctx.game.getQuestionEligiblePlayers()
         },
-        room: ctx.game.id,
-      },
+        room: ctx.game.id
+      }
     ];
   }
 }
