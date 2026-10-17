@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GameConnection } from "./connection";
 import { ALICE, BOB, player, question, snapshot } from "./fixtures";
 import type { FileType, QuestionFile } from "./protocol";
+import { useGameStore } from "./store";
 
 const { socket, listeners } = vi.hoisted(() => {
   const listeners = new Map<string, (payload: unknown) => void>();
@@ -69,6 +70,33 @@ function receiveQuestion(files: QuestionFile[]) {
     }),
   );
 }
+
+describe("answer submission retries", () => {
+  it.each(["error", "timeout"])(
+    "clears a pending answer after %s and permits retry",
+    async (failure) => {
+      listeners.get("game-data")?.(
+        snapshot({
+          questionState: "answering",
+          answeringPlayer: ALICE,
+          currentQuestion: question(),
+        }),
+      );
+      connection.emit("answer-submitted", { answerText: "2" });
+      expect(useGameStore.getState().pending?.action).toBe("answer-submitted");
+      if (failure === "error") listeners.get("error")?.({ message: "Submission failed" });
+      else await vi.advanceTimersByTimeAsync(10_000);
+      expect(useGameStore.getState().pending).toBeNull();
+      expect(useGameStore.getState().session?.submittedAnswer).toBeNull();
+      connection.emit("answer-submitted", { answerText: "2" });
+      expect(socket.emit).toHaveBeenCalledTimes(2);
+      expect(socket.emit).toHaveBeenLastCalledWith("answer-submitted", { answerText: "2" });
+      listeners.get("answer-submitted")?.({ answerText: "2" });
+      expect(useGameStore.getState().pending).toBeNull();
+      expect(useGameStore.getState().session?.submittedAnswer).toBe("2");
+    },
+  );
+});
 
 describe("question media readiness", () => {
   it.each(["image load", "image decode", "audio", "video", "stalled"])(

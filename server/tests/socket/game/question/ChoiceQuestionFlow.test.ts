@@ -1,11 +1,13 @@
 import { AnswerType } from "domain/enums/package/AnswerType";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { createHttpTestClient } from "tests/e2e/harness/HttpTestClient";
-import { PackageUtils } from "tests/utils/PackageUtils";
+import { PackageUtils, TEST_MEDIA_FILE_MD5 } from "tests/utils/PackageUtils";
+import { GameActionType } from "domain/enums/GameActionType";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
@@ -255,6 +257,54 @@ describe("Choice Question Flow Tests", () => {
       await utils.answerQuestion(setup.playerSocket, setup.showmanSocket);
       return { ...setup, price: choiceQuestion!.price ?? 0 };
     }
+
+    it("keeps a distinct picture-option submission for manual judgment", async () => {
+      await suite.scenario(async (scenario) => {
+        utils.packageTransform = (pkg) => {
+          const q = pkg.rounds[0].themes
+            .flatMap(({ questions }) => questions)
+            .find((item) => item.type === PackageQuestionType.CHOICE)!;
+          q.answerText = "2";
+          q.answers = [
+            { order: 0, text: "2", file: null },
+            {
+              order: 1,
+              text: null,
+              file: { md5: TEST_MEDIA_FILE_MD5, type: PackageFileType.IMAGE }
+            },
+            { order: 2, text: " #2 ", file: null }
+          ];
+        };
+        const { showmanSocket, playerSockets, playerUsers, gameId } =
+          await utils.setupGameTestEnvironment(userRepo, app, 1, 0, true, 0, true);
+        await utils.startGame(showmanSocket);
+        const question = await utils.findQuestionByType(PackageQuestionType.CHOICE, gameId);
+        await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+        const accepted = scenario.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.ANSWER_SUBMITTED
+        });
+        const acceptedPromise = accepted.waitForCount(1);
+        const submitted = await scenario.emitAndWaitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SUBMITTED,
+          () =>
+            scenario
+              .actor(playerSockets[0])
+              .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "##2" })
+        );
+        expect(submitted).toEqual({ answerText: "##2" });
+        await acceptedPromise;
+        await scenario.assert.waitForActionsComplete({ gameId });
+        expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.ANSWERING);
+        expect(
+          (await utils.getGameFromGameService(gameId))!.getPlayer(playerUsers[0].id, {
+            fetchDisconnected: true
+          })!.score
+        ).toBe(0);
+      });
+    });
 
     it("scores a right pick without the showman", async () => {
       await suite.scenario(async (scenario) => {

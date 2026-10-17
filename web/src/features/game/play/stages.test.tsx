@@ -164,6 +164,27 @@ describe("choice options", () => {
     expect(emit).toHaveBeenCalledWith("answer-submitted", { answerText: "2" });
   });
 
+  it("keeps a picture-only answer distinct from numeric and prefixed text options", async () => {
+    const emit = renderStage(
+      session({
+        currentRound: round(),
+        questionState: "answering",
+        answeringPlayer: ALICE,
+        currentQuestion: choice({
+          answers: [
+            { order: 2, text: " #2 ", file: null },
+            { order: 1, text: null, file: { md5: "picture", type: "image", link: "https://x/p" } },
+            { order: 0, text: " 2 ", file: null },
+          ],
+        }),
+        timer: timer(),
+      }),
+      <QuestionStage />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Option 2" }));
+    expect(emit).toHaveBeenCalledWith("answer-submitted", { answerText: "##2" });
+  });
+
   it("keeps delayed options hidden while the game is paused", () => {
     vi.useFakeTimers();
     renderStage(
@@ -180,5 +201,34 @@ describe("choice options", () => {
     act(() => vi.advanceTimersByTime(5_000));
 
     expect(screen.queryByRole("list", { name: "Answer options" })).toBeNull();
+  });
+
+  it("unlocks a failed picture submission for retry and locks an accepted answer", async () => {
+    const emit = renderStage(
+      session({
+        currentRound: round(),
+        questionState: "answering",
+        answeringPlayer: ALICE,
+        currentQuestion: choice(),
+        timer: timer(),
+      }),
+      <QuestionStage />,
+    );
+    emit.mockImplementation(() => useGameStore.getState().setPending("answer-submitted"));
+    const picture = screen.getByRole("button", { name: "Option 2" });
+    await userEvent.click(picture);
+    expect(picture).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Shark" })).toBeDisabled();
+    // The connection clears pending when a send is rejected or times out.
+    act(() => useGameStore.getState().setPending(null));
+    expect(picture).toBeEnabled();
+    await userEvent.click(picture);
+    expect(emit).toHaveBeenCalledTimes(2);
+    expect(emit).toHaveBeenLastCalledWith("answer-submitted", { answerText: "2" });
+    act(() =>
+      useGameStore.getState().dispatch({ type: "answer-submitted", payload: { answerText: "2" } }),
+    );
+    expect(useGameStore.getState().pending).toBeNull();
+    expect(picture).toBeDisabled();
   });
 });

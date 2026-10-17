@@ -246,9 +246,19 @@ function optionsShowIn(session: GameSession): number {
   return Math.max(0, showAt - timerElapsed(s.timer, s.isPaused));
 }
 
-/** What a pick sends: the option's text, or its number for a picture-only option. */
-function optionAnswer(text: string | null | undefined, index: number): string {
-  return text?.trim() || String(index + 1);
+/** Image picks stay distinguishable from text options and are judged by the showman. */
+function optionAnswer(
+  text: string | null | undefined,
+  index: number,
+  options: readonly { text?: string | null }[],
+): string {
+  if (text?.trim()) return text.trim();
+  const texts = new Set(
+    options.map((option) => (option.text ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase()),
+  );
+  let answer = String(index + 1);
+  while (texts.has(answer)) answer = `#${answer}`;
+  return answer;
 }
 
 function ChoiceOptions() {
@@ -294,7 +304,9 @@ function ChoiceOptions() {
               aria-label={text || t("question.optionNumber", { n: i + 1 })}
               onClick={() => {
                 setPicked(i);
-                connection.emit("answer-submitted", { answerText: optionAnswer(a.text, i) });
+                connection.emit("answer-submitted", {
+                  answerText: optionAnswer(a.text, i, answers),
+                });
               }}
               className={cn(
                 "flex min-h-14 w-full items-center gap-3 rounded-md border px-4 py-3 text-left text-lg",

@@ -97,7 +97,12 @@ When changing gameplay state, make sure:
 - **Choice:** a picked option is checked by the server when the question's
   right answer is exactly one of the options (`ChoiceAnswerLogic`); right
   scores +price, wrong −price, and the showman does not judge. Otherwise the
-  showman judges as usual. Options appear `showDelay` after the content, and
+  showman judges as usual. Browser image-only picks send their displayed
+  option number, prefixed with `#` until it differs from every normalized
+  text option, so a numeric text answer cannot be judged in its place.
+  They remain manual rulings. Failed sends unlock the options for retry;
+  pending or accepted submissions keep them locked.
+  Options appear `showDelay` after the content, and
   the buzzer opens then.
 - **Number and point answers** (`answerType`): a typed number is checked
   against `answerNumber` ± `answerDeviation`; a point answer is a click on the
