@@ -3,6 +3,7 @@ import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { AnswerType } from "domain/enums/package/AnswerType";
+import { GameActionType } from "domain/enums/GameActionType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AllPlayMode } from "domain/types/dto/game/state/AllPlayDataDTO";
@@ -15,9 +16,11 @@ import {
 } from "domain/types/socket/events/game/AllPlayEventPayloads";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { User } from "infrastructure/database/models/User";
+import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
 import { container } from "tsyringe";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
+import { TestUtils } from "tests/utils/TestUtils";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import {
   GameClientSocket,
@@ -93,11 +96,37 @@ describe("Everyone-answers questions", () => {
     );
   }
 
+  async function expectSavedStats(
+    scenario: GameScenario,
+    showman: GameClientSocket,
+    gameId: string,
+    players: User[],
+    scores: number[]
+  ): Promise<void> {
+    await utils.progressToNextRound(showman);
+    expect(
+      await scenario.emitAndWaitForEvent<boolean>(showman, SocketIOGameEvents.GAME_FINISHED, () =>
+        scenario.actor(showman).emit(SocketIOGameEvents.NEXT_ROUND, {})
+      )
+    ).toBe(true);
+    await scenario.assert.waitForActionsComplete({ gameId });
+    const repository = suite.dataSource.getRepository(PlayerGameStats);
+    for (const [index, player] of players.entries()) {
+      expect(await repository.findOneByOrFail({ user_id: player.id })).toMatchObject({
+        final_score: scores[index],
+        placement: index + 1,
+        questions_answered: 1,
+        correct_answers: index === 0 ? 1 : 0,
+        wrong_answers: index === 0 ? 0 : 1
+      });
+    }
+  }
+
   it("no-risk for everyone: everyone answers, right wins price × multiplier, wrong costs nothing", async () => {
     await suite.scenario(async (scenario) => {
       forEveryone(PackageQuestionType.NO_RISK);
       const { showmanSocket, playerSockets, playerUsers, gameId } =
-        await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
       await utils.startGame(showmanSocket);
       const question = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
 
@@ -148,6 +177,7 @@ describe("Everyone-answers questions", () => {
         questionsAnswered: "1",
         wrongAnswers: "1"
       });
+      await expectSavedStats(scenario, showmanSocket, gameId, playerUsers, [800, 0]);
     });
   });
 
@@ -162,12 +192,8 @@ describe("Everyone-answers questions", () => {
         question.answerType = AnswerType.NUMBER;
         question.answerNumber = 42;
       };
-      const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        2,
-        0
-      );
+      const { showmanSocket, playerSockets, playerUsers, gameId } =
+        await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
       await utils.startGame(showmanSocket);
       const question = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
       await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
@@ -178,6 +204,46 @@ describe("Everyone-answers questions", () => {
       await finish;
 
       expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.SHOWING_ANSWER);
+      await expectSavedStats(scenario, showmanSocket, gameId, playerUsers, [800, 0]);
+    });
+  });
+
+  it("persists automatic and missing-answer rulings after the everyone-answer timer expires", async () => {
+    await suite.scenario(async (scenario) => {
+      utils.packageTransform = (pkg) => {
+        const question = pkg.rounds
+          .flatMap(({ themes }) => themes)
+          .flatMap(({ questions }) => questions)
+          .find((q) => q.type === PackageQuestionType.NO_RISK)!;
+        question.subType = PackageQuestionSubType.FOR_EVERYONE;
+        question.answerType = AnswerType.NUMBER;
+        question.answerNumber = 42;
+      };
+      const { showmanSocket, playerSockets, playerUsers, gameId } =
+        await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
+      await utils.startGame(showmanSocket);
+      const question = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
+      await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ALL_PLAY_ANSWER, () =>
+        scenario
+          .actor(playerSockets[0])
+          .emit(SocketIOGameEvents.ALL_PLAY_ANSWER, { answerText: "42" })
+      );
+      const testUtils = new TestUtils(app, userRepo, suite.serverUrl);
+      await scenario.runAndWaitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH, () =>
+        testUtils.expireTimerAndWaitForAction(gameId, GameActionType.TIMER_QUESTION_SHOWING_EXPIRED)
+      );
+      expect((await utils.getGameState(gameId))!.allPlay?.entries).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ playerId: playerUsers[0].id, isCorrect: true }),
+          expect.objectContaining({
+            playerId: playerUsers[1].id,
+            submitted: false,
+            isCorrect: false
+          })
+        ])
+      );
+      await expectSavedStats(scenario, showmanSocket, gameId, playerUsers, [800, 0]);
     });
   });
 
@@ -185,7 +251,7 @@ describe("Everyone-answers questions", () => {
     await suite.scenario(async (scenario) => {
       forEveryone(PackageQuestionType.STAKE);
       const { showmanSocket, playerSockets, playerUsers, gameId } =
-        await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
       await utils.startGame(showmanSocket);
       const question = await utils.findQuestionByType(PackageQuestionType.STAKE, gameId);
 
@@ -237,6 +303,7 @@ describe("Everyone-answers questions", () => {
 
       expect((await review(scenario, showmanSocket, playerUsers[0].id, true)).newScore).toBe(150);
       expect((await review(scenario, showmanSocket, playerUsers[1].id, false)).newScore).toBe(-200);
+      await expectSavedStats(scenario, showmanSocket, gameId, playerUsers, [150, -200]);
     });
   });
 });
