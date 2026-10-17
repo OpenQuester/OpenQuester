@@ -14,6 +14,7 @@ import {
   AnswerSubmittedInputData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { QuestionValueLogic } from "domain/logic/question/QuestionValueLogic";
 
 /**
  * Handles answer submission.
@@ -56,10 +57,11 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
       };
     }
 
-    const price = game.gameState.currentQuestion?.price ?? 0;
+    // Same value a manual ruling uses: winning bid, no-risk multiplier
+    const value = QuestionValueLogic.effectiveValue(game);
     const judged = await this.answerResultUseCase.judge(game, currentPlayer!.meta.id, {
       answerType: verdict ? AnswerResultType.CORRECT : AnswerResultType.WRONG,
-      scoreResult: verdict ? price : -price
+      scoreResult: verdict ? value : -value
     });
 
     return {
