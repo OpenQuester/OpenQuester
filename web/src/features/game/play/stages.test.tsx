@@ -203,6 +203,37 @@ describe("choice options", () => {
     expect(screen.queryByRole("list", { name: "Answer options" })).toBeNull();
   });
 
+  it("resumes the remaining reveal delay after a pause in the middle of the countdown", () => {
+    vi.useFakeTimers();
+    const questionTimer = timer();
+    renderStage(
+      session({
+        currentRound: round(),
+        questionState: "showing",
+        currentQuestion: choice({ showDelay: 1000 }),
+        timer: questionTimer,
+      }),
+      <QuestionStage />,
+    );
+    act(() => vi.advanceTimersByTime(400));
+    const pausedTimer = { ...questionTimer, elapsedMs: 400 };
+    act(() =>
+      useGameStore.getState().dispatch({ type: "game-pause", payload: { timer: pausedTimer } }),
+    );
+    act(() => vi.advanceTimersByTime(5000));
+    expect(screen.queryByRole("list", { name: "Answer options" })).toBeNull();
+    act(() =>
+      useGameStore.getState().dispatch({
+        type: "game-unpause",
+        payload: { timer: { ...pausedTimer, resumedAt: new Date().toISOString() } },
+      }),
+    );
+    act(() => vi.advanceTimersByTime(599));
+    expect(screen.queryByRole("list", { name: "Answer options" })).toBeNull();
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.getByRole("list", { name: "Answer options" })).toBeInTheDocument();
+  });
+
   it("unlocks a failed picture submission for retry and locks an accepted answer", async () => {
     const emit = renderStage(
       session({
