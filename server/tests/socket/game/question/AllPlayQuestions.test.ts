@@ -247,6 +247,35 @@ describe("Everyone-answers questions", () => {
     });
   });
 
+  it("reveals the answer when every player times out without submitting", async () => {
+    await suite.scenario(async (scenario) => {
+      forEveryone(PackageQuestionType.NO_RISK);
+      const { showmanSocket, playerSockets, playerUsers, gameId } =
+        await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
+      await utils.startGame(showmanSocket);
+      const question = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
+      await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+
+      await scenario.runAndWaitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH, () =>
+        suite.testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        )
+      );
+      const state = (await utils.getGameState(gameId))!;
+      expect(state.questionState).toBe(QuestionState.SHOWING_ANSWER);
+      expect(state.allPlay?.entries).toHaveLength(2);
+      expect(state.allPlay?.entries).toEqual(
+        expect.arrayContaining(
+          playerUsers.map(({ id }) =>
+            expect.objectContaining({ playerId: id, submitted: false, isCorrect: false })
+          )
+        )
+      );
+      expect(state.timer).not.toBeNull();
+    });
+  });
+
   it("stake for everyone: hidden stakes, then right wins the stake and wrong loses it", async () => {
     await suite.scenario(async (scenario) => {
       forEveryone(PackageQuestionType.STAKE);
