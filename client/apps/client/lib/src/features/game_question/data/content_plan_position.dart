@@ -7,6 +7,7 @@ class ContentPlanPosition {
     required this.index,
     required this.screen,
     required this.screenStartMs,
+    required this.background,
     required this.done,
   });
 
@@ -32,6 +33,14 @@ class ContentPlanPosition {
       index: index,
       screen: screen,
       screenStartMs: screenStartMs,
+      background: [
+        for (final step in steps)
+          if (step.startMs <= elapsedMs)
+            for (final item in step.items)
+              if (item.placement == ContentPlacement.background &&
+                  elapsedMs < step.startMs + item.durationMs)
+                (item: item, startMs: step.startMs),
+      ],
       done: elapsedMs >= plan.totalMs,
     );
   }
@@ -46,6 +55,9 @@ class ContentPlanPosition {
   /// Start of the step the screen items belong to
   final int screenStartMs;
 
+  /// Background tracks keep playing across screen steps until their own end.
+  final List<({QuestionContentPlanItem item, int startMs})> background;
+
   /// The whole timeline has played
   final bool done;
 
@@ -55,6 +67,14 @@ class ContentPlanPosition {
     for (final step in plan.steps) {
       if (step.startMs > elapsedMs && (next == null || step.startMs < next)) {
         next = step.startMs;
+      }
+      for (final item in step.items) {
+        final end = step.startMs + item.durationMs;
+        if (item.placement == ContentPlacement.background &&
+            end > elapsedMs &&
+            (next == null || end < next)) {
+          next = end;
+        }
       }
     }
     return next;

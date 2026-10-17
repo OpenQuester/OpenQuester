@@ -60,6 +60,35 @@ void main() {
     expect(ContentPlanPosition.nextChangeAt(plan, 8000), isNull);
   });
 
+  test('schedules a background ending between screen steps', () {
+    final backgroundPlan = QuestionContentPlan(
+      steps: [
+        QuestionContentStep(
+          startMs: 0,
+          durationMs: 5000,
+          items: [
+            const QuestionContentPlanItem(
+              kind: QuestionContentPlanItemKind.file,
+              order: 0,
+              placement: ContentPlacement.background,
+              durationMs: 3000,
+            ),
+            _file(1, 5000),
+          ],
+        ),
+        QuestionContentStep(
+          startMs: 5000,
+          durationMs: 5000,
+          items: [_file(2, 5000)],
+        ),
+      ],
+      totalMs: 10000,
+    );
+    expect(ContentPlanPosition.nextChangeAt(backgroundPlan, 0), 3000);
+    expect(ContentPlanPosition.nextChangeAt(backgroundPlan, 3000), 5000);
+    expect(ContentPlanPosition.at(backgroundPlan, 3000).fileOrder, 1);
+  });
+
   test('the buzzer opens at its position on the question timer', () {
     final now = DateTime(2026, 1, 1, 12);
     final state = GameState(

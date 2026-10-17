@@ -817,7 +817,8 @@ class GameLobbyController {
   }
 
   Future<void> _showAnswer() async {
-    final controller = getIt<GameQuestionController>()..stopPlan();
+    final controller = getIt<GameQuestionController>();
+    unawaited(controller.stopPlan());
     choiceAnswers.value = null;
     final currentQuestion = gameData.value?.gameState.currentQuestion;
 

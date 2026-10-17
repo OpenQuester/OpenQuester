@@ -135,3 +135,14 @@ reconnects stay in step. The plan travels with the completion status
 (`contentPlan`), `question-data` for direct-answer paths, and the game state.
 Answer files get the same treatment as `answerContentPlan` in the reveal
 payload, timed with the show-answer defaults.
+
+Flutter's question timeline resolves background tracks independently of screen
+steps. Each active background audio file has a separate player, starts at its
+offset in the server timer, keeps playing across screen changes, and stops at
+its own end. Pausing or answering holds background playback; resuming seeks to
+the restored timer. Question replacement and clear dispose owned players and
+ignore stale loads. The question volume also controls background audio.
+
+Controller tests exercise those player calls with a fake video platform,
+including delayed initialization, seek, and disposal. They do not establish
+native-device playback or fix the readiness/reveal gaps described above.
