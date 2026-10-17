@@ -188,7 +188,11 @@ export class AdminService {
    * Guards every admin action on another account: nobody acts on themselves,
    * and only admins act on staff (admins and moderators).
    */
-  public async assertCanModerateUser(actorId: number | undefined, targetId: userId): Promise<void> {
+  public async assertCanModerateUser(
+    actorId: number | undefined,
+    targetId: userId,
+    allowDeletedTarget = false
+  ): Promise<void> {
     if (actorId === undefined) {
       throw new ClientError(ClientResponse.ACCESS_DENIED, HttpStatus.UNAUTHORIZED);
     }
@@ -197,11 +201,15 @@ export class AdminService {
       throw new ClientError(ClientResponse.CANNOT_MODERATE_SELF, HttpStatus.FORBIDDEN);
     }
 
-    const users = await this.userService.getManyRaw([asUserId(actorId), targetId], {
-      select: ["id"],
-      relations: ["permissions"],
-      relationSelects: { permissions: ["id", "name"] }
-    });
+    const users = await this.userService.getManyRaw(
+      [asUserId(actorId), targetId],
+      {
+        select: ["id"],
+        relations: ["permissions"],
+        relationSelects: { permissions: ["id", "name"] }
+      },
+      allowDeletedTarget ? [targetId] : []
+    );
     const roles = new Map(
       users.map((user) => [
         user.id,

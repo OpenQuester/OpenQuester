@@ -183,13 +183,18 @@ export class AdminRestApiController {
   }
 
   /** Validated `:id` of the target user, after the self/staff guard. */
-  private async moderatedUserId(req: Request): Promise<userId> {
+  /** The target user id, once the session user may act on that account. */
+  private async moderatedUserId(req: Request, allowDeletedTarget = false): Promise<userId> {
     const { userId } = new RequestDataValidator<{ userId: number }>(
       { userId: Number(req.params.id) },
       adminUserIdScheme()
     ).validate();
 
-    await this.adminService.assertCanModerateUser(req.session.userId, asUserId(userId));
+    await this.adminService.assertCanModerateUser(
+      req.session.userId,
+      asUserId(userId),
+      allowDeletedTarget
+    );
 
     return asUserId(userId);
   }
@@ -450,7 +455,8 @@ export class AdminRestApiController {
    * Restore deleted user - security action
    */
   private restoreUser = async (req: Request, res: Response) => {
-    const userId = await this.moderatedUserId(req);
+    // The account being restored is deleted, so the guard must still find it
+    const userId = await this.moderatedUserId(req, true);
 
     await this.userService.restore(userId);
 

@@ -98,12 +98,24 @@ export class UserService {
   }
 
   /** Load a projection for several existing, undeleted users in one query. */
-  public async getManyRaw(ids: userId[], selectOptions: SelectOptions<User>): Promise<User[]> {
+  /**
+   * Several users in one query; throws 404 when one is missing. Deleted
+   * users count as missing unless `deletedAllowedIds` lists them (restoring
+   * an account has to find it first).
+   */
+  public async getManyRaw(
+    ids: userId[],
+    selectOptions: SelectOptions<User>,
+    deletedAllowedIds: userId[] = []
+  ): Promise<User[]> {
     const users = await this.userRepository.findByIds(ids, {
       ...selectOptions,
       select: [...new Set<keyof User>(["id", "is_deleted", ...selectOptions.select])]
     });
-    const foundIds = new Set(users.filter((user) => !user.is_deleted).map((user) => user.id));
+    const deletedAllowed = new Set<number>(deletedAllowedIds);
+    const foundIds = new Set(
+      users.filter((user) => !user.is_deleted || deletedAllowed.has(user.id)).map((user) => user.id)
+    );
     if (ids.some((id) => !foundIds.has(id))) {
       throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }

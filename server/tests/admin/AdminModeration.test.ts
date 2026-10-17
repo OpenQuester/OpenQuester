@@ -624,6 +624,21 @@ describe("Admin panel moderation", () => {
           .expect(HttpStatus.FORBIDDEN);
       }));
 
+    it("lets an admin delete an account and restore it", () =>
+      suite.scenario(async () => {
+        const boss = await admin("restorer");
+        const { user: target } = await signIn("restored");
+
+        await http
+          .delete(`/v1/admin/api/users/${target.id}`)
+          .set("Cookie", boss.cookie)
+          .expect(HttpStatus.NO_CONTENT);
+        await http
+          .post(`/v1/admin/api/users/restore/${target.id}`)
+          .set("Cookie", boss.cookie)
+          .expect(HttpStatus.OK);
+      }));
+
     it("keeps account deletion an admin permission by default", () =>
       suite.scenario(async () => {
         const mod = await moderator();
