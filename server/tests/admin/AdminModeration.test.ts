@@ -443,12 +443,14 @@ describe("Admin panel moderation", () => {
             setup.playerSockets[0],
             SocketIOEvents.ERROR
           );
-          scenario.actor(setup.playerSockets[0]).emit(
-            command.event,
-            command.type === GameActionType.PLAYER_KICK
-              ? { playerId: setup.playerUsers[1].id }
-              : { moderator: true, socketId: "SYSTEM", adminUserId: mod.user.id }
-          );
+          scenario
+            .actor(setup.playerSockets[0])
+            .emit(
+              command.event,
+              command.type === GameActionType.PLAYER_KICK
+                ? { playerId: setup.playerUsers[1].id }
+                : { moderator: true, socketId: "SYSTEM", adminUserId: mod.user.id }
+            );
           const [error] = await Promise.all([rejected, accepted]);
           expect(error.message).toBe(command.error);
           await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
@@ -633,10 +635,47 @@ describe("Admin panel moderation", () => {
           .delete(`/v1/admin/api/users/${target.id}`)
           .set("Cookie", boss.cookie)
           .expect(HttpStatus.NO_CONTENT);
-        await http
+        expect((await userRepo.findOneByOrFail({ id: target.id })).is_deleted).toBe(true);
+        const restored = await http
           .post(`/v1/admin/api/users/restore/${target.id}`)
           .set("Cookie", boss.cookie)
           .expect(HttpStatus.OK);
+        expect(restored.body).toEqual({ userId: target.id, restored: true });
+        expect((await userRepo.findOneByOrFail({ id: target.id })).is_deleted).toBe(false);
+      }));
+
+    it("keeps self and staff guards when restoring deleted targets", () =>
+      suite.scenario(async () => {
+        const boss = await admin("restore_boss");
+        const limited = await staff("restore_limited", [
+          Permissions.ADMIN_PANEL_ACCESS,
+          Permissions.DELETE_ANOTHER_USER
+        ]);
+        const target = await moderator("restore_staff");
+        await http
+          .delete(`/v1/admin/api/users/${target.user.id}`)
+          .set("Cookie", boss.cookie)
+          .expect(HttpStatus.NO_CONTENT);
+
+        await http
+          .post(`/v1/admin/api/users/restore/${target.user.id}`)
+          .set("Cookie", limited.cookie)
+          .expect(HttpStatus.FORBIDDEN);
+        expect((await userRepo.findOneByOrFail({ id: target.user.id })).is_deleted).toBe(true);
+        await http
+          .post(`/v1/admin/api/users/restore/${boss.user.id}`)
+          .set("Cookie", boss.cookie)
+          .expect(HttpStatus.FORBIDDEN);
+        await http
+          .post("/v1/admin/api/users/restore/987654")
+          .set("Cookie", boss.cookie)
+          .expect(HttpStatus.NOT_FOUND);
+
+        await http
+          .post(`/v1/admin/api/users/restore/${target.user.id}`)
+          .set("Cookie", boss.cookie)
+          .expect(HttpStatus.OK);
+        expect((await userRepo.findOneByOrFail({ id: target.user.id })).is_deleted).toBe(false);
       }));
 
     it("keeps account deletion an admin permission by default", () =>
