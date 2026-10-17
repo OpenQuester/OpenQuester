@@ -57,6 +57,7 @@ import {
   type GameTestSetup,
   SocketGameTestUtils
 } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { fakeUploadedMedia } from "tests/utils/StorageTestUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { TestUtils } from "tests/utils/TestUtils";
 
@@ -134,6 +135,7 @@ describe("Game Lock and Queue Mechanics", () => {
   let utils: SocketGameTestUtils;
   let testUtils: TestUtils;
   let lockService: GameActionLockService;
+  let uploadedMedia: ReturnType<typeof fakeUploadedMedia>;
 
   beforeAll(async () => {
     suite = await SocketGameTestSuite.start();
@@ -142,6 +144,7 @@ describe("Game Lock and Queue Mechanics", () => {
     utils = suite.utils;
     testUtils = suite.testUtils;
     lockService = container.resolve(GameActionLockService);
+    uploadedMedia = fakeUploadedMedia();
   });
 
   afterEach(async () => {
@@ -149,6 +152,7 @@ describe("Game Lock and Queue Mechanics", () => {
   });
 
   afterAll(async () => {
+    uploadedMedia?.mockRestore();
     await suite?.stop();
   });
 
