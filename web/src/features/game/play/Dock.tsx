@@ -349,15 +349,17 @@ function useDockModel(session: GameSession, myId: number): DockModel {
                     : t("dock.showing.buzz")}
                 <kbd className="hidden font-mono text-sm md:inline">{t("keys.space")}</kbd>
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="shrink-0"
-                onClick={() => connection.emit("question-skip")}
-                disabled={sending("question-skip")}
-              >
-                {t("dock.showing.pass")}
-              </Button>
+              {!isSingleAnswerer(s.currentQuestion) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0"
+                  onClick={() => connection.emit("question-skip")}
+                  disabled={sending("question-skip")}
+                >
+                  {t("dock.showing.pass")}
+                </Button>
+              )}
             </div>
             {early && (
               <p id="buzz-early-hint" className="m-0 text-center text-sm text-soft">
@@ -428,14 +430,27 @@ function useDockModel(session: GameSession, myId: number): DockModel {
       if (answerer === myId) {
         return {
           status: t("dock.answering.you"),
-          action:
-            q?.type === "choice" ? (
-              <Info>{t("dock.answering.pickOption")}</Info>
-            ) : pointPicture(q) ? (
-              <Info>{t("point.prompt")}</Info>
-            ) : (
-              <AnswerBox giveUp={single} numeric={q?.answerType === "number"} />
-            ),
+          action: (
+            <div className="flex w-full flex-col gap-2">
+              {q?.type === "choice" ? (
+                <Info>{t("dock.answering.pickOption")}</Info>
+              ) : pointPicture(q) ? (
+                <Info>{t("point.prompt")}</Info>
+              ) : (
+                <AnswerBox numeric={q?.answerType === "number"} />
+              )}
+              {single && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={sending("question-skip")}
+                  onClick={() => connection.emit("question-skip")}
+                >
+                  {t("dock.answering.giveUp")}
+                </Button>
+              )}
+            </div>
+          ),
           next: single ? t("dock.answering.youNextSingle") : t("dock.answering.youNext"),
         };
       }
@@ -644,7 +659,7 @@ function JudgeExtras({ value, wrongCosts }: { value: number; wrongCosts: boolean
 }
 
 /** Optional typed answer for the showman; most people answer out loud. */
-function AnswerBox({ giveUp, numeric = false }: { giveUp: boolean; numeric?: boolean }) {
+function AnswerBox({ numeric = false }: { numeric?: boolean }) {
   const { t } = useTranslation();
   const { connection } = useGame();
   const [text, setText] = useState("");
@@ -680,11 +695,6 @@ function AnswerBox({ giveUp, numeric = false }: { giveUp: boolean; numeric?: boo
           {sent ? t("dock.answering.sent") : t("dock.answering.send")}
         </Button>
       </div>
-      {giveUp && (
-        <Button size="sm" variant="ghost" onClick={() => connection.emit("question-skip")}>
-          {t("dock.answering.giveUp")}
-        </Button>
-      )}
     </form>
   );
 }

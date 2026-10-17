@@ -53,6 +53,7 @@ import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
+import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 
 /**
  * Service handling timer expiration logic.
@@ -629,7 +630,9 @@ export class TimerExpirationService {
     }
 
     const resultData = transitionResult.data as
-      AnsweringToShowingMutationData | AnsweringToShowingAnswerMutationData | undefined;
+      | AnsweringToShowingMutationData
+      | AnsweringToShowingAnswerMutationData
+      | undefined;
 
     const playerAnswerResult = resultData?.playerAnswerResult ?? null;
 
@@ -665,7 +668,10 @@ export class TimerExpirationService {
   ): Promise<TransitionResources | undefined> {
     const resources: Array<TransitionResources | undefined> = [];
 
-    if (game.willAllPlayersBeExhausted()) {
+    if (
+      SpecialRegularQuestionUtils.isSingleAnswererQuestion(game) ||
+      game.willAllPlayersBeExhausted()
+    ) {
       resources.push(await this.transitionResourceService.getCurrentQuestionWithTheme(game));
     } else {
       resources.push(await this.transitionResourceService.getSavedShowingTimer(game));

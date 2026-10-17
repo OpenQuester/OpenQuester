@@ -35,6 +35,9 @@ test("only the no-risk picker answers; giving up reveals it without losing point
   await expectPhase([picker, other], "Ready to buzz");
   await expect(other.getByTestId("buzz")).toHaveCount(0);
   await expect(other.getByTestId("dock-info")).toContainText("Not your turn");
+  await expect(
+    picker.getByRole("button", { name: "Pass on this question", exact: true }),
+  ).toHaveCount(0);
   await buzz(picker);
   await picker.getByRole("button", { name: "Give up", exact: true }).click();
   await expectPhase([page, kim.page, host.page], "Answer");

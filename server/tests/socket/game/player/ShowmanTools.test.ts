@@ -213,6 +213,48 @@ describe("Showman tools", () => {
     });
   });
 
+  it("undoes each exhausted player's ruling once during the answer reveal", async () => {
+    await suite.scenario(async (scenario) => {
+      const { showmanSocket, playerSockets, playerUsers, gameId } =
+        await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      for (const socket of playerSockets) {
+        await utils.answerQuestion(socket, showmanSocket);
+        await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT, () =>
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+            answerType: AnswerResultType.WRONG,
+            scoreResult: -100
+          })
+        );
+      }
+      expect((await utils.getGameState(gameId))?.questionState).toBe(QuestionState.SHOWING_ANSWER);
+
+      for (const player of [...playerUsers].reverse()) {
+        const undo = await scenario.emitAndWaitForEvent<AnswerResultUndoEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT_UNDO,
+          () => scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT_UNDO)
+        );
+        expect(undo).toEqual({
+          playerId: player.id,
+          revertedResult: -100,
+          newScore: 0,
+          canAnswerAgain: false
+        });
+        expect(
+          await container.resolve(PlayerGameStatsRepository).getStats(gameId, player.id)
+        ).toMatchObject({ questionsAnswered: "0", wrongAnswers: "0", currentScore: "0" });
+      }
+      const repeated = await scenario.emitAndWaitForEvent<{ message: string }>(
+        showmanSocket,
+        SocketIOEvents.ERROR,
+        () => scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT_UNDO)
+      );
+      expect(repeated.message).toBe("There's no ruling on this question to undo");
+    });
+  });
+
   it("closes the game to newcomers, or opens it to spectators only", async () => {
     await suite.scenario(async (scenario) => {
       const { showmanSocket, gameId } = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);

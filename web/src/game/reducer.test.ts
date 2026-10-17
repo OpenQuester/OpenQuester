@@ -148,6 +148,44 @@ describe("reducer: regular question", () => {
     expect(s.state.skippedPlayers).toEqual([]);
   });
 
+  it.each(["correct", "wrong", "skip"] as const)(
+    "removes an undone %s ruling from both the reveal and attempt history",
+    (answerType) => {
+      const previous = { player: BOB, result: -100, score: -100, answerType: "wrong" as const };
+      const result = answerType === "correct" ? 100 : answerType === "wrong" ? -100 : 0;
+      const undone = { player: ALICE, result, score: result, answerType };
+      let s = session({
+        currentRound: round(),
+        currentQuestion: question(),
+        questionState: "showing_answer",
+        answeredPlayers: [previous, undone],
+        answerShowData: {
+          answerFiles: null,
+          answerText: "Paris",
+          nextTurnPlayerId: BOB,
+          answerResult: { ...undone },
+        },
+      });
+      s = { ...s, lastResult: { ...undone, key: 1 } };
+      s = reduce(s, {
+        type: "answer-result-undo",
+        payload: { playerId: ALICE, revertedResult: result, newScore: 0, canAnswerAgain: false },
+      });
+      expect(s.state.answeredPlayers).toEqual([previous]);
+      expect(s.state.answerShowData).toMatchObject({ answerText: "Paris" });
+      expect(s.state.answerShowData?.answerResult).toBeUndefined();
+      expect(s.lastResult).toBeNull();
+      expect(s.players.find((p) => p.meta.id === ALICE)?.score).toBe(0);
+      expect(phaseOf(s)).toBe("reveal");
+
+      s = reduce(s, {
+        type: "answer-result-undo",
+        payload: { playerId: BOB, revertedResult: -100, newScore: 0, canAnswerAgain: false },
+      });
+      expect(s.state.answeredPlayers).toEqual([]);
+    },
+  );
+
   it("does not reopen single-answerer questions after a wrong answer", () => {
     const s = run(
       choosing(),

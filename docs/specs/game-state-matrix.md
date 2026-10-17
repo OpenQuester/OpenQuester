@@ -120,10 +120,13 @@ When changing gameplay state, make sure:
   answer. A showman picking on a player's behalf uses the current turn player.
   Media readiness still includes all players. One answer or its timeout ends the question;
   wrong answers and giving up cost no points.
-- **Give up (no risk, secret, stake):** the designated answerer's
-  `question-skip` follows the normal wrong-answer ruling, including its scoring,
+- **Give up or answering timeout (no risk, secret, stake):** the designated answerer's
+  `question-skip` or timeout follows the normal wrong-answer ruling, including its scoring,
   answer reveal, reveal timer and return to the board. A stake loses the winning
   bid; a secret question loses its selected price.
+  Delayed timer expiration notifications cannot end a newer active timer.
+  Give up remains available for point-on-image answers. The regular Pass action
+  is not offered before a single-answerer question enters ANSWERING.
 - **Everyone answers** (stake or no-risk with `subType: forEveryone`,
   `gameState.allPlay`): no buzzer. Stake mode starts with hidden stakes from
   every player (`all-play-stake`, 30 s, at most the player's score or the
@@ -141,7 +144,8 @@ When changing gameplay state, make sure:
   still ends only after a question is played or the showman moves on.
 - **Undo the last ruling** (`answer-result-undo`, while the question is open
   or its answer is shown): the score change is reverted. After a wrong answer
-  on an open question the player may buzz again.
+  on an open question the player may buzz again. Each ruling can be reverted
+  only once, including a give-up ruling during the answer reveal.
 - **Who can join** (`game-join-mode-change`: open / spectators only / closed): blocks
   newcomers; people already in the game can always come back. Shown in the
   game list as `joinMode`.

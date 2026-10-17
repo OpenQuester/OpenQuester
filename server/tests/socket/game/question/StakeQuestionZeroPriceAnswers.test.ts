@@ -5,7 +5,7 @@ import { Repository } from "typeorm";
 
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
@@ -17,6 +17,7 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
+import { AnswerResultUndoEventPayload } from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import {
   StakeBidSubmitOutputData,
@@ -27,6 +28,8 @@ import {
   AnswerSubmittedInputData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
+import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
+import { container } from "tsyringe";
 import {
   GameClientSocket,
   GameTestSetup,
@@ -412,6 +415,31 @@ describe("Stake Question Zero Price Answer Tests", () => {
         expect(gameState?.questionState).toBe(QuestionState.SHOWING_ANSWER);
         expect(gameState?.currentQuestion).toBeNull();
         expect(gameState?.timer).toBeTruthy();
+
+        const undo = await scenario.emitAndWaitForEvent<AnswerResultUndoEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT_UNDO,
+          () => scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT_UNDO)
+        );
+        expect(undo).toEqual({
+          playerId: setup.playerUsers[0].id,
+          revertedResult: -1,
+          newScore: 1000,
+          canAnswerAgain: false
+        });
+        expect((await utils.getGameState(setup.gameId))?.answeredPlayers ?? []).toHaveLength(0);
+
+        const repeatedUndo = await scenario.emitAndWaitForEvent<{ message: string }>(
+          showmanSocket,
+          SocketIOEvents.ERROR,
+          () => scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT_UNDO)
+        );
+        expect(repeatedUndo.message).toBe("There's no ruling on this question to undo");
+        expect(
+          await container
+            .resolve(PlayerGameStatsRepository)
+            .getStats(setup.gameId, setup.playerUsers[0].id)
+        ).toMatchObject({ questionsAnswered: "0", wrongAnswers: "0", currentScore: "1000" });
       });
     });
   });

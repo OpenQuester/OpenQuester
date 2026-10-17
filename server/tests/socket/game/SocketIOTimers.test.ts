@@ -3,11 +3,13 @@ import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { GameActionType } from "domain/enums/GameActionType";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { User } from "infrastructure/database/models/User";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
@@ -37,6 +39,102 @@ describe("SocketIOTimers", () => {
   });
 
   describe("Standard Round Timers", () => {
+    it.each([PackageQuestionType.SECRET, PackageQuestionType.STAKE])(
+      "ends a %s answer on timeout with its effective penalty",
+      async (questionType) => {
+        await suite.scenario(async (scenario) => {
+          const { showmanSocket, playerSockets, playerUsers, gameId } =
+            await socketUtils.setupGameTestEnvironment(userRepo, app, 2, 0);
+          await socketUtils.startGame(showmanSocket);
+          for (const player of playerUsers) {
+            await socketUtils.setPlayerScore(gameId, player.id, 500);
+          }
+          await socketUtils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
+          const question = (await socketUtils.findQuestionByType(questionType, gameId))!;
+          await socketUtils.pickQuestion(showmanSocket, question.id, playerSockets);
+
+          const questionData = scenario.waitForEvent(
+            showmanSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          );
+          let answererId: number;
+          let penalty: number;
+          if (questionType === PackageQuestionType.STAKE) {
+            penalty = 350;
+            answererId = playerUsers[0].id;
+            await scenario.emitAndWaitForEvent(
+              showmanSocket,
+              SocketIOGameEvents.STAKE_BID_SUBMIT,
+              () =>
+                scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+                  bidType: StakeBidType.NORMAL,
+                  bidAmount: penalty
+                })
+            );
+            scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+              bidType: StakeBidType.PASS,
+              bidAmount: null
+            });
+          } else {
+            penalty = question.price!;
+            answererId = playerUsers[1].id;
+            scenario.actor(showmanSocket).emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+              targetPlayerId: answererId
+            });
+          }
+          await questionData;
+          await scenario.assert.waitForActionsComplete({ gameId });
+
+          const after = scenario.mark();
+          const result = scenario.waitForEvent<QuestionAnswerResultEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.ANSWER_RESULT
+          );
+          const finish = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH);
+          const reveal = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_SHOW_START);
+          await testUtils.expireTimerAndWaitForAction(
+            gameId,
+            GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED
+          );
+          expect((await result).answerResult).toMatchObject({
+            player: answererId,
+            answerType: AnswerResultType.WRONG,
+            result: -penalty,
+            score: 500 - penalty
+          });
+          await scenario.assert.waitForActionsComplete({ gameId });
+          const state = (await socketUtils.getGameState(gameId))!;
+          expect(state.questionState).toBe(QuestionState.SHOWING_ANSWER);
+          expect(state.currentQuestion).toBeNull();
+          expect(state.answeringPlayer).toBeNull();
+          expect(state.stakeQuestionData).toBeNull();
+          expect(state.secretQuestionData).toBeNull();
+          expect(state.answerShowData?.answerText).toBe(
+            questionType === PackageQuestionType.SECRET ? "Secret answer" : "Stake answer"
+          );
+          expect(state.timer).toBeTruthy();
+          await Promise.all([finish, reveal]);
+          for (const event of [
+            SocketIOGameEvents.ANSWER_RESULT,
+            SocketIOGameEvents.QUESTION_FINISH,
+            SocketIOGameEvents.ANSWER_SHOW_START
+          ]) {
+            scenario.assert.expectDirectedEventCount({
+              actor: scenario.actor(showmanSocket),
+              direction: "inbound",
+              event,
+              afterSequence: after,
+              expectedCount: 1
+            });
+          }
+          await socketUtils.skipShowAnswer(showmanSocket);
+          expect((await socketUtils.getGameState(gameId))!.questionState).toBe(
+            QuestionState.CHOOSING
+          );
+        });
+      }
+    );
+
     it("should handle answer timer expiration with wrong answer", async () => {
       await suite.scenario(async () => {
         const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);

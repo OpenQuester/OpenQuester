@@ -15,6 +15,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 import {
   AnsweringToShowingCtx,
   AnsweringToShowingMutationData
@@ -69,7 +70,10 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
     }
 
     // 4. Not all players will be exhausted - if they will be, we go to SHOWING_ANSWER instead
-    return !game.willAllPlayersBeExhausted();
+    return (
+      !SpecialRegularQuestionUtils.isSingleAnswererQuestion(game) &&
+      !game.willAllPlayersBeExhausted()
+    );
   }
 
   protected override validate(ctx: AnsweringToShowingCtx): void {

@@ -68,6 +68,11 @@ export class ShowmanToolsLogic {
       if (data.answerResult) {
         last = data.answerResult;
         delete data.answerResult;
+        // A final wrong ruling is also in the attempt history. Consume both
+        // copies so another undo reaches the previous player, not this one again.
+        if (state.answeredPlayers?.[state.answeredPlayers.length - 1]?.player === last.player) {
+          state.answeredPlayers = state.answeredPlayers.slice(0, -1);
+        }
       } else if (state.answeredPlayers?.length) {
         last = state.answeredPlayers[state.answeredPlayers.length - 1];
         state.answeredPlayers = state.answeredPlayers.slice(0, -1);

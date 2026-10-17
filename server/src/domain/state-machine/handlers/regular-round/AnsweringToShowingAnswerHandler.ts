@@ -2,6 +2,7 @@ import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionAnswerResultLogic } from "domain/logic/question/QuestionAnswerResultLogic";
+import { QuestionValueLogic } from "domain/logic/question/QuestionValueLogic";
 import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -20,11 +21,11 @@ import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/Ans
 import { QuestionFinishWithAnswerEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 import {
   AnsweringToShowingAnswerCtx,
   AnsweringToShowingAnswerMutationData
 } from "domain/types/socket/transition/answering";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
 
 /**
  * Handles transition from ANSWERING to SHOWING_ANSWER phase in regular rounds.
@@ -62,6 +63,8 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
       return false;
     }
 
+    const singleAnswererQuestion = SpecialRegularQuestionUtils.isSingleAnswererQuestion(game);
+
     // 3. Either CORRECT answer OR all players will be exhausted after this answer
     if (trigger === TransitionTrigger.USER_ACTION || trigger === TransitionTrigger.PLAYER_LEFT) {
       const answerType = payload?.answerType;
@@ -77,19 +80,16 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
         (answerType === AnswerResultType.WRONG || answerType === AnswerResultType.SKIP) &&
         game.willAllPlayersBeExhausted();
 
-      // Stake and secret always go to SHOWING_ANSWER on wrong/skip answers
-      const singleAnswererQuestion =
-        payload?.questionType === PackageQuestionType.STAKE ||
-        payload?.questionType === PackageQuestionType.SECRET ||
-        payload?.questionType === PackageQuestionType.NO_RISK;
-
       if (allExhausted || singleAnswererQuestion) {
         return true;
       }
     }
 
-    // Timer expiration (wrong answer) + all will be exhausted
-    return trigger === TransitionTrigger.TIMER_EXPIRED && game.willAllPlayersBeExhausted();
+    // A single-answerer question ends on timeout even when other players remain.
+    return (
+      trigger === TransitionTrigger.TIMER_EXPIRED &&
+      (singleAnswererQuestion || game.willAllPlayersBeExhausted())
+    );
   }
 
   protected override validate(ctx: AnsweringToShowingAnswerCtx): void {
@@ -103,9 +103,9 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     const isCorrect = answerType === AnswerResultType.CORRECT;
 
     // Get score result from payload or default
-    // When timer expires with no payload, use negative question price as penalty
-    const currentQuestionPrice = game.gameState.currentQuestion?.price ?? 0;
-    const scoreResult = payload?.scoreResult ?? (isCorrect ? 0 : -currentQuestionPrice);
+    // A stake timeout loses the winning bid, just like giving up.
+    const scoreResult =
+      payload?.scoreResult ?? (isCorrect ? 0 : -QuestionValueLogic.effectiveValue(game));
 
     const playerAnswerResult = game.handleQuestionAnswer(
       scoreResult,
@@ -204,8 +204,8 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     });
 
     // 2. QUESTION_FINISH - with answer data
-    const questionFinishPayload =
-      game.gameState.answerShowData as QuestionFinishWithAnswerEventPayload;
+    const questionFinishPayload = game.gameState
+      .answerShowData as QuestionFinishWithAnswerEventPayload;
 
     broadcasts.push({
       event: SocketIOGameEvents.QUESTION_FINISH,

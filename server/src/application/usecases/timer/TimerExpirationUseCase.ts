@@ -136,6 +136,12 @@ export class TimerExpirationUseCase
       return "non-active-timer-key";
     }
 
+    // A real expiration leaves the Redis key absent. A present key belongs
+    // to a replacement timer, even if the delayed notification read its phase.
+    if (ctx.timer) {
+      return "active-timer-key-still-present";
+    }
+
     if (game.gameState.isPaused) {
       return "game-paused";
     }

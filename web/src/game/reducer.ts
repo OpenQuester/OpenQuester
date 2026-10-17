@@ -682,12 +682,12 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
     }
 
     case "answer-result-undo": {
-      const { playerId, newScore, canAnswerAgain } = event.payload;
+      const { playerId, newScore } = event.payload;
       const answered = s.answeredPlayers ?? [];
       // The last ruling for this player is the one taken back.
       const at = answered.map((a) => a.player).lastIndexOf(playerId);
       const next = patchState(session, {
-        answeredPlayers: canAnswerAgain && at >= 0 ? answered.filter((_, i) => i !== at) : answered,
+        answeredPlayers: at >= 0 ? answered.filter((_, i) => i !== at) : answered,
         answerShowData: s.answerShowData
           ? { ...s.answerShowData, answerResult: undefined }
           : s.answerShowData,
