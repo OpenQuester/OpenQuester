@@ -384,8 +384,10 @@ describe("Choice Question Flow Tests", () => {
         const isStake = type === PackageQuestionType.STAKE;
         if (isStake) {
           for (const player of playerUsers) await utils.setPlayerScore(gameId, player.id, 1000);
-          await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
         }
+
+        // Both special types belong to the picker: no-risk reserves the answer for them
+        await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
         const question = await utils.findQuestionByType(type, gameId);
         await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
         if (isStake) {
