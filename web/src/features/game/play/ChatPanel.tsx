@@ -44,7 +44,7 @@ export function ChatBody() {
             return (
               <p
                 key={m.uuid}
-                className="m-0 self-center rounded-full border border-accent-line/50 px-3 py-1 text-center text-sm text-soft [overflow-wrap:anywhere]"
+                className="m-0 self-center text-center text-sm text-soft [overflow-wrap:anywhere]"
                 data-testid="chat-log"
                 data-action={m.system.action}
               >

@@ -115,7 +115,8 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   are logged to the game chat by the server (`ShowmanActionLogLogic`, run from
   `SocketActionHooks`): a chat line with `system: { action, params }` that the
   chat shows translated (`chat.log.*`), with an English `message` for other
-  clients. The showman also has ×2 and 0 rulings next to right/wrong, and
+  clients. System lines have no message bubble and do not increase the unread
+  chat badge. The showman also has ×2 and 0 rulings next to right/wrong, and
   "Skip round" asks for confirmation.
 - One socket per account: joining from another tab or device makes the server
   drop the older socket ("io server disconnect"). That page shows "Opened

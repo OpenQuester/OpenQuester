@@ -82,11 +82,17 @@ test.describe("package editor", () => {
     await themeCards(page, 0).nth(1).dblclick();
     const form = page.getByTestId("question-dialog");
     await expect(form).toBeVisible();
-    await form.getByLabel("Correct answer").fill("Sky blue");
+    await form.getByLabel("Correct answers", { exact: true }).fill("Sky blue\nAzure");
+    await expect(form.getByLabel(/Also accept/)).toHaveCount(0);
+    await shot(page, `editor-correct-answers-${test.info().project.name}`);
     await page.getByTestId("question-save").click();
     await expect(form).toBeHidden();
     await expect(page.getByTestId("theme-row").first()).toContainText("Sky blue");
     await expect(page.getByTestId("save-status")).toContainText("Saved in this browser");
+    await themeCards(page, 0).nth(1).dblclick();
+    await expect(form.getByLabel("Correct answers", { exact: true })).toHaveValue(
+      "Sky blue\nAzure",
+    );
   });
 
   test("paste questions as text, set the round's prices and search", async ({ page }) => {

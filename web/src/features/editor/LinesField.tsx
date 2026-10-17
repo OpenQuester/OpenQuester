@@ -11,12 +11,14 @@ export function LinesField({
   help,
   value,
   onChange,
+  optional = true,
 }: {
   id: string;
   label: string;
   help?: string;
   value: string[];
   onChange: (next: string[]) => void;
+  optional?: boolean;
 }) {
   const { t } = useTranslation();
   // Keep the raw text while typing so empty lines and spaces don't jump.
@@ -24,7 +26,7 @@ export function LinesField({
   return (
     <div className="flex flex-col gap-1.5">
       <Label htmlFor={id}>
-        {label} <span className="font-normal text-faint">{t("editor.optional")}</span>
+        {label} {optional && <span className="font-normal text-faint">{t("editor.optional")}</span>}
       </Label>
       <textarea
         id={id}

@@ -16,6 +16,56 @@ import {
 
 const laptop = { viewport: { width: 1280, height: 800 } };
 
+test("only the no-risk picker answers; giving up reveals it without losing points or chat badges", async ({
+  browser,
+  page,
+}) => {
+  const host = await person(browser, "Host", laptop);
+  const kim = await person(browser, "Kim", laptop);
+  await signInAsGuest(host.page, "Host");
+  const code = await hostGame(host.page, "No-risk give up");
+  await joinByLink(page, code, "Pat", "player");
+  await joinByLink(kim.page, code, "Kim", "player");
+  await page.getByRole("button", { name: "I'm ready" }).click();
+  await kim.page.getByRole("button", { name: "I'm ready" }).click();
+  await expectPhase([page, kim.page, host.page], "Choosing");
+  const picker = (await cell(page, "Capitals", 300).isEnabled()) ? page : kim.page;
+  const other = picker === page ? kim.page : page;
+  await cell(picker, "Capitals", 300).click();
+  await expectPhase([picker, other], "Ready to buzz");
+  await expect(other.getByTestId("buzz")).toHaveCount(0);
+  await expect(other.getByTestId("dock-info")).toContainText("Not your turn");
+  await buzz(picker);
+  await picker.getByRole("button", { name: "Give up", exact: true }).click();
+  await expectPhase([page, kim.page, host.page], "Answer");
+  await expect(page.getByTestId("answer-reveal")).toContainText("Istanbul");
+  await expect.poll(() => chipScore(host.page, "Pat")).toBe("0");
+  await expect.poll(() => chipScore(host.page, "Kim")).toBe("0");
+  await expect(page.getByTestId("open-chat").getByLabel(/unread/i)).toHaveCount(0);
+  await host.page.getByTestId("continue").click();
+  await expectPhase([page, kim.page], "Choosing");
+
+  // Real showman actions produce system entries, which must stay badge-free.
+  await host.page.getByRole("button", { name: "Pause", exact: true }).click();
+  await expectPhase([page], "Paused");
+  await host.page.getByRole("button", { name: "Resume", exact: true }).click();
+  await expectPhase([page], "Choosing");
+  await expect(page.getByTestId("open-chat").getByLabel(/unread/i)).toHaveCount(0);
+  await host.page.getByTestId("open-chat").click();
+  await expect(host.page.getByTestId("chat-log")).toHaveCount(2);
+  await host.page.getByLabel("Message", { exact: true }).fill("Next question!");
+  await host.page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page.getByTestId("open-chat").getByLabel(/unread/i)).toHaveText("1");
+  await page.getByTestId("open-chat").click();
+  await expect(page.getByTestId("chat-panel")).toContainText("Next question!");
+  await expect(page.getByTestId("open-chat").getByLabel(/unread/i)).toHaveCount(0);
+  await shot(page, `system-chat-${test.info().project.name}`);
+  expect(host.errors).toEqual([]);
+  expect(kim.errors).toEqual([]);
+  await host.context.close();
+  await kim.context.close();
+});
+
 function allPlayPackageId(): number {
   const id = Number(process.env.OQ_E2E_ALL_PLAY_PACKAGE_ID);
   if (!id) throw new Error("OQ_E2E_ALL_PLAY_PACKAGE_ID missing: global setup did not seed it");

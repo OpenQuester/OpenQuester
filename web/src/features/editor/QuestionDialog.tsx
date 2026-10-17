@@ -196,16 +196,16 @@ function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => vo
 
               {(final || q.type !== "choice") && (
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="qf-answer">{t("editor.form.answer")}</Label>
-                    <TextInput
-                      id="qf-answer"
-                      value={q.answerText}
-                      onChange={(e) => set({ answerText: e.target.value })}
-                      className={q.answerText.trim() ? "border-success-line" : undefined}
-                    />
-                    <span className="text-sm text-faint">{t("editor.form.answerHelp")}</span>
-                  </div>
+                  <LinesField
+                    id="qf-answer"
+                    label={t("editor.form.answer")}
+                    help={t("editor.form.answerHelp")}
+                    optional={false}
+                    value={[q.answerText, ...q.rightAnswers].filter(Boolean)}
+                    onChange={([answerText = "", ...rightAnswers]) =>
+                      set({ answerText, rightAnswers })
+                    }
+                  />
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="qf-hint">
                       {t("editor.form.hint")}{" "}
@@ -222,13 +222,15 @@ function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => vo
               )}
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <LinesField
-                  id="qf-right"
-                  label={t("editor.form.rightAnswers")}
-                  help={t("editor.form.rightAnswersHelp")}
-                  value={q.rightAnswers}
-                  onChange={(rightAnswers) => set({ rightAnswers })}
-                />
+                {!final && q.type === "choice" && (
+                  <LinesField
+                    id="qf-right"
+                    label={t("editor.form.rightAnswers")}
+                    help={t("editor.form.rightAnswersHelp")}
+                    value={q.rightAnswers}
+                    onChange={(rightAnswers) => set({ rightAnswers })}
+                  />
+                )}
                 <LinesField
                   id="qf-wrong"
                   label={t("editor.form.wrongAnswers")}

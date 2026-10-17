@@ -66,10 +66,14 @@ export function GameScreen() {
   const docked = wide ? PANEL_ORDER.filter(isOpen) : [];
 
   const chatVisible = isOpen("chat");
-  const chatCount = session.chat.length;
-  const [seenChat, setSeenChat] = useState(chatCount);
-  if (chatVisible && seenChat !== chatCount) setSeenChat(chatCount);
-  const unread = chatVisible ? 0 : Math.max(0, chatCount - seenChat);
+  const lastChatId = session.chat.at(-1)?.uuid;
+  const [seenChat, setSeenChat] = useState(lastChatId);
+  if (chatVisible && seenChat !== lastChatId) setSeenChat(lastChatId);
+  const unread = chatVisible
+    ? 0
+    : session.chat
+        .slice(session.chat.findIndex((m) => m.uuid === seenChat) + 1)
+        .filter((m) => !m.system).length;
 
   const toggleMenu = useCallback(() => setMenuOpen((v) => !v), []);
   useHotkeys({ onChat: () => setPanel("chat", true), onMenu: toggleMenu });

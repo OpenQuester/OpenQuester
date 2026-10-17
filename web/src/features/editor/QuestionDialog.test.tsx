@@ -20,6 +20,42 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("edits all accepted answers in one field and preserves them through save and reopen", async () => {
+  const q = newQuestion(100, { answerText: "Kyiv", rightAnswers: ["Kiev", "Київ"] });
+  const { store } = setup(q);
+  expect(screen.getByLabelText("Correct answers")).toHaveValue("Kyiv\nKiev\nКиїв");
+  expect(screen.queryByLabelText(/Also accept/)).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Correct answers"), {
+    target: { value: "Paris\n\n Paris, France \nПариж" },
+  });
+  await userEvent.click(screen.getByTestId("question-save"));
+  expect(toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]).toMatchObject({
+    answerText: "Paris",
+    rightAnswers: ["Paris, France", "Париж"],
+  });
+  act(() => store.getState().edit(q.id));
+  expect(screen.getByLabelText("Correct answers")).toHaveValue("Paris\nParis, France\nПариж");
+  fireEvent.change(screen.getByLabelText("Correct answers"), { target: { value: "" } });
+  await userEvent.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]).toMatchObject({
+    answerText: "",
+    rightAnswers: [],
+  });
+});
+
+it("keeps alternative accepted answers when switching to choice and back", async () => {
+  const { store } = setup(newQuestion(100, { answerText: "Kyiv", rightAnswers: ["Kiev"] }));
+  await userEvent.click(screen.getByRole("button", { name: /^Choice/ }));
+  expect(screen.getByLabelText(/Also accept/)).toHaveValue("Kiev");
+  await userEvent.click(screen.getByRole("button", { name: /^Simple/ }));
+  expect(screen.getByLabelText("Correct answers")).toHaveValue("Kyiv\nKiev");
+  await userEvent.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]).toMatchObject({
+    answerText: "Kyiv",
+    rightAnswers: ["Kiev"],
+  });
+});
+
 function setup(question: EditorQuestion, wide = false) {
   const listeners = new Set<() => void>();
   const mediaQuery = {

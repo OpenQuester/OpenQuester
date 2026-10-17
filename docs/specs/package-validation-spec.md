@@ -51,6 +51,12 @@ The web editor and `.oq` reader preserve a selected number/point answer mode
 even when its target is incomplete. Drafts remain editable; critical validation
 blocks publishing instead of silently changing the mode to text.
 
+The web question form edits text answers in one **Correct answers** list, one
+accepted answer per line. It preserves the wire format: the first is
+`answerText`, the rest are `rightAnswers`. Choice questions keep the selected
+correct option plus an **Also accept** list. This UI grouping does not change
+import/export formats or automatic answer-checking rules.
+
 ## Warning validations
 
 Warnings should not block draft save, but should be visible:
