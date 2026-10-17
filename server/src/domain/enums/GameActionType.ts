@@ -28,11 +28,15 @@ export enum GameActionType {
   SKIP_QUESTION_FORCE = "skip-question-force",
   SKIP_SHOW_ANSWER = "skip-show-answer",
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
+  /** The receiver selects a package-defined question price, independent of their score. */
   SECRET_QUESTION_PRICE_SELECT = "secret-question-price",
   EVERYONE_STAKE_SUBMIT = "all-play-stake",
-  QUESTION_EXCLUDE_OR_RESTORE = "question-toggle",
+  /** The showman removes a board question or restores it. */
+  QUESTION_REMOVE_RESTORE = "question-remove-restore",
+  /** Revert the last ruling; a wrong answer on an open question restores buzzer eligibility. */
   LAST_ANSWER_RULING_REVERT = "answer-result-undo",
-  GAME_JOIN_POLICY_CHANGE = "game-join-mode",
+  /** Change whether newcomers can join as players, spectators, or neither. */
+  GAME_JOIN_MODE_CHANGE = "game-join-mode-change",
   EVERYONE_ANSWER_SUBMIT = "all-play-answer",
   EVERYONE_ANSWER_REVIEW = "all-play-review",
   STAKE_BID_SUBMIT = "stake-bid-submit",

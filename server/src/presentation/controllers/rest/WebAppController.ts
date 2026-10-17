@@ -39,6 +39,7 @@ export class WebAppController {
         maxAge: "1y"
       })
     );
+
     app.use(express.static(root, { index: false, maxAge: "1h" }));
 
     // Client-side routes (/games/ABCD, /packages/upload, …) all load the app shell.

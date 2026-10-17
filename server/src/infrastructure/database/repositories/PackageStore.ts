@@ -10,7 +10,7 @@ import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { type PackageMetaDTO } from "domain/types/dto/package/packageMeta";
+import { type PackageMetaDTO } from "domain/types/dto/package/PackageMetaDTO";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";

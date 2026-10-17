@@ -21,9 +21,9 @@ export class ShowmanToolsLogic {
    * Removes an unplayed question from the board, or puts a removed one back.
    * @returns whether the question is now played (removed)
    */
-  public static toggleQuestion(game: Game, questionId: number): boolean {
+  public static removeOrRestoreQuestion(game: Game, questionId: number): boolean {
     if (game.gameState.questionState !== QuestionState.CHOOSING) {
-      throw new ClientError(ClientResponse.QUESTION_TOGGLE_ONLY_WHILE_CHOOSING);
+      throw new ClientError(ClientResponse.QUESTION_REMOVE_ONLY_WHILE_CHOOSING);
     }
 
     for (const theme of game.gameState.currentRound?.themes ?? []) {

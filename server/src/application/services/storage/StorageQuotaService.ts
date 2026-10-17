@@ -6,10 +6,10 @@ import { ClientError } from "domain/errors/ClientError";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
-import { type PackageFileSizes } from "domain/types/dto/package/PackageUploadRequestDTO";
 import { type S3Context } from "domain/types/file/S3Context";
 import {
   type AdminStorageDTO,
+  type ClientFileSizes,
   type EffectiveStorageLimits,
   type MyStorageDTO,
   StorageGroup,
@@ -25,7 +25,8 @@ import { Environment } from "shared/config/Environment";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { type ObjectStorage } from "shared/storage/ObjectStorage";
-import { collectPackageFiles, formatBytes } from "domain/utils/storageQuota";
+import { PackageMediaLogic } from "domain/logic/package/PackageMediaLogic";
+import { ByteUtils } from "domain/utils/ByteUtils";
 
 /** Uploads stop when the bucket reaches this share of S3_BUCKET_QUOTA_BYTES. */
 const BUCKET_HARD_SHARE = 0.95;
@@ -126,7 +127,7 @@ export class StorageQuotaService {
   public async assertPackageFits(
     user: StorageQuotaUser,
     content: PackageDTO,
-    declaredFileSizes: PackageFileSizes | undefined,
+    declaredFileSizes: ClientFileSizes | undefined,
     replacePackageId?: number
   ): Promise<Map<string, number>> {
     if (user.id) {
@@ -134,7 +135,7 @@ export class StorageQuotaService {
       await this.verifyUserFiles(user.id);
     }
 
-    const fileKinds = collectPackageFiles(content);
+    const fileKinds = PackageMediaLogic.collectFiles(content);
     const filenames = [...fileKinds.keys()];
     const knownSizes = await this.storageRepository.getSizes(filenames);
     const sizes = new Map<string, number>();
@@ -168,8 +169,8 @@ export class StorageQuotaService {
       if (size !== undefined && limit !== null && size > limit) {
         throw new ClientError(ClientResponse.STORAGE_FILE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE, {
           kind,
-          size: formatBytes(size),
-          limit: formatBytes(limit)
+          size: ByteUtils.format(size),
+          limit: ByteUtils.format(limit)
         });
       }
     }
@@ -180,8 +181,8 @@ export class StorageQuotaService {
         ClientResponse.STORAGE_PACKAGE_TOO_LARGE,
         HttpStatus.PAYLOAD_TOO_LARGE,
         {
-          size: formatBytes(packageBytes),
-          limit: formatBytes(limits.packageBytes)
+          size: ByteUtils.format(packageBytes),
+          limit: ByteUtils.format(limits.packageBytes)
         }
       );
     }
@@ -197,8 +198,8 @@ export class StorageQuotaService {
       const used = [...totalSizes.values()].reduce((total, size) => total + size, 0);
       if (used > limits.userQuotaBytes) {
         throw new ClientError(ClientResponse.STORAGE_QUOTA_EXCEEDED, HttpStatus.PAYLOAD_TOO_LARGE, {
-          size: formatBytes(used),
-          limit: formatBytes(limits.userQuotaBytes)
+          size: ByteUtils.format(used),
+          limit: ByteUtils.format(limits.userQuotaBytes)
         });
       }
     }
@@ -219,8 +220,8 @@ export class StorageQuotaService {
     if (limits.imageBytes !== null && size > limits.imageBytes) {
       throw new ClientError(ClientResponse.STORAGE_FILE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE, {
         kind: "image",
-        size: formatBytes(size),
-        limit: formatBytes(limits.imageBytes)
+        size: ByteUtils.format(size),
+        limit: ByteUtils.format(limits.imageBytes)
       });
     }
 
@@ -232,8 +233,8 @@ export class StorageQuotaService {
           .reduce((total, file) => total + (file.size ?? 0), 0) + size;
       if (used > limits.userQuotaBytes) {
         throw new ClientError(ClientResponse.STORAGE_QUOTA_EXCEEDED, HttpStatus.PAYLOAD_TOO_LARGE, {
-          size: formatBytes(used),
-          limit: formatBytes(limits.userQuotaBytes)
+          size: ByteUtils.format(used),
+          limit: ByteUtils.format(limits.userQuotaBytes)
         });
       }
     }

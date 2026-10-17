@@ -9,7 +9,6 @@ import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { File } from "infrastructure/database/models/File";
 import { Package } from "infrastructure/database/models/package/Package";
 import { User } from "infrastructure/database/models/User";
-import { PackageRepository } from "infrastructure/database/repositories/PackageRepository";
 import { S3ObjectStorage } from "infrastructure/storage/S3ObjectStorage";
 import { DI_TOKENS } from "shared/di/tokens";
 import { type ILogger } from "shared/logging/ILogger";
@@ -229,7 +228,6 @@ describe("Package upload state", () => {
 
     const job = new PackageUploadCheckJob(
       container.resolve<ILogger>(DI_TOKENS.Logger),
-      container.resolve(PackageRepository),
       container.resolve(PackageUploadService),
       "0 */5 * * * *"
     );

@@ -1,6 +1,5 @@
 import { BaseCronJob } from "application/jobs/BaseCronJob";
 import { PackageUploadService } from "application/services/package/PackageUploadService";
-import { PackageRepository } from "infrastructure/database/repositories/PackageRepository";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 
@@ -19,7 +18,6 @@ export class PackageUploadCheckJob extends BaseCronJob {
 
   constructor(
     logger: ILogger,
-    private readonly packageRepository: PackageRepository,
     private readonly packageUploadService: PackageUploadService,
     public readonly cronExpression: string
   ) {
@@ -27,12 +25,12 @@ export class PackageUploadCheckJob extends BaseCronJob {
   }
 
   protected async run(): Promise<void> {
-    const ids = await this.packageRepository.getUploadingSince(
+    const ids = await this.packageUploadService.getUploadingSince(
       new Date(Date.now() - RECENT_MS),
       BATCH
     );
-    let ready = 0;
 
+    let ready = 0;
     for (const id of ids) {
       try {
         if ((await this.packageUploadService.refresh(id)).missingFilenames.length === 0) {

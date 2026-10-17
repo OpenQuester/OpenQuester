@@ -24,3 +24,10 @@ export interface QuestionReportDTO {
   gameId: string | null;
   createdAt: Date;
 }
+
+/** A package's reports as its author sees them. */
+export interface QuestionReportListDTO {
+  data: QuestionReportDTO[];
+  /** How many reports are not resolved yet. */
+  open: number;
+}

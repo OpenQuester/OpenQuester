@@ -6,6 +6,15 @@ export enum StorageGroup {
   ADMIN = "admin"
 }
 
+/**
+ * Size in bytes of each media file of an upload, keyed by the file's MD5 (with
+ * or without extension), as the uploading client measured it. Validated by
+ * `uploadPackageScheme` and checked against the storage limits.
+ */
+export interface ClientFileSizes {
+  [filename: string]: number;
+}
+
 /** Bytes; null means no limit. */
 export interface StorageLimits {
   userQuotaBytes: number | null;

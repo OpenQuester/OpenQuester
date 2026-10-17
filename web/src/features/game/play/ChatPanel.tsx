@@ -125,7 +125,7 @@ function logLine(t: T, entry: ChatSystemEntry, fallback: string): string {
       return p.round ? t("chat.log.nextRoundNamed", { round: p.round }) : t("chat.log.nextRound");
     case "question-pick":
       return t("chat.log.pick", { theme: p.theme, price: formatScore(num(p.price)) });
-    case "question-toggle":
+    case "question-remove-restore":
       return t(p.removed ? "chat.log.toggleRemoved" : "chat.log.toggleRestored", {
         theme: p.theme,
         price: formatScore(num(p.price)),
@@ -137,7 +137,7 @@ function logLine(t: T, entry: ChatSystemEntry, fallback: string): string {
       });
     case "answer-result-undo":
       return t("chat.log.undo", { player, points: formatSigned(num(p.points)) });
-    case "game-join-mode":
+    case "game-join-mode-change":
       return t("chat.log.joinMode", { mode: t(`menu.joinModes.${String(p.joinMode)}`) });
     case "player-kick":
       return t("chat.log.kick", { player });

@@ -9,7 +9,7 @@ import {
   type StorageUserUsageRecord,
   type StoredFileSize
 } from "domain/types/storage/StorageTypes";
-import { type StorageFilename, type StorageFileState } from "domain/types/file/StorageFile";
+import { type StorageFilename, type PackageFileState } from "domain/types/file/FileLocation";
 import { asUserId } from "domain/types/ids";
 import { type GuestCleanupBatch, type InactiveGuest } from "domain/types/storage/GuestCleanupTypes";
 import { Database } from "infrastructure/database/Database";
@@ -239,7 +239,7 @@ export class StorageRepository {
   }
 
   /** Every MD5 the package uses, and whether storage has confirmed it holds that file. */
-  public async getPackageFileStates(packageId: number): Promise<StorageFileState[]> {
+  public async getPackageFileStates(packageId: number): Promise<PackageFileState[]> {
     const query = this.ds
       .getRepository(FileUsage)
       .createQueryBuilder("usage")
@@ -257,7 +257,7 @@ export class StorageRepository {
 
     return query
       .addSelect(`EXISTS ${confirmedFile.getQuery()}`, "verified")
-      .getRawMany<StorageFileState>();
+      .getRawMany<PackageFileState>();
   }
 
   public async deleteFileRows(filenames: string[]): Promise<void> {

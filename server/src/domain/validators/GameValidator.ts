@@ -1,7 +1,7 @@
 import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 import {
-  GameJoinModeInputData,
-  QuestionToggleInputData
+  GameJoinModeChangeInputData,
+  QuestionRemoveRestoreInputData
 } from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
 import { ALL_PLAY_ANSWER_MAX_LENGTH } from "domain/constants/game";
 import {
@@ -147,17 +147,17 @@ export class GameValidator {
     return this._validate<SecretQuestionTransferInputData>(data, schema);
   }
 
-  public static validateQuestionToggle(data: QuestionToggleInputData) {
-    return this._validate<QuestionToggleInputData>(
+  public static validateQuestionRemoveRestore(data: QuestionRemoveRestoreInputData) {
+    return this._validate<QuestionRemoveRestoreInputData>(
       data,
-      Joi.object<QuestionToggleInputData>({ questionId: Joi.number().integer().required() })
+      Joi.object<QuestionRemoveRestoreInputData>({ questionId: Joi.number().integer().required() })
     );
   }
 
-  public static validateGameJoinMode(data: GameJoinModeInputData) {
-    return this._validate<GameJoinModeInputData>(
+  public static validateGameJoinModeChange(data: GameJoinModeChangeInputData) {
+    return this._validate<GameJoinModeChangeInputData>(
       data,
-      Joi.object<GameJoinModeInputData>({
+      Joi.object<GameJoinModeChangeInputData>({
         joinMode: Joi.valid(...Object.values(GameJoinMode)).required()
       })
     );

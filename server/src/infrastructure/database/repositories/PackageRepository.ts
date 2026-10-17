@@ -171,6 +171,7 @@ export class PackageRepository {
           where: { id: replaceId },
           relations: ["author", "tags", "logo"]
         });
+
         if (!existing) {
           throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND, 404);
         }

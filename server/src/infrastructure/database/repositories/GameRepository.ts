@@ -18,12 +18,13 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { GameMapper } from "domain/mappers/GameMapper";
+import { GameListItemMapper } from "domain/mappers/GameListItemMapper";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import { GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import { type PackageMetaDTO } from "domain/types/dto/package/packageMeta";
+import { type PackageMetaDTO } from "domain/types/dto/package/PackageMetaDTO";
 import { asUserId } from "domain/types/ids";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import {
@@ -185,7 +186,7 @@ export class GameRepository {
             return null;
           }
 
-          return GameMapper.gameToListItemDTO(game, createdBy, packMeta);
+          return GameListItemMapper.toDTO(game, createdBy, packMeta);
         })
       )
     ).filter((g): g is GameListItemDTO => g !== null);
@@ -300,7 +301,7 @@ export class GameRepository {
           : String(packageDTO.createdAt)
     };
 
-    return GameMapper.gameToListItemDTO(game, createdBy, packMeta);
+    return GameListItemMapper.toDTO(game, createdBy, packMeta);
   }
 
   public async deleteGame(user: number, gameId: string) {
@@ -348,7 +349,7 @@ export class GameRepository {
       throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    return GameMapper.gameToListItemDTO(game, createdBy, packMeta);
+    return GameListItemMapper.toDTO(game, createdBy, packMeta);
   }
 
   /**

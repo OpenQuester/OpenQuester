@@ -7,6 +7,7 @@ import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
 import {
   QuestionReportDTO,
+  type QuestionReportListDTO,
   QuestionReportInputDTO
 } from "domain/types/dto/report/QuestionReportDTO";
 import { QuestionReport } from "infrastructure/database/models/report/QuestionReport";
@@ -28,68 +29,71 @@ export class QuestionReportService {
   }
 
   /** Reports a question of the package a live game is playing. */
-  public async reportFromGame(input: {
-    sessionUserId: number | undefined;
-    gameId: string;
-    report: QuestionReportInputDTO;
-  }): Promise<QuestionReportDTO> {
-    const user = await this.userSessionService.getValidatedSessionUser({
-      sessionUserId: input.sessionUserId
-    });
-    const meta = await this.packageStore.getMeta(input.gameId);
+  public async reportFromGame(
+    sessionUserId: number | undefined,
+    gameId: string,
+    input: QuestionReportInputDTO
+  ): Promise<QuestionReportDTO> {
+    const user = await this.userSessionService.getValidatedSessionUser({ sessionUserId });
+
+    const meta = await this.packageStore.getMeta(gameId);
     if (!meta?.id) {
       throw new ClientError(ClientResponse.GAME_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    const question = await this.packageStore.getQuestion(input.gameId, input.report.questionId);
+    const question = await this.packageStore.getQuestion(gameId, input.questionId);
     if (!question) {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    if (await this.reportRepository.hasOpenReport(user.id, meta.id, input.report.questionId)) {
+    if (await this.reportRepository.hasOpenReport(user.id, meta.id, input.questionId)) {
       throw new ClientError(ClientResponse.QUESTION_REPORT_ALREADY_SENT, HttpStatus.CONFLICT);
     }
 
     const report = await this.reportRepository.create({
       package_id: meta.id,
-      question_id: input.report.questionId,
+      question_id: input.questionId,
       question_text: question.text ?? null,
       user_id: user.id,
-      game_id: input.gameId,
-      reason: input.report.reason,
-      comment: input.report.comment?.trim() || null
+      game_id: gameId,
+      reason: input.reason,
+      comment: input.comment?.trim() || null
     });
+
     report.user = user;
 
     return this.toDTO(report);
   }
 
-  public async listForPackage(input: {
-    sessionUserId: number | undefined;
-    packageId: number;
-  }): Promise<{ data: QuestionReportDTO[]; open: number }> {
-    await this.packageService.assertCanEditPackage(input.sessionUserId, input.packageId);
+  /** A package's latest reports for its author, and how many are still open. */
+  public async listForPackage(
+    sessionUserId: number | undefined,
+    packageId: number
+  ): Promise<QuestionReportListDTO> {
+    await this.packageService.assertCanEditPackage(sessionUserId, packageId);
+
     const [reports, open] = await Promise.all([
-      this.reportRepository.listForPackage(input.packageId, REPORTS_LIST_LIMIT),
-      this.reportRepository.countOpen(input.packageId)
+      this.reportRepository.listForPackage(packageId, REPORTS_LIST_LIMIT),
+      this.reportRepository.countOpen(packageId)
     ]);
 
     return { data: reports.map((r) => this.toDTO(r)), open };
   }
 
-  public async setResolved(input: {
-    sessionUserId: number | undefined;
-    packageId: number;
-    reportId: number;
-    resolved: boolean;
-  }): Promise<QuestionReportDTO> {
-    await this.packageService.assertCanEditPackage(input.sessionUserId, input.packageId);
-    const report = await this.reportRepository.findInPackage(input.packageId, input.reportId);
+  public async setResolved(
+    sessionUserId: number | undefined,
+    packageId: number,
+    reportId: number,
+    resolved: boolean
+  ): Promise<QuestionReportDTO> {
+    await this.packageService.assertCanEditPackage(sessionUserId, packageId);
+
+    const report = await this.reportRepository.findInPackage(packageId, reportId);
     if (!report) {
       throw new ClientError(ClientResponse.QUESTION_REPORT_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    report.resolved = input.resolved;
+    report.resolved = resolved;
 
     return this.toDTO(await this.reportRepository.save(report));
   }

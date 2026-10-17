@@ -1,5 +1,6 @@
 import { BaseCronJob } from "application/jobs/BaseCronJob";
 import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
+import { DAY_MS } from "domain/constants/time";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 
@@ -26,8 +27,9 @@ export class GuestCleanupJob extends BaseCronJob {
   }
 
   protected async run(): Promise<void> {
-    const inactiveDaysMs = this.inactiveDays * 24 * 60 * 60 * 1000;
+    const inactiveDaysMs = this.inactiveDays * DAY_MS;
     const before = new Date(Date.now() - inactiveDaysMs);
+
     let removed = 0;
     let kept = 0;
     let hasMoreGuests = true;

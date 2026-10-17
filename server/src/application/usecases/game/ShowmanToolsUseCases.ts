@@ -14,10 +14,10 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   AnswerResultUndoEventPayload,
   BuzzerOpenEventPayload,
-  GameJoinModeEventPayload,
-  GameJoinModeInputData,
-  QuestionToggleEventPayload,
-  QuestionToggleInputData
+  GameJoinModeChangeEventPayload,
+  GameJoinModeChangeInputData,
+  QuestionRemoveRestoreEventPayload,
+  QuestionRemoveRestoreInputData
 } from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
@@ -33,17 +33,17 @@ function requireShowman(ctx: ActionExecutionContext<unknown>): Game {
 }
 
 /** The showman removes a question from the board, or restores it */
-export class ExcludeOrRestoreQuestionUseCase implements GameActionHandler<
-  QuestionToggleInputData,
-  QuestionToggleEventPayload
+export class QuestionRemoveRestoreUseCase implements GameActionHandler<
+  QuestionRemoveRestoreInputData,
+  QuestionRemoveRestoreEventPayload
 > {
   public async execute(
-    ctx: ActionExecutionContext<QuestionToggleInputData>
-  ): Promise<ActionHandlerResult<QuestionToggleEventPayload>> {
+    ctx: ActionExecutionContext<QuestionRemoveRestoreInputData>
+  ): Promise<ActionHandlerResult<QuestionRemoveRestoreEventPayload>> {
     const game = requireShowman(ctx);
     const { questionId } = ctx.action.payload;
-    const isPlayed = ShowmanToolsLogic.toggleQuestion(game, questionId);
-    const data: QuestionToggleEventPayload = { questionId, isPlayed };
+    const isPlayed = ShowmanToolsLogic.removeOrRestoreQuestion(game, questionId);
+    const data: QuestionRemoveRestoreEventPayload = { questionId, isPlayed };
 
     return {
       success: true,
@@ -52,7 +52,7 @@ export class ExcludeOrRestoreQuestionUseCase implements GameActionHandler<
         DataMutationConverter.saveGameMutation(game),
         DataMutationConverter.gameBroadcastMutation(
           game.id,
-          SocketIOGameEvents.QUESTION_TOGGLE,
+          SocketIOGameEvents.QUESTION_REMOVE_RESTORE,
           data
         )
       ],
@@ -89,17 +89,17 @@ export class RevertLastAnswerRulingUseCase implements GameActionHandler<
 }
 
 /** The showman opens or closes the game to newcomers */
-export class ChangeGameJoinPolicyUseCase implements GameActionHandler<
-  GameJoinModeInputData,
-  GameJoinModeEventPayload
+export class GameJoinModeChangeUseCase implements GameActionHandler<
+  GameJoinModeChangeInputData,
+  GameJoinModeChangeEventPayload
 > {
   public async execute(
-    ctx: ActionExecutionContext<GameJoinModeInputData>
-  ): Promise<ActionHandlerResult<GameJoinModeEventPayload>> {
+    ctx: ActionExecutionContext<GameJoinModeChangeInputData>
+  ): Promise<ActionHandlerResult<GameJoinModeChangeEventPayload>> {
     const game = requireShowman(ctx);
     const joinMode = ctx.action.payload.joinMode;
     game.gameState.joinMode = joinMode === GameJoinMode.OPEN ? null : joinMode;
-    const data: GameJoinModeEventPayload = { joinMode };
+    const data: GameJoinModeChangeEventPayload = { joinMode };
 
     return {
       success: true,
@@ -108,7 +108,7 @@ export class ChangeGameJoinPolicyUseCase implements GameActionHandler<
         DataMutationConverter.saveGameMutation(game),
         DataMutationConverter.gameBroadcastMutation(
           game.id,
-          SocketIOGameEvents.GAME_JOIN_MODE,
+          SocketIOGameEvents.GAME_JOIN_MODE_CHANGE,
           data
         )
       ],

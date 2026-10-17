@@ -23,6 +23,7 @@ export class AddPackageUploadStatus_0_30_0_1792600000000 implements MigrationInt
       "package",
       new TableIndex({ name: "idx_package_upload_status", columnNames: ["upload_status"] })
     );
+
     await queryRunner.createIndex(
       "package",
       new TableIndex({ name: "idx_package_source_hash", columnNames: ["source_hash"] })

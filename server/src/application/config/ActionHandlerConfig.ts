@@ -46,8 +46,8 @@ import {
 import {
   RevertLastAnswerRulingUseCase,
   BuzzerOpenUseCase,
-  ChangeGameJoinPolicyUseCase,
-  ExcludeOrRestoreQuestionUseCase
+  GameJoinModeChangeUseCase,
+  QuestionRemoveRestoreUseCase
 } from "application/usecases/game/ShowmanToolsUseCases";
 import { SelectSecretQuestionPriceUseCase } from "application/usecases/question/SelectSecretQuestionPriceUseCase";
 import { SecretQuestionTransferUseCase } from "application/usecases/question/SecretQuestionTransferUseCase";
@@ -128,7 +128,10 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     new StartGameUseCase(packageStore, gameStatisticsCollectorService, logger)
   );
 
-  registry.register(GameActionType.PAUSE, new PauseGameUseCase(socketGameTimerService, socketGameValidationService));
+  registry.register(
+    GameActionType.PAUSE,
+    new PauseGameUseCase(socketGameTimerService, socketGameValidationService)
+  );
 
   registry.register(
     GameActionType.UNPAUSE,
@@ -147,7 +150,10 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(GameActionType.PLAYER_UNREADY, new PlayerUnreadyUseCase());
 
-  registry.register(GameActionType.PLAYER_KICK, new PlayerKickUseCase(playerLeaveService, socketGameValidationService));
+  registry.register(
+    GameActionType.PLAYER_KICK,
+    new PlayerKickUseCase(playerLeaveService, socketGameValidationService)
+  );
 
   registry.register(
     GameActionType.PLAYER_RESTRICTION,
@@ -167,9 +173,9 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   );
 
   registry.register(GameActionType.TURN_PLAYER_CHANGE, new TurnPlayerChangeUseCase());
-  registry.register(GameActionType.QUESTION_EXCLUDE_OR_RESTORE, new ExcludeOrRestoreQuestionUseCase());
+  registry.register(GameActionType.QUESTION_REMOVE_RESTORE, new QuestionRemoveRestoreUseCase());
   registry.register(GameActionType.LAST_ANSWER_RULING_REVERT, new RevertLastAnswerRulingUseCase());
-  registry.register(GameActionType.GAME_JOIN_POLICY_CHANGE, new ChangeGameJoinPolicyUseCase());
+  registry.register(GameActionType.GAME_JOIN_MODE_CHANGE, new GameJoinModeChangeUseCase());
   registry.register(GameActionType.BUZZER_OPEN, new BuzzerOpenUseCase());
 
   // =====================================
@@ -177,11 +183,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   registry.register(
     GameActionType.QUESTION_PICK,
-    new QuestionPickUseCase(
-      packageStore,
-      phaseTransitionRouter,
-      transitionResourceService
-    )
+    new QuestionPickUseCase(packageStore, phaseTransitionRouter, transitionResourceService)
   );
 
   registry.register(
@@ -218,11 +220,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.SKIP_QUESTION_FORCE,
-    new SkipQuestionForceUseCase(
-      packageStore,
-      phaseTransitionRouter,
-      transitionResourceService
-    )
+    new SkipQuestionForceUseCase(packageStore, phaseTransitionRouter, transitionResourceService)
   );
 
   registry.register(
@@ -292,7 +290,10 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   // Moderation Handlers (admin panel, not socket events)
   // =====================================
-  registry.register(GameActionType.ADMIN_GAME_CLOSE, new AdminGameCloseUseCase(socketGameValidationService));
+  registry.register(
+    GameActionType.ADMIN_GAME_CLOSE,
+    new AdminGameCloseUseCase(socketGameValidationService)
+  );
 
   // =====================================
   // System Handlers
@@ -304,10 +305,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     new MediaDownloadedUseCase(phaseTransitionRouter)
   );
 
-  registry.register(
-    GameActionType.CHAT_MESSAGE,
-    new ChatMessageUseCase(socketChatRepository)
-  );
+  registry.register(GameActionType.CHAT_MESSAGE, new ChatMessageUseCase(socketChatRepository));
 
   // =====================================
   // Timer Handlers - single handler for all timer types

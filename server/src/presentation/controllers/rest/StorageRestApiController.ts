@@ -46,11 +46,13 @@ export class StorageRestApiController {
       checkPermissionMiddleware(Permissions.ADMIN_PANEL_ACCESS, this.logger),
       asyncHandler(this.getStorage)
     );
+
     router.put(
       "/groups/:group",
       checkPermissionMiddleware(Permissions.MANAGE_STORAGE, this.logger),
       asyncHandler(this.setGroupLimits)
     );
+
     router.put(
       "/users/:id",
       checkPermissionMiddleware(Permissions.MANAGE_STORAGE, this.logger),

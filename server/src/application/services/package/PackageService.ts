@@ -30,8 +30,8 @@ import { StorageRepository } from "infrastructure/database/repositories/StorageR
 import { PackageUploadService } from "application/services/package/PackageUploadService";
 import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { type PackageUploadStateDTO } from "domain/types/dto/package/PackageUploadStateDTO";
-import { type PackageUploadRequestDTO } from "domain/types/dto/package/PackageUploadRequestDTO";
-import { type PackageEditContext } from "application/types/package/PackageEditContext";
+import { type PackageUploadBody } from "domain/types/dto/package/PackageUploadBody";
+import { type EditablePackage } from "application/types/package/EditablePackage";
 
 /**
  * Service for package management operations.
@@ -113,7 +113,7 @@ export class PackageService {
 
   public async uploadPackage(
     author: User | null,
-    request: PackageUploadRequestDTO,
+    request: PackageUploadBody,
     expiresIn: number = UPLOAD_PACKAGE_LINKS_EXPIRES_IN
   ): Promise<PackageUploadResponse> {
     if (!author || !author.id) {
@@ -143,7 +143,7 @@ export class PackageService {
 
   public async uploadPackageForSession(
     sessionUserId: number | undefined,
-    request: PackageUploadRequestDTO,
+    request: PackageUploadBody,
     expiresIn?: number
   ): Promise<PackageUploadResponse> {
     const author = await this.userSessionService.getValidatedSessionUser({
@@ -162,12 +162,12 @@ export class PackageService {
    * users with EDIT_PACKAGE. Returns upload links for every file it uses;
    * files already in storage answer the upload with 412, which clients skip.
    */
-  public async replacePackageContent(
-    editContext: PackageEditContext,
-    request: PackageUploadRequestDTO,
+  public async updatePackageForSession(
+    editable: EditablePackage,
+    request: PackageUploadBody,
     expiresIn: number = UPLOAD_PACKAGE_LINKS_EXPIRES_IN
   ): Promise<PackageUploadResponse> {
-    const { user, packageEntity } = editContext;
+    const { user, pack: packageEntity } = editable;
     const packageId = packageEntity.id;
     // Limits are the author's: an editor with EDIT_PACKAGE fixes someone else's package.
     const unverifiedFileSizes = await this.storageQuotaService.assertPackageFits(
@@ -207,10 +207,10 @@ export class PackageService {
    * EDIT_PACKAGE. Middleware only verifies the session; public GET upload-state routes also
    * reach this check. Callers may reuse the loaded entities when replacing package content.
    */
-  public async assertCanEditPackage(
+  public async getEditablePackage(
     sessionUserId: number | undefined,
     packageId: number
-  ): Promise<PackageEditContext> {
+  ): Promise<EditablePackage> {
     const user = await this.userSessionService.getValidatedSessionUser({
       sessionUserId
     });
@@ -220,7 +220,15 @@ export class PackageService {
       throw new ClientError(ClientResponse.NO_PERMISSION, HttpStatus.FORBIDDEN);
     }
 
-    return { user, packageEntity };
+    return { user, pack: packageEntity };
+  }
+
+  /** Throws 403 unless the active session user wrote the package or has EDIT_PACKAGE. */
+  public async assertCanEditPackage(
+    sessionUserId: number | undefined,
+    packageId: number
+  ): Promise<void> {
+    await this.getEditablePackage(sessionUserId, packageId);
   }
 
   public async canDeletePackage(input: {

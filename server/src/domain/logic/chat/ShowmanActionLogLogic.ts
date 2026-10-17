@@ -71,7 +71,7 @@ export class ShowmanActionLogLogic {
         return entry({ round: game.gameState.currentRound?.name ?? null });
 
       case GameActionType.QUESTION_PICK:
-      case GameActionType.QUESTION_EXCLUDE_OR_RESTORE: {
+      case GameActionType.QUESTION_REMOVE_RESTORE: {
         const cell = this._cell(game, payload.questionId);
         if (!cell) {
           return null;
@@ -81,7 +81,7 @@ export class ShowmanActionLogLogic {
 
         return entry({
           ...cell,
-          ...(action.type === GameActionType.QUESTION_EXCLUDE_OR_RESTORE ? { removed: played } : {})
+          ...(action.type === GameActionType.QUESTION_REMOVE_RESTORE ? { removed: played } : {})
         });
       }
 
@@ -108,7 +108,7 @@ export class ShowmanActionLogLogic {
         return entry({ player: name(data.playerId), points: -data.revertedResult });
       }
 
-      case GameActionType.GAME_JOIN_POLICY_CHANGE:
+      case GameActionType.GAME_JOIN_MODE_CHANGE:
         return entry({ joinMode: String(payload.joinMode ?? "open") });
 
       case GameActionType.PLAYER_KICK:
@@ -214,13 +214,13 @@ export class ShowmanActionLogLogic {
         return `Showman moved on to the next round${p.round ? `: ${p.round}` : ""}`;
       case GameActionType.QUESTION_PICK:
         return `Showman picked ${p.theme} for ${p.price ?? 0}`;
-      case GameActionType.QUESTION_EXCLUDE_OR_RESTORE:
+      case GameActionType.QUESTION_REMOVE_RESTORE:
         return `Showman ${p.removed ? "removed" : "restored"} ${p.theme} for ${p.price ?? 0}`;
       case GameActionType.ANSWER_RESULT:
         return `Showman judged ${who}'s answer ${p.answerType === "correct" ? "right" : "wrong"} (${signed(p.points)})`;
       case GameActionType.LAST_ANSWER_RULING_REVERT:
         return `Showman took back the ruling on ${who} (${signed(p.points)})`;
-      case GameActionType.GAME_JOIN_POLICY_CHANGE:
+      case GameActionType.GAME_JOIN_MODE_CHANGE:
         return `Showman set who can join: ${p.joinMode}`;
       case GameActionType.PLAYER_KICK:
         return `Showman removed ${who} from the game`;

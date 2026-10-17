@@ -5764,10 +5764,10 @@
           "player-restricted",
           "player-role-change",
           "score-changed",
-          "question-toggle",
+          "question-remove-restore",
           "answer-result-undo",
           "buzzer-open",
-          "game-join-mode",
+          "game-join-mode-change",
           "player-slot-change",
           "turn-player-changed",
           "final-bid-submit",
@@ -5813,10 +5813,10 @@
           "player-restricted",
           "player-role-change",
           "score-changed",
-          "question-toggle",
+          "question-remove-restore",
           "answer-result-undo",
           "buzzer-open",
-          "game-join-mode",
+          "game-join-mode-change",
           "player-slot-change",
           "turn-player-changed",
           "final-bid-submit",
@@ -8267,7 +8267,7 @@
         "description": "Who may join right now: everyone, spectators only, or nobody new. People already in the game can always come back",
         "examples": ["open"]
       },
-      "SocketIOQuestionToggleInput": {
+      "SocketIOQuestionRemoveRestoreInput": {
         "type": "object",
         "description": "Showman only, while a question is being picked: remove an unplayed question from the board, or put a removed one back",
         "properties": {
@@ -8277,7 +8277,7 @@
         },
         "required": ["questionId"]
       },
-      "SocketIOQuestionToggleEventPayload": {
+      "SocketIOQuestionRemoveRestoreEventPayload": {
         "type": "object",
         "properties": {
           "questionId": {
@@ -8309,7 +8309,7 @@
         },
         "required": ["playerId", "revertedResult", "newScore", "canAnswerAgain"]
       },
-      "SocketIOGameJoinModeInput": {
+      "SocketIOGameJoinModeChangeInput": {
         "type": "object",
         "description": "Showman only",
         "properties": {
@@ -8319,7 +8319,7 @@
         },
         "required": ["joinMode"]
       },
-      "SocketIOGameJoinModeEventPayload": {
+      "SocketIOGameJoinModeChangeEventPayload": {
         "type": "object",
         "properties": {
           "joinMode": {

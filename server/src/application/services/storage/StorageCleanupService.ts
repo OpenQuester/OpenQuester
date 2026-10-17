@@ -59,6 +59,11 @@ export class StorageCleanupService {
     return batch;
   }
 
+  /** Saves sizes measured by the bucket listing, overriding uploader declarations. */
+  public async recordVerifiedSizes(sizes: Map<string, number>): Promise<void> {
+    await this.storageRepository.setVerifiedSizes(sizes);
+  }
+
   private async remove(filenames: string[]): Promise<void> {
     if (filenames.length === 0) {
       return;

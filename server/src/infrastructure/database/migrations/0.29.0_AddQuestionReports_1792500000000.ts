@@ -42,6 +42,7 @@ export class AddQuestionReports_0_29_0_1792500000000 implements MigrationInterfa
         ]
       })
     );
+
     await queryRunner.createIndex(
       "question_report",
       new TableIndex({ columnNames: ["package_id", "resolved"] })

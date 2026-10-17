@@ -1,6 +1,6 @@
 import { type ShortUserInfo } from "domain/types/user/ShortUserInfo";
 
-/** Immutable metadata stored separately from a game's mutable package data. */
+/** Package fields a running game keeps with its own copy of the package. */
 export interface PackageMetaDTO {
   id?: number;
   title: string;

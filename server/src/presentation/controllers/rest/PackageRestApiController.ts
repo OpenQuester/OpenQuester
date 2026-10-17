@@ -5,7 +5,7 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { type PackageInputDTO } from "domain/types/dto/package/PackageInputDTO";
-import { type PackageUploadRequestDTO } from "domain/types/dto/package/PackageUploadRequestDTO";
+import { type PackageUploadBody } from "domain/types/dto/package/PackageUploadBody";
 import { type PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
 import { type ILogger } from "shared/logging/ILogger";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
@@ -41,7 +41,7 @@ export class PackageRestApiController {
 
   private uploadPackage = async (req: Request, res: Response) => {
     // Validate and get data that can be safely saved in DB
-    const validatedData = new RequestDataValidator<PackageUploadRequestDTO>(
+    const validatedData = new RequestDataValidator<PackageUploadBody>(
       req.body,
       uploadPackageScheme()
     ).validate();
@@ -60,16 +60,13 @@ export class PackageRestApiController {
       packIdScheme()
     ).validate();
     // Permission first, so someone else's package answers 403 whatever the body.
-    const editContext = await this.packageService.assertCanEditPackage(
-      req.session.userId,
-      packageId
-    );
-    const validatedData = new RequestDataValidator<PackageUploadRequestDTO>(
+    const editable = await this.packageService.getEditablePackage(req.session.userId, packageId);
+    const validatedData = new RequestDataValidator<PackageUploadBody>(
       req.body,
       uploadPackageScheme()
     ).validate();
 
-    const data = await this.packageService.replacePackageContent(editContext, validatedData);
+    const data = await this.packageService.updatePackageForSession(editable, validatedData);
 
     return res.status(HttpStatus.OK).send(data);
   };

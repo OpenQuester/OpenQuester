@@ -51,6 +51,23 @@ describe("reducer: lobby", () => {
 });
 
 describe("reducer: regular question", () => {
+  it("applies renamed board and join-mode broadcasts", () => {
+    let s = choosing();
+    const questionId = s.state.currentRound!.themes[0]!.questions[0]!.id;
+
+    for (const isPlayed of [true, false]) {
+      s = reduce(s, { type: "question-remove-restore", payload: { questionId, isPlayed } });
+      expect(s.state.currentRound!.themes[0]!.questions[0]!.isPlayed).toBe(isPlayed);
+    }
+
+    for (const joinMode of ["closed", "spectators_only", "open"] as const) {
+      s = reduce(s, { type: "game-join-mode-change", payload: { joinMode } });
+      expect(s.state.joinMode).toBe(joinMode === "open" ? null : joinMode);
+    }
+
+    expect(phaseOf(s)).toBe("choosing");
+  });
+
   it("runs pick → media → showing → answering → reveal → choosing", () => {
     let s = reduce(choosing(), {
       type: "question-data",

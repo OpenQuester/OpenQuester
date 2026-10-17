@@ -8,10 +8,10 @@ import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { type PackageUploadRequestDTO } from "domain/types/dto/package/PackageUploadRequestDTO";
+import { type PackageUploadBody } from "domain/types/dto/package/PackageUploadBody";
 import {
   type PackageQuestionDTO,
-  PackageQuestionSubType,
+  PackageQuestionSubType
 } from "domain/types/dto/package/PackageQuestionDTO";
 import { type PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
 import { type PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
@@ -28,7 +28,7 @@ const fileSchema = Joi.object({
   md5: Joi.string().required(),
   type: Joi.string()
     .valid(...Object.values(PackageFileType))
-    .required(),
+    .required()
 });
 
 // Schema for package files (questionFiles, answerFiles)
@@ -39,7 +39,7 @@ const packageFileSchema = Joi.object({
   placement: Joi.string()
     .valid(...Object.values(ContentPlacement))
     .default(ContentPlacement.SCREEN),
-  waitForFinish: Joi.boolean().default(true),
+  waitForFinish: Joi.boolean().default(true)
 });
 
 // Base question schema with common fields
@@ -52,7 +52,7 @@ const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
   isHidden: Joi.when("type", {
     is: "hidden",
     then: Joi.boolean().valid(true).required(), // Must be true
-    otherwise: Joi.boolean().allow(null).default(false), // Default false for others
+    otherwise: Joi.boolean().allow(null).default(false) // Default false for others
   }),
   text: Joi.string().allow(null, ""),
   textOrder: Joi.number().integer().min(0).allow(null),
@@ -64,12 +64,17 @@ const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
   answerNumber: Joi.when("answerType", {
     is: AnswerType.NUMBER,
     then: Joi.number().required(),
-    otherwise: Joi.number().allow(null),
+    otherwise: Joi.number().allow(null)
   }),
   answerPoint: Joi.when("answerType", {
     is: AnswerType.POINT,
-    then: Joi.object({ x: Joi.number().min(0).max(1).required(), y: Joi.number().min(0).max(1).required() }).required(),
-    otherwise: Joi.object({ x: Joi.number().min(0).max(1), y: Joi.number().min(0).max(1) }).allow(null),
+    then: Joi.object({
+      x: Joi.number().min(0).max(1).required(),
+      y: Joi.number().min(0).max(1).required()
+    }).required(),
+    otherwise: Joi.object({ x: Joi.number().min(0).max(1), y: Joi.number().min(0).max(1) }).allow(
+      null
+    )
   }),
   answerDeviation: Joi.number().min(0).allow(null),
   rightAnswers: textList(),
@@ -80,7 +85,7 @@ const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
   showAnswerDuration: Joi.number().required(),
   questionComment: Joi.string().allow(null, ""),
   questionFiles: Joi.array().items(packageFileSchema).allow(null),
-  answerFiles: Joi.array().items(packageFileSchema).allow(null),
+  answerFiles: Joi.array().items(packageFileSchema).allow(null)
 });
 
 // Full question schema with type-specific fields
@@ -93,63 +98,53 @@ const questionSchema = baseQuestionSchema.keys({
     otherwise: Joi.when("type", {
       is: "secret",
       then: Joi.string()
-        .valid(
-          PackageQuestionSubType.SIMPLE,
-          PackageQuestionSubType.CUSTOM_PRICE
-        )
+        .valid(PackageQuestionSubType.SIMPLE, PackageQuestionSubType.CUSTOM_PRICE)
         .required(),
       otherwise: Joi.when("type", {
         is: "noRisk",
         then: Joi.string()
-          .valid(
-            PackageQuestionSubType.SIMPLE,
-            PackageQuestionSubType.FOR_EVERYONE
-          )
+          .valid(PackageQuestionSubType.SIMPLE, PackageQuestionSubType.FOR_EVERYONE)
           .required(),
         otherwise: Joi.when("type", {
           is: "choice",
           then: Joi.string().valid(PackageQuestionSubType.SIMPLE).required(),
           otherwise: Joi.string() // For hidden and simple types it's optional
             .valid(PackageQuestionSubType.SIMPLE)
-            .optional(),
-        }),
-      }),
-    }),
+            .optional()
+        })
+      })
+    })
   }),
   maxPrice: Joi.when("type", {
     is: "stake",
     then: Joi.number().allow(null).max(MAX_QUESTION_PRICE_UPLOAD).required(),
-    otherwise: Joi.forbidden(),
+    otherwise: Joi.forbidden()
   }),
   allowedPrices: Joi.when("type", {
     is: "secret",
     then: Joi.when("subType", {
       is: PackageQuestionSubType.CUSTOM_PRICE,
-      then: Joi.array()
-        .items(Joi.number().max(MAX_QUESTION_PRICE_UPLOAD))
-        .min(2)
-        .max(5)
-        .required(),
-      otherwise: Joi.optional().valid(null),
+      then: Joi.array().items(Joi.number().max(MAX_QUESTION_PRICE_UPLOAD)).min(2).max(5).required(),
+      otherwise: Joi.optional().valid(null)
     }),
-    otherwise: Joi.optional().valid(null),
+    otherwise: Joi.optional().valid(null)
   }),
   transferType: Joi.when("type", {
     is: "secret",
     then: Joi.string()
       .valid(...Object.values(PackageQuestionTransferType))
       .required(),
-    otherwise: Joi.forbidden(),
+    otherwise: Joi.forbidden()
   }),
   priceMultiplier: Joi.when("type", {
     is: "noRisk",
     then: Joi.number().required(),
-    otherwise: Joi.forbidden(),
+    otherwise: Joi.forbidden()
   }),
   showDelay: Joi.when("type", {
     is: "choice",
     then: Joi.number().required(),
-    otherwise: Joi.forbidden(),
+    otherwise: Joi.forbidden()
   }),
   answers: Joi.when("type", {
     is: "choice",
@@ -158,14 +153,14 @@ const questionSchema = baseQuestionSchema.keys({
         Joi.object({
           text: Joi.string().allow(null),
           file: fileSchema.allow(null),
-          order: Joi.number().min(0).required(),
+          order: Joi.number().min(0).required()
         })
       )
       .min(2)
       .max(8)
       .required(),
-    otherwise: Joi.forbidden(),
-  }),
+    otherwise: Joi.forbidden()
+  })
 });
 
 const questions = Joi.array().items(questionSchema).required();
@@ -177,7 +172,7 @@ const themes = Joi.array()
       name: Joi.string().required(),
       order: Joi.number().min(0).required(),
       description: Joi.string().allow(null, ""),
-      questions,
+      questions
     }).required()
   )
   .required();
@@ -194,11 +189,11 @@ const finalRoundThemes = Joi.array()
           questionSchema.keys({
             type: Joi.string().valid("simple").required(),
             price: Joi.allow(null).required(), // Final round questions must have null price
-            isHidden: Joi.boolean().valid(false).optional(),
+            isHidden: Joi.boolean().valid(false).optional()
           })
         )
         .length(1) // Exactly one question per theme in final round
-        .required(),
+        .required()
     }).required()
   )
   .required();
@@ -216,8 +211,8 @@ const rounds = Joi.array()
       themes: Joi.when("type", {
         is: PackageRoundType.FINAL,
         then: finalRoundThemes,
-        otherwise: themes,
-      }),
+        otherwise: themes
+      })
     }).required()
   )
   .required()
@@ -244,13 +239,12 @@ const rounds = Joi.array()
   }, "Final round validation")
   .messages({
     "custom.multipleFinalRounds": "Package can have only one final round",
-    "custom.finalRoundNotLast":
-      "Final round must be the last round in the package",
+    "custom.finalRoundNotLast": "Final round must be the last round in the package"
   });
 
 // Top-level upload package schema
 export const uploadPackageScheme = () =>
-  Joi.object<PackageUploadRequestDTO>({
+  Joi.object<PackageUploadBody>({
     // Fingerprint of the imported file, so a second upload of it can be spotted.
     sourceHash: Joi.string().hex().max(64).allow(null).optional(),
     // Bytes per media file (MD5 → size), checked against the storage limits.
@@ -268,22 +262,22 @@ export const uploadPackageScheme = () =>
         .valid(...Object.values(AgeRestriction))
         .required(),
       logo: Joi.object({
-        file: fileSchema.required(),
+        file: fileSchema.required()
       }).allow(null),
       tags: Joi.array()
         .items(
           Joi.object({
-            tag: Joi.string(),
+            tag: Joi.string()
           })
         )
         .allow(null),
-      rounds,
-    }).required(),
+      rounds
+    }).required()
   });
 
 export const packIdScheme = () =>
   Joi.object({
-    packageId: Joi.number().required(),
+    packageId: Joi.number().required()
   });
 
 export const packageSearchScheme = () =>
@@ -312,12 +306,10 @@ export const packageSearchScheme = () =>
     maxRounds: Joi.number().min(0).optional(),
     minQuestions: Joi.number().min(0).optional(),
     maxQuestions: Joi.number().min(0).optional(),
-    sortBy: Joi.string()
-      .valid("id", "title", "created_at", "author")
-      .default("created_at"),
+    sortBy: Joi.string().valid("id", "title", "created_at", "author").default("created_at"),
     order: Joi.string()
       .valid(PaginationOrder.ASC, PaginationOrder.DESC)
       .default(PaginationOrder.ASC),
     limit: Joi.number().min(LIMIT_MIN).max(LIMIT_MAX).required(),
-    offset: Joi.number().min(OFFSET_MIN).required(),
+    offset: Joi.number().min(OFFSET_MIN).required()
   });

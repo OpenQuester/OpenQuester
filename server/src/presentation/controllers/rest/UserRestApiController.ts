@@ -108,6 +108,7 @@ export class UserRestApiController {
       relations: ["permissions"],
       relationSelects: { permissions: ["id", "name"] }
     });
+
     if (!user) {
       throw new ClientError(ClientResponse.USER_NOT_FOUND);
     }
