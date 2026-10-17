@@ -63,7 +63,8 @@ export function CreateGamePage() {
             ageRestriction: age,
             maxPlayers,
             settings,
-            ...(isPrivate ? { password: password || null } : {}),
+            // An empty password is left out: the server generates one
+            ...(isPrivate && password ? { password } : {}),
           },
         }),
       );
