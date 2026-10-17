@@ -40,4 +40,13 @@ describe("editor ops", () => {
     expect(ops.searchQuestions(pkg, "beta").map((h) => h.question.text)).toEqual(["B?"]);
     expect(ops.searchQuestions(pkg, "  ")).toEqual([]);
   });
+
+  it("splits on Russian and Ukrainian answer labels", () => {
+    const ru = parseQuestionText("Столицы\nВопрос? Ответ: Москва");
+    expect(ru.themes[0]!.questions[0]).toMatchObject({ text: "Вопрос?", answerText: "Москва" });
+
+    const uk = parseQuestionText("Столиці\nПитання? Відповідь: Київ");
+    expect(uk.themes[0]!.questions[0]).toMatchObject({ text: "Питання?", answerText: "Київ" });
+    expect(uk.missingAnswers).toBe(0);
+  });
 });

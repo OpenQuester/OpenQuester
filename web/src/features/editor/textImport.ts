@@ -23,7 +23,10 @@ export interface TextImportResult {
 }
 
 const PRICE = /^\s*(\d{1,6})\s*[.):-]?\s+/;
-const ANSWER_SPLIT = /\s+(?:\||—|–|-{1,2})\s+|\s*(?:\banswer|\bответ|\bвідповідь)\s*:\s*/i;
+// "Answer:" in English, Russian or Ukrainian. \b only knows Latin letters, so a
+// lookbehind for "not a letter or digit" marks the start of the word instead.
+const ANSWER_SPLIT =
+  /\s+(?:\||—|–|-{1,2})\s+|\s*(?<![\p{L}\p{N}])(?:answer|ответ|відповідь)\s*:\s*/iu;
 
 export function parseQuestionText(
   text: string,
