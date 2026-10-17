@@ -36,10 +36,10 @@ const env = Object.fromEntries(
 const API = `http://localhost:${env.API_PORT}`;
 
 function sh(cmd, args, opts = {}) {
-  // npm and npx are .cmd shims on Windows, which only run through a shell
+  // Only npm's fixed ci/build commands need its Windows .cmd shim.
   const res = spawnSync(cmd, args, {
     stdio: "inherit",
-    shell: process.platform === "win32",
+    shell: process.platform === "win32" && cmd === "npm",
     ...opts,
   });
   if (res.status !== 0) throw new Error(`${cmd} ${args.join(" ")} failed (${res.status})`);
@@ -126,12 +126,15 @@ try {
   else if (cmd === "run") {
     await up();
     const args = rest[0] === "--" ? rest.slice(1) : rest;
-    const res = spawnSync("npx", ["playwright", "test", ...args], {
-      shell: process.platform === "win32",
-      cwd: web,
-      stdio: "inherit",
-      env: { ...process.env, OQ_API_URL: API },
-    });
+    const res = spawnSync(
+      process.execPath,
+      [join(web, "node_modules/playwright/cli.js"), "test", ...args],
+      {
+        cwd: web,
+        stdio: "inherit",
+        env: { ...process.env, OQ_API_URL: API },
+      },
+    );
     if (!process.env.OQ_KEEP_STACK) await down();
     process.exit(res.status ?? 1);
   } else {
