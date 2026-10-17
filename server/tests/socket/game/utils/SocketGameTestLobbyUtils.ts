@@ -7,6 +7,7 @@ import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { ButtonPressMode } from "domain/enums/game/GameSettings";
 import type { GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { ValueUtils } from "domain/utils/ValueUtils";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import {
@@ -15,9 +16,10 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { type Express } from "express";
 import { container } from "tsyringe";
+import { File } from "infrastructure/database/models/File";
 import { User } from "infrastructure/database/models/User";
-import { PackageUtils } from "tests/utils/PackageUtils";
-import { Repository } from "typeorm";
+import { PackageUtils, TEST_MEDIA_FILE_MD5 } from "tests/utils/PackageUtils";
+import { In, Repository } from "typeorm";
 
 import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
 import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
@@ -111,6 +113,14 @@ export class SocketGameTestLobbyUtils {
     }
   }
 
+  private async markTestMediaStored(userRepo: Repository<User>): Promise<void> {
+    const filenames = [TEST_MEDIA_FILE_MD5, ValueUtils.getRawFilename(TEST_MEDIA_FILE_MD5)];
+
+    await userRepo.manager
+      .getRepository(File)
+      .update({ filename: In(filenames) }, { size: 0, size_verified_at: new Date() });
+  }
+
   async createGameWithShowman(
     app: Express,
     userRepo: Repository<User>,
@@ -152,6 +162,12 @@ export class SocketGameTestLobbyUtils {
 
       const createdPackage = packageRes.body;
       const packageId = createdPackage.id;
+
+      // Tests have no real storage: count the shared test picture as stored, so
+      // the package becomes playable the way a finished upload does
+      if (includeMediaQuestionFiles) {
+        await this.markTestMediaStored(userRepo);
+      }
 
       // Create game data
       const gameData: GameCreateDTO = {
