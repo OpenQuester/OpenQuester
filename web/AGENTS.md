@@ -140,6 +140,9 @@ takes `VITE_DISCORD_CLIENT_ID`from the repo variable`WEB_DISCORD_CLIENT_ID`.
 Previews proxy to `https://dev-api.openquester.app`, production (`main`) to
 `https://api.openquester.app` (`wrangler.toml`). Because of the proxy the app
 and the session cookie share one origin, so no CORS or third-party cookies.
+The Pages proxy rejects any supplied `Origin` that differs from its request URL
+before forwarding cookies; matching preview origins and originless native
+requests remain supported.
 Set `VITE_API_URL` only to talk to an API on another origin directly.
 `VITE_DISCORD_CLIENT_ID` enables Discord sign-in. CI takes it from the repo variable
 `WEB_DISCORD_CLIENT_ID`, else `DISCORD_AUTH_CLIENT_ID` in the Flutter `ENV_FILE_CONTENT`. Its redirect URL
