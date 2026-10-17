@@ -2,7 +2,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/glob
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import { BUZZER_FALSE_START_LOCK_TIME } from "domain/constants/game";
+import { BUZZER_ACCEPT_WINDOW, BUZZER_FALSE_START_LOCK_TIME } from "domain/constants/game";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ButtonPressMode } from "domain/enums/game/GameSettings";
 import { DEFAULT_GAME_SETTINGS } from "domain/constants/gameSettings";
@@ -110,6 +111,59 @@ describe("Buzzer rules", () => {
   });
 
   describe("accept window", () => {
+    it("excludes a late press while expiration is still pending, then draws the on-time player", async () => {
+      await suite.scenario(async (scenario) => {
+        utils.gameSettings = {
+          falseStart: false,
+          buttonPressMode: ButtonPressMode.RANDOM_WITHIN_WINDOW
+        };
+        const { showmanSocket, playerSockets, gameId, playerUsers } =
+          await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+
+        // Reproduce an expired accept window whose timer action is still pending.
+        const game = await utils.getGameFromGameService(gameId);
+        game.gameState.buzzerWindow = {
+          openedAt: Date.now() - BUZZER_ACCEPT_WINDOW - 1000,
+          presses: [playerUsers[0].id]
+        };
+        await utils.updateGame(game);
+        const latePlayer = scenario.actor(playerSockets[1]);
+        const after = scenario.mark();
+        const accepted = scenario
+          .createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.QUESTION_ANSWER
+          })
+          .waitForCount(1);
+        latePlayer.emit(SocketIOGameEvents.QUESTION_ANSWER);
+        await accepted;
+        await scenario.assert.waitForActionsComplete({ gameId });
+        await scenario.assert.noInbound({
+          actor: latePlayer,
+          event: SocketIOEvents.ERROR,
+          afterSequence: after,
+          durationMs: 100
+        });
+        expect((await utils.getGameState(gameId))!.buzzerWindow?.presses).toEqual([
+          playerUsers[0].id
+        ]);
+
+        const answer = await scenario.runAndWaitForEvent<QuestionAnswerEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_ANSWER,
+          () =>
+            suite.testUtils.expireTimerAndWaitForAction(
+              gameId,
+              GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+            )
+        );
+        expect(answer.userId).toBe(playerUsers[0].id);
+        expect((await utils.getGameState(gameId))!.buzzerWindow).toBeNull();
+      });
+    });
+
     it("draws the answerer among players who pressed close together", async () => {
       await suite.scenario(async (scenario) => {
         utils.gameSettings = {
