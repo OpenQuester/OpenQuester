@@ -234,6 +234,45 @@ describe("choice options", () => {
     expect(screen.getByRole("list", { name: "Answer options" })).toBeInTheDocument();
   });
 
+  it.each([0, 1500])(
+    "keeps revealed options visible through answering remounts (buzzer=%s)",
+    (buzzerOpensAtMs) => {
+      vi.useFakeTimers();
+      const questionTimer = timer();
+      renderStage(
+        session({
+          currentRound: round(),
+          questionState: "showing",
+          buzzerOpensAtMs,
+          currentQuestion: choice({ showDelay: 1000 }),
+          timer: questionTimer,
+        }),
+        <QuestionStage />,
+      );
+      const revealAt = buzzerOpensAtMs || 1000;
+      act(() => vi.advanceTimersByTime(revealAt));
+      expect(screen.getByRole("list", { name: "Answer options" })).toBeInTheDocument();
+      act(() =>
+        useGameStore.getState().dispatch({
+          type: "question-answer",
+          payload: { userId: ALICE, timer: timer(60_000) },
+        }),
+      );
+      expect(screen.getByRole("list", { name: "Answer options" })).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(200));
+      act(() =>
+        useGameStore.getState().dispatch({
+          type: "answer-result",
+          payload: {
+            answerResult: { player: ALICE, result: -100, score: -100, answerType: "wrong" },
+            timer: { ...questionTimer, elapsedMs: revealAt, resumedAt: new Date().toISOString() },
+          },
+        }),
+      );
+      expect(screen.getByRole("list", { name: "Answer options" })).toBeInTheDocument();
+    },
+  );
+
   it("unlocks a failed picture submission for retry and locks an accepted answer", async () => {
     const emit = renderStage(
       session({
