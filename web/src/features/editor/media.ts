@@ -83,7 +83,9 @@ export async function exportOq(pkg: EditorPackage, media: Map<string, MediaFile>
     "content.json": new TextEncoder().encode(JSON.stringify(parsed.content, null, 2)),
   };
 
-  for (const f of parsed.files.values()) {
+  for (const md5 of reachableMedia(pkg)) {
+    const f = parsed.files.get(md5);
+    if (!f) throw new ExportMediaError(md5);
     const bytes = f.bytes.byteLength > 0 ? f.bytes : await downloadStored(f);
     entries[`files/${f.md5}`] = [bytes, { level: 0 }];
   }
