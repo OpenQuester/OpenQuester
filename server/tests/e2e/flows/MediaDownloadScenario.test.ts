@@ -21,17 +21,14 @@ import { IMAGE_QUESTION_TIMER_MS } from "tests/e2e/flows/media-download/MediaDow
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { TEST_MEDIA_FILE_MD5 } from "tests/utils/PackageUtils";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { fakeUploadedMedia } from "tests/utils/StorageTestUtils";
 
 const DUPLICATE_MEDIA_DOWNLOAD_COMMANDS = 15;
 
 let harness: ServerTestHarness | undefined;
-let uploadedMedia: ReturnType<typeof fakeUploadedMedia> | undefined;
 
 describe("Media Download client-contract golden scenarios", () => {
   beforeAll(async () => {
     harness = await ServerTestHarness.start({ apiPort: 0 });
-    uploadedMedia = fakeUploadedMedia();
   });
 
   afterEach(async () => {
@@ -41,8 +38,6 @@ describe("Media Download client-contract golden scenarios", () => {
   });
 
   afterAll(async () => {
-    uploadedMedia?.mockRestore();
-
     if (harness) {
       await harness.stop();
     }

@@ -20,15 +20,12 @@ import { IMAGE_QUESTION_TIMER_MS } from "tests/e2e/flows/media-download/MediaDow
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { type ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { fakeUploadedMedia } from "tests/utils/StorageTestUtils";
 
 let harness: ServerTestHarness | undefined;
-let uploadedMedia: ReturnType<typeof fakeUploadedMedia> | undefined;
 
 describe("Media Download client-contract departure and restriction scenarios", () => {
   beforeAll(async () => {
     harness = await ServerTestHarness.start({ apiPort: 0 });
-    uploadedMedia = fakeUploadedMedia();
   });
 
   afterEach(async () => {
@@ -38,8 +35,6 @@ describe("Media Download client-contract departure and restriction scenarios", (
   });
 
   afterAll(async () => {
-    uploadedMedia?.mockRestore();
-
     if (harness) {
       await harness.stop();
     }
