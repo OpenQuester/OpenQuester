@@ -29,7 +29,7 @@ const pidFile = join(runDir, "server.pid");
 const logFile = join(runDir, "server.log");
 const env = Object.fromEntries(
   readFileSync(join(stack, "server.env"), "utf8")
-    .split("\n")
+    .split(/\r?\n/)
     .filter((l) => l.trim() && !l.trim().startsWith("#"))
     .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
 );
