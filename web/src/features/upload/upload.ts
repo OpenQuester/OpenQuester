@@ -62,6 +62,7 @@ export interface PendingFile {
 }
 
 const PARALLEL = 3;
+const DUPLICATES_PAGE_SIZE = 5;
 
 const idle = (phase: UploadProgress["phase"]): UploadProgress => ({
   phase,
@@ -81,11 +82,17 @@ export function contentHash(parsed: ParsedPackage): string {
 }
 
 /** Packages already uploaded from a file with this fingerprint. */
-export async function findDuplicates(hash: string) {
+export async function findDuplicates(hash: string, offset = 0) {
   const res = await unwrap(
     api.GET("/v1/packages", {
       params: {
-        query: { limit: 5, offset: 0, sourceHash: hash, sortBy: "created_at", order: "desc" },
+        query: {
+          limit: DUPLICATES_PAGE_SIZE,
+          offset,
+          sourceHash: hash,
+          sortBy: "created_at",
+          order: "desc",
+        },
       },
     }),
   );
@@ -222,8 +229,11 @@ export async function resumeFromFile(
 
   // Saving again replaces the whole package: only from the file it came from
   const hash = contentHash(parsed);
-  const sameSource = (await findDuplicates(hash)).some((pack) => pack.id === id);
-  if (!sameSource) throw new Error(RESUME_OTHER_SOURCE);
+  for (let offset = 0; ; offset += DUPLICATES_PAGE_SIZE) {
+    const matches = await findDuplicates(hash, offset);
+    if (matches.some((pack) => pack.id === id)) break;
+    if (matches.length < DUPLICATES_PAGE_SIZE) throw new Error(RESUME_OTHER_SOURCE);
+  }
 
   const result = await uploadPackage(source, onProgress, id, false, hash);
   return { ...result, unmatched: [] };

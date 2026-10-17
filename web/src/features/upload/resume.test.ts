@@ -11,7 +11,7 @@ const fetchMock = vi.hoisted(() => {
 });
 
 import type { ParsedPackage } from "./types";
-import { RESUME_OTHER_SOURCE, resumeFromFile } from "./upload";
+import { contentHash, RESUME_OTHER_SOURCE, resumeFromFile } from "./upload";
 
 const json = (body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -50,4 +50,52 @@ describe("resuming an upload from a picked file", () => {
       fetchMock.mock.calls.some(([input]) => input instanceof Request && input.method === "PUT"),
     ).toBe(false);
   });
+
+  it.each([0, 5])(
+    "can verify the original source at duplicate-list offset %s",
+    async (matchOffset) => {
+      const parsed: ParsedPackage = {
+        format: "oq",
+        content: { title: "Same title", rounds: [] } as unknown as ParsedPackage["content"],
+        files: new Map(),
+        warnings: [],
+      };
+      let replaced = false;
+      const offsets: number[] = [];
+      fetchMock.mockImplementation(async (input) => {
+        const request = input as Request;
+        const url = new URL(request.url);
+        if (url.pathname === "/v1/packages/7/upload")
+          return json({
+            id: 7,
+            status: replaced ? "ready" : "uploading",
+            totalFiles: 1,
+            uploadedFiles: replaced ? 1 : 0,
+            missing: replaced ? [] : ["a".repeat(32)],
+            uploadLinks: {},
+          });
+        if (url.pathname === "/v1/packages") {
+          expect(url.searchParams.get("sourceHash")).toBe(contentHash(parsed));
+          const offset = Number(url.searchParams.get("offset"));
+          offsets.push(offset);
+          return json({
+            data: offset === matchOffset ? [{ id: 7 }] : [8, 9, 10, 11, 12].map((id) => ({ id })),
+            pageInfo: { total: matchOffset + 1 },
+          });
+        }
+        if (url.pathname === "/v1/packages/7" && request.method === "PUT") {
+          expect(await request.json()).toMatchObject({
+            content: parsed.content,
+            sourceHash: contentHash(parsed),
+          });
+          replaced = true;
+          return json({ id: 7, uploadStatus: "ready", uploadLinks: {} });
+        }
+        throw new Error(`unexpected request ${request.method} ${url}`);
+      });
+      expect((await resumeFromFile(7, parsed, () => {}, false)).state?.status).toBe("ready");
+      expect(replaced).toBe(true);
+      expect(offsets).toEqual(matchOffset ? [0, 5] : [0]);
+    },
+  );
 });

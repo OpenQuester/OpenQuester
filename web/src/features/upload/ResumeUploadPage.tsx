@@ -19,6 +19,7 @@ import {
   readPackageFile,
   resumeFromFile,
   resumeUpload,
+  RESUME_OTHER_SOURCE,
   type UploadProgress,
   type UploadResult,
 } from "./upload";
@@ -94,7 +95,9 @@ export function ResumeUploadPage() {
           err instanceof ApiError && err.status === 0
             ? t("upload.networkError")
             : err instanceof Error
-              ? err.message
+              ? err.message === RESUME_OTHER_SOURCE
+                ? t("upload.readErrors.otherSource")
+                : err.message
               : String(err),
       });
     }
