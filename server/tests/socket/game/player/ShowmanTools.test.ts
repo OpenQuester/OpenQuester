@@ -14,6 +14,7 @@ import {
 import { GameJoinInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
+import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
 import { container } from "tsyringe";
 import { INSTANT_BUZZER_SETTINGS } from "tests/socket/game/utils/SocketGameTestLobbyUtils";
@@ -99,7 +100,7 @@ describe("Showman tools", () => {
         utils.gameSettings = { ...INSTANT_BUZZER_SETTINGS, wrongAnswerPenalty: penalty };
 
         const { showmanSocket, playerSockets, gameId, playerUsers } =
-          await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+          await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
         await utils.startGame(showmanSocket);
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
         await utils.answerQuestion(playerSockets[0], showmanSocket);
@@ -131,7 +132,11 @@ describe("Showman tools", () => {
         const stats = await container
           .resolve(PlayerGameStatsRepository)
           .getStats(gameId, playerUsers[0].id);
-        expect(stats).toMatchObject({ questionsAnswered: "0", wrongAnswers: "0", currentScore: "0" });
+        expect(stats).toMatchObject({
+          questionsAnswered: "0",
+          wrongAnswers: "0",
+          currentScore: "0"
+        });
 
         // Nothing left to undo
         await scenario.emitAndWaitForEvent(showmanSocket, SocketIOEvents.ERROR, () =>
@@ -140,9 +145,73 @@ describe("Showman tools", () => {
 
         // The player may buzz again
         await utils.answerQuestion(playerSockets[0], showmanSocket);
+        await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT, () =>
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+            answerType: AnswerResultType.CORRECT,
+            scoreResult: 100
+          })
+        );
+        await utils.progressToNextRound(showmanSocket);
+        await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.GAME_FINISHED, () =>
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.NEXT_ROUND, {})
+        );
+        await scenario.assert.waitForActionsComplete({ gameId });
+        expect(
+          await suite.dataSource
+            .getRepository(PlayerGameStats)
+            .findOneByOrFail({ user_id: playerUsers[0].id })
+        ).toMatchObject({
+          final_score: 100,
+          questions_answered: 1,
+          correct_answers: 1,
+          wrong_answers: 0
+        });
       });
     }
   );
+
+  it.each([
+    { answerType: AnswerResultType.CORRECT, scoreResult: 100 },
+    { answerType: AnswerResultType.WRONG, scoreResult: -100 },
+    { answerType: AnswerResultType.SKIP, scoreResult: 0 }
+  ])("does not persist an undone $answerType ruling when the game finishes", async (ruling) => {
+    await suite.scenario(async (scenario) => {
+      const { showmanSocket, playerSockets, playerUsers, gameId } =
+        await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      await utils.answerQuestion(playerSockets[0], showmanSocket);
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT, () =>
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, ruling)
+      );
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT_UNDO, () =>
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT_UNDO)
+      );
+      expect(
+        await container.resolve(PlayerGameStatsRepository).getStats(gameId, playerUsers[0].id)
+      ).toMatchObject({
+        currentScore: "0",
+        questionsAnswered: "0",
+        correctAnswers: "0",
+        wrongAnswers: "0"
+      });
+      await utils.progressToNextRound(showmanSocket);
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.GAME_FINISHED, () =>
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.NEXT_ROUND, {})
+      );
+      await scenario.assert.waitForActionsComplete({ gameId });
+      expect(
+        await suite.dataSource
+          .getRepository(PlayerGameStats)
+          .findOneByOrFail({ user_id: playerUsers[0].id })
+      ).toMatchObject({
+        final_score: 0,
+        questions_answered: 0,
+        correct_answers: 0,
+        wrong_answers: 0
+      });
+    });
+  });
 
   it("closes the game to newcomers, or opens it to spectators only", async () => {
     await suite.scenario(async (scenario) => {
@@ -172,11 +241,9 @@ describe("Showman tools", () => {
         showmanSocket,
         SocketIOGameEvents.GAME_JOIN_MODE_CHANGE,
         () =>
-          scenario
-            .actor(showmanSocket)
-            .emit(SocketIOGameEvents.GAME_JOIN_MODE_CHANGE, {
-              joinMode: GameJoinMode.SPECTATORS_ONLY
-            })
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.GAME_JOIN_MODE_CHANGE, {
+            joinMode: GameJoinMode.SPECTATORS_ONLY
+          })
       );
       const { socket: player } = await utils.createGameClient(app, userRepo);
       await scenario.emitAndWaitForEvent(player, SocketIOEvents.ERROR, () =>
