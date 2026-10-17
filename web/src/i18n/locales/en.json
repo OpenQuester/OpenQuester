@@ -1140,7 +1140,7 @@
       "blocked_one": "Fix the {{count}} issue above first. Tap it to jump there.",
       "blocked_other": "Fix the {{count}} issues above first. Tap one to jump there.",
       "sending": "Uploading media {{done}} of {{total}}",
-      "doneHelp": "Host a game with it now or find it later in Packages. The draft stays here for edits; publishing again makes a new copy.",
+      "doneHelp": "Host a game with it now or find it later in Packages. The draft stays here for edits; publishing again updates this package (you can also publish it as a new one).",
       "saveChanges": "Save changes to the published package",
       "publishAsNew": "Publish as a new package instead",
       "notYours": "Only the package's author can change it. Publish it as a new package instead."
