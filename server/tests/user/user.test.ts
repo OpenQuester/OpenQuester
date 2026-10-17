@@ -136,6 +136,15 @@ describe("UserRestApiController", () => {
     expect(meRes.status).toBe(200);
   });
 
+  it.each(["/V1/packages", "/v1/PACKAGES", "/V1/admin/API/users"])(
+    "requires a session for %s however the path is cased",
+    async (path) => {
+      const res = await http.post(path).send({});
+
+      expect(res.status).toBe(401);
+    }
+  );
+
   it("should return 404 for non-existent user", async () => {
     const perm = await preparePermission(permRepo, Permissions.GET_ANOTHER_USER);
     const user = await createUser(userRepo, [perm]);
