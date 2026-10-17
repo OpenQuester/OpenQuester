@@ -247,8 +247,8 @@ export class StorageQuotaService {
 
   /**
    * Avatars: the picture is already stored, so its real size is checked. The
-   * avatar it replaces (`replacedFilename`) is left out of the usage, since it
-   * stops counting once the profile is saved.
+   * avatar usage it replaces is left out; the same file still counts if one
+   * of the user's packages references it.
    */
   public async assertAvatarFits(
     user: StorageQuotaUser,
@@ -270,10 +270,10 @@ export class StorageQuotaService {
     }
 
     if (limits.userQuotaBytes !== null) {
-      const files = await this.storageRepository.getUserFiles(user.id);
+      const files = await this.storageRepository.getUserFiles(user.id, undefined, replacedFilename);
       const used =
         files
-          .filter((file) => file.filename !== filename && file.filename !== replacedFilename)
+          .filter((file) => file.filename !== filename)
           .reduce((total, file) => total + (file.size ?? 0), 0) + size;
       if (used > limits.userQuotaBytes) {
         throw new ClientError(ClientResponse.STORAGE_QUOTA_EXCEEDED, HttpStatus.PAYLOAD_TOO_LARGE, {

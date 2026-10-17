@@ -63,8 +63,12 @@ export class StorageRepository {
     return this.ds.getRepository(StorageLimit).save(limit);
   }
 
-  /** Files the user references, optionally leaving out one package (it is being replaced). */
-  public async getUserFiles(userId: number, excludePackageId?: number): Promise<StoredFileSize[]> {
+  /** Files the user references, optionally leaving out a replaced package or avatar usage. */
+  public async getUserFiles(
+    userId: number,
+    excludePackageId?: number,
+    excludeAvatarFilename?: string
+  ): Promise<StoredFileSize[]> {
     const query = this.userFilesQuery().where(
       "CASE WHEN usage.package_id IS NULL THEN usage.user_id ELSE package.author END = :userId",
       { userId }
@@ -72,6 +76,11 @@ export class StorageRepository {
     if (excludePackageId !== undefined) {
       query.andWhere("(usage.package_id IS NULL OR package.id <> :excludePackageId)", {
         excludePackageId
+      });
+    }
+    if (excludeAvatarFilename !== undefined) {
+      query.andWhere("(usage.package_id IS NOT NULL OR file.filename <> :excludeAvatarFilename)", {
+        excludeAvatarFilename
       });
     }
 

@@ -50,6 +50,9 @@ file and package limits, so that upload uses any newly measured storage sizes.
 
 Avatars (`PATCH /v1/me` with a new avatar) are checked against the picture
 limit and the total using the stored object's real size.
+Replacement excludes the old avatar's usage, but the old file still counts
+if one of the user's packages references it. The new avatar counts once even
+when it is already used in their packages.
 `POST /v1/files/{filename}` needs a session (guests included).
 
 Clients that send no `fileSizes` (older Flutter builds) are checked with the

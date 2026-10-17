@@ -169,6 +169,70 @@ describe("Storage limits", () => {
     expect(mine.body.usedBytes).toBe(2_000);
   });
 
+  it.each([
+    { reference: "avatar only", status: 200, usage: 2_000 },
+    { reference: "old avatar in own package", status: 413, usage: 2_500 },
+    { reference: "new avatar in own package", status: 200, usage: 2_000 },
+    { reference: "old avatar in another user's package", status: 200, usage: 2_000 }
+  ])("checks final avatar replacement usage: $reference", async ({ reference, status, usage }) => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`avatar_quota_${Date.now()}`);
+    const oldFilename = md5(201);
+    const newFilename = md5(202);
+    const sizes = new Map([
+      [oldFilename, 2_500],
+      [newFilename, 2_000]
+    ]);
+    await fileRepo.save(
+      [...sizes].map(([filename, size]) =>
+        fileRepo.create({
+          filename,
+          size,
+          path: "",
+          source: FileSource.S3,
+          created_at: new Date(),
+          size_verified_at: new Date()
+        })
+      )
+    );
+    const storage = container.resolve(S3ObjectStorage);
+    const head = jest.spyOn(storage, "headObject").mockImplementation(async (_bucket, key) => {
+      const size = sizes.get(key.split("/").pop()!);
+      return size === undefined ? null : { size };
+    });
+    const remove = jest.spyOn(storage, "deleteObjects").mockResolvedValue({ errors: [] });
+    try {
+      const first = await http.patch("/v1/me").set("Cookie", cookie).send({ avatar: oldFilename });
+      expect(first.status).toBe(200);
+      if (reference !== "avatar only") {
+        const owner = reference.includes("another user")
+          ? await testUtils.createAndLoginUser(`avatar_other_${Date.now()}`)
+          : { user, cookie };
+        const filename = reference.startsWith("new") ? newFilename : oldFilename;
+        expect((await upload(owner.cookie, packageWith(owner.user, [filename]), {})).status).toBe(
+          200
+        );
+      }
+      await limitRepo.update({ group: StorageGroup.USER }, { user_quota_bytes: 3_000 });
+      const replaced = await http
+        .patch("/v1/me")
+        .set("Cookie", cookie)
+        .send({ avatar: newFilename });
+      expect(replaced.status).toBe(status);
+      if (status === 413) expect(replaced.body.error).toContain("your limit is");
+      const saved = await userRepo.findOneOrFail({
+        where: { id: user.id },
+        relations: { avatar: true }
+      });
+      expect(saved.avatar?.filename).toBe(status === 200 ? newFilename : oldFilename);
+      const me = await http.get("/v1/me/storage").set("Cookie", cookie);
+      expect(me.status).toBe(200);
+      expect(me.body.usedBytes).toBe(usage);
+    } finally {
+      head.mockRestore();
+      remove.mockRestore();
+    }
+  });
+
   it("uses newly verified sizes for the current upload's file limit", async () => {
     const { user, cookie } = await testUtils.createAndLoginUser(`storage_verified_${Date.now()}`);
     const filename = md5(11);
