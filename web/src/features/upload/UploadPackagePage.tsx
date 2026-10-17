@@ -23,6 +23,7 @@ import { StorageMeter } from "@/features/storage/StorageMeter";
 import type { ParsedPackage } from "./types";
 import {
   ACCEPT,
+  RESUME_OTHER_SOURCE,
   contentHash,
   describe,
   findDuplicates,
@@ -588,5 +589,7 @@ function uploadError(err: unknown, t: TFunction): string {
     if (err.status === 413 || err.status === 507 || err.status === 409) return err.message;
     return t("upload.serverRejected", { message: err.message });
   }
+  if (err instanceof Error && err.message === RESUME_OTHER_SOURCE)
+    return t("upload.readErrors.otherSource");
   return err instanceof Error ? err.message : String(err);
 }

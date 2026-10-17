@@ -195,6 +195,9 @@ export async function resumeUpload(
  * when files still don't match the package is saved again from this file
  * (same id), and only what storage lacks is sent.
  */
+/** Error code: the picked file is not the one the package was uploaded from. */
+export const RESUME_OTHER_SOURCE = "otherSource";
+
 export async function resumeFromFile(
   id: number,
   parsed: ParsedPackage,
@@ -216,7 +219,13 @@ export async function resumeFromFile(
     for (const [md5, f] of source.files) files.set(md5, f);
     if (covered(files)) return resumeUpload(id, files, onProgress);
   }
-  const result = await uploadPackage(source, onProgress, id, false, contentHash(parsed));
+
+  // Saving again replaces the whole package: only from the file it came from
+  const hash = contentHash(parsed);
+  const sameSource = (await findDuplicates(hash)).some((pack) => pack.id === id);
+  if (!sameSource) throw new Error(RESUME_OTHER_SOURCE);
+
+  const result = await uploadPackage(source, onProgress, id, false, hash);
   return { ...result, unmatched: [] };
 }
 

@@ -790,7 +790,8 @@
       "badContentXml": "The package description inside this .siq file is broken.",
       "noContentJson": "This .oq file has no content.json, so there's nothing to read.",
       "badContentJson": "The package description inside this .oq file is broken.",
-      "generic": "Couldn't read this file."
+      "generic": "Couldn't read this file.",
+      "otherSource": "This file isn't the one this package was uploaded from, so it can't finish that upload. Upload it as a new package instead."
     },
     "format": {
       "siq": "SIGame package",
