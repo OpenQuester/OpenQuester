@@ -435,7 +435,8 @@ export class Game {
       modifiedScoreResult = 0;
     }
 
-    const preClampedScore = player.score + modifiedScoreResult;
+    const previousScore = player.score;
+    const preClampedScore = previousScore + modifiedScoreResult;
     const score = ValueUtils.clampAbs(preClampedScore, SCORE_ABS_LIMIT);
 
     // Update the player's score in the _players array
@@ -449,7 +450,8 @@ export class Game {
       player: this.gameState.answeringPlayer!,
       result: modifiedScoreResult,
       score,
-      answerType
+      answerType,
+      appliedChange: score - previousScore
     };
 
     const answeredPlayers = this.gameState.answeredPlayers || [];

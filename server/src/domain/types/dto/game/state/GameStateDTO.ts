@@ -19,6 +19,11 @@ export interface GameStateAnsweredPlayerData {
   result: number;
   score: number;
   answerType: AnswerResultType;
+  /**
+   * How much the score really moved: `result` clamped by the score limit.
+   * Undoing the ruling takes back exactly this.
+   */
+  appliedChange?: number;
 }
 
 export enum GameJoinMode {

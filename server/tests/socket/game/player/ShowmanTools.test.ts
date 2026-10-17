@@ -14,6 +14,8 @@ import {
 import { GameJoinInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
+import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
+import { container } from "tsyringe";
 import { INSTANT_BUZZER_SETTINGS } from "tests/socket/game/utils/SocketGameTestLobbyUtils";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
@@ -124,6 +126,12 @@ describe("Showman tools", () => {
         const state = await utils.getGameState(gameId);
         expect(state!.questionState).toBe(QuestionState.SHOWING);
         expect(state!.answeredPlayers ?? []).toHaveLength(0);
+
+        // Statistics forget the answer that was taken back
+        const stats = await container
+          .resolve(PlayerGameStatsRepository)
+          .getStats(gameId, playerUsers[0].id);
+        expect(stats).toMatchObject({ questionsAnswered: "0", wrongAnswers: "0", currentScore: "0" });
 
         // Nothing left to undo
         await scenario.emitAndWaitForEvent(showmanSocket, SocketIOEvents.ERROR, () =>

@@ -174,7 +174,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(GameActionType.TURN_PLAYER_CHANGE, new TurnPlayerChangeUseCase());
   registry.register(GameActionType.QUESTION_REMOVE_RESTORE, new QuestionRemoveRestoreUseCase());
-  registry.register(GameActionType.LAST_ANSWER_RULING_REVERT, new RevertLastAnswerRulingUseCase());
+  registry.register(GameActionType.LAST_ANSWER_RULING_REVERT, new RevertLastAnswerRulingUseCase(playerGameStatsService));
   registry.register(GameActionType.GAME_JOIN_MODE_CHANGE, new GameJoinModeChangeUseCase());
   registry.register(GameActionType.BUZZER_OPEN, new BuzzerOpenUseCase());
 

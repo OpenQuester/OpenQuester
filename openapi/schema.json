@@ -5582,6 +5582,10 @@
           },
           "answerType": {
             "$ref": "#/components/schemas/SocketIOGameAnswerType"
+          },
+          "appliedChange": {
+            "type": "integer",
+            "description": "How much the score really moved (result clamped by the score limit); undoing the ruling takes back exactly this"
           }
         },
         "required": ["answerType", "player", "result", "score"]

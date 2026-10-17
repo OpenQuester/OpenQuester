@@ -1,3 +1,4 @@
+import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -66,11 +67,24 @@ export class RevertLastAnswerRulingUseCase implements GameActionHandler<
   EmptyInputData,
   AnswerResultUndoEventPayload
 > {
+  constructor(private readonly playerGameStatsService: PlayerGameStatsService) {
+    //
+  }
+
   public async execute(
     ctx: ActionExecutionContext<EmptyInputData>
   ): Promise<ActionHandlerResult<AnswerResultUndoEventPayload>> {
     const game = requireShowman(ctx);
-    const data: AnswerResultUndoEventPayload = ShowmanToolsLogic.undoLastRuling(game);
+    const undone = ShowmanToolsLogic.undoLastRuling(game);
+    const data: AnswerResultUndoEventPayload = undone.result;
+
+    // Statistics counted this answer when it was ruled; forget it again
+    await this.playerGameStatsService.revertPlayerAnswerStats(
+      game.id,
+      data.playerId,
+      undone.answerType,
+      data.newScore
+    );
 
     return {
       success: true,

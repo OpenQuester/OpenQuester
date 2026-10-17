@@ -4261,6 +4261,8 @@ export interface components {
              */
             score: number;
             answerType: components["schemas"]["SocketIOGameAnswerType"];
+            /** @description How much the score really moved (result clamped by the score limit); undoing the ruling takes back exactly this */
+            appliedChange?: number;
         };
         /** @description This data sent to all players in room when game is started */
         SocketIOGameStartEventPayload: {

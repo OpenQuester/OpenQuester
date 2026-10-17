@@ -4,6 +4,7 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { ValueUtils } from "domain/utils/ValueUtils";
 
 export interface AnswerUndoResult {
@@ -13,6 +14,13 @@ export interface AnswerUndoResult {
   newScore: number;
   /** The player may press the buzzer again (the question is still open) */
   canAnswerAgain: boolean;
+}
+
+/** An undone ruling: what everyone is told, and what statistics must forget. */
+export interface UndoneRuling {
+  result: AnswerUndoResult;
+  /** Right, wrong or skip: the answer counter to take back. */
+  answerType: AnswerResultType;
 }
 
 /** Board and ruling corrections the showman can make (SIGame Toggle / Move back) */
@@ -42,7 +50,7 @@ export class ShowmanToolsLogic {
    * Takes back the last ruling on the current question: its score change is
    * reverted. After a wrong answer, the player may buzz again.
    */
-  public static undoLastRuling(game: Game): AnswerUndoResult {
+  public static undoLastRuling(game: Game): UndoneRuling {
     const state = game.gameState;
     let last: GameStateAnsweredPlayerData | null = null;
     let canAnswerAgain = false;
@@ -75,13 +83,19 @@ export class ShowmanToolsLogic {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
 
-    player.score = ValueUtils.clampAbs(player.score - last.result, SCORE_ABS_LIMIT);
+    // Take back what the ruling really changed: at the score limit that is
+    // less than the ruling asked for (older states only have the asked result)
+    const revertedResult = last.appliedChange ?? last.result;
+    player.score = ValueUtils.clampAbs(player.score - revertedResult, SCORE_ABS_LIMIT);
 
     return {
-      playerId: last.player,
-      revertedResult: last.result,
-      newScore: player.score,
-      canAnswerAgain
+      result: {
+        playerId: last.player,
+        revertedResult,
+        newScore: player.score,
+        canAnswerAgain
+      },
+      answerType: last.answerType
     };
   }
 }

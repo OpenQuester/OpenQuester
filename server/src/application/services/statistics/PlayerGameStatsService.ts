@@ -133,6 +133,34 @@ export class PlayerGameStatsService {
   }
 
   /**
+   * Forgets one answer after the showman took back its ruling: its counters
+   * go down again and the score is the one after the undo.
+   */
+  public async revertPlayerAnswerStats(
+    gameId: string,
+    userId: number,
+    answerType: AnswerResultType,
+    newScore: number
+  ): Promise<void> {
+    const playerStats = await this.repository.getStats(gameId, userId);
+
+    const questionsAnswered = parseInt(playerStats?.questionsAnswered || "0");
+    const correctAnswers = parseInt(playerStats?.correctAnswers || "0");
+    const wrongAnswers = parseInt(playerStats?.wrongAnswers || "0");
+
+    const updates = {
+      currentScore: newScore,
+      questionsAnswered: Math.max(0, questionsAnswered - 1),
+      correctAnswers:
+        answerType === AnswerResultType.CORRECT ? Math.max(0, correctAnswers - 1) : correctAnswers,
+      wrongAnswers:
+        answerType === AnswerResultType.WRONG ? Math.max(0, wrongAnswers - 1) : wrongAnswers
+    } satisfies PlayerGameStatsRedisUpdate;
+
+    await this.repository.updateStats(gameId, userId, updates);
+  }
+
+  /**
    * Collect and save player statistics for a finished game from Redis data
    */
   public async collectGamePlayerStats(gameId: string, gameStatsId: number): Promise<void> {
