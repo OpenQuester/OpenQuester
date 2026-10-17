@@ -91,7 +91,9 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   review warns when the same file is already on the server.
 - Question media: players ACK `media-downloaded` only once every file is
   loaded (images decoded), so the question timer starts when everyone can see
-  it. Audio and video have no controls and play only in the `showing` phase;
+  it. Failed loads, decoding errors, and local preload timeouts never send a
+  readiness ACK; the server's media timeout handles unavailable media.
+  Audio and video have no controls and play only in the `showing` phase;
   blocked autoplay falls back to muted playback plus an "enable sound" button.
   Question and answer content plays one step at a time (`ContentStage`) on the
   server's `contentPlan`; the position is the phase timer's elapsed time

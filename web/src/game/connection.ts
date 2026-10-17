@@ -319,6 +319,7 @@ export class GameConnection {
     if (meNow?.role !== "player") return;
     const token = ++this.mediaToken;
     void preloadQuestionMedia(session.state.currentQuestion).then((mediaDurations) => {
+      if (mediaDurations === null) return;
       if (token !== this.mediaToken || this.closed) return;
       const latest = useGameStore.getState().session;
       if (latest?.state.questionState !== "media_downloading") return;
