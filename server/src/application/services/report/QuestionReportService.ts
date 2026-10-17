@@ -65,7 +65,7 @@ export class QuestionReportService {
     sessionUserId: number | undefined;
     packageId: number;
   }): Promise<{ data: QuestionReportDTO[]; open: number }> {
-    await this.packageService.assertCanEditPackage(input);
+    await this.packageService.assertCanEditPackage(input.sessionUserId, input.packageId);
     const [reports, open] = await Promise.all([
       this.reportRepository.listForPackage(input.packageId, REPORTS_LIST_LIMIT),
       this.reportRepository.countOpen(input.packageId)
@@ -79,7 +79,7 @@ export class QuestionReportService {
     reportId: number;
     resolved: boolean;
   }): Promise<QuestionReportDTO> {
-    await this.packageService.assertCanEditPackage(input);
+    await this.packageService.assertCanEditPackage(input.sessionUserId, input.packageId);
     const report = await this.reportRepository.findInPackage(input.packageId, input.reportId);
     if (!report) {
       throw new ClientError(ClientResponse.QUESTION_REPORT_NOT_FOUND, HttpStatus.NOT_FOUND);

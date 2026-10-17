@@ -34,7 +34,9 @@ export class PackageUploadCheckJob extends BaseCronJob {
     let ready = 0;
     for (const id of ids) {
       try {
-        if ((await this.packageUploadService.refresh(id)).missing.length === 0) ready++;
+        if ((await this.packageUploadService.refresh(id)).missingFilenames.length === 0) {
+          ready++;
+        }
       } catch (error) {
         this.logger.warn("Package upload check failed", {
           prefix: LogPrefix.CRON,
