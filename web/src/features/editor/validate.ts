@@ -46,6 +46,8 @@ export type IssueCode =
   | "finalOneQuestion"
   | "finalTypeIgnored"
   | "noAnswer"
+  | "numberAnswerMissing"
+  | "pointAnswerMissing"
   | "longText"
   | "noLanguage"
   | "noDescription"
@@ -179,6 +181,14 @@ function checkQuestion(
     if (!q.options.some((o) => o.text.trim() && o.text.trim() === q.answerText.trim()))
       add("warning", "choiceNoCorrect");
   } else if (!q.answerText.trim() && q.answerFiles.length === 0) add("warning", "noAnswer");
+
+  // A number or point answer needs its target, or the server couldn't judge it
+  if (type !== "choice" && q.answerType === "number" && q.answerNumber == null)
+    add("critical", "numberAnswerMissing");
+  if (type !== "choice" && q.answerType === "point") {
+    const hasPicture = q.questionFiles.some((f) => f.type === "image");
+    if (!q.answerPoint || !hasPicture) add("critical", "pointAnswerMissing");
+  }
   if (
     type === "secret" &&
     q.allowedPrices.length > 0 &&

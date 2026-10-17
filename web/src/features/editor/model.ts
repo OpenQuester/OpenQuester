@@ -394,17 +394,21 @@ function toUploadQuestion(q: EditorQuestion, order: number, final: boolean): Upl
   return out;
 }
 
-/** Number / point answer fields, only for the type that uses them. */
+/**
+ * Number / point answer fields, only for the type that uses them. The chosen
+ * mode is kept even while its target is missing (validation blocks publishing
+ * then), so it never quietly turns into a text question.
+ */
 function answerCheck(q: EditorQuestion, type: QuestionType): Partial<UploadQuestion> {
   if (type === "choice") return {};
-  if (q.answerType === "number" && q.answerNumber != null) {
+  if (q.answerType === "number") {
     return {
       answerType: "number",
       answerNumber: q.answerNumber,
       answerDeviation: q.answerDeviation,
     };
   }
-  if (q.answerType === "point" && q.answerPoint) {
+  if (q.answerType === "point") {
     return { answerType: "point", answerPoint: q.answerPoint, answerDeviation: q.answerDeviation };
   }
   return {};

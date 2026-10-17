@@ -1168,7 +1168,9 @@
       "longText": "The text is very long and may not fit on screen.",
       "noLanguage": "Set a language so players can find the package.",
       "noDescription": "Add a short description.",
-      "noTags": "Add a few tags."
+      "noTags": "Add a few tags.",
+      "numberAnswerMissing": "Number answer without the right number",
+      "pointAnswerMissing": "Point answer without a picture or the right spot"
     },
     "tools": {
       "pricesTitle": "Set prices for the round",
