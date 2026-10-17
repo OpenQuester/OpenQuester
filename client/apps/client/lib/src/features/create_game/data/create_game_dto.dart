@@ -43,13 +43,16 @@ extension CreateGameDtoX on CreateGameDto {
   }
 
   GameCreateData toRequestData() {
+    // Whitespace only counts as empty: the server then generates a password
+    final trimmedPassword = password?.trim() ?? '';
+
     return GameCreateData(
       title: gameName!,
       packageId: package!.id,
       isPrivate: private,
       ageRestriction: ageRestriction,
       maxPlayers: maxPlayers,
-      password: private && !password.isEmptyOrNull ? password!.trim() : null,
+      password: private && trimmedPassword.isNotEmpty ? trimmedPassword : null,
       settings: GameSettingsInput(
         falseStart: falseStart,
         buttonPressMode: buttonPressMode,
