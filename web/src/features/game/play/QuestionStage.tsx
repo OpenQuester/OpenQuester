@@ -230,14 +230,18 @@ function MediaWait() {
 /**
  * Milliseconds until a choice question's options appear, on the question's own
  * timeline: with false starts on, just before the buzzer opens
- * (`buzzerOpensAtMs`); otherwise after the package's show delay. Both count on
+ * (`buzzerOpensAtMs`); otherwise after the content and package's show delay. Both count on
  * the question timer, so options stay shown once revealed (after a buzz, or
  * when the component remounts) and wait while the game is paused.
  */
 function optionsShowIn(session: GameSession): number {
   const s = session.state;
   const phase = phaseOf(session);
-  const showAt = s.buzzerOpensAtMs || (s.currentQuestion?.showDelay ?? 0);
+  const contentMs =
+    session.content?.kind === "question"
+      ? session.content.plan.totalMs
+      : (s.questionContentPlan?.totalMs ?? 0);
+  const showAt = s.buzzerOpensAtMs || contentMs + (s.currentQuestion?.showDelay ?? 0);
 
   // Once the question is open and someone answers, the options were shown
   if (phase !== "showing" && phase !== "media") return 0;

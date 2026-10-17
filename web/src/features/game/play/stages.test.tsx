@@ -203,6 +203,52 @@ describe("choice options", () => {
     expect(screen.queryByRole("list", { name: "Answer options" })).toBeNull();
   });
 
+  it("waits for the prepared content and option delay when false starts are disabled", () => {
+    vi.useFakeTimers();
+    const questionTimer = timer();
+    const plan = (durationMs: number) => ({
+      totalMs: durationMs,
+      steps: [
+        {
+          startMs: 0,
+          durationMs,
+          items: [{ kind: "text" as const, order: 0, placement: "screen" as const, durationMs }],
+        },
+      ],
+    });
+    renderStage(
+      session({
+        currentRound: round(),
+        questionState: "media_downloading",
+        currentQuestion: choice({ showDelay: 1000 }),
+        buzzerOpensAtMs: 0,
+        questionContentPlan: plan(500),
+        timer: questionTimer,
+      }),
+      <QuestionStage />,
+    );
+    // Media preparation replaces the estimated plan with the actual duration.
+    act(() =>
+      useGameStore.getState().dispatch({
+        type: "media-download-status",
+        payload: {
+          playerId: -1,
+          mediaDownloaded: true,
+          allPlayersReady: true,
+          timer: questionTimer,
+          buzzerOpensAtMs: 0,
+          contentPlan: plan(4000),
+        },
+      }),
+    );
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.queryByRole("list", { name: "Answer options" })).toBeNull();
+    act(() => vi.advanceTimersByTime(3999));
+    expect(screen.queryByRole("list", { name: "Answer options" })).toBeNull();
+    act(() => vi.advanceTimersByTime(1));
+    expect(screen.getByRole("list", { name: "Answer options" })).toBeInTheDocument();
+  });
+
   it("resumes the remaining reveal delay after a pause in the middle of the countdown", () => {
     vi.useFakeTimers();
     const questionTimer = timer();
