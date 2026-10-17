@@ -3,7 +3,7 @@ import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "t
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageFileDTO } from "domain/types/dto/package/PackageFileDTO";
-import { PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
+import { PackageAnswerFileDTO } from "domain/types/dto/package/PackageAnswerFileDTO";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
 import { type IFileUrlBuilder } from "domain/types/storage/IFileUrlBuilder";
 import { File } from "infrastructure/database/models/File";
@@ -59,7 +59,7 @@ export class PackageAnswerFile {
     this.question = data.question;
   }
 
-  public toDTO(fileUrlBuilder: IFileUrlBuilder, opts: PackageDTOOptions): PackageQuestionFileDTO {
+  public toDTO(fileUrlBuilder: IFileUrlBuilder, opts: PackageDTOOptions): PackageAnswerFileDTO {
     const fileDTO: PackageFileDTO = {
       md5: this.file.filename,
       type: this.type,
@@ -74,6 +74,8 @@ export class PackageAnswerFile {
       file: fileDTO,
       order: this.order,
       displayTime: this.display_time,
+      placement: this.placement,
+      waitForFinish: this.wait_for_finish
     };
   }
 }
