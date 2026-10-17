@@ -187,6 +187,13 @@ export class AllPlayLogic {
     return entry;
   }
 
+  /** Players whose "everyone answers" answer has a ruling already. */
+  public static ruledPlayerIds(game: Game): Set<number> {
+    const entries = game.gameState.allPlay?.entries ?? [];
+
+    return new Set(entries.filter((e) => e.isCorrect !== null).map((e) => e.playerId));
+  }
+
   public static allReviewed(game: Game): boolean {
     return (game.gameState.allPlay?.entries ?? []).every((e) => e.isCorrect !== null);
   }

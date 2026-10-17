@@ -1,3 +1,4 @@
+import { type Game } from "domain/entities/game/Game";
 import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
@@ -129,6 +130,33 @@ export class PlayerGameStatsService {
         error: error instanceof Error ? error.message : String(error)
       });
       throw error;
+    }
+  }
+
+  /**
+   * Counts the "everyone answers" rulings made since `ruledBefore` (players
+   * whose answers were already judged then are skipped), with each player's
+   * score after the ruling.
+   */
+  public async recordEveryoneRulings(game: Game, ruledBefore: ReadonlySet<number>): Promise<void> {
+    const entries = game.gameState.allPlay?.entries ?? [];
+
+    for (const entry of entries) {
+      if (entry.isCorrect === null || ruledBefore.has(entry.playerId)) {
+        continue;
+      }
+
+      const player = game.getPlayer(entry.playerId, { fetchDisconnected: true });
+      if (!player) {
+        continue;
+      }
+
+      await this.updatePlayerAnswerStats(
+        game.id,
+        entry.playerId,
+        entry.isCorrect ? AnswerResultType.CORRECT : AnswerResultType.WRONG,
+        player.score
+      );
     }
   }
 

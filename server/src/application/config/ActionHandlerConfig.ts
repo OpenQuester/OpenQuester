@@ -239,11 +239,19 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   );
   registry.register(
     GameActionType.EVERYONE_ANSWER_SUBMIT,
-    new SubmitEveryoneAnswerUseCase(phaseTransitionRouter, transitionResourceService)
+    new SubmitEveryoneAnswerUseCase(
+      phaseTransitionRouter,
+      transitionResourceService,
+      playerGameStatsService
+    )
   );
   registry.register(
     GameActionType.EVERYONE_ANSWER_REVIEW,
-    new ReviewEveryoneAnswerUseCase(phaseTransitionRouter, transitionResourceService)
+    new ReviewEveryoneAnswerUseCase(
+      phaseTransitionRouter,
+      transitionResourceService,
+      playerGameStatsService
+    )
   );
 
   registry.register(

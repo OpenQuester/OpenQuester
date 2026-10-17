@@ -52,6 +52,7 @@ import { PackageStore } from "infrastructure/database/repositories/PackageStore"
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
+import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 
 /**
  * Service handling timer expiration logic.
@@ -135,6 +136,7 @@ export class TimerExpirationService {
     }
 
     const questionResources = await this.transitionResourceService.getCurrentQuestionWithTheme(game);
+    const ruledBefore = AllPlayLogic.ruledPlayerIds(game);
 
     // Transition from SHOWING to SHOWING_ANSWER, or ALL_PLAY_REVIEWING for everyone answers.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
@@ -166,6 +168,11 @@ export class TimerExpirationService {
         broadcasts.push(...revealResult.broadcasts);
         timerMutations.push(...revealResult.timerMutations);
       }
+    }
+
+    // Time ran out on "everyone answers": count the answers judged automatically
+    if (game.gameState.allPlay) {
+      await this.playerGameStatsService.recordEveryoneRulings(game, ruledBefore);
     }
 
     await this.gameService.updateGame(game);

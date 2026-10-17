@@ -15,6 +15,8 @@ import {
 } from "domain/types/socket/events/game/AllPlayEventPayloads";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { User } from "infrastructure/database/models/User";
+import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
+import { container } from "tsyringe";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import {
@@ -134,6 +136,18 @@ describe("Everyone-answers questions", () => {
       await finish;
 
       expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.SHOWING_ANSWER);
+
+      // Rulings count in player statistics like buzzer answers do
+      const statsRepository = container.resolve(PlayerGameStatsRepository);
+      expect(await statsRepository.getStats(gameId, playerUsers[0].id)).toMatchObject({
+        questionsAnswered: "1",
+        correctAnswers: "1",
+        currentScore: "800"
+      });
+      expect(await statsRepository.getStats(gameId, playerUsers[1].id)).toMatchObject({
+        questionsAnswered: "1",
+        wrongAnswers: "1"
+      });
     });
   });
 

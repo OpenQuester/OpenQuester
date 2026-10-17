@@ -1,4 +1,5 @@
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
+import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -122,7 +123,8 @@ export class SubmitEveryoneAnswerUseCase implements GameActionHandler<
 > {
   constructor(
     private readonly router: PhaseTransitionRouter,
-    private readonly resources: TransitionResourceService
+    private readonly resources: TransitionResourceService,
+    private readonly playerGameStatsService: PlayerGameStatsService
   ) {
     //
   }
@@ -135,6 +137,11 @@ export class SubmitEveryoneAnswerUseCase implements GameActionHandler<
 
     const data: AllPlaySubmittedEventPayload = { playerId };
 
+    // The last answer starts the review, which judges some answers itself
+    const ruledBefore = AllPlayLogic.ruledPlayerIds(ctx.game);
+    const advanced = await advanceIfDone(this.router, this.resources, ctx.game, playerId);
+    await this.playerGameStatsService.recordEveryoneRulings(ctx.game, ruledBefore);
+
     return {
       success: true,
       data,
@@ -144,7 +151,7 @@ export class SubmitEveryoneAnswerUseCase implements GameActionHandler<
           SocketIOGameEvents.ALL_PLAY_ANSWER,
           data
         ),
-        ...(await advanceIfDone(this.router, this.resources, ctx.game, playerId)),
+        ...advanced,
         DataMutationConverter.saveGameMutation(ctx.game)
       ],
       broadcastGame: ctx.game
@@ -159,7 +166,8 @@ export class ReviewEveryoneAnswerUseCase implements GameActionHandler<
 > {
   constructor(
     private readonly router: PhaseTransitionRouter,
-    private readonly resources: TransitionResourceService
+    private readonly resources: TransitionResourceService,
+    private readonly playerGameStatsService: PlayerGameStatsService
   ) {
     //
   }
@@ -175,7 +183,9 @@ export class ReviewEveryoneAnswerUseCase implements GameActionHandler<
     }
 
     const { playerId, isCorrect } = ctx.action.payload;
+    const ruledBefore = AllPlayLogic.ruledPlayerIds(game);
     const entry = AllPlayLogic.review(game, playerId, isCorrect);
+    await this.playerGameStatsService.recordEveryoneRulings(game, ruledBefore);
     const player = game.getPlayer(playerId, { fetchDisconnected: true });
 
     const data: AllPlayReviewEventPayload = {
