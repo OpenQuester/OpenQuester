@@ -492,7 +492,8 @@ function System({ enabled }: { enabled: boolean }) {
   );
 }
 
-const mb = (bytes: number) => `${Math.round(bytes / 1024 / 1024)} MB`;
+/** The server already reports memory in MB. */
+const mb = (megabytes: number) => `${Math.round(megabytes)} MB`;
 
 function formatDuration(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
