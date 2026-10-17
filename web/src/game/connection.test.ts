@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GameConnection } from "./connection";
-import { ALICE, question, snapshot } from "./fixtures";
+import { ALICE, BOB, player, question, snapshot } from "./fixtures";
 import type { FileType, QuestionFile } from "./protocol";
 
 const { socket, listeners } = vi.hoisted(() => {
@@ -122,5 +122,50 @@ describe("question media readiness", () => {
     receiveQuestion([]);
     await vi.advanceTimersByTimeAsync(0);
     expect(socket.emit).toHaveBeenCalledExactlyOnceWith("media-downloaded");
+  });
+});
+
+describe("spectator seat selection", () => {
+  it("moves to the clicked seat only after this spectator becomes a player", () => {
+    const spectator = player(ALICE, "spectator");
+    const otherPlayer = player(BOB, "player");
+    listeners.get("game-data")?.(snapshot({}, [spectator, otherPlayer]));
+
+    connection.takeSeat(3);
+    expect(socket.emit).toHaveBeenCalledExactlyOnceWith("player-role-change", {
+      playerId: ALICE,
+      newRole: "player",
+    });
+    listeners.get("player-role-change")?.({
+      playerId: BOB,
+      newRole: "player",
+      players: [spectator, otherPlayer],
+    });
+    expect(socket.emit).toHaveBeenCalledOnce();
+
+    const roleChanged = {
+      playerId: ALICE,
+      newRole: "player",
+      players: [player(ALICE, "player", { slot: 0 }), otherPlayer],
+    };
+    listeners.get("player-role-change")?.(roleChanged);
+    expect(socket.emit).toHaveBeenLastCalledWith("player-slot-change", { targetSlot: 3 });
+    expect(socket.emit).toHaveBeenCalledTimes(2);
+    listeners.get("player-role-change")?.(roleChanged);
+    expect(socket.emit).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the server-assigned seat when it is already the requested one", () => {
+    listeners.get("game-data")?.(snapshot({}, [player(ALICE, "spectator")]));
+    connection.takeSeat(0);
+    listeners.get("player-role-change")?.({
+      playerId: ALICE,
+      newRole: "player",
+      players: [player(ALICE, "player", { slot: 0 })],
+    });
+    expect(socket.emit).toHaveBeenCalledExactlyOnceWith("player-role-change", {
+      playerId: ALICE,
+      newRole: "player",
+    });
   });
 });
