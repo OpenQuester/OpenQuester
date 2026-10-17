@@ -27,18 +27,42 @@ function setup() {
 describe("useLogout", () => {
   afterEach(() => fetchMock.mockReset());
 
-  it("keeps the user signed in when the server refuses the logout", async () => {
-    fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ error: "nope" }), {
-        status: 500,
-        headers: { "content-type": "application/json" },
-      }),
-    );
+  it.each(["HTTP", "network"])("keeps the user signed in after a %s failure", async (failure) => {
+    if (failure === "network") fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    else
+      fetchMock.mockResolvedValue(
+        new Response(JSON.stringify({ error: "nope" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        }),
+      );
     const { qc, result } = setup();
+    const navigate = vi.fn();
 
-    act(() => result.current.mutate());
+    act(() => result.current.mutate(undefined, { onSuccess: navigate }));
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(qc.getQueryData(meKey)).toEqual({ id: 1, username: "pat" });
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("clears auth and runs the success callback only after the server confirms logout", async () => {
+    let confirm!: (response: Response) => void;
+    fetchMock.mockReturnValue(
+      new Promise<Response>((resolve) => {
+        confirm = resolve;
+      }),
+    );
+    const { qc, result } = setup();
+    const navigate = vi.fn();
+    act(() => result.current.mutate(undefined, { onSuccess: navigate }));
+    await waitFor(() => expect(result.current.isPending).toBe(true));
+    expect(qc.getQueryData(meKey)).toEqual({ id: 1, username: "pat" });
+    expect(navigate).not.toHaveBeenCalled();
+
+    await act(async () => confirm(new Response(null, { status: 204 })));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(qc.getQueryData(meKey)).toBeNull();
+    expect(navigate).toHaveBeenCalledOnce();
   });
 });
