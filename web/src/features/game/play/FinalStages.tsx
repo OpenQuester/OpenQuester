@@ -6,6 +6,7 @@ import { formatScore, formatSigned } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
 
 import { useGame, useSession } from "../GameContext";
+import { QuestionMedia } from "./QuestionMedia";
 
 /** Players take turns removing themes; the last one left is the final question. */
 export function FinalThemesStage() {
@@ -142,15 +143,20 @@ export function FinalAnswerStage() {
   const { t } = useTranslation();
   const session = useSession();
   const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
+  const hasMedia = (q?.questionFiles?.length ?? 0) > 0;
   return (
     <section className="mx-auto flex w-full max-w-[920px] flex-col gap-4 oq-pop">
       <ThemeLine />
-      <p
-        className="m-0 font-display text-[clamp(24px,3.4vw,38px)] font-semibold leading-tight [overflow-wrap:anywhere]"
-        data-testid="question-text"
-      >
-        {q?.text || t("question.noContent")}
-      </p>
+      {/* Final questions skip the regular stage, so their media is shown here */}
+      {hasMedia && <QuestionMedia files={q!.questionFiles!} playing={!session.state.isPaused} />}
+      {(q?.text || !hasMedia) && (
+        <p
+          className="m-0 font-display text-[clamp(24px,3.4vw,38px)] font-semibold leading-tight [overflow-wrap:anywhere]"
+          data-testid="question-text"
+        >
+          {q?.text || t("question.noContent")}
+        </p>
+      )}
       <FinalStatuses mode="answers" />
     </section>
   );
