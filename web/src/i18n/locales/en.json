@@ -1033,7 +1033,6 @@
       "allowedPricesHelp": "Optional: 2 to 5 prices separated by commas. Empty keeps the board price.",
       "showDelay": "Options appear after (s)",
       "timing": "Timing",
-      "answerDelay": "Answer window (s)",
       "showAnswer": "Answer shows (s)",
       "preview": "Preview",
       "save": "Save",

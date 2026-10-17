@@ -17,6 +17,10 @@ import * as ops from "./ops";
 import { MediaView, QuestionPreview } from "./QuestionPreview";
 import { useEditor } from "./store";
 import { MAX_PRICE } from "./validate";
+import { useMediaQuery } from "@/lib/useMediaQuery";
+
+/** The settings sit in the side column from here (Tailwind lg). */
+const WIDE_QUERY = "(min-width: 1024px)";
 
 /**
  * The question form. Edits are staged and land as one undo step on Save;
@@ -55,6 +59,7 @@ function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => vo
   const apply = useEditor((s) => s.apply);
   const final = at.round.type === "final";
   const [q, setQ] = useState<EditorQuestion>(at.question);
+  const wide = useMediaQuery(WIDE_QUERY);
   const [confirmClose, setConfirmClose] = useState(false);
   const dirty = q !== at.question;
   const set = (patch: Partial<EditorQuestion>) => setQ((prev) => ({ ...prev, ...patch }));
@@ -141,6 +146,7 @@ function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => vo
                 {!final && (
                   <NumberField
                     id="qf-price"
+                    integer
                     label={t("editor.form.price")}
                     value={q.price}
                     onChange={(price) => set({ price })}
@@ -171,7 +177,9 @@ function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => vo
                 label={t("editor.form.questionMedia")}
                 help={t("editor.form.questionMediaHelp")}
                 files={q.questionFiles}
-                onChange={(questionFiles) => set({ questionFiles })}
+                onChange={(update) =>
+                  setQ((prev) => ({ ...prev, questionFiles: update(prev.questionFiles) }))
+                }
               />
               {!q.text.trim() && q.questionFiles.length === 0 && (
                 <FieldError>{t("editor.issues.questionEmpty")}</FieldError>
@@ -234,7 +242,9 @@ function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => vo
                 label={t("editor.form.answerMedia")}
                 help={t("editor.form.answerMediaHelp")}
                 files={q.answerFiles}
-                onChange={(answerFiles) => set({ answerFiles })}
+                onChange={(update) =>
+                  setQ((prev) => ({ ...prev, answerFiles: update(prev.answerFiles) }))
+                }
               />
 
               <div className="flex flex-col gap-1.5">
@@ -266,13 +276,12 @@ function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => vo
                 />
               </div>
 
-              <div className="lg:hidden">
-                <TypeSettings q={q} set={set} final={final} />
-              </div>
+              {/* One settings panel only: two copies would share ids and radio groups */}
+              {!wide && <TypeSettings q={q} set={set} final={final} />}
             </div>
 
             <aside className="hidden w-[340px] shrink-0 flex-col gap-5 overflow-y-auto border-l border-line bg-bg/40 p-5 lg:flex">
-              <TypeSettings q={q} set={set} final={final} />
+              {wide && <TypeSettings q={q} set={set} final={final} />}
               <div className="h-px bg-line" />
               <span className="text-xs font-bold tracking-[0.08em] text-faint uppercase">
                 {t("editor.form.preview")}
@@ -343,7 +352,7 @@ function NumberField({
   help,
   error,
   allowEmpty,
-  step,
+  integer,
 }: {
   id: string;
   label: ReactNode;
@@ -352,7 +361,8 @@ function NumberField({
   help?: string;
   error?: string;
   allowEmpty?: boolean;
-  step?: number;
+  /** Whole numbers only (prices, bids); other fields keep decimals like 3.14 */
+  integer?: boolean;
 }) {
   const [text, setText] = useState(value == null ? "" : String(value));
   const [seen, setSeen] = useState(value);
@@ -373,7 +383,7 @@ function NumberField({
           const v = e.target.value.replace(/[^\d.-]/g, "");
           setText(v);
           if (v === "") onChange(allowEmpty ? null : null);
-          else if (!Number.isNaN(Number(v))) onChange(step ? Number(v) : Math.round(Number(v)));
+          else if (!Number.isNaN(Number(v))) onChange(integer ? Math.round(Number(v)) : Number(v));
         }}
       />
       {help && <span className="text-sm text-faint">{help}</span>}
@@ -398,7 +408,6 @@ function SecondsField({
       id={id}
       label={label}
       value={Math.round(ms / 100) / 10}
-      step={0.5}
       onChange={(s) => onChange(Math.max(0, Math.round((s ?? 0) * 1000)))}
     />
   );
@@ -426,6 +435,7 @@ function TypeSettings({
         <>
           <NumberField
             id="qf-max"
+            integer
             label={t("editor.form.maxBid")}
             value={q.maxPrice}
             allowEmpty
@@ -445,7 +455,6 @@ function TypeSettings({
             id="qf-mult"
             label={t("editor.form.multiplier")}
             value={q.priceMultiplier}
-            step={0.5}
             onChange={(v) => set({ priceMultiplier: v ?? 1 })}
           />
           <Check
@@ -491,13 +500,9 @@ function TypeSettings({
       <span className="text-xs font-bold tracking-[0.08em] text-faint uppercase">
         {t("editor.form.timing")}
       </span>
+      {/* No "answer window" here: games time answers with the game's own timer
+          settings, so a per-question value would have no effect */}
       <div className="grid grid-cols-2 gap-3">
-        <SecondsField
-          id="qf-delay"
-          label={t("editor.form.answerDelay")}
-          ms={q.answerDelay}
-          onChange={(answerDelay) => set({ answerDelay })}
-        />
         <SecondsField
           id="qf-reveal"
           label={t("editor.form.showAnswer")}
@@ -640,7 +645,11 @@ function MediaList({
   label: string;
   help: string;
   files: EditorMedia[];
-  onChange: (files: EditorMedia[]) => void;
+  /**
+   * Changes the list from its latest value: files are read asynchronously, so
+   * a removal or another drop during a read must not be overwritten.
+   */
+  onChange: (update: (files: EditorMedia[]) => EditorMedia[]) => void;
 }) {
   const { t } = useTranslation();
   const addMedia = useEditor((s) => s.addMedia);
@@ -671,7 +680,7 @@ function MediaList({
       }
     }
     setBusy(false);
-    if (added.length) onChange([...files, ...added]);
+    if (added.length) onChange((current) => [...current, ...added]);
   };
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer.files.length) return;
@@ -735,8 +744,8 @@ function MediaList({
                     value={m.displayTime == null ? "" : String(m.displayTime / 1000)}
                     onChange={(e) => {
                       const s = Number(e.target.value.replace(",", "."));
-                      onChange(
-                        files.map((f, j) =>
+                      onChange((current) =>
+                        current.map((f, j) =>
                           j === i
                             ? {
                                 ...f,
@@ -757,7 +766,7 @@ function MediaList({
               <button
                 type="button"
                 aria-label={t("editor.media.remove")}
-                onClick={() => onChange(files.filter((_, j) => j !== i))}
+                onClick={() => onChange((current) => current.filter((_, j) => j !== i))}
                 className="inline-flex size-9 items-center justify-center rounded-sm text-muted hover:bg-surface-3 hover:text-danger"
               >
                 <TrashIcon size={16} />
