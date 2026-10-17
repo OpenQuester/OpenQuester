@@ -51,10 +51,7 @@ export function LobbyScreen() {
 
   const takeSlot = (slot: number) => {
     if (role === "player") connection.emit("player-slot-change", { targetSlot: slot });
-    else {
-      connection.setJoinRole("player", slot);
-      connection.emit("player-role-change", { playerId: myId, newRole: "player" });
-    }
+    else connection.takeSeat(slot);
   };
 
   return (

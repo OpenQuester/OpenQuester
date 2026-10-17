@@ -38,6 +38,8 @@ export class GameConnection {
   private closed = false;
   private pendingTimer: number | undefined;
   private mediaToken = 0;
+  /** Seat a spectator asked for: the server seats them first, then they move. */
+  private wantedSlot: number | null = null;
 
   constructor(
     readonly gameId: string,
@@ -126,6 +128,16 @@ export class GameConnection {
   /** Changes the role used for future rejoins (after a role change). */
   setJoinRole(role: PlayerRole, targetSlot: number | null = null): void {
     this.joinOptions = { ...this.joinOptions, role, targetSlot };
+  }
+
+  /**
+   * A spectator takes a seat. Becoming a player puts them in the first free
+   * seat, so once that happens they move to the seat they clicked.
+   */
+  takeSeat(slot: number): void {
+    this.setJoinRole("player", slot);
+    this.wantedSlot = slot;
+    this.emit("player-role-change", { playerId: this.myId, newRole: "player" });
   }
 
   emit<K extends ClientEventName>(
@@ -230,6 +242,9 @@ export class GameConnection {
       case "game-data":
         this.maybeReportMedia();
         break;
+      case "player-role-change":
+        if (event.payload.playerId === this.myId) this.moveToWantedSlot();
+        break;
       default:
         break;
     }
@@ -283,6 +298,16 @@ export class GameConnection {
         break;
       default:
         break;
+    }
+  }
+
+  private moveToWantedSlot(): void {
+    const wanted = this.wantedSlot;
+    this.wantedSlot = null;
+    if (wanted === null) return;
+    const me = useGameStore.getState().session?.players.find((p) => p.meta.id === this.myId);
+    if (me?.role === "player" && me.slot !== wanted) {
+      this.emit("player-slot-change", { targetSlot: wanted });
     }
   }
 
