@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { ParsedPackage } from "@/features/upload/types";
 
 import { draftFromParsed } from "./EditorHomePage";
-import { collectMedia, loadDraft, loadMedia, putMedia } from "./drafts";
+import { collectMedia, deleteDraft, loadDraft, loadMedia, saveDraft } from "./drafts";
 import type { MediaFile } from "@/features/upload/types";
+import { emptyPackage } from "./model";
 
 describe("drafts made from an imported file", () => {
   it("keep the original import report", async () => {
@@ -27,18 +28,20 @@ describe("drafts made from an imported file", () => {
 });
 
 describe("media cleanup", () => {
-  it("keeps media written for a draft that is not saved yet", async () => {
+  it("keeps shared media until its last referencing draft is deleted", async () => {
     const file = {
       md5: "f".repeat(32),
       type: "image" as const,
       bytes: new Uint8Array([1, 2, 3]),
       name: "a.png",
     } as unknown as MediaFile;
-    await putMedia([file]);
-
-    // Another draft is deleted before the new one is saved
+    const pkg = { ...emptyPackage("Shared"), logo: { md5: file.md5, type: "image" as const } };
+    await saveDraft({ id: "first", pkg, updatedAt: 1 }, [file]);
+    await saveDraft({ id: "second", pkg, updatedAt: 2 });
+    await deleteDraft("first");
     await collectMedia();
-
     expect((await loadMedia([file.md5])).has(file.md5)).toBe(true);
+    await deleteDraft("second");
+    expect((await loadMedia([file.md5])).has(file.md5)).toBe(false);
   });
 });

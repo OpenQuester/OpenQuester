@@ -16,6 +16,7 @@ npm run typecheck
 npm run lint
 npm run format       # prettier; CI runs format:check
 npm test             # unit + component tests
+npm run test:browser # native Chromium storage tests; installs via npx playwright install chromium
 npm run gen:api      # regenerate src/api/schema.d.ts after openapi/schema.json changes
 npm run check:api    # CI: fails when schema.d.ts is stale
 npm run e2e:full     # Docker: Postgres, Redis, S3, server, seed, Playwright, teardown
@@ -37,6 +38,7 @@ src/ui/         small design-system components
 src/theme/      token sets ([data-theme] blocks) and the theme registry
 src/i18n/       en / uk / ru resources
 e2e/            Playwright specs, seed + helpers, local backend stack
+browser-tests/  native browser API regressions, no backend or Docker
 functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the API
 ```
 
@@ -62,6 +64,10 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   `docs/specs/package-validation-spec.md`: critical issues block Publish.
   Import compatibility warnings stay on the draft and appear in the publish
   check. Hiding the editor report only hides that panel; it keeps the warnings.
+  Draft references and available media commit in one IndexedDB transaction.
+  Collection reads references and deletes unused media in the same transaction
+  scope, so other tabs cannot collect a save's files between writes. Autosave
+  supplies all available referenced media, including files restored by undo.
   Drag and drop is native HTML5; every drag has a Move dialog equivalent for
   touch and keyboard.
   `/packages/$id/preview` opens a published package in the same editor with

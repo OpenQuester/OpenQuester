@@ -1,7 +1,8 @@
 /**
  * What POST /v1/packages accepts (server/src/presentation/schemes/package/packageSchemes.ts).
  * Kept loose on purpose: the generated union types are stricter than the
- * server's Joi scheme, and the readers below only ever build valid shapes.
+ * server's Joi scheme. Readers preserve incomplete answer targets for repair
+ * in drafts; editor validation blocks publishing them until they are complete.
  */
 export type MediaType = "image" | "audio" | "video";
 

@@ -2,7 +2,7 @@ import { api, unwrap } from "@/api/client";
 import { toContent } from "@/features/upload/oq";
 import type { ImportWarning, MediaFile, MediaType } from "@/features/upload/types";
 
-import { listDrafts, putMedia, saveDraft } from "./drafts";
+import { listDrafts, saveDraft } from "./drafts";
 import { fromUpload, newId, type EditorPackage } from "./model";
 
 /** md5 → public link for every file a package uses, read from its API JSON. */
@@ -50,9 +50,7 @@ export async function draftFromPackage(packageId: number): Promise<string> {
   if (existing) return existing.id;
 
   const { pkg, media } = await loadServerPackage(packageId);
-  await putMedia(media.values());
-
   const id = newId();
-  await saveDraft({ id, pkg, updatedAt: Date.now(), publishedId: packageId });
+  await saveDraft({ id, pkg, updatedAt: Date.now(), publishedId: packageId }, media.values());
   return id;
 }

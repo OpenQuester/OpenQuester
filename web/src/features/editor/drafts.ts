@@ -98,20 +98,29 @@ export async function loadDraft(id: string): Promise<Draft | null> {
   return (await run<Draft>("drafts", "readonly", (s) => s.get(id) as IDBRequest<Draft>)) ?? null;
 }
 
-export async function saveDraft(draft: Draft): Promise<void> {
+/** Commit references and their available media together, including across tabs. */
+export async function saveDraft(draft: Draft, files: Iterable<MediaFile> = []): Promise<void> {
+  const referenced = reachableMedia(draft.pkg);
+  const media = [...files].filter((file) => referenced.has(file.md5));
   const db = await open();
   if (!db) {
+    for (const file of media) memory.media.set(file.md5, file);
     memory.drafts.set(draft.id, draft);
-    releaseSavedMedia(draft);
     return;
   }
-  await run("drafts", "readwrite", (s) => s.put(draft));
-  releaseSavedMedia(draft);
-}
-
-/** The draft is stored, so its media is protected by the draft from now on. */
-function releaseSavedMedia(draft: Draft): void {
-  for (const md5 of reachableMedia(draft.pkg)) unsavedMedia.delete(md5);
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(["drafts", "media"], "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+    try {
+      tx.objectStore("drafts").put(draft);
+      for (const file of media) tx.objectStore("media").put(file);
+    } catch (error) {
+      tx.abort();
+      reject(error);
+    }
+  });
 }
 
 export async function deleteDraft(id: string): Promise<void> {
@@ -133,35 +142,32 @@ export async function loadMedia(md5s: Iterable<string>): Promise<Map<string, Med
   return out;
 }
 
-/**
- * Media written for a draft that is not saved yet. Imports and autosaves write
- * media first and the draft that references it second; cleanup in between
- * (another draft deleted) must not take those files.
- */
-const unsavedMedia = new Set<string>();
-
-export async function putMedia(files: Iterable<MediaFile>): Promise<void> {
-  const db = await open();
-  for (const f of files) {
-    unsavedMedia.add(f.md5);
-    if (!db) memory.media.set(f.md5, f);
-    else await run("media", "readwrite", (s) => s.put(f));
-  }
-}
-
-/** Drops stored media that no draft references any more. */
+/** Read references and remove unused media in one transaction with the same save scope. */
 export async function collectMedia(): Promise<void> {
   const db = await open();
-  const drafts = db
-    ? ((await run<Draft[]>("drafts", "readonly", (s) => s.getAll() as IDBRequest<Draft[]>)) ?? [])
-    : [...memory.drafts.values()];
-  const keep = new Set<string>(unsavedMedia);
-  for (const d of drafts) for (const md5 of reachableMedia(d.pkg)) keep.add(md5);
+  const keep = new Set<string>();
   if (!db) {
+    for (const draft of memory.drafts.values())
+      for (const md5 of reachableMedia(draft.pkg)) keep.add(md5);
     for (const md5 of memory.media.keys()) if (!keep.has(md5)) memory.media.delete(md5);
     return;
   }
-  const keys = (await run<IDBValidKey[]>("media", "readonly", (s) => s.getAllKeys())) ?? [];
-  const stale = keys.filter((k) => !keep.has(String(k)));
-  if (stale.length) await run("media", "readwrite", (s) => void stale.forEach((k) => s.delete(k)));
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(["drafts", "media"], "readwrite");
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+    const drafts = tx.objectStore("drafts").getAll() as IDBRequest<Draft[]>;
+    drafts.onsuccess = () => {
+      for (const draft of drafts.result) for (const md5 of reachableMedia(draft.pkg)) keep.add(md5);
+      const media = tx.objectStore("media");
+      const cursor = media.openKeyCursor();
+      cursor.onsuccess = () => {
+        const item = cursor.result;
+        if (!item) return;
+        if (!keep.has(String(item.key))) media.delete(item.key);
+        item.continue();
+      };
+    };
+  });
 }

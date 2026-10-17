@@ -11,19 +11,21 @@ import { Card } from "@/ui/Card";
 import { BackIcon, PlusIcon, TrashIcon, UploadIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 
-import { deleteDraft, listDrafts, putMedia, saveDraft, type DraftSummary } from "./drafts";
+import { deleteDraft, listDrafts, saveDraft, type DraftSummary } from "./drafts";
 import { emptyPackage, fromUpload, newId, newRound, starterTheme } from "./model";
 
 /** Turns an imported file into a draft and returns its id. */
 export async function draftFromParsed(parsed: ParsedPackage): Promise<string> {
   const id = newId();
-  await putMedia(parsed.files.values());
-  await saveDraft({
-    id,
-    pkg: fromUpload(parsed.content),
-    updatedAt: Date.now(),
-    importWarnings: parsed.warnings,
-  });
+  await saveDraft(
+    {
+      id,
+      pkg: fromUpload(parsed.content),
+      updatedAt: Date.now(),
+      importWarnings: parsed.warnings,
+    },
+    parsed.files.values(),
+  );
   return id;
 }
 

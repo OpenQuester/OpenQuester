@@ -5,7 +5,7 @@ import type { StoreApi } from "zustand";
 
 import { Spinner } from "@/ui/Spinner";
 
-import { loadDraft, loadMedia, putMedia, saveDraft } from "./drafts";
+import { loadDraft, loadMedia, saveDraft } from "./drafts";
 import { EditorShell } from "./EditorShell";
 import { reachableMedia } from "./model";
 import { createEditorStore, EditorContext, type EditorState } from "./store";
@@ -77,22 +77,21 @@ function useAutosave(store: StoreApi<EditorState> | null) {
   useEffect(() => {
     if (!store) return;
     let timer: number | null = null;
-    const savedMedia = new Set(store.getState().media.keys());
     const flush = async () => {
       timer = null;
       const s = store.getState();
       try {
-        const fresh = [...s.media.values()].filter((f) => !savedMedia.has(f.md5));
-        await putMedia(fresh);
-        for (const f of fresh) savedMedia.add(f.md5);
         const at = Date.now();
-        await saveDraft({
-          id: s.draftId,
-          pkg: s.pkg,
-          updatedAt: at,
-          publishedId: s.publishedId,
-          importWarnings: s.importWarnings,
-        });
+        await saveDraft(
+          {
+            id: s.draftId,
+            pkg: s.pkg,
+            updatedAt: at,
+            publishedId: s.publishedId,
+            importWarnings: s.importWarnings,
+          },
+          s.media.values(),
+        );
         s.markSaved(at);
       } catch (error) {
         // IndexedDB full or the write aborted: the edits only live in this tab

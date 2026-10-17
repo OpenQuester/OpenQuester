@@ -87,6 +87,8 @@ jobs:
       - run: npm ci
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
+      - name: Native browser storage regressions
+        run: npm run test:browser
       - name: Start the backend stack and run Playwright
         run: npm run e2e:full
       - name: Server log

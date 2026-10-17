@@ -13,6 +13,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:browser": "playwright test -c playwright.browser.config.ts",
     "gen:api": "openapi-typescript ../openapi/schema.json -o src/api/schema.d.ts",
     "check:api": "node scripts/check-api-types.mjs",
     "e2e:stack": "node scripts/e2e-stack.mjs",
