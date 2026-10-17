@@ -1,6 +1,8 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
+
+import { md5Hex } from "@/features/upload/archive";
 
 import {
   emptyPackage,
@@ -13,7 +15,10 @@ import {
 import { QuestionDialog } from "./QuestionDialog";
 import { createEditorStore, EditorContext } from "./store";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 function setup(question: EditorQuestion, wide = false) {
   const listeners = new Set<() => void>();
@@ -105,3 +110,39 @@ it.each([false, true])(
     );
   },
 );
+
+it.each([
+  ["questionFiles", "Shown with the question"],
+  ["answerFiles", "Shown with the answer"],
+] as const)("keeps removals and overlapping reads in %s", async (field, label) => {
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-media");
+  const original = { md5: "a".repeat(32), type: "image" as const, displayTime: 5000 };
+  const { store } = setup(newQuestion(100, { [field]: [original] }));
+  const list = screen.getByText(label).parentElement!.parentElement!;
+  const dropArea = list.children[1]!;
+  const firstBytes = new Uint8Array([1, 2, 3]);
+  const secondBytes = new Uint8Array([4, 5, 6]);
+  let finishFirst!: (bytes: ArrayBuffer) => void;
+  const slow = new File([], "slow.png", { type: "image/png" });
+  Object.defineProperty(slow, "arrayBuffer", {
+    value: () =>
+      new Promise<ArrayBuffer>((resolve) => {
+        finishFirst = resolve;
+      }),
+  });
+  const fast = new File([], "fast.png", { type: "image/png" });
+  Object.defineProperty(fast, "arrayBuffer", { value: async () => secondBytes.buffer });
+
+  fireEvent.drop(dropArea, { dataTransfer: { files: [slow], types: ["Files"] } });
+  await userEvent.setup().click(within(list).getByRole("button", { name: "Remove file" }));
+  await act(async () =>
+    fireEvent.drop(dropArea, { dataTransfer: { files: [fast], types: ["Files"] } }),
+  );
+  await act(async () => finishFirst(firstBytes.buffer));
+  await userEvent.setup().click(screen.getByTestId("question-save"));
+
+  const saved = store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!;
+  expect(saved[field].map((file) => file.md5)).toEqual([md5Hex(secondBytes), md5Hex(firstBytes)]);
+  expect(store.getState().media.has(md5Hex(firstBytes))).toBe(true);
+  expect(store.getState().media.has(md5Hex(secondBytes))).toBe(true);
+});
