@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,8 @@ import 'package:video_player_platform_interface/video_player_platform_interface.
 class _MockLogger extends Mock implements TalkerLogger {}
 
 class _MockLobby extends Mock implements GameLobbyController {}
+
+class _RealHttp extends HttpOverrides {}
 
 class _VideoPlatform extends VideoPlayerPlatform {
   bool initializeImmediately = true;
@@ -22,6 +25,8 @@ class _VideoPlatform extends VideoPlayerPlatform {
   final volumes = <int, double>{};
   Completer<void>? delayDispose;
   Completer<void>? delayNextSeek;
+  void Function(int)? onPause;
+  void Function(int)? onCreated;
 
   @override
   Future<void> init() async {}
@@ -32,6 +37,7 @@ class _VideoPlatform extends VideoPlayerPlatform {
     sources[id] = options.dataSource;
     streams[id] = StreamController<VideoEvent>();
     if (initializeImmediately) completeInitialization(id);
+    onCreated?.call(id);
     return id;
   }
 
@@ -67,6 +73,7 @@ class _VideoPlatform extends VideoPlayerPlatform {
   @override
   Future<void> pause(int playerId) async {
     playing.remove(playerId);
+    onPause?.call(playerId);
   }
 
   @override
@@ -569,6 +576,227 @@ void main() {
         expect(platform.positions[id], const Duration(milliseconds: 1500));
         expect(platform.playing, contains(id));
         expect(controller.waitingForPlayers.value, isFalse);
+      },
+    );
+
+    backgroundTest(
+      'a refreshed snapshot reseeks the retained screen clip',
+      () async {
+        controller.playPlan(
+          question: clipQuestion,
+          plan: clipPlan,
+          timer: _timer(1000),
+        );
+        await flush();
+        final id = platform.playerFor(firstClip.file.md5);
+        expect(platform.positions[id], const Duration(milliseconds: 1000));
+        controller.playPlan(
+          question: clipQuestion,
+          plan: clipPlan,
+          timer: _timer(2500),
+        );
+        await flush();
+        expect(platform.playerFor(firstClip.file.md5), id);
+        expect(platform.positions[id], const Duration(milliseconds: 2500));
+        expect(platform.playing, contains(id));
+      },
+    );
+
+    backgroundTest(
+      'a delayed screen seek cannot restart a held plan',
+      () async {
+        final seek = Completer<void>();
+        platform.delayNextSeek = seek;
+        controller.playPlan(
+          question: clipQuestion,
+          plan: clipPlan,
+          timer: _timer(1500),
+        );
+        await flush();
+        final id = platform.playerFor(firstClip.file.md5);
+        controller.holdPlan();
+        await controller.mediaController.value!.pause();
+        seek.complete();
+        await flush();
+        expect(platform.played, isNot(contains(id)));
+        controller.resumePlan(_timer(2400));
+        await flush();
+        expect(platform.positions[id], const Duration(milliseconds: 2400));
+        expect(platform.playing, contains(id));
+      },
+    );
+
+    for (final elapsed in [9500, 25000]) {
+      backgroundTest(
+        'a finished screen clip does not replay at $elapsed ms',
+        () async {
+          controller.playPlan(
+            question: clipQuestion,
+            plan: clipPlan,
+            timer: _timer(elapsed),
+          );
+          await flush();
+          final id = platform.playerFor(secondClip.file.md5);
+          expect(platform.played, isNot(contains(id)));
+          expect(platform.playing, isNot(contains(id)));
+        },
+      );
+    }
+
+    backgroundTest(
+      'a newer screen resume wins over an unfinished seek',
+      () async {
+        final seek = Completer<void>();
+        platform.delayNextSeek = seek;
+        controller.playPlan(
+          question: clipQuestion,
+          plan: clipPlan,
+          timer: _timer(1000),
+        );
+        await flush();
+        final id = platform.playerFor(firstClip.file.md5);
+        controller.resumePlan(_timer(2500));
+        seek.complete();
+        await flush();
+        expect(platform.positions[id], const Duration(milliseconds: 2500));
+        expect(platform.playing, contains(id));
+      },
+    );
+
+    backgroundTest(
+      'a short screen item stays stopped within a longer step',
+      () async {
+        controller.playPlan(
+          question: clipQuestion,
+          plan: QuestionContentPlan(
+            totalMs: 8000,
+            steps: [
+              QuestionContentStep(
+                startMs: 0,
+                durationMs: 8000,
+                items: [_item(0, 1000)],
+              ),
+            ],
+          ),
+          timer: _timer(2500),
+        );
+        await flush();
+        final id = platform.playerFor(firstClip.file.md5);
+        expect(platform.played, isNot(contains(id)));
+      },
+    );
+
+    backgroundTest('a screen item stops at its own boundary', () async {
+      controller.playPlan(
+        question: clipQuestion,
+        plan: QuestionContentPlan(
+          totalMs: 8000,
+          steps: [
+            QuestionContentStep(
+              startMs: 0,
+              durationMs: 8000,
+              items: [_item(0, 1000)],
+            ),
+          ],
+        ),
+        timer: _timer(0),
+      );
+      await flush();
+      final id = platform.playerFor(firstClip.file.md5);
+      expect(platform.playing, contains(id));
+      final stopped = Completer<void>();
+      platform.onPause = (playerId) {
+        if (playerId == id && !stopped.isCompleted) stopped.complete();
+      };
+      // Start the real server clock after setup. Await the platform operation,
+      // not a guessed sleep; a missing item-end timer must fail this bound.
+      controller.resumePlan(_timer(0).copyWith(startedAt: DateTime.now()));
+      await stopped.future.timeout(const Duration(seconds: 3));
+      expect(platform.playing, isNot(contains(id)));
+      platform.onPause = null;
+    });
+
+    backgroundTest(
+      'stale same-file loads cannot delete the current native file',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'oq-screen-media-',
+        );
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        server.listen((request) async {
+          request.response.add([1, 2, 3]);
+          await request.response.close();
+        });
+        binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          pathProvider,
+          (_) async => directory.path,
+        );
+        try {
+          await HttpOverrides.runWithHttpOverrides(() async {
+            platform.initializeImmediately = false;
+            final firstCreated = Completer<void>();
+            final secondCreated = Completer<void>();
+            platform.onCreated = (id) {
+              if (id == 0) firstCreated.complete();
+              if (id == 1) secondCreated.complete();
+            };
+            final shared = firstClip.file.copyWith(
+              md5: 'shared',
+              link: 'http://127.0.0.1:${server.port}/clip',
+            );
+            controller.playPlan(
+              question: clipQuestion.copyWith(
+                questionFiles: [
+                  firstClip.copyWith(file: shared),
+                  secondClip.copyWith(file: shared),
+                ],
+              ),
+              plan: clipPlan,
+              timer: _timer(0),
+            );
+            await firstCreated.future.timeout(const Duration(seconds: 3));
+            controller.resumePlan(_timer(4000));
+            await secondCreated.future.timeout(const Duration(seconds: 3));
+            expect(platform.sources[1]!.sourceType, DataSourceType.file);
+            platform.completeInitialization(1);
+            await flush();
+            final liveFile = File.fromUri(Uri.parse(platform.sources[1]!.uri!));
+            expect(await liveFile.readAsBytes(), [1, 2, 3]);
+            platform.completeInitialization(0);
+            await flush();
+            expect(platform.disposed, contains(0));
+            expect(controller.mediaController.value?.playerId, 1);
+            expect(liveFile.existsSync(), isTrue);
+            await controller.clear();
+            await flush();
+            expect(platform.disposed, contains(1));
+            expect(liveFile.existsSync(), isFalse);
+          }, _RealHttp());
+        } finally {
+          await server.close(force: true);
+          await directory.delete(recursive: true);
+        }
+      },
+    );
+
+    backgroundTest(
+      'a screen load completing after clear is discarded',
+      () async {
+        platform.initializeImmediately = false;
+        controller.playPlan(
+          question: clipQuestion,
+          plan: clipPlan,
+          timer: _timer(0),
+        );
+        await flush();
+        final id = platform.playerFor(firstClip.file.md5);
+        await controller.clear();
+        platform.completeInitialization(id);
+        await flush();
+        expect(platform.disposed, contains(id));
+        expect(platform.played, isNot(contains(id)));
+        expect(controller.questionData.value, isNull);
+        expect(controller.mediaController.value, isNull);
       },
     );
 

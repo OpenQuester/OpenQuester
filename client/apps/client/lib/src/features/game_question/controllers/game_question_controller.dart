@@ -31,6 +31,8 @@ class GameQuestionController {
   /// Start of the screen file's step on the question timer while the
   /// timeline plays, so its clip starts at the server's position
   int? _screenStartMs;
+  int? _screenEndMs;
+  final _screenSync = Expando<Future<void>>();
 
   /// Bumped by every question data change; an older media load sees it
   /// changed and drops its player instead of showing it
@@ -43,19 +45,14 @@ class GameQuestionController {
   Future<void> clear() async {
     logger.d('GameQuestionController: Clearing question data');
     final stopping = stopPlan();
-    final tmpFile = _tmpFile;
-    _tmpFile = null;
+    final clearing = clearVideoControllers();
+    _loadRevision++;
     questionData.value = null;
     error.value = null;
     showMedia.value = false;
     waitingForPlayers.value = false;
     ignoreWaitingForPlayers = false;
-    await Future.wait([stopping, clearVideoControllers()]);
-    try {
-      await tmpFile?.delete();
-    } catch (e) {
-      logger.w(e);
-    }
+    await Future.wait([stopping, clearing]);
   }
 
   Future<void> _onQuestionChange() async {
@@ -101,7 +98,10 @@ class GameQuestionController {
         ) = await VideoPlayerUtils.createController(
           url: file.link!,
           fileExtension: extension,
-          cacheKey: file.md5,
+          // Each overlapping load owns its file, even for the same media hash.
+          cacheKey:
+              '${file.md5}-screen-'
+              '${DateTime.now().microsecondsSinceEpoch}-$load',
         );
         loaded = videoController;
         loadedFile = tmpFile;
@@ -114,10 +114,11 @@ class GameQuestionController {
         if (!current()) return;
 
         final waitMs = questionData.value?.file?.displayTime;
-        if (waitMs != null) {
+        if (waitMs != null && _plan == null) {
           // Only this load's player, and only while it is still on screen
           Future<void>.delayed(Duration(milliseconds: waitMs), () {
-            if (identical(mediaController.value, videoController)) {
+            if (_plan == null &&
+                identical(mediaController.value, videoController)) {
               return videoController.pause();
             }
           });
@@ -156,7 +157,7 @@ class GameQuestionController {
         logger.e('GameQuestionController: Failed to load media: $e');
       }
     } finally {
-      if (loaded != null) unawaited(_disposeStale(loaded, loadedFile));
+      if (loaded != null) unawaited(_disposeMedia(loaded, loadedFile));
     }
     // TODO: Start slideshow timer
   }
@@ -164,23 +165,45 @@ class GameQuestionController {
   /// Starts a screen clip at the server timeline's position within its
   /// step, so a rejoin or a slow load doesn't replay it from the start and
   /// get cut off by the next step
-  Future<void> _playScreenMedia(VideoPlayerController controller) async {
-    final startMs = _screenStartMs;
-    if (_plan != null && startMs != null) {
-      final offsetMs = timerElapsedMs(_planTimer, paused: false) - startMs;
-      if (offsetMs > 0) {
+  Future<void> _playScreenMedia(VideoPlayerController controller) =>
+      _screenSync[controller] =
+          (_screenSync[controller] ?? Future<void>.value()).then(
+            (_) => _syncScreenMedia(controller),
+          );
+
+  Future<void> _syncScreenMedia(VideoPlayerController controller) async {
+    final revision = _planRevision;
+    bool current() =>
+        identical(mediaController.value, controller) &&
+        revision == _planRevision &&
+        (_plan == null || _planPlaying);
+    if (!current()) return;
+    try {
+      final startMs = _screenStartMs;
+      if (_plan != null && startMs != null) {
+        final elapsed = timerElapsedMs(_planTimer, paused: false);
+        final offsetMs = elapsed < startMs ? 0 : elapsed - startMs;
         await controller.seekTo(Duration(milliseconds: offsetMs));
+        if (!current()) return;
+        final elapsedAfterSeek = timerElapsedMs(_planTimer, paused: false);
+        if ((_screenEndMs != null && elapsedAfterSeek >= _screenEndMs!) ||
+            offsetMs >= controller.value.duration.inMilliseconds) {
+          await controller.pause();
+          return;
+        }
       }
+      if (current()) await controller.play();
+    } catch (e) {
+      if (current()) error.value = getIt<GameLobbyController>().onError(e);
     }
-    if (identical(mediaController.value, controller)) await controller.play();
   }
 
-  Future<void> _disposeStale(
-    VideoPlayerController controller,
+  Future<void> _disposeMedia(
+    VideoPlayerController? controller,
     File? file,
   ) async {
     try {
-      await controller.dispose();
+      await controller?.dispose();
     } catch (e) {
       logger.w(e);
     }
@@ -239,6 +262,7 @@ class GameQuestionController {
     _planPlaying = false;
     _planRevision++;
     _screenStartMs = null;
+    _screenEndMs = null;
     final background = _background.values.toList();
     _background.clear();
     await Future.wait(background.map((media) => media.dispose()));
@@ -264,15 +288,32 @@ class GameQuestionController {
       file: file,
     );
     _screenStartMs = position.screenStartMs;
+    final screenItem = position.screen.firstWhereOrNull(
+      (item) =>
+          item.kind == QuestionContentPlanItemKind.file &&
+          item.order == fileOrder,
+    );
+    _screenEndMs = screenItem == null
+        ? null
+        : position.screenStartMs + screenItem.durationMs;
     ignoreWaitingForPlayers = true;
     if (next != questionData.value) {
       questionData.value = next;
     } else if (waitingForPlayers.value) {
       // Loaded before the timeline started (a rejoin): play it from here
       unawaited(onAllPlayersReady());
+    } else {
+      final controller = mediaController.value;
+      if (controller != null) unawaited(_playScreenMedia(controller));
     }
 
-    final nextAt = ContentPlanPosition.nextChangeAt(plan, elapsed);
+    var nextAt = ContentPlanPosition.nextChangeAt(plan, elapsed);
+    final screenEnd = _screenEndMs;
+    if (screenEnd != null &&
+        screenEnd > elapsed &&
+        (nextAt == null || screenEnd < nextAt)) {
+      nextAt = screenEnd;
+    }
     if (nextAt != null) {
       _stepTimer = Timer(
         Duration(milliseconds: nextAt - elapsed),
@@ -368,8 +409,10 @@ class GameQuestionController {
 
   Future<void> clearVideoControllers() async {
     final controller = mediaController.value;
+    final file = _tmpFile;
     mediaController.value = null;
-    await controller?.pause();
+    _tmpFile = null;
+    await _disposeMedia(controller, file);
   }
 
   Future<void> _cacheFile(Uri uri) async {
