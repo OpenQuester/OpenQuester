@@ -60,7 +60,7 @@
   "game_join_closed": "The showman closed this game to new people",
   "game_join_spectators_only": "The showman opened this game to spectators only",
   "nothing_to_undo": "There's no ruling on this question to undo",
-  "question_toggle_only_while_choosing": "Questions can be removed or restored only while someone is picking",
+  "question_remove_only_while_choosing": "Questions can be removed or restored only while someone is picking",
   "buzzer_locked": "You pressed too early. Wait a moment before pressing again",
   "player_not_found": "Player not found",
   "cannot_submit_answer": "You cannot submit answer on this question",

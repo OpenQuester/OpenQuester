@@ -4355,13 +4355,13 @@ export interface components {
          * @example join
          * @enum {string}
          */
-        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-toggle" | "answer-result-undo" | "buzzer-open" | "game-join-mode" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "secret-question-price" | "all-play-stake" | "all-play-answer" | "all-play-review" | "stake-bid-submit" | "media-downloaded";
+        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-remove-restore" | "answer-result-undo" | "buzzer-open" | "game-join-mode-change" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "secret-question-price" | "all-play-stake" | "all-play-answer" | "all-play-review" | "stake-bid-submit" | "media-downloaded";
         /**
          * @description Server-to-client game events emitted on the /games namespace.
          * @example join
          * @enum {string}
          */
-        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-toggle" | "answer-result-undo" | "buzzer-open" | "game-join-mode" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "all-play-start" | "all-play-stake" | "all-play-answer" | "all-play-reviewing" | "all-play-review" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
+        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-remove-restore" | "answer-result-undo" | "buzzer-open" | "game-join-mode-change" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "all-play-start" | "all-play-stake" | "all-play-answer" | "all-play-reviewing" | "all-play-review" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
         /** @description Data sent to all players when player skips a question */
         SocketIOGameSkipEventPayload: {
             /**
@@ -5604,10 +5604,10 @@ export interface components {
          */
         GameJoinMode: "open" | "spectators_only" | "closed";
         /** @description Showman only, while a question is being picked: remove an unplayed question from the board, or put a removed one back */
-        SocketIOQuestionToggleInput: {
+        SocketIOQuestionRemoveRestoreInput: {
             questionId: number;
         };
-        SocketIOQuestionToggleEventPayload: {
+        SocketIOQuestionRemoveRestoreEventPayload: {
             questionId: number;
             /** @description True when the question is now off the board */
             isPlayed: boolean;
@@ -5620,10 +5620,10 @@ export interface components {
             canAnswerAgain: boolean;
         };
         /** @description Showman only */
-        SocketIOGameJoinModeInput: {
+        SocketIOGameJoinModeChangeInput: {
             joinMode: components["schemas"]["GameJoinMode"];
         };
-        SocketIOGameJoinModeEventPayload: {
+        SocketIOGameJoinModeChangeEventPayload: {
             joinMode: components["schemas"]["GameJoinMode"];
         };
         UserRecentGame: {

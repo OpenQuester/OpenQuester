@@ -102,7 +102,7 @@ export function Board() {
                       disabled={editing ? false : q.isPlayed || !can.ok}
                       onClick={() =>
                         editing
-                          ? connection.emit("question-toggle", { questionId: q.id })
+                          ? connection.emit("question-remove-restore", { questionId: q.id })
                           : connection.emit("question-pick", { questionId: q.id })
                       }
                       data-editing={editing || undefined}

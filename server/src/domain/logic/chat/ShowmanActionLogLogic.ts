@@ -28,11 +28,13 @@ export class ShowmanActionLogLogic {
     game: Game
   ): ShowmanLogLine | null {
     if (!result.success) return null;
+
     const actor = game.getPlayer(action.playerId, { fetchDisconnected: true });
     if (actor?.role !== PlayerRole.SHOWMAN) return null;
 
     const entry = this._entry(action, result, game);
     if (!entry) return null;
+
     return {
       message: this._english(entry.action, entry.params),
       system: entry
@@ -63,13 +65,15 @@ export class ShowmanActionLogLogic {
         return entry({ round: game.gameState.currentRound?.name ?? null });
 
       case GameActionType.QUESTION_PICK:
-      case GameActionType.QUESTION_TOGGLE: {
+      case GameActionType.QUESTION_REMOVE_RESTORE: {
         const cell = this._cell(game, payload.questionId);
         if (!cell) return null;
+
         const played = this._isPlayed(game, payload.questionId);
+
         return entry({
           ...cell,
-          ...(action.type === GameActionType.QUESTION_TOGGLE ? { removed: played } : {})
+          ...(action.type === GameActionType.QUESTION_REMOVE_RESTORE ? { removed: played } : {})
         });
       }
 
@@ -77,6 +81,7 @@ export class ShowmanActionLogLogic {
         const data = result.data as QuestionAnswerResultEventPayload | undefined;
         const answer = data?.answerResult;
         if (!answer) return null;
+
         return entry({
           player: name(answer.player),
           points: answer.result,
@@ -87,10 +92,11 @@ export class ShowmanActionLogLogic {
       case GameActionType.ANSWER_RESULT_UNDO: {
         const data = result.data as AnswerResultUndoEventPayload | undefined;
         if (!data) return null;
+
         return entry({ player: name(data.playerId), points: -data.revertedResult });
       }
 
-      case GameActionType.GAME_JOIN_MODE:
+      case GameActionType.GAME_JOIN_MODE_CHANGE:
         return entry({ joinMode: String(payload.joinMode ?? "open") });
 
       case GameActionType.PLAYER_KICK:
@@ -106,6 +112,7 @@ export class ShowmanActionLogLogic {
 
       case GameActionType.PLAYER_ROLE_CHANGE: {
         const target = typeof payload.playerId === "number" ? payload.playerId : action.playerId;
+
         return entry({ player: name(target), role: String(payload.newRole ?? "") });
       }
 
@@ -137,11 +144,13 @@ export class ShowmanActionLogLogic {
         const answer = game.gameState.finalRoundData?.answers.find(
           (a) => a.id === payload.answerId
         );
+
         return entry({ player: name(answer?.playerId), correct: Boolean(payload.isCorrect) });
       }
 
       case GameActionType.THEME_ELIMINATE: {
         const theme = game.gameState.currentRound?.themes.find((t) => t.id === payload.themeId);
+
         return entry({ theme: theme?.name ?? null });
       }
 
@@ -155,6 +164,7 @@ export class ShowmanActionLogLogic {
       const question = theme.questions.find((q) => q.id === questionId);
       if (question) return { theme: theme.name, price: question.price };
     }
+
     return null;
   }
 
@@ -163,6 +173,7 @@ export class ShowmanActionLogLogic {
       const question = theme.questions.find((q) => q.id === questionId);
       if (question) return question.isPlayed;
     }
+
     return false;
   }
 
@@ -184,13 +195,13 @@ export class ShowmanActionLogLogic {
         return `Showman moved on to the next round${p.round ? `: ${p.round}` : ""}`;
       case GameActionType.QUESTION_PICK:
         return `Showman picked ${p.theme} for ${p.price ?? 0}`;
-      case GameActionType.QUESTION_TOGGLE:
+      case GameActionType.QUESTION_REMOVE_RESTORE:
         return `Showman ${p.removed ? "removed" : "restored"} ${p.theme} for ${p.price ?? 0}`;
       case GameActionType.ANSWER_RESULT:
         return `Showman judged ${who}'s answer ${p.answerType === "correct" ? "right" : "wrong"} (${signed(p.points)})`;
       case GameActionType.ANSWER_RESULT_UNDO:
         return `Showman took back the ruling on ${who} (${signed(p.points)})`;
-      case GameActionType.GAME_JOIN_MODE:
+      case GameActionType.GAME_JOIN_MODE_CHANGE:
         return `Showman set who can join: ${p.joinMode}`;
       case GameActionType.PLAYER_KICK:
         return `Showman removed ${who} from the game`;

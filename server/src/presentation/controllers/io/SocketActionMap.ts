@@ -1,6 +1,6 @@
 import {
-  type GameJoinModeInputData,
-  type QuestionToggleInputData
+  type GameJoinModeChangeInputData,
+  type QuestionRemoveRestoreInputData
 } from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
 import {
   type AllPlayAnswerInputData,
@@ -153,10 +153,10 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
       GameValidator.validateTurnPlayerChange(data as TurnPlayerChangeInputData)
   },
   {
-    event: SocketIOGameEvents.QUESTION_TOGGLE,
-    actionType: GameActionType.QUESTION_TOGGLE,
+    event: SocketIOGameEvents.QUESTION_REMOVE_RESTORE,
+    actionType: GameActionType.QUESTION_REMOVE_RESTORE,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
-    inputValidator: (data) => GameValidator.validateQuestionToggle(data as QuestionToggleInputData)
+    inputValidator: (data) => GameValidator.validateQuestionRemoveRestore(data as QuestionRemoveRestoreInputData)
   },
   {
     event: SocketIOGameEvents.ANSWER_RESULT_UNDO,
@@ -169,10 +169,10 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
     gameIdStrategy: GameIdStrategy.FROM_SESSION
   },
   {
-    event: SocketIOGameEvents.GAME_JOIN_MODE,
-    actionType: GameActionType.GAME_JOIN_MODE,
+    event: SocketIOGameEvents.GAME_JOIN_MODE_CHANGE,
+    actionType: GameActionType.GAME_JOIN_MODE_CHANGE,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
-    inputValidator: (data) => GameValidator.validateGameJoinMode(data as GameJoinModeInputData)
+    inputValidator: (data) => GameValidator.validateGameJoinModeChange(data as GameJoinModeChangeInputData)
   },
   {
     event: SocketIOGameEvents.SCORE_CHANGED,

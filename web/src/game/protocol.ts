@@ -417,14 +417,14 @@ export interface ServerEvents {
   };
   /** The receiver of a customPrice secret question picked its price. */
   "secret-question-price": { playerId: number; price: number; questionId: number };
-  "question-toggle": { questionId: number; isPlayed: boolean };
+  "question-remove-restore": { questionId: number; isPlayed: boolean };
   "answer-result-undo": {
     playerId: number;
     revertedResult: number;
     newScore: number;
     canAnswerAgain: boolean;
   };
-  "game-join-mode": { joinMode: GameJoinMode };
+  "game-join-mode-change": { joinMode: GameJoinMode };
   "stake-question-picked": {
     pickerPlayerId: number;
     questionId: number;
@@ -499,10 +499,10 @@ export interface ClientEvents {
   "question-unskip": undefined;
   "secret-question-transfer": { targetPlayerId: number };
   "secret-question-price": { price: number };
-  "question-toggle": { questionId: number };
+  "question-remove-restore": { questionId: number };
   "answer-result-undo": undefined;
   "buzzer-open": undefined;
-  "game-join-mode": { joinMode: GameJoinMode };
+  "game-join-mode-change": { joinMode: GameJoinMode };
   "all-play-stake": { amount: number };
   "all-play-answer": { answerText: string };
   "all-play-review": { playerId: number; isCorrect: boolean };
@@ -547,9 +547,9 @@ export const SERVER_EVENT_NAMES: ServerEventName[] = [
   "secret-question-transfer",
   "secret-question-price",
   "all-play-start",
-  "question-toggle",
+  "question-remove-restore",
   "answer-result-undo",
-  "game-join-mode",
+  "game-join-mode-change",
   "all-play-stake",
   "all-play-answer",
   "all-play-reviewing",

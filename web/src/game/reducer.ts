@@ -666,7 +666,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       };
     }
 
-    case "question-toggle": {
+    case "question-remove-restore": {
       const { questionId, isPlayed } = event.payload;
       const round = s.currentRound;
       if (!round) return session;
@@ -699,7 +699,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       };
     }
 
-    case "game-join-mode":
+    case "game-join-mode-change":
       return patchState(session, {
         joinMode: event.payload.joinMode === "open" ? null : event.payload.joinMode,
       });

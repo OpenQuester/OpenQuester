@@ -94,7 +94,7 @@ export function HostTools({
             id="join-mode"
             value={session.state.joinMode ?? "open"}
             onChange={(e) =>
-              connection.emit("game-join-mode", { joinMode: e.target.value as GameJoinMode })
+              connection.emit("game-join-mode-change", { joinMode: e.target.value as GameJoinMode })
             }
           >
             {(["open", "spectators_only", "closed"] as const).map((m) => (

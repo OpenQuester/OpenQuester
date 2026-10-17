@@ -66,9 +66,9 @@ export enum SocketIOGameEvents {
   ALL_PLAY_START = "all-play-start",
 
   // Showman tools
-  QUESTION_TOGGLE = "question-toggle",
+  QUESTION_REMOVE_RESTORE = "question-remove-restore",
   ANSWER_RESULT_UNDO = "answer-result-undo",
-  GAME_JOIN_MODE = "game-join-mode",
+  GAME_JOIN_MODE_CHANGE = "game-join-mode-change",
   ALL_PLAY_STAKE = "all-play-stake",
   ALL_PLAY_ANSWER = "all-play-answer",
   ALL_PLAY_REVIEWING = "all-play-reviewing",

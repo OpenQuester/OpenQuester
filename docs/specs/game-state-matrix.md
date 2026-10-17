@@ -123,13 +123,13 @@ When changing gameplay state, make sure:
 
 ## Showman tools
 
-- **Remove / restore a question** (`question-toggle`, while choosing): the
+- **Remove / restore a question** (`question-remove-restore`, while choosing): the
   question's `isPlayed` flips. A removed question can't be picked; the round
   still ends only after a question is played or the showman moves on.
 - **Undo the last ruling** (`answer-result-undo`, while the question is open
   or its answer is shown): the score change is reverted. After a wrong answer
   on an open question the player may buzz again.
-- **Who can join** (`game-join-mode`: open / spectators only / closed): blocks
+- **Who can join** (`game-join-mode-change`: open / spectators only / closed): blocks
   newcomers; people already in the game can always come back. Shown in the
   game list as `joinMode`.
 

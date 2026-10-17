@@ -1,11 +1,11 @@
 import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 
-export interface QuestionToggleInputData {
+export interface QuestionRemoveRestoreInputData {
   questionId: number;
 }
 
 /** A question was removed from the board (isPlayed) or put back */
-export interface QuestionToggleEventPayload {
+export interface QuestionRemoveRestoreEventPayload {
   questionId: number;
   isPlayed: boolean;
 }
@@ -19,11 +19,11 @@ export interface AnswerResultUndoEventPayload {
   canAnswerAgain: boolean;
 }
 
-export interface GameJoinModeInputData {
+export interface GameJoinModeChangeInputData {
   joinMode: GameJoinMode;
 }
 
-export interface GameJoinModeEventPayload {
+export interface GameJoinModeChangeEventPayload {
   joinMode: GameJoinMode;
 }
 

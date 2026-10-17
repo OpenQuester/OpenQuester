@@ -8,7 +8,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   AnswerResultUndoEventPayload,
-  QuestionToggleEventPayload
+  QuestionRemoveRestoreEventPayload
 } from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
 import { GameJoinInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
@@ -50,10 +50,10 @@ describe("Showman tools", () => {
       const questionId = (await utils.getGameState(gameId))!.currentRound!.themes[0].questions[0]
         .id!;
 
-      const removed = await scenario.emitAndWaitForEvent<QuestionToggleEventPayload>(
+      const removed = await scenario.emitAndWaitForEvent<QuestionRemoveRestoreEventPayload>(
         playerSockets[0],
-        SocketIOGameEvents.QUESTION_TOGGLE,
-        () => scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_TOGGLE, { questionId })
+        SocketIOGameEvents.QUESTION_REMOVE_RESTORE,
+        () => scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_REMOVE_RESTORE, { questionId })
       );
       expect(removed).toEqual({ questionId, isPlayed: true });
 
@@ -62,16 +62,16 @@ describe("Showman tools", () => {
         scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, { questionId })
       );
 
-      const restored = await scenario.emitAndWaitForEvent<QuestionToggleEventPayload>(
+      const restored = await scenario.emitAndWaitForEvent<QuestionRemoveRestoreEventPayload>(
         showmanSocket,
-        SocketIOGameEvents.QUESTION_TOGGLE,
-        () => scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_TOGGLE, { questionId })
+        SocketIOGameEvents.QUESTION_REMOVE_RESTORE,
+        () => scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_REMOVE_RESTORE, { questionId })
       );
       expect(restored.isPlayed).toBe(false);
 
       // Only the showman may do this
       await scenario.emitAndWaitForEvent(playerSockets[0], SocketIOEvents.ERROR, () =>
-        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_TOGGLE, { questionId })
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_REMOVE_RESTORE, { questionId })
       );
     });
   });
@@ -121,10 +121,10 @@ describe("Showman tools", () => {
     await suite.scenario(async (scenario) => {
       const { showmanSocket, gameId } = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
 
-      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.GAME_JOIN_MODE, () =>
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.GAME_JOIN_MODE_CHANGE, () =>
         scenario
           .actor(showmanSocket)
-          .emit(SocketIOGameEvents.GAME_JOIN_MODE, { joinMode: GameJoinMode.CLOSED })
+          .emit(SocketIOGameEvents.GAME_JOIN_MODE_CHANGE, { joinMode: GameJoinMode.CLOSED })
       );
       const { socket: newcomer } = await utils.createGameClient(app, userRepo);
       const closed = await scenario.emitAndWaitForEvent<{ message: string }>(
@@ -138,10 +138,10 @@ describe("Showman tools", () => {
       );
       expect(closed.message).toBe("The showman closed this game to new people");
 
-      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.GAME_JOIN_MODE, () =>
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.GAME_JOIN_MODE_CHANGE, () =>
         scenario
           .actor(showmanSocket)
-          .emit(SocketIOGameEvents.GAME_JOIN_MODE, { joinMode: GameJoinMode.SPECTATORS_ONLY })
+          .emit(SocketIOGameEvents.GAME_JOIN_MODE_CHANGE, { joinMode: GameJoinMode.SPECTATORS_ONLY })
       );
       const { socket: player } = await utils.createGameClient(app, userRepo);
       await scenario.emitAndWaitForEvent(player, SocketIOEvents.ERROR, () =>
