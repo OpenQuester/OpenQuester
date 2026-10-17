@@ -1,6 +1,6 @@
 import { devices, expect, test, type Page } from "@playwright/test";
 
-import { dockPhase, dockStatus, joinByLink, person, signInAsGuest } from "../support/game";
+import { buzz, dockPhase, dockStatus, joinByLink, person, signInAsGuest } from "../support/game";
 
 /**
  * Smoke test for a deployed site against a real server and a real package:
@@ -54,6 +54,8 @@ test("a full game on the deployed site", async ({ browser }) => {
     }
     const roundName = await roundOf(host.page);
     await host.page.getByRole("button", { name: "Skip to next round" }).click();
+    // Skipping asks for confirmation first
+    await host.page.getByTestId("skip-round-confirm").click();
     // Wait for the next round's board, or the results after the last round.
     await expect(async () => {
       const phase = await dockPhase(host.page).textContent();
@@ -74,7 +76,8 @@ test("a full game on the deployed site", async ({ browser }) => {
 async function playQuestion(host: Page, alice: Page): Promise<void> {
   // Media may take a moment to load for everyone.
   await expect(dockPhase(alice)).toHaveText("Ready to buzz", { timeout: 30_000 });
-  await alice.getByTestId("buzz").click();
+  // Waits out the early (locked) part of "Ready to buzz", so it is no false start
+  await buzz(alice);
   await expect(dockPhase(host)).toHaveText("Answering");
   await host.getByTestId("judge-correct").click();
   await expect(dockPhase(host)).toHaveText("Answer");
