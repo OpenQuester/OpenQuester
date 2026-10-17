@@ -82,7 +82,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
     if (!session) return;
     const next = reduce(session, event);
-    if (next !== session) set({ session: next, pending: null });
+    if (next === session) return;
+    const { pending } = get();
+    set({ session: next, pending: resolvesPending(pending, event, session, next) ? null : pending });
   },
 
   setConnection: (connection) => set({ connection }),
@@ -126,4 +128,26 @@ export function rememberLeftGame(gameId: string): void {
 
 export function forgetLeftGame(gameId: string): void {
   safeStorage.set(LEFT_KEY, JSON.stringify(leftGames().filter((id) => id !== gameId)));
+}
+
+/**
+ * Whether this event answers the command still waiting for the server: the
+ * server echoed it (same event name), or the game moved to another phase.
+ * Chat, readiness and other unrelated updates leave the command waiting, so
+ * its waiting state and duplicate-click guard stay until its own result or an
+ * error arrives.
+ */
+function resolvesPending(
+  pending: { action: string } | null,
+  event: ServerEvent,
+  before: GameSession,
+  after: GameSession,
+): boolean {
+  if (!pending) return false;
+  if (event.type === pending.action) return true;
+  return (
+    before.state.questionState !== after.state.questionState ||
+    before.state.currentRound?.id !== after.state.currentRound?.id ||
+    before.state.isPaused !== after.state.isPaused
+  );
 }
