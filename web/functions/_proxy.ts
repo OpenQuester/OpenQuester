@@ -14,6 +14,16 @@ interface Context {
 
 export async function proxy({ request, env }: Context): Promise<Response> {
   const incoming = new URL(request.url);
+
+  // Only this site may use its session through the proxy. The Origin header is
+  // dropped below (the API would not know this host), so check it here: a page
+  // on another site could otherwise drive the API, sockets included, with the
+  // visitor's cookie.
+  const origin = request.headers.get("Origin");
+  if (origin !== null && origin !== incoming.origin) {
+    return new Response("Cross-site requests are not allowed", { status: 403 });
+  }
+
   const target = new URL(incoming.pathname + incoming.search, env.API_ORIGIN);
 
   const headers = new Headers(request.headers);
