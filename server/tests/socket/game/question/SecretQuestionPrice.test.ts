@@ -13,6 +13,7 @@ import {
   SecretQuestionTransferBroadcastData
 } from "domain/types/socket/game/SecretQuestionTransferData";
 import { User } from "infrastructure/database/models/User";
+import { GameScenario } from "tests/e2e/scenario/GameScenario";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
@@ -45,7 +46,7 @@ describe("Secret question price pick", () => {
   });
 
   /** Two players, the ANY secret question switched to customPrice and handed to player 2 */
-  async function transferCustomPriceQuestion(scenario: Parameters<Parameters<SocketGameTestSuite["scenario"]>[0]>[0]) {
+  async function transferCustomPriceQuestion(scenario: GameScenario) {
     utils.packageTransform = (pkg) => {
       const secret = pkg.rounds
         .flatMap(({ themes }) => themes)

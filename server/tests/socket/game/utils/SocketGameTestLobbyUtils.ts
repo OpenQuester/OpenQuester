@@ -1,6 +1,5 @@
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { GameActionType } from "domain/enums/GameActionType";
-import { GameActionLockService } from "application/services/lock/GameActionLockService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -550,20 +549,12 @@ export class SocketGameTestLobbyUtils {
       () => showmanSocket.emit(SocketIOGameEvents.START)
     );
     await logLine;
-    await this.waitForIdleGameLock(showmanSocket.gameId);
-    return started;
-  }
 
-  private async waitForIdleGameLock(gameId: string | undefined): Promise<void> {
-    if (!gameId) return;
-    const lockService = container.resolve(GameActionLockService);
-    const deadline = Date.now() + 2_000;
-    while (await lockService.isLocked(gameId)) {
-      if (Date.now() > deadline) {
-        throw new Error(`Game ${gameId} still locked after START finished`);
-      }
-      await new Promise((resolve) => setTimeout(resolve, 10));
+    if (showmanSocket.gameId) {
+      await this.eventUtils.waitForActionsComplete(showmanSocket.gameId);
     }
+
+    return started;
   }
 
   public async pauseGame(showmanSocket: GameClientSocket): Promise<void> {
