@@ -52,7 +52,10 @@ function setup(question: EditorQuestion, wide = false) {
 }
 
 it("saves decimal answers and tolerance while keeping prices and bids integral", async () => {
-  const { store } = setup(newQuestion(100, { type: "stake", answerType: "number" }));
+  const { store } = setup(
+    newQuestion(100, { type: "stake", answerType: "number", answerDelay: 7250 }),
+  );
+  expect(screen.queryByLabelText(/Answer window/i)).not.toBeInTheDocument();
   const user = userEvent.setup();
   for (const [label, value] of [
     ["Right number", "3.14"],
@@ -71,12 +74,14 @@ it("saves decimal answers and tolerance while keeping prices and bids integral",
     answerDeviation: 0.01,
     price: 100,
     maxPrice: 500,
+    answerDelay: 7250,
   });
   expect(toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]).toMatchObject({
     answerNumber: 3.14,
     answerDeviation: 0.01,
     price: 100,
     maxPrice: 500,
+    answerDelay: 7250,
   });
 });
 
