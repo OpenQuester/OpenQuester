@@ -104,6 +104,11 @@ export class QuestionActionValidator {
     this._validateBasicRequirements(context);
     this._validateQuestionAction(context);
     this._validateQuestionPicking(context.game);
+
+    // The round's time ran out while someone was picking: no new question
+    if (context.game.isRoundTimeUp()) {
+      throw new ClientError(ClientResponse.ROUND_TIME_UP);
+    }
   }
 
   /**

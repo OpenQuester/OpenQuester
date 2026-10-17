@@ -83,6 +83,7 @@ export enum ClientResponse {
   GAME_JOIN_SPECTATORS_ONLY = "game_join_spectators_only",
   NOTHING_TO_UNDO = "nothing_to_undo",
   QUESTION_REMOVE_ONLY_WHILE_CHOOSING = "question_remove_only_while_choosing",
+  ROUND_TIME_UP = "round_time_up",
   ALL_PLAY_ALREADY_SUBMITTED = "all_play_already_submitted",
   ALL_PLAY_ALREADY_REVIEWED = "all_play_already_reviewed",
   ALL_PLAY_INVALID_STAKE = "all_play_invalid_stake",
