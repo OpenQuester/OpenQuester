@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
@@ -9,7 +9,7 @@ import type { ParsedPackage } from "@/features/upload/types";
 import { loadDraft } from "./drafts";
 import { draftFromParsed } from "./EditorHomePage";
 import { EditorShell } from "./EditorShell";
-import { emptyPackage, toUpload } from "./model";
+import { emptyPackage, newQuestion, newRound, newTheme, toUpload } from "./model";
 import { createEditorStore, EditorContext } from "./store";
 
 vi.mock("@tanstack/react-router", () => ({
@@ -65,3 +65,69 @@ it("keeps a hidden import report available in the publish check", async () => {
   expect(within(report).getAllByRole("listitem")).toHaveLength(3);
   expect(report).toHaveTextContent("photo.png");
 });
+
+it.each(["number", "point"] as const)(
+  "blocks publish until a %s target is supplied",
+  async (answerType) => {
+    vi.stubGlobal("matchMedia", () => ({
+      matches: false,
+      addEventListener() {},
+      removeEventListener() {},
+    }));
+    const md5 = "a".repeat(32);
+    const question = newQuestion(100, {
+      text: "Question?",
+      answerText: "Answer",
+      answerType,
+      questionFiles: [{ md5, type: "image", displayTime: null }],
+    });
+    const pkg = {
+      ...emptyPackage("Quiz"),
+      rounds: [{ ...newRound("Round"), themes: [newTheme("Theme", [question])] }],
+    };
+    const store = createEditorStore({
+      draftId: "target-check",
+      pkg,
+      savedAt: null,
+      media: new Map([
+        [
+          md5,
+          {
+            md5,
+            type: "image",
+            name: "target.png",
+            bytes: new Uint8Array(),
+            url: "https://media.example/target.png",
+          },
+        ],
+      ]),
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    client.setQueryData(["me"], { id: 1, username: "Author", isGuest: false });
+    render(
+      <QueryClientProvider client={client}>
+        <EditorContext.Provider value={store}>
+          <EditorShell />
+        </EditorContext.Provider>
+      </QueryClientProvider>,
+    );
+    await userEvent.setup().click(screen.getByTestId("publish"));
+    expect(screen.getByTestId("publish-confirm")).toBeDisabled();
+    act(() =>
+      store.getState().apply((current) => ({
+        ...current,
+        rounds: [
+          {
+            ...current.rounds[0]!,
+            themes: [
+              newTheme("Theme", [{ ...question, answerNumber: 0, answerPoint: { x: 0, y: 1 } }]),
+            ],
+          },
+        ],
+      })),
+    );
+    expect(screen.getByTestId("publish-confirm")).toBeEnabled();
+  },
+);

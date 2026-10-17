@@ -1,0 +1,107 @@
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, expect, it, vi } from "vitest";
+
+import {
+  emptyPackage,
+  newQuestion,
+  newRound,
+  newTheme,
+  toUpload,
+  type EditorQuestion,
+} from "./model";
+import { QuestionDialog } from "./QuestionDialog";
+import { createEditorStore, EditorContext } from "./store";
+
+afterEach(() => vi.unstubAllGlobals());
+
+function setup(question: EditorQuestion, wide = false) {
+  const listeners = new Set<() => void>();
+  const mediaQuery = {
+    matches: wide,
+    addEventListener: (_event: string, listener: () => void) => listeners.add(listener),
+    removeEventListener: (_event: string, listener: () => void) => listeners.delete(listener),
+  };
+  vi.stubGlobal("matchMedia", () => mediaQuery);
+  const round = { ...newRound("Round"), themes: [newTheme("Theme", [question])] };
+  const store = createEditorStore({
+    draftId: "form-test",
+    pkg: { ...emptyPackage("Quiz"), rounds: [round] },
+    media: new Map(),
+    savedAt: null,
+  });
+  store.getState().edit(question.id);
+  render(
+    <EditorContext.Provider value={store}>
+      <QuestionDialog />
+    </EditorContext.Provider>,
+  );
+  return {
+    store,
+    resize: (matches: boolean) =>
+      act(() => {
+        mediaQuery.matches = matches;
+        for (const listener of [...listeners]) listener();
+      }),
+  };
+}
+
+it("saves decimal answers and tolerance while keeping prices and bids integral", async () => {
+  const { store } = setup(newQuestion(100, { type: "stake", answerType: "number" }));
+  const user = userEvent.setup();
+  for (const [label, value] of [
+    ["Right number", "3.14"],
+    ["Allowed difference", "0.01"],
+    ["Price", "100.4"],
+    ["Highest bid", "500.4"],
+  ]) {
+    const input = screen.getByLabelText(label!);
+    await user.clear(input);
+    await user.type(input, value!);
+  }
+  await user.click(screen.getByTestId("question-save"));
+  const saved = store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!;
+  expect(saved).toMatchObject({
+    answerNumber: 3.14,
+    answerDeviation: 0.01,
+    price: 100,
+    maxPrice: 500,
+  });
+  expect(toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]).toMatchObject({
+    answerNumber: 3.14,
+    answerDeviation: 0.01,
+    price: 100,
+    maxPrice: 500,
+  });
+});
+
+it.each([false, true])(
+  "keeps one settings panel and the selected radio across resize (wide=%s)",
+  async (wide) => {
+    const { store, resize } = setup(
+      newQuestion(100, { type: "secret", transferType: "any" }),
+      wide,
+    );
+    const user = userEvent.setup();
+    const assertUniqueSettings = () => {
+      expect(screen.getAllByRole("radio", { hidden: true })).toHaveLength(2);
+      const ids = [...screen.getByTestId("question-dialog").querySelectorAll("[id]")].map(
+        (element) => element.id,
+      );
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(screen.getByLabelText("Prices the receiver picks from")).toBeVisible();
+    };
+    assertUniqueSettings();
+    expect(screen.getByRole("radio", { name: "Any player" })).toBeChecked();
+    await user.click(screen.getByText("Anyone but the picker"));
+    expect(screen.getByRole("radio", { name: "Anyone but the picker" })).toBeChecked();
+    resize(!wide);
+    assertUniqueSettings();
+    expect(screen.getByRole("radio", { name: "Anyone but the picker" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Any player" })).not.toBeChecked();
+    await user.click(screen.getByTestId("question-save"));
+    expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.transferType).toBe(
+      "exceptCurrent",
+    );
+  },
+);

@@ -183,11 +183,16 @@ function checkQuestion(
   } else if (!q.answerText.trim() && q.answerFiles.length === 0) add("warning", "noAnswer");
 
   // A number or point answer needs its target, or the server couldn't judge it
-  if (type !== "choice" && q.answerType === "number" && q.answerNumber == null)
+  if (type !== "choice" && q.answerType === "number" && !Number.isFinite(q.answerNumber))
     add("critical", "numberAnswerMissing");
   if (type !== "choice" && q.answerType === "point") {
     const hasPicture = q.questionFiles.some((f) => f.type === "image");
-    if (!q.answerPoint || !hasPicture) add("critical", "pointAnswerMissing");
+    const validPoint =
+      q.answerPoint &&
+      [q.answerPoint.x, q.answerPoint.y].every(
+        (coordinate) => Number.isFinite(coordinate) && coordinate >= 0 && coordinate <= 1,
+      );
+    if (!validPoint || !hasPicture) add("critical", "pointAnswerMissing");
   }
   if (
     type === "secret" &&

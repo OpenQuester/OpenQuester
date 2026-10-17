@@ -192,14 +192,15 @@ export function toContent(
 
 function answerCheckOf(q: Json): Partial<UploadQuestion> {
   const deviation = num(q.answerDeviation);
-  if (q.answerType === "number" && num(q.answerNumber) != null) {
+  if (q.answerType === "number") {
     return { answerType: "number", answerNumber: num(q.answerNumber), answerDeviation: deviation };
   }
   const p = q.answerPoint;
-  if (q.answerType === "point" && isObject(p) && num(p.x) != null && num(p.y) != null) {
+  if (q.answerType === "point") {
     return {
       answerType: "point",
-      answerPoint: { x: num(p.x)!, y: num(p.y)! },
+      answerPoint:
+        isObject(p) && num(p.x) != null && num(p.y) != null ? { x: num(p.x)!, y: num(p.y)! } : null,
       answerDeviation: deviation,
     };
   }
