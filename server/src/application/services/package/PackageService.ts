@@ -259,21 +259,8 @@ export class PackageService {
    * Delete package and all related data including files and tags if not used elsewhere
    */
   public async deletePackage(packageId: number): Promise<void> {
-    const { filesDeletedFromDB } = await this.packageRepository.deletePackageData(packageId);
-
-    if (filesDeletedFromDB.length > 0) {
-      try {
-        await this.packageStorageService.deleteFiles(filesDeletedFromDB);
-      } catch (error) {
-        // Log error but don't fail the entire operation
-        this.logger.error(`Failed to delete files from S3 in batch`, {
-          prefix: LogPrefix.S3,
-          filenames: filesDeletedFromDB,
-          packageId,
-          error: error instanceof Error ? error.message : String(error)
-        });
-      }
-    }
+    const { filenames } = await this.packageRepository.deletePackageData(packageId);
+    await this.storageCleanupService.removeIfUnused(filenames);
 
     this.logger.audit(`Package ${packageId} deleted successfully`, {
       prefix: LogPrefix.ADMIN,

@@ -50,6 +50,7 @@ interface PackageQuestionThemeDTO {
  *
  * Redis key: `game:package:{gameId}` → HASH
  *   - `meta` → JSON: package metadata (title, author, etc.)
+ *   - `files` → JSON: media filenames retained until this snapshot is removed
  *   - `round:{order}` → JSON: round metadata with theme structure
  *   - `roundState:{order}` → JSON: precomputed GameStateRoundDTO for gameplay
  *   - `q:{id}` → JSON: full PackageQuestionDTO
@@ -67,9 +68,6 @@ export class PackageStore {
     //
   }
 
-  /**
-   * Get the Redis key for a game's package hash.
-   */
   /** Media files of every game still running, which storage cleanup must not delete. */
   public async getFilenamesInRunningGames(): Promise<Set<string>> {
     const keys = await this.redisRepository.scan(`${PackageStore.PACKAGE_KEY_PREFIX}:*`);
@@ -77,11 +75,12 @@ export class PackageStore {
 
     for (const key of keys) {
       const files = await this.redisRepository.hget(key, PackageStore.FILES_FIELD);
-      if (!files) {
-        continue;
-      }
-
-      for (const filename of JSON.parse(files) as string[]) {
+      // Games created before the file index was introduced still carry the
+      // immutable question data. Read it without extending the snapshot TTL.
+      const referenced = files
+        ? (JSON.parse(files) as string[])
+        : await this.getLegacyFilenames(key);
+      for (const filename of referenced) {
         filenames.add(filename);
       }
     }
@@ -89,6 +88,22 @@ export class PackageStore {
     return filenames;
   }
 
+  private async getLegacyFilenames(key: string): Promise<string[]> {
+    const fields = await this.redisRepository.hgetall(key);
+    const meta = fields.meta ? (JSON.parse(fields.meta) as Pick<PackageDTO, "logo">) : null;
+    const questions = Object.entries(fields)
+      .filter(([field]) => /^q:\d+$/.test(field))
+      .map(([, value]) => JSON.parse(value) as PackageQuestionDTO);
+
+    return [
+      ...PackageMediaLogic.collectFiles({
+        logo: meta?.logo,
+        rounds: [{ themes: [{ questions }] }]
+      }).keys()
+    ];
+  }
+
+  /** Get the Redis key for a game's package hash. */
   public getPackageKey(gameId: string): string {
     return `${PackageStore.PACKAGE_KEY_PREFIX}:${gameId}`;
   }

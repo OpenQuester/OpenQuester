@@ -14,6 +14,8 @@ import { In, type DataSource, type Repository } from "typeorm";
 import { GuestCleanupJob } from "application/jobs/GuestCleanupJob";
 import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { FileSource } from "domain/enums/file/FileSource";
 import { Permissions } from "domain/enums/Permissions";
@@ -552,27 +554,120 @@ describe("Storage limits", () => {
     expect(me.body.usedBytes).toBe(200);
   });
 
-  it("keeps media an edit drops while a running game still shows it", async () => {
-    const { user, cookie } = await testUtils.createAndLoginUser(`storage_game_${Date.now()}`);
-    const content = packageWith(user, [md5(17)]);
-    const created = await upload(cookie, content, { [md5(17)]: 100 });
-    expect(created.status).toBe(200);
+  it.each([
+    { legacy: false, action: "edit" },
+    { legacy: true, action: "edit" },
+    { legacy: false, action: "delete" },
+    { legacy: true, action: "delete" }
+  ])(
+    "keeps active game media after package $action (legacy=$legacy)",
+    async ({ legacy, action }) => {
+      const { user, cookie } = await testUtils.createAndLoginUser(`storage_game_${Date.now()}`);
+      const content = packageWith(user, [md5(17)]);
+      const first = content.rounds[0].themes[0].questions[0];
+      const file = first.questionFiles![0].file;
+      content.logo = { file: { ...file, md5: md5(18) } };
+      first.answerFiles = [{ order: 0, displayTime: 1000, file: { ...file, md5: md5(19) } }];
+      const choice = content.rounds[0].themes
+        .flatMap(({ questions }) => questions)
+        .find((question) => question.type === PackageQuestionType.CHOICE)!;
+      choice.answers![0].file = { ...file, md5: md5(20) };
+      const filenames = [17, 18, 19, 20].map(md5);
+      const created = await upload(
+        cookie,
+        content,
+        Object.fromEntries(filenames.map((name) => [name, 100]))
+      );
+      expect(created.status).toBe(200);
 
-    // A game made before the edit plays from its own copy of the package
-    const packageStore = container.resolve(PackageStore);
-    await packageStore.storePackage("EDIT", { ...content, id: created.body.id, tags: [] });
+      // Seed the immutable snapshot of an already-created game with persisted IDs.
+      const loaded = await http.get(`/v1/packages/${created.body.id}`).set("Cookie", cookie);
+      expect(loaded.status).toBe(200);
+      const packageStore = container.resolve(PackageStore);
+      for (const gameId of ["EDIT", "SECOND"]) {
+        await packageStore.storePackage(gameId, {
+          ...loaded.body,
+          uploadStatus: PackageUploadStatus.READY
+        });
+        if (legacy) {
+          await container
+            .resolve(RedisRepository)
+            .pipeline()
+            .hdel(packageStore.getPackageKey(gameId), "files")
+            .exec();
+        }
+      }
+      const deleteObjects = jest
+        .spyOn(container.resolve(S3ObjectStorage), "deleteObjects")
+        .mockResolvedValue({ errors: [] });
+      try {
+        const changed =
+          action === "delete"
+            ? await http.delete(`/v1/packages/${created.body.id}`).set("Cookie", cookie)
+            : await http
+                .put(`/v1/packages/${created.body.id}`)
+                .send({ content: packageWith(user, [md5(21)]), fileSizes: { [md5(21)]: 100 } })
+                .set("Cookie", cookie);
+        expect(changed.status).toBe(200);
+        for (const filename of filenames) {
+          expect(await fileRepo.countBy({ filename })).toBeGreaterThan(0);
+        }
+        expect(deleteObjects).not.toHaveBeenCalled();
 
-    const edit = await http
-      .put(`/v1/packages/${created.body.id}`)
-      .send({ content: packageWith(user, [md5(18)]), fileSizes: { [md5(18)]: 100 } })
-      .set("Cookie", cookie);
-    expect(edit.status).toBe(200);
-    expect(await fileRepo.count({ where: { filename: md5(17) } })).toBeGreaterThan(0);
+        // Once the last game snapshot is gone, deferred cleanup can delete every kind of media.
+        await packageStore.deletePackage("EDIT");
+        expect(await container.resolve(StorageCleanupService).removeIfUnused(filenames)).toEqual(
+          []
+        );
+        expect(deleteObjects).not.toHaveBeenCalled();
+        await packageStore.deletePackage("SECOND");
+        expect(await container.resolve(StorageCleanupService).removeIfUnused(filenames)).toEqual(
+          expect.arrayContaining(filenames)
+        );
+        for (const filename of filenames) expect(await fileRepo.countBy({ filename })).toBe(0);
+        expect(deleteObjects).toHaveBeenCalledTimes(1);
+      } finally {
+        deleteObjects.mockRestore();
+      }
+    }
+  );
 
-    // Once the game is gone, the next cleanup deletes it
-    await packageStore.deletePackage("EDIT");
-    await container.resolve(StorageCleanupService).removeIfUnused([md5(17)]);
-    expect(await fileRepo.count({ where: { filename: md5(17) } })).toBe(0);
+  it("deleting a package drops only its ownership and retains shared files and legacy avatars", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`delete_shared_${Date.now()}`);
+    const unique = md5(31),
+      shared = md5(32),
+      avatar = md5(33);
+    const first = await upload(cookie, packageWith(user, [unique, shared, avatar]), {
+      [unique]: 100,
+      [shared]: 100,
+      [avatar]: 100
+    });
+    const second = await upload(cookie, packageWith(user, [shared]), { [shared]: 100 });
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const viewer = await testUtils.createAndLoginUser(`avatar_shared_${Date.now()}`);
+    const avatarFile = await fileRepo.findOneByOrFail({ filename: avatar });
+    await userRepo.update(viewer.user.id, { avatar: { id: avatarFile.id } });
+    const deleteObjects = jest
+      .spyOn(container.resolve(S3ObjectStorage), "deleteObjects")
+      .mockResolvedValue({ errors: [] });
+    try {
+      expect(
+        (await http.delete(`/v1/packages/${first.body.id}`).set("Cookie", cookie)).status
+      ).toBe(200);
+      expect(await fileRepo.countBy({ filename: unique })).toBe(0);
+      expect(await fileRepo.countBy({ filename: shared })).toBeGreaterThan(0);
+      expect(await fileRepo.countBy({ filename: avatar })).toBeGreaterThan(0);
+      expect((await http.get("/v1/me/storage").set("Cookie", cookie)).body.usedBytes).toBe(100);
+      expect(
+        (await http.delete(`/v1/packages/${second.body.id}`).set("Cookie", cookie)).status
+      ).toBe(200);
+      expect(await fileRepo.countBy({ filename: shared })).toBe(0);
+      expect(await fileRepo.countBy({ filename: avatar })).toBeGreaterThan(0);
+      expect((await http.get("/v1/me/storage").set("Cookie", cookie)).body.usedBytes).toBe(0);
+    } finally {
+      deleteObjects.mockRestore();
+    }
   });
 
   it("asks for an account before handing out a file upload link", async () => {

@@ -557,7 +557,8 @@ export class PackageRepository {
     });
   }
 
-  public async deletePackageData(packageId: number): Promise<{ filesDeletedFromDB: string[] }> {
+  /** Delete package references; the shared cleanup service checks files after commit. */
+  public async deletePackageData(packageId: number): Promise<{ filenames: string[] }> {
     return this.db.dataSource.transaction(async (transaction) => {
       const packageEntity = await transaction.findOne(Package, {
         where: { id: packageId },
@@ -581,33 +582,13 @@ export class PackageRepository {
       }
 
       const allFiles = this.collectPackageFiles(packageEntity);
-      const fileUsageByFilename = await this.getFileUsageByFilename(
-        transaction,
-        allFiles.map((file) => file.filename)
-      );
       const tagUsageCountsById = await this.getTagUsageCountsById(
         transaction,
         packageEntity.tags?.map((tag) => tag.id) ?? []
       );
-      const filesToDelete = this.resolveFilesToDelete(packageId, allFiles, fileUsageByFilename);
       const tagsToDelete = this.resolveTagsToDelete(packageEntity, tagUsageCountsById);
-      const fileIdsToDeleteUsage = this.resolveFileUsageIdsToDelete(
-        packageEntity.id,
-        filesToDelete,
-        fileUsageByFilename
-      );
-
-      if (fileIdsToDeleteUsage.length > 0) {
-        await transaction
-          .createQueryBuilder()
-          .delete()
-          .from("file_usage")
-          .where("file_id IN (:...fileIds) AND package_id = :packageId", {
-            fileIds: fileIdsToDeleteUsage,
-            packageId: packageEntity.id
-          })
-          .execute();
-      }
+      // The FK uses SET NULL, so remove only this package's ownership rows first.
+      await transaction.delete(FileUsage, { package: { id: packageEntity.id } });
 
       if (tagsToDelete.length > 0) {
         await transaction.delete(
@@ -617,28 +598,7 @@ export class PackageRepository {
       }
 
       await transaction.delete(Package, packageEntity.id);
-
-      const filesDeletedFromDB: string[] = [];
-
-      for (const filename of filesToDelete) {
-        const originalUsageRecords = fileUsageByFilename.get(filename) || [];
-        const nonPackageUsageRecords = originalUsageRecords.filter(
-          (record) => !record.package || record.package.id !== packageEntity.id
-        );
-
-        if (nonPackageUsageRecords.length === 0) {
-          await transaction
-            .createQueryBuilder()
-            .delete()
-            .from("file")
-            .where("filename = :filename", { filename })
-            .execute();
-
-          filesDeletedFromDB.push(filename);
-        }
-      }
-
-      return { filesDeletedFromDB };
+      return { filenames: [...new Set(allFiles.map((file) => file.filename))] };
     });
   }
 
@@ -688,40 +648,6 @@ export class PackageRepository {
     return allFiles;
   }
 
-  private async getFileUsageByFilename(
-    transaction: EntityManager,
-    filenames: string[]
-  ): Promise<Map<string, FileUsage[]>> {
-    const usageMap = new Map<string, FileUsage[]>();
-
-    for (const filename of filenames) {
-      usageMap.set(filename, []);
-    }
-
-    if (filenames.length === 0) {
-      return usageMap;
-    }
-
-    const usageRecords = await transaction.find(FileUsage, {
-      where: {
-        file: {
-          filename: In(filenames)
-        }
-      },
-      relations: ["file", "user", "user.avatar", "package", "package.author"]
-    });
-
-    for (const usage of usageRecords) {
-      if (usage.file?.filename) {
-        const existingUsage = usageMap.get(usage.file.filename) || [];
-        existingUsage.push(usage);
-        usageMap.set(usage.file.filename, existingUsage);
-      }
-    }
-
-    return usageMap;
-  }
-
   private async getTagUsageCountsById(
     transaction: EntityManager,
     tagIds: number[]
@@ -753,28 +679,6 @@ export class PackageRepository {
     return usageMap;
   }
 
-  private resolveFilesToDelete(
-    packageId: number,
-    allFiles: { filename: string; id: number }[],
-    fileUsageByFilename: Map<string, FileUsage[]>
-  ): string[] {
-    const filesToDelete: string[] = [];
-
-    for (const file of allFiles) {
-      const usageRecords = fileUsageByFilename.get(file.filename) || [];
-      const usedByOtherPackages = usageRecords.some(
-        (usage) => usage.package && usage.package.id !== packageId
-      );
-      const usedByUsers = usageRecords.some((usage) => usage.user);
-
-      if (!usedByOtherPackages && !usedByUsers) {
-        filesToDelete.push(file.filename);
-      }
-    }
-
-    return filesToDelete;
-  }
-
   private resolveTagsToDelete(
     packageEntity: Package,
     tagUsageCountsById: Map<number, number>
@@ -789,23 +693,5 @@ export class PackageRepository {
     }
 
     return tagsToDelete;
-  }
-
-  private resolveFileUsageIdsToDelete(
-    packageId: number,
-    filesToDelete: string[],
-    fileUsageByFilename: Map<string, FileUsage[]>
-  ): number[] {
-    const fileIdsToDeleteUsage: number[] = [];
-
-    for (const filename of filesToDelete) {
-      const usageRecords = fileUsageByFilename.get(filename) || [];
-      const packageUsage = usageRecords.find((record) => record.package?.id === packageId);
-      if (packageUsage?.file) {
-        fileIdsToDeleteUsage.push(packageUsage.file.id);
-      }
-    }
-
-    return fileIdsToDeleteUsage;
   }
 }

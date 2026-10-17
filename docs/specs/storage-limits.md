@@ -72,6 +72,11 @@ or deleted. Existing ready packages and running games are not revalidated.
 
 - Package delete, package edit and avatar change delete files that lost
   their last use (`StorageCleanupService.removeIfUnused`).
+- Active game package snapshots retain their media even after the source
+  package is edited or deleted. Cleanup checks the snapshot's `files` index;
+  older snapshots without that index are read from their metadata and full
+  question fields. Reads do not renew the snapshot TTL. Once the last snapshot
+  is removed or expires, the files become eligible for later cleanup.
 - Nightly (`S3FilesCleanupJob`, `CRON_S3_CLEANUP_EXPRESSION`):
   unused files older than 24 hours are deleted, objects with no database row
   are deleted, and every stored file's size is recorded from the listing.
