@@ -84,7 +84,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const next = reduce(session, event);
     if (next === session) return;
     const { pending } = get();
-    set({ session: next, pending: resolvesPending(pending, event, session, next) ? null : pending });
+    set({
+      session: next,
+      pending: resolvesPending(pending, event, session, next) ? null : pending,
+    });
   },
 
   setConnection: (connection) => set({ connection }),

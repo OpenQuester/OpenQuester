@@ -43,9 +43,14 @@ export function Menu({
     setPos({ top: below ? r.bottom + 4 : Math.max(8, r.top - 4 - height), left });
   }, [open, items.length]);
 
+  // The list mounts only once it has a position, so focus it after that
+  useEffect(() => {
+    if (!open || !pos) return;
+    list.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+  }, [open, pos]);
+
   useEffect(() => {
     if (!open) return;
-    list.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
     const close = (e: Event) => {
       if (list.current?.contains(e.target as Node) || button.current?.contains(e.target as Node))
         return;

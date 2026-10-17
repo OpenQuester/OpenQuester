@@ -484,7 +484,8 @@
       "showman": "Waiting for a player to buzz. With no buzz, the answer is revealed when time runs out.",
       "spectator": "Players can buzz now.",
       "timeLeft": "{{seconds}} s left"
-    }
+    },
+    "optionNumber": "Option {{n}}"
   },
   "showman": {
     "panel": "Only you can see this",
@@ -1368,7 +1369,8 @@
   "point": {
     "pick": "Click where the answer is",
     "picture": "Question picture",
-    "prompt": "Click the spot on the picture"
+    "prompt": "Click the spot on the picture",
+    "cursor": "Cursor at {{x}}% from the left, {{y}}% from the top. Arrow keys move it, Enter picks."
   },
   "stats": {
     "title": "Your games",

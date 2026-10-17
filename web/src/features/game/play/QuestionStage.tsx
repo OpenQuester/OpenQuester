@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { timerElapsed } from "@/game/contentPlan";
 import type { GameSession } from "@/game/reducer";
+import { useGameStore } from "@/game/store";
 import {
   canAnswerNow,
   canBuzz,
@@ -227,43 +228,54 @@ function MediaWait() {
 }
 
 /**
- * Milliseconds until a choice question's options appear. With false starts
- * on, the server times them on the question timer just before the buzzer
- * opens (`buzzerOpensAtMs`); otherwise they follow
- * the package's show delay from now.
+ * Milliseconds until a choice question's options appear, on the question's own
+ * timeline: with false starts on, just before the buzzer opens
+ * (`buzzerOpensAtMs`); otherwise after the package's show delay. Both count on
+ * the question timer, so options stay shown once revealed (after a buzz, or
+ * when the component remounts) and wait while the game is paused.
  */
 function optionsShowIn(session: GameSession): number {
   const s = session.state;
-  const q = s.currentQuestion;
-  const opensAt = s.buzzerOpensAtMs ?? 0;
-  if (opensAt > 0 && phaseOf(session) === "showing") {
-    const at = opensAt;
-    return Math.max(0, at - timerElapsed(s.timer, s.isPaused));
-  }
-  if (opensAt > 0) return 0;
-  return Math.max(0, q?.showDelay ?? 0);
+  const phase = phaseOf(session);
+  const showAt = s.buzzerOpensAtMs || (s.currentQuestion?.showDelay ?? 0);
+
+  // Once the question is open and someone answers, the options were shown
+  if (phase !== "showing" && phase !== "media") return 0;
+  if (phase === "media") return showAt;
+
+  return Math.max(0, showAt - timerElapsed(s.timer, s.isPaused));
+}
+
+/** What a pick sends: the option's text, or its number for a picture-only option. */
+function optionAnswer(text: string | null | undefined, index: number): string {
+  return text?.trim() || String(index + 1);
 }
 
 function ChoiceOptions() {
   const { t } = useTranslation();
   const session = useSession();
   const { connection, myId } = useGame();
+  const pending = useGameStore((st) => st.pending);
   const s = session.state;
   const q = s.currentQuestion!;
   const role = myRole(session, myId);
   const answering = s.answeringPlayer === myId && phaseOf(session) === "answering";
   const [visible, setVisible] = useState(() => optionsShowIn(session) <= 0);
   const [picked, setPicked] = useState<number | null>(null);
+  const showIn = optionsShowIn(session);
 
   useEffect(() => {
-    if (visible) return;
-    const id = window.setTimeout(() => setVisible(true), optionsShowIn(session));
+    // A paused game holds its timeline still: nothing appears until it resumes
+    if (visible || s.isPaused) return;
+    const id = window.setTimeout(() => setVisible(true), showIn);
     return () => window.clearTimeout(id);
-  }, [visible, session]);
+  }, [visible, s.isPaused, showIn]);
 
   if (!visible) return <p className="m-0 text-muted">{t("question.optionsSoon")}</p>;
   const answers = [...(q.answers ?? [])].sort((a, b) => a.order - b.order);
   const correct = role === "showman" ? q.answerText?.trim().toLowerCase() : undefined;
+  // Locked while the pick is on its way or accepted; a failed send unlocks it
+  const locked = pending?.action === "answer-submitted" || session.submittedAnswer != null;
 
   return (
     <ol
@@ -277,20 +289,21 @@ function ChoiceOptions() {
           <li key={a.id ?? i}>
             <button
               type="button"
-              disabled={!answering || picked != null}
+              disabled={!answering || locked}
               data-option={i + 1}
+              aria-label={text || t("question.optionNumber", { n: i + 1 })}
               onClick={() => {
                 setPicked(i);
-                connection.emit("answer-submitted", { answerText: text });
+                connection.emit("answer-submitted", { answerText: optionAnswer(a.text, i) });
               }}
               className={cn(
                 "flex min-h-14 w-full items-center gap-3 rounded-md border px-4 py-3 text-left text-lg",
-                picked === i
+                picked === i && locked
                   ? "border-accent bg-accent-surface"
                   : isCorrect
                     ? "border-success-line bg-success-surface"
                     : "border-line-strong bg-surface-2",
-                answering && picked == null ? "hover:border-accent" : "cursor-default",
+                answering && !locked ? "hover:border-accent" : "cursor-default",
               )}
             >
               <kbd className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-surface-3 text-sm">
