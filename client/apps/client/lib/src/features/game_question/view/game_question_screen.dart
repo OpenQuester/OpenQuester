@@ -139,12 +139,14 @@ class _ChoiceOptionsState extends State<_ChoiceOptions> {
       builder: (context, gameData, _) {
         final state = gameData?.gameState;
         final me = gameData?.me;
-        // Options appear when the buzzer opens, after the question has played
-        final opensAt = state?.buzzerOpensAt();
+        // Options appear after the question has played and its show delay
+        final showAt = state?.choiceOptionsShowAt(
+          showDelayMs: controller.choiceShowDelayMs,
+        );
         _showTimer?.cancel();
-        if (opensAt != null) {
+        if (showAt != null) {
           _showTimer = Timer(
-            opensAt.difference(DateTime.now()),
+            showAt.difference(DateTime.now()),
             () => mounted ? setState(() {}) : null,
           );
           return Text(

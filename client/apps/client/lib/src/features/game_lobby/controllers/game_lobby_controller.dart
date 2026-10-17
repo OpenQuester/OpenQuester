@@ -22,6 +22,10 @@ class GameLobbyController {
   /// Options of the current choice question, in order
   final choiceAnswers = ValueNotifier<List<QuestionChoiceAnswers>?>(null);
 
+  /// How long the options of the current choice question wait after the
+  /// question has played. Set together with [choiceAnswers]
+  int choiceShowDelayMs = 0;
+
   /// Until when my buzzer is locked after a false start
   final buzzerLockedUntil = ValueNotifier<DateTime?>(null);
 
@@ -113,6 +117,7 @@ class GameLobbyController {
           SocketIoGameReceiveEvents.buzzerFalseStart.json!,
           _onBuzzerFalseStart,
         )
+        ..on(SocketIoGameReceiveEvents.buzzerOpen.json!, _onBuzzerOpen)
         ..on(
           SocketIoGameReceiveEvents.secretQuestionPicked.json!,
           _onSecretQuestionPicked,
@@ -378,9 +383,9 @@ class GameLobbyController {
 
       await _initChat();
 
-      choiceAnswers.value = _parseChoiceAnswers(
-        (data['gameState'] as Map?)?['currentQuestion'],
-      );
+      final currentQuestion = (data['gameState'] as Map?)?['currentQuestion'];
+      choiceShowDelayMs = _parseChoiceShowDelay(currentQuestion);
+      choiceAnswers.value = _parseChoiceAnswers(currentQuestion);
       _showQuestion();
       final state = gameData.value?.gameState;
       if (state?.questionContentPlan != null &&
@@ -629,6 +634,7 @@ class GameLobbyController {
           buzzerOpensAtMs: questionData.buzzerOpensAtMs,
           buzzerLocks: null,
         );
+    choiceShowDelayMs = _parseChoiceShowDelay(data['data']);
     choiceAnswers.value = _parseChoiceAnswers(data['data']);
     buzzerLockedUntil.value = null;
 
@@ -644,6 +650,15 @@ class GameLobbyController {
 
     // Pass the question to controller to show the question
     _showQuestion();
+  }
+
+  /// Like the options, the choice show delay is not part of the generated
+  /// question model, so it is read from the raw payload.
+  int _parseChoiceShowDelay(dynamic question) {
+    if (question is! Map) return 0;
+    if (question['type'] != QuestionType.choice.json) return 0;
+    final showDelay = question['showDelay'];
+    return showDelay is num && showDelay > 0 ? showDelay.toInt() : 0;
   }
 
   /// Choice options are not part of the generated question model, so they
@@ -683,6 +698,20 @@ class GameLobbyController {
         type: ToastType.warning,
       ),
     );
+  }
+
+  /// The showman opened the buzzer early: presses are no longer false
+  /// starts and running false-start locks are lifted
+  void _onBuzzerOpen(dynamic data) {
+    if (data is! Map) return;
+    final open = SocketIoBuzzerOpenEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+    gameData.value = gameData.value?.copyWith.gameState(
+      buzzerOpensAtMs: open.buzzerOpensAtMs,
+      buzzerLocks: null,
+    );
+    buzzerLockedUntil.value = null;
   }
 
   void _showQuestion({bool dontWaitForPlayers = false}) {

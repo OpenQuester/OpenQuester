@@ -26,4 +26,23 @@ extension GameStateBuzzerX on GameState {
     if (left <= 0) return null;
     return (now ?? DateTime.now()).add(Duration(milliseconds: left));
   }
+
+  /// When the options of a choice question appear on the question timer, or
+  /// null when they already show. They follow the question timeline, not
+  /// the false-start policy: the content plays, then they wait
+  /// [showDelayMs]. A buzzer opening point already includes that wait (or
+  /// comes earlier when the showman opens it), so it is used when set.
+  DateTime? choiceOptionsShowAt({required int showDelayMs, DateTime? now}) {
+    if (answeringPlayer != null || currentQuestion == null || timer == null) {
+      return null;
+    }
+    final opensAtMs = buzzerOpensAtMs?.toInt() ?? 0;
+    final showAtMs = opensAtMs > 0
+        ? opensAtMs
+        : (questionContentPlan?.totalMs ?? 0) + showDelayMs;
+    final elapsed = timerElapsedMs(timer, paused: isPaused, now: now);
+    final left = showAtMs - elapsed;
+    if (left <= 0) return null;
+    return (now ?? DateTime.now()).add(Duration(milliseconds: left));
+  }
 }
