@@ -137,7 +137,7 @@ describe("Buzzer rules", () => {
             actionType: GameActionType.QUESTION_ANSWER
           })
           .waitForCount(1);
-        latePlayer.emit(SocketIOGameEvents.QUESTION_ANSWER);
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.QUESTION_ANSWER);
         await accepted;
         await scenario.assert.waitForActionsComplete({ gameId });
         await scenario.assert.noInbound({
