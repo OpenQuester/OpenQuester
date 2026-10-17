@@ -73,10 +73,12 @@ shows a "The buzzer is open" card with the time left, so it is never empty.
 Flutter: reads `buzzerOpensAtMs` from question data and media status, shows the
 waiting state before the buzzer opens and a countdown while a false-start lock
 runs (`buzzer_timing.dart`, `game_question_screen.dart`), and blocks presses
-during the lock. Remaining gaps: it does not handle `buzzer-open` yet, so the
-showman's "Open buzzer now" does not lift Flutter players' locks or move their
-deadline until the next state update, and choice options there follow the
-buzzer opening rather than `showDelay` when false starts are off.
+during the lock. `buzzer-open` replaces the opening deadline and clears both
+the snapshot's locks and the local false-start countdown without restarting
+content. Choice options use the server content deadline when positive and the
+content timeline plus package `showDelay` when false starts are off.
+Pausing freezes that delay; the answer timer does not hide
+already available options.
 
 ## Input methods
 

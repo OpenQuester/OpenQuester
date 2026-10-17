@@ -24,7 +24,7 @@ class GameLobbyController {
 
   /// How long the options of the current choice question wait after the
   /// question has played. Set together with [choiceAnswers]
-  int choiceShowDelayMs = 0;
+  final choiceShowDelayMs = ValueNotifier<int>(0);
 
   /// Until when my buzzer is locked after a false start
   final buzzerLockedUntil = ValueNotifier<DateTime?>(null);
@@ -340,6 +340,7 @@ class GameLobbyController {
       gameFinished.value = false;
       lobbyEditorMode.value = false;
       choiceAnswers.value = null;
+      choiceShowDelayMs.value = 0;
       buzzerLockedUntil.value = null;
       themeScrollPosition = null;
       _requestedJoinRole = null;
@@ -384,7 +385,7 @@ class GameLobbyController {
       await _initChat();
 
       final currentQuestion = (data['gameState'] as Map?)?['currentQuestion'];
-      choiceShowDelayMs = _parseChoiceShowDelay(currentQuestion);
+      choiceShowDelayMs.value = _parseChoiceShowDelay(currentQuestion);
       choiceAnswers.value = _parseChoiceAnswers(currentQuestion);
       _showQuestion();
       final state = gameData.value?.gameState;
@@ -634,7 +635,7 @@ class GameLobbyController {
           buzzerOpensAtMs: questionData.buzzerOpensAtMs,
           buzzerLocks: null,
         );
-    choiceShowDelayMs = _parseChoiceShowDelay(data['data']);
+    choiceShowDelayMs.value = _parseChoiceShowDelay(data['data']);
     choiceAnswers.value = _parseChoiceAnswers(data['data']);
     buzzerLockedUntil.value = null;
 
@@ -849,6 +850,7 @@ class GameLobbyController {
     final controller = getIt<GameQuestionController>();
     unawaited(controller.stopPlan());
     choiceAnswers.value = null;
+    choiceShowDelayMs.value = 0;
     final currentQuestion = gameData.value?.gameState.currentQuestion;
 
     // Check for empty answer

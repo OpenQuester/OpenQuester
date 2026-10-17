@@ -71,6 +71,9 @@ class _QuestionBottom extends WatchingWidget {
         ) ??
         false;
     final showingQuestion = gameData?.gameState.currentQuestion != null;
+    final choiceShowDelayMs = watchValue(
+      (GameLobbyController e) => e.choiceShowDelayMs,
+    );
     final choiceAnswers = watchValue(
       (GameLobbyController e) => e.choiceAnswers,
     );
@@ -97,7 +100,10 @@ class _QuestionBottom extends WatchingWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _ChoiceOptions(answers: choiceAnswers!),
+        GameChoiceOptions(
+          answers: choiceAnswers!,
+          showDelayMs: choiceShowDelayMs,
+        ),
         bottom,
       ],
     );
@@ -106,16 +112,21 @@ class _QuestionBottom extends WatchingWidget {
 
 /// Answer options of a choice question. The player who pressed the buzzer
 /// picks one; the game checks it.
-class _ChoiceOptions extends StatefulWidget {
-  const _ChoiceOptions({required this.answers});
+class GameChoiceOptions extends StatefulWidget {
+  const GameChoiceOptions({
+    required this.answers,
+    required this.showDelayMs,
+    super.key,
+  });
 
   final List<QuestionChoiceAnswers> answers;
+  final int showDelayMs;
 
   @override
-  State<_ChoiceOptions> createState() => _ChoiceOptionsState();
+  State<GameChoiceOptions> createState() => _ChoiceOptionsState();
 }
 
-class _ChoiceOptionsState extends State<_ChoiceOptions> {
+class _ChoiceOptionsState extends State<GameChoiceOptions> {
   Timer? _showTimer;
   int? _picked;
 
@@ -126,7 +137,7 @@ class _ChoiceOptionsState extends State<_ChoiceOptions> {
   }
 
   @override
-  void didUpdateWidget(covariant _ChoiceOptions oldWidget) {
+  void didUpdateWidget(covariant GameChoiceOptions oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.answers, widget.answers)) _picked = null;
   }
@@ -139,16 +150,18 @@ class _ChoiceOptionsState extends State<_ChoiceOptions> {
       builder: (context, gameData, _) {
         final state = gameData?.gameState;
         final me = gameData?.me;
-        // Options appear after the question has played and its show delay
+        // The choice timeline remains active when false starts are off.
         final showAt = state?.choiceOptionsShowAt(
-          showDelayMs: controller.choiceShowDelayMs,
+          showDelayMs: widget.showDelayMs,
         );
         _showTimer?.cancel();
         if (showAt != null) {
-          _showTimer = Timer(
-            showAt.difference(DateTime.now()),
-            () => mounted ? setState(() {}) : null,
-          );
+          if (!(state?.isPaused ?? true)) {
+            _showTimer = Timer(
+              showAt.difference(DateTime.now()),
+              () => mounted ? setState(() {}) : null,
+            );
+          }
           return Text(
             LocaleKeys.choice_options_soon.tr(),
             style: context.textTheme.bodyLarge,
