@@ -36,7 +36,12 @@ const env = Object.fromEntries(
 const API = `http://localhost:${env.API_PORT}`;
 
 function sh(cmd, args, opts = {}) {
-  const res = spawnSync(cmd, args, { stdio: "inherit", ...opts });
+  // npm and npx are .cmd shims on Windows, which only run through a shell
+  const res = spawnSync(cmd, args, {
+    stdio: "inherit",
+    shell: process.platform === "win32",
+    ...opts,
+  });
   if (res.status !== 0) throw new Error(`${cmd} ${args.join(" ")} failed (${res.status})`);
 }
 
@@ -122,6 +127,7 @@ try {
     await up();
     const args = rest[0] === "--" ? rest.slice(1) : rest;
     const res = spawnSync("npx", ["playwright", "test", ...args], {
+      shell: process.platform === "win32",
       cwd: web,
       stdio: "inherit",
       env: { ...process.env, OQ_API_URL: API },

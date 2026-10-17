@@ -7,8 +7,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const out = join(mkdtempSync(join(tmpdir(), "oq-api-")), "schema.d.ts");
+// npx is a .cmd shim on Windows, which only runs through a shell
 execFileSync("npx", ["openapi-typescript", "../openapi/schema.json", "-o", out], {
   stdio: "ignore",
+  shell: process.platform === "win32",
 });
 if (readFileSync(out, "utf8") !== readFileSync("src/api/schema.d.ts", "utf8")) {
   console.error("src/api/schema.d.ts is stale. Run `npm run gen:api` in web/ and commit it.");

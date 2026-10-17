@@ -3,6 +3,7 @@
 //   node e2e/support/seed.mjs http://localhost:53000
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { deflateSync } from "node:zlib";
 
 const ANSWER_DELAY = 1000;
@@ -351,7 +352,8 @@ export async function seedMediaPackage(base, title = "Media check") {
   return { id, title };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run directly (node e2e/support/seed.mjs …); a file URL compares on every OS
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const base = process.argv[2] ?? "http://localhost:53000";
   seedPackage(base, process.argv[3])
     .then((p) => console.log(`Seeded package ${p.id}: ${p.title}`))
