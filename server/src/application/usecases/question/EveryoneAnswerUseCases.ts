@@ -22,8 +22,12 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 /**
  * Moves an "everyone answers" question on when its condition is met (every
- * stake / answer / ruling is in). Returns the transition's mutations, or
- * none when the question stays where it is.
+ * stake / answer / ruling is in). Returns the transitions' mutations, or none
+ * when the question stays where it is.
+ *
+ * One action can complete two steps: when every answer was judged
+ * automatically, the review is already done the moment it starts, so the
+ * answer is revealed right away instead of waiting for rulings that can't come.
  */
 async function advanceIfDone(
   router: PhaseTransitionRouter,
@@ -36,23 +40,33 @@ async function advanceIfDone(
     return [];
   }
 
-  // Advance bidding to preload, showing to review, or completed review to answer reveal.
-  const transition = await router.tryTransition({
-    game,
-    trigger: TransitionTrigger.CONDITION_MET,
-    triggeredBy: { playerId, isSystem: true },
-    resources: await resources.getQuestionWithTheme(game, allPlay.questionId)
-  });
+  const questionResources = await resources.getQuestionWithTheme(game, allPlay.questionId);
+  const mutations: DataMutation[] = [];
 
-  if (!transition) {
-    return [];
+  for (let step = 0; step < MAX_STEPS_PER_ACTION; step++) {
+    // Bidding to preload, showing to review, or a completed review to the answer reveal
+    const transition = await router.tryTransition({
+      game,
+      trigger: TransitionTrigger.CONDITION_MET,
+      triggeredBy: { playerId, isSystem: true },
+      resources: questionResources
+    });
+
+    if (!transition) {
+      break;
+    }
+
+    mutations.push(
+      ...DataMutationConverter.mutationFromTimerMutations(transition.timerMutations),
+      ...DataMutationConverter.mutationFromServiceBroadcasts(transition.broadcasts, game.id)
+    );
   }
 
-  return [
-    ...DataMutationConverter.mutationFromTimerMutations(transition.timerMutations),
-    ...DataMutationConverter.mutationFromServiceBroadcasts(transition.broadcasts, game.id)
-  ];
+  return mutations;
 }
+
+/** Answers in, then (when everything was judged automatically) the reveal. */
+const MAX_STEPS_PER_ACTION = 2;
 
 function requirePlayer(ctx: ActionExecutionContext<unknown>): number {
   GameStateValidator.validateGameInProgress(ctx.game);

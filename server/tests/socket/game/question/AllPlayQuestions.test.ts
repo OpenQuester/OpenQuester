@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/glob
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { AnswerType } from "domain/enums/package/AnswerType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AllPlayMode } from "domain/types/dto/game/state/AllPlayDataDTO";
@@ -130,6 +131,36 @@ describe("Everyone-answers questions", () => {
       const finish = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH);
       const wrong = await review(scenario, showmanSocket, playerUsers[1].id, false);
       expect(wrong.scoreChange).toBe(0);
+      await finish;
+
+      expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.SHOWING_ANSWER);
+    });
+  });
+
+  it("reveals the answer right away when every answer was judged automatically", async () => {
+    await suite.scenario(async (scenario) => {
+      utils.packageTransform = (pkg) => {
+        const question = pkg.rounds
+          .flatMap(({ themes }) => themes)
+          .flatMap(({ questions }) => questions)
+          .find((q) => q.type === PackageQuestionType.NO_RISK)!;
+        question.subType = PackageQuestionSubType.FOR_EVERYONE;
+        question.answerType = AnswerType.NUMBER;
+        question.answerNumber = 42;
+      };
+      const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        2,
+        0
+      );
+      await utils.startGame(showmanSocket);
+      const question = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
+      await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+
+      // A number answer is judged by the server, so nothing is left for the showman
+      const finish = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH);
+      await answerAll(scenario, showmanSocket, playerSockets, ["42", "7"]);
       await finish;
 
       expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.SHOWING_ANSWER);

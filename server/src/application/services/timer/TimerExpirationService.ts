@@ -134,26 +134,43 @@ export class TimerExpirationService {
       return this._resolveBuzzerWindow(game);
     }
 
+    const questionResources = await this.transitionResourceService.getCurrentQuestionWithTheme(game);
+
     // Transition from SHOWING to SHOWING_ANSWER, or ALL_PLAY_REVIEWING for everyone answers.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true },
-      resources: await this.transitionResourceService.getCurrentQuestionWithTheme(game)
+      resources: questionResources
     });
 
     if (!transitionResult) {
       return { success: false, broadcasts: [] };
     }
 
+    const broadcasts = [...transitionResult.broadcasts];
+    const timerMutations = [...transitionResult.timerMutations];
+
+    // Everyone answers: when time ran out and every answer was judged
+    // automatically, there is nothing left to review, so reveal the answer now
+    if (game.gameState.allPlay) {
+      // Transition from ALL_PLAY_REVIEWING to SHOWING_ANSWER
+      const revealResult = await this.phaseTransitionRouter.tryTransition({
+        game,
+        trigger: TransitionTrigger.CONDITION_MET,
+        triggeredBy: { isSystem: true },
+        resources: questionResources
+      });
+
+      if (revealResult) {
+        broadcasts.push(...revealResult.broadcasts);
+        timerMutations.push(...revealResult.timerMutations);
+      }
+    }
+
     await this.gameService.updateGame(game);
 
-    return {
-      success: true,
-      game,
-      broadcasts: transitionResult.broadcasts,
-      timerMutations: transitionResult.timerMutations
-    };
+    return { success: true, game, broadcasts, timerMutations };
   }
 
   /**
