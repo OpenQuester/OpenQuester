@@ -102,9 +102,16 @@ export async function saveDraft(draft: Draft): Promise<void> {
   const db = await open();
   if (!db) {
     memory.drafts.set(draft.id, draft);
+    releaseSavedMedia(draft);
     return;
   }
   await run("drafts", "readwrite", (s) => s.put(draft));
+  releaseSavedMedia(draft);
+}
+
+/** The draft is stored, so its media is protected by the draft from now on. */
+function releaseSavedMedia(draft: Draft): void {
+  for (const md5 of reachableMedia(draft.pkg)) unsavedMedia.delete(md5);
 }
 
 export async function deleteDraft(id: string): Promise<void> {
@@ -126,9 +133,17 @@ export async function loadMedia(md5s: Iterable<string>): Promise<Map<string, Med
   return out;
 }
 
+/**
+ * Media written for a draft that is not saved yet. Imports and autosaves write
+ * media first and the draft that references it second; cleanup in between
+ * (another draft deleted) must not take those files.
+ */
+const unsavedMedia = new Set<string>();
+
 export async function putMedia(files: Iterable<MediaFile>): Promise<void> {
   const db = await open();
   for (const f of files) {
+    unsavedMedia.add(f.md5);
     if (!db) memory.media.set(f.md5, f);
     else await run("media", "readwrite", (s) => s.put(f));
   }
@@ -140,7 +155,7 @@ export async function collectMedia(): Promise<void> {
   const drafts = db
     ? ((await run<Draft[]>("drafts", "readonly", (s) => s.getAll() as IDBRequest<Draft[]>)) ?? [])
     : [...memory.drafts.values()];
-  const keep = new Set<string>();
+  const keep = new Set<string>(unsavedMedia);
   for (const d of drafts) for (const md5 of reachableMedia(d.pkg)) keep.add(md5);
   if (!db) {
     for (const md5 of memory.media.keys()) if (!keep.has(md5)) memory.media.delete(md5);
