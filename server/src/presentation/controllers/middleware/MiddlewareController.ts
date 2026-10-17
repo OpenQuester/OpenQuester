@@ -100,7 +100,7 @@ export class MiddlewareController {
             return callback(new ClientError("CORS policy: Invalid origin provided"));
           }
         },
-        methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowedHeaders: ["Content-Type", "Authorization"]
       })
     );
