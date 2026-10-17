@@ -59,7 +59,9 @@ export class BuzzerLogic {
   }
 
   /**
-   * Records a press inside the accept window.
+   * Records a press inside the accept window. A press after the window has
+   * closed is left out even when the timer that ends the window has not been
+   * handled yet (a busy queue can deliver it late): the draw stays fair.
    * @returns true when this press opened the window
    */
   public static recordPress(game: Game, playerId: number, now: number = Date.now()): boolean {
@@ -71,7 +73,8 @@ export class BuzzerLogic {
       return true;
     }
 
-    if (!window.presses.includes(playerId)) {
+    const windowClosed = now > window.openedAt + this.acceptWindowMs(game);
+    if (!windowClosed && !window.presses.includes(playerId)) {
       window.presses.push(playerId);
     }
 

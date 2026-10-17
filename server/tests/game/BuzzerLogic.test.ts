@@ -71,6 +71,16 @@ describe("BuzzerLogic", () => {
     expect(game.gameState.buzzerWindow).toBeNull();
   });
 
+  it("leaves out a press that arrives after the accept window closed", () => {
+    const game = showingGame(5_000, 0);
+
+    BuzzerLogic.recordPress(game, 3, NOW);
+    // The window's timer has not been handled yet, but its time has passed
+    BuzzerLogic.recordPress(game, 2, NOW + BUZZER_ACCEPT_WINDOW + 1);
+
+    expect(game.gameState.buzzerWindow).toEqual({ openedAt: NOW, presses: [3] });
+  });
+
   it("leaves out players who left before the draw", () => {
     const game = showingGame(5_000, 0);
     BuzzerLogic.recordPress(game, 2, NOW);
