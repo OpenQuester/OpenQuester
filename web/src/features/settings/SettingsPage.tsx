@@ -175,11 +175,16 @@ function SettingsForm({ user }: { user: User }) {
           <Button
             variant="danger"
             onClick={() =>
-              logout.mutate(undefined, { onSettled: () => void navigate({ to: "/" }) })
+              logout.mutate(undefined, { onSuccess: () => void navigate({ to: "/" }) })
             }
           >
             {t("settings.signOut")}
           </Button>
+          {logout.isError && (
+            <p className="mt-2 text-sm text-danger" role="alert" data-testid="sign-out-failed">
+              {t("settings.signOutFailed")}
+            </p>
+          )}
           {me.data.isGuest && (
             <p className="mt-2 text-sm text-muted">{t("settings.guestSignOutHelp")}</p>
           )}

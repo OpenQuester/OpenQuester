@@ -222,7 +222,8 @@
       "notImage": "That file isn't a picture we can read.",
       "tooBig": "That picture is over 20 MB. Pick a smaller one.",
       "generic": "Couldn't save the photo. Try again."
-    }
+    },
+    "signOutFailed": "Couldn't sign out. Check your connection and try again."
   },
   "join": {
     "notFound": "Game not found",

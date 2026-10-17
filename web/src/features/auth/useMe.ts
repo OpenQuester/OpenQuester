@@ -35,10 +35,9 @@ export function useGuestLogin() {
 export function useLogout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      await api.GET("/v1/auth/logout");
-    },
-    onSettled: () => {
+    // unwrap throws on an HTTP error, so a failed logout keeps the session shown
+    mutationFn: () => unwrap(api.GET("/v1/auth/logout")),
+    onSuccess: () => {
       qc.setQueryData(meKey, null);
       void qc.invalidateQueries();
     },
