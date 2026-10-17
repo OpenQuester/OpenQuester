@@ -7,19 +7,23 @@ import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { buildGame } from "tests/integration/recovery/SingleInstanceRestartRecoveryFixtures";
 
 describe("undoing an answer ruling", () => {
-  it("takes back only what the ruling really changed at the score limit", () => {
+  it.each([
+    { score: SCORE_ABS_LIMIT, requested: 100, applied: 0 },
+    { score: SCORE_ABS_LIMIT - 40, requested: 100, applied: 40 },
+    { score: -SCORE_ABS_LIMIT, requested: -100, applied: 0 },
+    { score: -SCORE_ABS_LIMIT + 40, requested: -100, applied: -40 },
+    { score: 200, requested: 100, applied: 100 },
+    { score: 200, requested: -100, applied: -100 }
+  ])("restores $score after a requested $requested ruling", ({ score, requested, applied }) => {
     const game = buildGame("UNDO", null);
     const player = game.getPlayer(2, { fetchDisconnected: true })!;
-    player.score = SCORE_ABS_LIMIT;
+    player.score = score;
     game.gameState.answeringPlayer = 2;
 
-    // +100 is asked for, but the score is already at the limit
-    const ruling = game.handleQuestionAnswer(
-      100,
-      AnswerResultType.CORRECT,
-      QuestionState.SHOWING_ANSWER
-    );
-    expect(ruling.appliedChange).toBe(0);
+    const answerType = requested > 0 ? AnswerResultType.CORRECT : AnswerResultType.WRONG;
+    const ruling = game.handleQuestionAnswer(requested, answerType, QuestionState.SHOWING_ANSWER);
+    expect(ruling.appliedChange).toBe(applied);
+    expect(player.score).toBe(score + applied);
     game.gameState.answerShowData = {
       answerFiles: null,
       answerText: null,
@@ -29,8 +33,8 @@ describe("undoing an answer ruling", () => {
 
     const undone = ShowmanToolsLogic.undoLastRuling(game);
 
-    expect(undone.result.revertedResult).toBe(0);
-    expect(undone.answerType).toBe(AnswerResultType.CORRECT);
-    expect(player.score).toBe(SCORE_ABS_LIMIT);
+    expect(undone.result.revertedResult).toBe(applied);
+    expect(undone.answerType).toBe(answerType);
+    expect(player.score).toBe(score);
   });
 });
