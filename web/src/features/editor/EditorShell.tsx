@@ -25,7 +25,7 @@ import {
 } from "@/ui/icons";
 
 import { InlineText } from "./InlineText";
-import { downloadBlob, exportOq, safeFileName } from "./media";
+import { downloadBlob, ExportMediaError, exportOq, safeFileName } from "./media";
 import { countQuestions, newRound, reachableMedia } from "./model";
 import { PasteQuestionsDialog, RoundPricesDialog, SearchDialog } from "./EditorTools";
 import { MoveDialog, type MoveTarget } from "./MoveDialog";
@@ -170,7 +170,19 @@ export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
 
   const importWarnings = useEditor((s) => s.importWarnings);
   const dismissImportWarnings = useEditor((s) => s.dismissImportWarnings);
-  const exportDraft = () => downloadBlob(exportOq(pkg, media), `${safeFileName(pkg.title)}.oq`);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const exportDraft = async () => {
+    setExportError(null);
+    try {
+      downloadBlob(await exportOq(pkg, media), `${safeFileName(pkg.title)}.oq`);
+    } catch (error) {
+      setExportError(
+        error instanceof ExportMediaError
+          ? t("editor.exportMediaFailed", { name: error.fileName })
+          : String(error),
+      );
+    }
+  };
 
   const mediaBytes = useMemo(() => {
     let n = 0;
@@ -204,6 +216,11 @@ export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
         <main id="main" className="min-w-0 flex-1 overflow-y-auto">
           <div className="flex flex-col gap-5 px-4 py-5 sm:px-6 lg:px-7">
             <SaveFailedBanner onExport={exportDraft} />
+            {exportError && (
+              <p role="alert" className="m-0 text-sm text-danger" data-testid="export-failed">
+                {exportError}
+              </p>
+            )}
             {importWarnings.length > 0 && (
               <ImportWarnings warnings={importWarnings} onDismiss={dismissImportWarnings} />
             )}

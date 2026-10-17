@@ -1196,7 +1196,8 @@
     },
     "saveFailed": "Changes aren't saved on this device (its storage may be full). They stay in this tab: retry, or export a file to keep them.",
     "saveRetry": "Retry saving",
-    "importReportHide": "Hide this report"
+    "importReportHide": "Hide this report",
+    "exportMediaFailed": "Couldn't export: {{name}} could not be downloaded from storage. Check your connection and try again."
   },
   "panels": {
     "pin": "Pin {{name}}",

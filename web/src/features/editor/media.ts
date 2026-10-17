@@ -72,18 +72,41 @@ export function toParsed(pkg: EditorPackage, media: Map<string, MediaFile>): Par
 
 /**
  * An .oq archive the Flutter editor and this app's upload page both read:
- * content.json plus files/<md5>. Media is stored, not recompressed.
+ * content.json plus files/<md5>. Media is stored, not recompressed. Files
+ * opened from a published package live in storage, so they are downloaded
+ * for the archive; if one can't be, the export fails instead of leaving
+ * questions without their media.
  */
-export function exportOq(pkg: EditorPackage, media: Map<string, MediaFile>): Blob {
+export async function exportOq(pkg: EditorPackage, media: Map<string, MediaFile>): Promise<Blob> {
   const parsed = toParsed(pkg, media);
   const entries: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {
     "content.json": new TextEncoder().encode(JSON.stringify(parsed.content, null, 2)),
   };
-  for (const f of parsed.files.values())
-    // Files opened from a published package stay in storage and aren't downloaded.
-    if (f.bytes.byteLength > 0) entries[`files/${f.md5}`] = [f.bytes, { level: 0 }];
+
+  for (const f of parsed.files.values()) {
+    const bytes = f.bytes.byteLength > 0 ? f.bytes : await downloadStored(f);
+    entries[`files/${f.md5}`] = [bytes, { level: 0 }];
+  }
+
   const zip = zipSync(entries, { level: 6 });
   return new Blob([zip as BlobPart], { type: "application/zip" });
+}
+
+/** Thrown when a stored file can't be fetched for an export. */
+export class ExportMediaError extends Error {
+  constructor(public readonly fileName: string) {
+    super(`Couldn't download ${fileName}`);
+    this.name = "ExportMediaError";
+  }
+}
+
+async function downloadStored(file: MediaFile): Promise<Uint8Array> {
+  if (!file.url) throw new ExportMediaError(file.name);
+
+  const res = await fetch(file.url).catch(() => null);
+  if (!res?.ok) throw new ExportMediaError(file.name);
+
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 export function downloadBlob(blob: Blob, name: string) {
