@@ -31,27 +31,42 @@ describe("Round time limit", () => {
     await suite?.stop();
   });
 
-  it("refuses a new question once the round's time is up", () =>
-    suite.scenario(async (scenario) => {
-      utils.gameSettings = {
-        ...INSTANT_BUZZER_SETTINGS,
-        timers: { ...INSTANT_BUZZER_SETTINGS.timers, roundMs: 5 * MINUTE_MS }
-      };
-      const { showmanSocket, gameId } = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      await utils.startGame(showmanSocket);
-      const questionId = await utils.getFirstAvailableQuestionId(gameId);
+  it.each(["showman", "player"])(
+    "refuses a late pick by the %s and permits the next round",
+    (picker) =>
+      suite.scenario(async (scenario) => {
+        utils.gameSettings = {
+          ...INSTANT_BUZZER_SETTINGS,
+          timers: { ...INSTANT_BUZZER_SETTINGS.timers, roundMs: 5 * MINUTE_MS }
+        };
+        const { showmanSocket, playerSockets, playerUsers, gameId } =
+          await utils.setupGameTestEnvironment(userRepo, app, 1, 0, false);
+        await utils.startGame(showmanSocket);
+        const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-      // The round started six minutes ago
-      const game = await utils.getGameFromGameService(gameId);
-      game.gameState.roundStartedAt = Date.now() - 6 * MINUTE_MS;
-      await utils.updateGame(game);
+        // The round started six minutes ago
+        const game = await utils.getGameFromGameService(gameId);
+        const roundId = game.gameState.currentRound!.id;
+        game.gameState.currentTurnPlayerId = playerUsers[0].id;
+        game.gameState.roundStartedAt = Date.now() - 6 * MINUTE_MS;
+        await utils.updateGame(game);
 
-      const error = await scenario.emitAndWaitForEvent<{ message: string }>(
-        showmanSocket,
-        SocketIOEvents.ERROR,
-        () => scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, { questionId })
-      );
-      expect(error.message).toContain("time is up");
-      expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.CHOOSING);
-    }));
+        const socket = picker === "showman" ? showmanSocket : playerSockets[0];
+        const error = await scenario.emitAndWaitForEvent<{ message: string }>(
+          socket,
+          SocketIOEvents.ERROR,
+          () => scenario.actor(socket).emit(SocketIOGameEvents.QUESTION_PICK, { questionId })
+        );
+        expect(error.message).toContain("time is up");
+        expect(await utils.getGameState(gameId)).toMatchObject({
+          questionState: QuestionState.CHOOSING,
+          currentQuestion: null,
+          currentRound: { id: roundId }
+        });
+        await utils.progressToNextRound(showmanSocket);
+        expect((await utils.getGameState(gameId))!.currentRound!.id).not.toBe(roundId);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+        expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.SHOWING);
+      })
+  );
 });
