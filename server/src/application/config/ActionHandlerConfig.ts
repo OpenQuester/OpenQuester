@@ -2,6 +2,7 @@ import { GameActionHandlerRegistry } from "application/registries/GameActionHand
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { GameService } from "application/services/game/GameService";
 import { PlayerLeaveService } from "application/services/game/PlayerLeaveService";
+import { RoundProgressionService } from "application/services/game/RoundProgressionService";
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
 import { SecretQuestionService } from "application/services/question/SecretQuestionService";
 import { StakeQuestionService } from "application/services/question/StakeQuestionService";
@@ -138,10 +139,13 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     new UnpauseGameUseCase(socketGameTimerService, gameService, socketGameValidationService)
   );
 
-  registry.register(
-    GameActionType.NEXT_ROUND,
-    new NextRoundUseCase(packageStore, socketGameTimerService, gameProgressionCoordinator)
+  const roundProgressionService = new RoundProgressionService(
+    packageStore,
+    socketGameTimerService,
+    gameProgressionCoordinator
   );
+
+  registry.register(GameActionType.NEXT_ROUND, new NextRoundUseCase(roundProgressionService));
 
   // =====================================
   // Player Management Handlers
@@ -183,7 +187,12 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   registry.register(
     GameActionType.QUESTION_PICK,
-    new QuestionPickUseCase(packageStore, phaseTransitionRouter, transitionResourceService)
+    new QuestionPickUseCase(
+      packageStore,
+      phaseTransitionRouter,
+      transitionResourceService,
+      roundProgressionService
+    )
   );
 
   registry.register(

@@ -3,7 +3,7 @@ import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { MINUTE_MS } from "domain/constants/time";
-import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { User } from "infrastructure/database/models/User";
 import { INSTANT_BUZZER_SETTINGS } from "tests/socket/game/utils/SocketGameTestLobbyUtils";
@@ -32,7 +32,7 @@ describe("Round time limit", () => {
   });
 
   it.each(["showman", "player"])(
-    "refuses a late pick by the %s and permits the next round",
+    "ends the round when the %s picks after its time is up",
     (picker) =>
       suite.scenario(async (scenario) => {
         utils.gameSettings = {
@@ -51,20 +51,20 @@ describe("Round time limit", () => {
         game.gameState.roundStartedAt = Date.now() - 6 * MINUTE_MS;
         await utils.updateGame(game);
 
+        // The late pick moves everyone to the next round instead of a question
         const socket = picker === "showman" ? showmanSocket : playerSockets[0];
-        const error = await scenario.emitAndWaitForEvent<{ message: string }>(
-          socket,
-          SocketIOEvents.ERROR,
-          () => scenario.actor(socket).emit(SocketIOGameEvents.QUESTION_PICK, { questionId })
+        await scenario.emitAndWaitForEvent(playerSockets[0], SocketIOGameEvents.NEXT_ROUND, () =>
+          scenario.actor(socket).emit(SocketIOGameEvents.QUESTION_PICK, { questionId })
         );
-        expect(error.message).toContain("time is up");
-        expect(await utils.getGameState(gameId)).toMatchObject({
+
+        const nextState = await utils.getGameState(gameId);
+        expect(nextState).toMatchObject({
           questionState: QuestionState.CHOOSING,
-          currentQuestion: null,
-          currentRound: { id: roundId }
+          currentQuestion: null
         });
-        await utils.progressToNextRound(showmanSocket);
-        expect((await utils.getGameState(gameId))!.currentRound!.id).not.toBe(roundId);
+        expect(nextState!.currentRound!.id).not.toBe(roundId);
+
+        // The new round has its own clock: picking starts a question again
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
         expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.SHOWING);
       })
