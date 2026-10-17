@@ -120,6 +120,27 @@ describe("Player stats, leaderboard and question reports", () => {
     });
   });
 
+  it("adds up scores beyond the int range in totals and the leaderboard", async () => {
+    await suite.scenario(async () => {
+      const big = await signIn("big");
+      const now = Date.now();
+      const score = 2_100_000_000;
+      await finishedGame(new Date(now - 2 * DAY_MS), [{ user: big.user, score, placement: 1 }]);
+      await finishedGame(new Date(now - DAY_MS), [{ user: big.user, score, placement: 1 }]);
+
+      const mine = await http.get("/v1/stats/me").set("Cookie", big.cookie);
+      expect(mine.status).toBe(HttpStatus.OK);
+      expect((mine.body as UserStatsDTO).totalScore).toBe(2 * score);
+
+      const board = await http.get("/v1/stats/leaderboard?limit=100").set("Cookie", big.cookie);
+      expect(board.status).toBe(HttpStatus.OK);
+      const entry = (board.body.data as LeaderboardEntryDTO[]).find(
+        (row) => row.user.id === big.user.id
+      );
+      expect(entry?.totalScore).toBe(2 * score);
+    });
+  });
+
   it("ranks the leaderboard by wins, then score, and filters by period", async () => {
     await suite.scenario(async () => {
       const carol = await signIn("carol");

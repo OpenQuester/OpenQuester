@@ -33,6 +33,9 @@ export interface LeaderboardRow {
   correctAnswers: number;
 }
 
+/** A row as PostgreSQL returns it: bigint aggregates come back as strings. */
+type RawRow<T> = { [K in keyof T]: T[K] | string };
+
 /** Aggregates over saved player game stats for profiles and the leaderboard. */
 @singleton()
 export class PlayerStatsQueryRepository {
@@ -51,15 +54,23 @@ export class PlayerStatsQueryRepository {
       .createQueryBuilder("stats")
       .select("COUNT(*)::int", "gamesPlayed")
       .addSelect("COUNT(*) FILTER (WHERE stats.placement = 1)::int", "wins")
-      .addSelect("COALESCE(SUM(stats.final_score), 0)::int", "totalScore")
+      .addSelect("COALESCE(SUM(stats.final_score), 0)::bigint", "totalScore")
       .addSelect("COALESCE(MAX(stats.final_score), 0)::int", "bestScore")
-      .addSelect("COALESCE(SUM(stats.questions_answered), 0)::int", "questionsAnswered")
-      .addSelect("COALESCE(SUM(stats.correct_answers), 0)::int", "correctAnswers")
-      .addSelect("COALESCE(SUM(stats.wrong_answers), 0)::int", "wrongAnswers")
+      .addSelect("COALESCE(SUM(stats.questions_answered), 0)::bigint", "questionsAnswered")
+      .addSelect("COALESCE(SUM(stats.correct_answers), 0)::bigint", "correctAnswers")
+      .addSelect("COALESCE(SUM(stats.wrong_answers), 0)::bigint", "wrongAnswers")
       .where("stats.user_id = :userId", { userId })
-      .getRawOne<UserTotalsRow>();
+      .getRawOne<RawRow<UserTotalsRow>>();
 
-    return totals!;
+    return {
+      gamesPlayed: Number(totals!.gamesPlayed),
+      wins: Number(totals!.wins),
+      totalScore: Number(totals!.totalScore),
+      bestScore: Number(totals!.bestScore),
+      questionsAnswered: Number(totals!.questionsAnswered),
+      correctAnswers: Number(totals!.correctAnswers),
+      wrongAnswers: Number(totals!.wrongAnswers)
+    };
   }
 
   public async getRecentGames(userId: number, limit: number): Promise<RecentGameRow[]> {
@@ -92,8 +103,8 @@ export class PlayerStatsQueryRepository {
       .addSelect("avatar.filename", "avatarFilename")
       .addSelect("COUNT(*)::int", "gamesPlayed")
       .addSelect("COUNT(*) FILTER (WHERE stats.placement = 1)::int", "wins")
-      .addSelect("COALESCE(SUM(stats.final_score), 0)::int", "totalScore")
-      .addSelect("COALESCE(SUM(stats.correct_answers), 0)::int", "correctAnswers")
+      .addSelect("COALESCE(SUM(stats.final_score), 0)::bigint", "totalScore")
+      .addSelect("COALESCE(SUM(stats.correct_answers), 0)::bigint", "correctAnswers")
       .where("user.is_guest = :excluded", { excluded: false })
       .andWhere("user.is_deleted = :excluded")
       .andWhere("user.is_banned = :excluded")
@@ -110,6 +121,18 @@ export class PlayerStatsQueryRepository {
       query.andWhere("game.finished_at >= :since", { since });
     }
 
-    return query.getRawMany<LeaderboardRow>();
+    const rows = await query.getRawMany<RawRow<LeaderboardRow>>();
+
+    // Sums are bigint (two big scores overflow int), which arrives as a string
+    return rows.map((row) => ({
+      userId: Number(row.userId),
+      username: String(row.username),
+      name: row.name === null ? null : String(row.name),
+      avatarFilename: row.avatarFilename === null ? null : String(row.avatarFilename),
+      gamesPlayed: Number(row.gamesPlayed),
+      wins: Number(row.wins),
+      totalScore: Number(row.totalScore),
+      correctAnswers: Number(row.correctAnswers)
+    }));
   }
 }
