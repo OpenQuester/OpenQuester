@@ -49,9 +49,7 @@ describe("Dock", () => {
 
   it("only offers Pass for questions that accept it before buzzing", async () => {
     const emit = renderDock(showing(), ALICE);
-    await userEvent.click(
-      screen.getByRole("button", { name: "Pass on this question" }),
-    );
+    await userEvent.click(screen.getByRole("button", { name: "Pass on this question" }));
     expect(emit).toHaveBeenCalledWith("question-skip");
 
     act(() =>
