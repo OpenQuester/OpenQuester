@@ -2826,7 +2826,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
+                    "error": {
                       "type": "string"
                     }
                   }
@@ -2841,7 +2841,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
+                    "error": {
                       "type": "string"
                     }
                   }
@@ -2900,7 +2900,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
+                    "error": {
                       "type": "string"
                     }
                   }
@@ -2982,7 +2982,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
+                    "error": {
                       "type": "string"
                     }
                   }
@@ -2997,7 +2997,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
+                    "error": {
                       "type": "string"
                     }
                   }

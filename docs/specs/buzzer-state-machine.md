@@ -69,7 +69,14 @@ opens (still pressable, so spamming is penalised), with the reason under the
 button, and a lock countdown after a false start. The showman's dock has
 "Open buzzer now" while it is closed. Once the content has played, the stage
 shows a "The buzzer is open" card with the time left, so it is never empty.
-Flutter does not show these states yet.
+
+Flutter: reads `buzzerOpensAtMs` from question data and media status, shows the
+waiting state before the buzzer opens and a countdown while a false-start lock
+runs (`buzzer_timing.dart`, `game_question_screen.dart`), and blocks presses
+during the lock. Remaining gaps: it does not handle `buzzer-open` yet, so the
+showman's "Open buzzer now" does not lift Flutter players' locks or move their
+deadline until the next state update, and choice options there follow the
+buzzer opening rather than `showDelay` when false starts are off.
 
 ## Input methods
 

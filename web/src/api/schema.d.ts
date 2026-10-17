@@ -2737,7 +2737,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            message?: string;
+                            error?: string;
                         };
                     };
                 };
@@ -2748,7 +2748,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            message?: string;
+                            error?: string;
                         };
                     };
                 };
@@ -2809,7 +2809,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            message?: string;
+                            error?: string;
                         };
                     };
                 };
@@ -2882,7 +2882,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            message?: string;
+                            error?: string;
                         };
                     };
                 };
@@ -2893,7 +2893,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": {
-                            message?: string;
+                            error?: string;
                         };
                     };
                 };
