@@ -85,9 +85,11 @@ test.describe("layout on this device", () => {
       expect(box.right).toBeLessThanOrEqual(viewport.width);
     }
 
-    // A missing media file is reported, not shown as an empty question.
+    // A missing media file is reported, not shown as an empty question. A
+    // player whose media failed doesn't report ready, so the question opens
+    // after the server's 30 s media timeout.
     await page.getByTestId("board-cell").first().click();
-    await expect(page.getByTestId("media-failed")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("media-failed")).toBeVisible({ timeout: 45_000 });
     await expect(host.page.getByTestId("media-failed")).toBeVisible();
     await expectNoHorizontalScroll(page);
     await shot(host.page, `broken-media-showman`);
