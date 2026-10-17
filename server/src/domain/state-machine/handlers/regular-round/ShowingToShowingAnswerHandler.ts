@@ -44,6 +44,12 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
       return false;
     }
 
+    // An "everyone answers" question goes to review instead, unless the
+    // showman skips it
+    if (game.gameState.allPlay && trigger !== TransitionTrigger.USER_ACTION) {
+      return false;
+    }
+
     if (
       !TransitionGuards.canTransitionInRegularRound(game, QuestionState.SHOWING)
     ) {
@@ -83,6 +89,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
 
     game.setQuestionState(QuestionState.SHOWING_ANSWER);
     game.gameState.currentQuestion = null;
+    game.gameState.questionContentPlan = null;
     game.gameState.answeredPlayers = null;
     game.gameState.skippedPlayers = null;
     game.gameState.answeringPlayer = null;
@@ -90,6 +97,8 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
       answerFiles: question?.answerFiles ?? null,
       answerText: question?.answerText ?? null,
       nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+      answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question),
+      ...ShowAnswerLogic.revealDetails(question),
     };
 
     return {

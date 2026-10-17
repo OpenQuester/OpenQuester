@@ -4,6 +4,7 @@
  */
 
 import { NotificationType } from "domain/enums/NotificationType";
+import { ChatSystemEntry } from "domain/types/dto/game/chat/ChatSystemEntry";
 import { ChatMessageGamePayloadDTO } from "domain/types/dto/game/chat/ChatMessageEventPayloadDTO";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
@@ -97,6 +98,10 @@ export interface GameLeaveBroadcastData {
 
 export interface GameStartBroadcastData {
   currentRound: GameStateRoundDTO;
+  /** Player who picks the first question */
+  currentTurnPlayerId: number | null;
+  /** When the first round started (epoch ms), for the round time limit */
+  roundStartedAt?: number | null;
 }
 
 export interface GamePauseBroadcastData {
@@ -131,6 +136,8 @@ export interface ChatMessageBroadcastData {
   timestamp: Date;
   user: number;
   message: string;
+  /** Set on lines the server wrote itself (showman action log) */
+  system?: ChatSystemEntry;
 }
 
 /**
@@ -172,6 +179,12 @@ export interface PlayerRestrictionBroadcastData {
 
 export interface PlayerKickBroadcastData {
   playerId: number;
+}
+
+/** Sent to everyone in a game an admin or moderator closed. */
+export interface GameClosedBroadcastData {
+  gameId: string;
+  reason: "moderator";
 }
 
 export interface PlayerScoreChangeBroadcastData {

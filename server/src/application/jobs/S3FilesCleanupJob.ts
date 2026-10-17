@@ -4,10 +4,13 @@ import { CRON_EXP_2_AM_DAILY } from "domain/constants/cron";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { S3StorageService } from "application/services/storage/S3StorageService";
+import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
 
 /**
- * Daily cleanup job for orphaned S3 files
- * Removes files that exist in S3 but not in the database
+ * Daily storage maintenance:
+ * 1. Deletes files nothing uses any more (no usage, no reference, older than a day)
+ * 2. Removes objects in S3 that have no database row
+ * 3. Records each stored file's real size, which the storage limits count
  */
 export class S3FilesCleanupJob extends BaseCronJob {
   public readonly name = "s3-files-cleanup-job";
@@ -18,6 +21,7 @@ export class S3FilesCleanupJob extends BaseCronJob {
     logger: ILogger,
     private readonly s3Service: S3StorageService,
     private readonly fileService: FileService,
+    private readonly storageCleanupService: StorageCleanupService,
     cronExpression: string = CRON_EXP_2_AM_DAILY
   ) {
     super(logger);
@@ -59,6 +63,9 @@ export class S3FilesCleanupJob extends BaseCronJob {
     let batchNumber = 0;
 
     try {
+      const unused = await this.storageCleanupService.removeAllUnused();
+      this.logger.info(`Removed ${unused} unused files`, { prefix: LogPrefix.S3_CLEANUP });
+
       // Process S3 files in batches
       for await (const s3Batch of this.s3Service.listS3FilesInBatches(BATCH_SIZE)) {
         batchNumber++;
@@ -81,6 +88,16 @@ export class S3FilesCleanupJob extends BaseCronJob {
         // Check which filenames exist in database
         const existingFilenames = await this.fileService.getExistingFilenames(filenames);
         const existingSet = new Set(existingFilenames);
+
+        // Storage reports the real size of every file it has: keep it
+        const sizes = new Map<string, number>();
+        for (const file of filteredBatch) {
+          if (existingSet.has(file.filename) && typeof file.size === "number") {
+            sizes.set(file.filename, file.size);
+          }
+        }
+
+        await this.storageCleanupService.recordVerifiedSizes(sizes);
 
         // Find orphaned files in this batch
         const batchOrphaned = filteredBatch.filter((file) => !existingSet.has(file.filename));

@@ -1,3 +1,4 @@
+import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { UserService } from "application/services/user/UserService";
 import { GAME_CHAT_HISTORY_RETRIEVAL_LIMIT } from "domain/constants/game";
@@ -64,7 +65,7 @@ export class JoinGameUseCase
 
     // 3. Fetch user entity from DB (1 RT)
     const user = await this.userService.get(userData.id, {
-      select: ["id", "username"],
+      select: ["id", "username", "name"],
       relations: ["avatar"],
       relationSelects: {
         avatar: ["id", "filename"]
@@ -92,8 +93,10 @@ export class JoinGameUseCase
     });
 
     // 5. Mutate in-memory game state (0 RT)
+    // Players see each other by display name; guests always have one, while
+    // their generated username (guest_001) means nothing to other players.
     const player = await game.addPlayer(
-      { id: user.id, username: user.username, avatar: user.avatar ?? null },
+      { id: user.id, username: user.name?.trim() || user.username, avatar: user.avatar ?? null },
       payload.role,
       payload.targetSlot
     );
@@ -107,7 +110,7 @@ export class JoinGameUseCase
 
     // 7. Build output payload
     const gameJoinData: GameJoinOutputData = {
-      meta: { title: game.title },
+      meta: { title: game.title, settings: game.settings },
       players: game.players.map((p) => p.toDTO()),
       gameState: this.buildJoinVisibleGameState(game, player.role),
       chatMessages,
@@ -173,8 +176,17 @@ export class JoinGameUseCase
     const gameState = game.gameState;
     const currentRound = this.buildJoinVisibleCurrentRound(gameState, joinedRole);
     const finalRoundData = this.buildJoinVisibleFinalRoundData(gameState);
+    // Others' stakes and answers stay hidden from players until the review
+    const allPlay =
+      gameState.allPlay && joinedRole !== PlayerRole.SHOWMAN
+        ? AllPlayLogic.hideFromPlayers(gameState.allPlay, gameState.questionState)
+        : gameState.allPlay;
 
-    if (currentRound === gameState.currentRound && finalRoundData === gameState.finalRoundData) {
+    if (
+      currentRound === gameState.currentRound &&
+      finalRoundData === gameState.finalRoundData &&
+      allPlay === gameState.allPlay
+    ) {
       return gameState;
     }
 
@@ -182,6 +194,7 @@ export class JoinGameUseCase
       ...gameState,
       currentRound,
       finalRoundData,
+      allPlay,
     };
   }
 

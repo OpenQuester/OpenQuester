@@ -1,3 +1,4 @@
+import { GameSettingsLogic } from "domain/logic/game/GameSettingsLogic";
 import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
@@ -17,22 +18,25 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { GameMapper } from "domain/mappers/GameMapper";
+import { GameListItemMapper } from "domain/mappers/GameListItemMapper";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
-import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import { type PackageFileDTO } from "domain/types/dto/package/PackageFileDTO";
+import { type PackageMetaDTO } from "domain/types/dto/package/PackageMetaDTO";
 import { asUserId } from "domain/types/ids";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
-import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
+import {
+  type GamePaginationOpts,
+  type GameSortField
+} from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
 import { PasswordUtils } from "domain/utils/PasswordUtils";
 import { GameRedisValidator } from "domain/validators/GameRedisValidator";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
-import { PackageMetaDTO, PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { ValueUtils } from "domain/utils/ValueUtils";
@@ -77,6 +81,7 @@ export class GameRepository {
     }
 
     const validatedData = GameRedisValidator.validateRedisData(data);
+
     return GameMapper.deserializeGameHash(validatedData);
   }
 
@@ -93,6 +98,7 @@ export class GameRepository {
     if (warningTtlSeconds > 0) {
       pipeline.set(warningKey, "1", "PX", warningTtlSeconds * SECOND_MS);
     }
+
     await pipeline.exec();
   }
 
@@ -117,6 +123,7 @@ export class GameRepository {
     if (warningTtlSeconds > 0) {
       pipeline.set(warningKey, "1", "PX", warningTtlSeconds * SECOND_MS);
     }
+
     await pipeline.exec();
   }
 
@@ -129,13 +136,14 @@ export class GameRepository {
 
   public async getGame(gameId: string, updatedTtl?: number): Promise<GameListItemDTO> {
     const game = await this.getGameEntity(gameId, updatedTtl);
-    return this.gameToListItemDTO(game);
+
+    return this.getGameListItem(game);
   }
 
   public async getAllGames(
     paginationOpts: GamePaginationOpts
   ): Promise<PaginatedResult<GameListItemDTO[]>> {
-    const { ids, total } = await this.gameIndexManager.findGamesByIndex<Game>(
+    const { ids, total } = await this.gameIndexManager.findGamesByIndex<GameSortField>(
       {
         createdAtMax: paginationOpts.createdAtMax,
         createdAtMin: paginationOpts.createdAtMin,
@@ -178,7 +186,7 @@ export class GameRepository {
             return null;
           }
 
-          return this._parseGameToListItemDTO(game, createdBy, packMeta);
+          return GameListItemMapper.toDTO(game, createdBy, packMeta);
         })
       )
     ).filter((g): g is GameListItemDTO => g !== null);
@@ -255,7 +263,8 @@ export class GameRepository {
       roundsCount: counts.roundsCount,
       questionsCount: counts.questionsCount,
       players: [],
-      gameState: initialGameState
+      gameState: initialGameState,
+      settings: GameSettingsLogic.normalize(gameData.settings)
     });
 
     // Store immutable package data separately
@@ -271,6 +280,7 @@ export class GameRepository {
       const warningKey = this.getGameExpirationWarningKey(gameId);
       pipeline.set(warningKey, "1", "PX", warningTtlSeconds * SECOND_MS);
     }
+
     await pipeline.exec();
 
     const packMeta: PackageMetaDTO = {
@@ -291,7 +301,7 @@ export class GameRepository {
           : String(packageDTO.createdAt)
     };
 
-    return this._parseGameToListItemDTO(game, createdBy, packMeta);
+    return GameListItemMapper.toDTO(game, createdBy, packMeta);
   }
 
   public async deleteGame(user: number, gameId: string) {
@@ -319,7 +329,7 @@ export class GameRepository {
     await this.clearExpirationWarning(gameId);
   }
 
-  public async gameToListItemDTO(game: Game): Promise<GameListItemDTO> {
+  public async getGameListItem(game: Game): Promise<GameListItemDTO> {
     const createdBy = await this.userRepository.get(game.createdBy, {
       select: ["id", "username"],
       relations: []
@@ -339,7 +349,7 @@ export class GameRepository {
       throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
-    return this._parseGameToListItemDTO(game, createdBy, packMeta);
+    return GameListItemMapper.toDTO(game, createdBy, packMeta);
   }
 
   /**
@@ -510,56 +520,13 @@ export class GameRepository {
     return timerAdditional ? `${TIMER_NSP}:${timerAdditional}:${gameId}` : `${TIMER_NSP}:${gameId}`;
   }
 
-  private async _parseGameToListItemDTO(
-    game: Game,
-    createdBy: ShortUserInfo,
-    packMeta: PackageMetaDTO
-  ): Promise<GameListItemDTO> {
-    const currentRound = game.gameState.currentRound ? game.gameState.currentRound.order + 1 : null;
-
-    const currentQuestion = game.gameState.currentQuestion ? game.gameState.currentQuestion : null;
-
-    return {
-      id: game.id,
-      title: game.title,
-      ageRestriction: game.ageRestriction,
-      isPrivate: game.isPrivate,
-      maxPlayers: game.maxPlayers,
-      players: game.players.map((p) => ({
-        id: p.meta.id,
-        role: p.role,
-        slot: p.gameSlot
-      })),
-      createdBy: {
-        id: createdBy.id,
-        username: createdBy.username
-      },
-      startedAt: game.startedAt,
-      finishedAt: game.finishedAt,
-      createdAt: game.createdAt,
-      currentRound,
-      currentQuestion: currentQuestion?.id ?? null,
-      package: {
-        id: packMeta.id!,
-        title: packMeta.title,
-        description: packMeta.description,
-        ageRestriction: packMeta.ageRestriction as AgeRestriction,
-        author: { id: packMeta.author.id, username: packMeta.author.username },
-        createdAt: new Date(packMeta.createdAt),
-        language: packMeta.language,
-        logo: packMeta.logo as { file: PackageFileDTO } | null | undefined,
-        roundsCount: game.roundsCount ?? 0,
-        questionsCount: game.questionsCount ?? 0,
-        tags: packMeta.tags.map((t) => t.tag)
-      }
-    };
-  }
-
   private _generateGameId() {
     let result = "";
+
     for (let i = 0; i < GAME_ID_CHARACTERS_LENGTH; i++) {
       result += GAME_ID_CHARACTERS[Math.floor(Math.random() * GAME_ID_CHARACTERS.length)];
     }
+
     return result;
   }
 
@@ -578,6 +545,7 @@ export class GameRepository {
           const validatedData = GameRedisValidator.validateRedisData(
             data as Record<string, string>
           );
+
           return GameMapper.deserializeGameHash(validatedData);
         } catch (error) {
           this.logger.warn("Skipping invalid game Redis data", {

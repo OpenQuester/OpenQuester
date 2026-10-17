@@ -68,6 +68,26 @@ describe("Socket IO Self Role Change", () => {
       });
     });
 
+    it("should treat a null playerId as a change of your own role", async () => {
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const playerUserId = setup.playerUsers[0].id;
+
+        const roleChangeEventPromise = scenario.waitForEvent<PlayerRoleChangeBroadcastData>(
+          setup.playerSockets[0],
+          SocketIOGameEvents.PLAYER_ROLE_CHANGE
+        );
+        scenario.actor(setup.playerSockets[0]).emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+          playerId: null,
+          newRole: PlayerRole.SPECTATOR
+        });
+
+        const roleData = await roleChangeEventPromise;
+        expect(roleData.playerId).toBe(playerUserId);
+        expect(roleData.newRole).toBe(PlayerRole.SPECTATOR);
+      });
+    });
+
     it("should allow showman to step down to player", async () => {
       await suite.scenario(async (scenario) => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);

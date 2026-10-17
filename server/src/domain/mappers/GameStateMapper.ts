@@ -29,6 +29,8 @@ export class GameStateMapper {
           : QuestionState.CHOOSING,
       currentRound: round,
       isPaused: false,
+      roundStartedAt: Date.now(),
+      roundPausedMs: 0,
       answeredPlayers: null,
       answeringPlayer: null,
       currentQuestion: null,

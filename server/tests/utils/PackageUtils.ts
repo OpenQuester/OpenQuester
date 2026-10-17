@@ -72,8 +72,10 @@ export class PackageUtils {
                 isHidden: false
               } satisfies PackageQuestionDTO,
               {
+                // customPrice adds a price pick after the transfer; tests that
+                // need it switch this question over (SecretQuestionPrice.test.ts)
                 type: PackageQuestionType.SECRET,
-                subType: PackageQuestionSubType.CUSTOM_PRICE,
+                subType: PackageQuestionSubType.SIMPLE,
                 transferType: PackageQuestionTransferType.ANY,
                 order: 2,
                 price: 300,
@@ -81,7 +83,7 @@ export class PackageUtils {
                 answerText: "Secret answer",
                 answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
                 showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
-                allowedPrices: [100, 200, 300],
+                allowedPrices: null,
                 isHidden: false
               } satisfies PackageQuestionDTO,
               {

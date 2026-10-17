@@ -1,3 +1,4 @@
+import { nonEmpty } from "domain/utils/textList";
 import {
   Column,
   Entity,
@@ -12,6 +13,7 @@ import {
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
@@ -30,6 +32,8 @@ export interface PackageImport {
   author: User;
   logo?: File | null;
   tags: PackageTag[];
+  authors?: string[] | null;
+  sources?: string[] | null;
 }
 
 @Entity("package")
@@ -56,8 +60,27 @@ export class Package {
   @Column({ type: "text", nullable: true })
   description?: string | null;
 
+  /** Who wrote the package (names, not accounts) */
+  @Column({ type: "text", array: true, nullable: true })
+  authors?: string[] | null;
+
+  @Column({ type: "text", array: true, nullable: true })
+  sources?: string[] | null;
+
   @Column({ type: "enum", enum: AgeRestriction, default: AgeRestriction.NONE })
   age_restriction!: AgeRestriction;
+
+  /** Ready once storage holds every media file the package uses. */
+  @Column({ type: "varchar", length: 16, default: PackageUploadStatus.READY })
+  upload_status!: PackageUploadStatus;
+
+  /** When the package last became `uploading`; the background check skips old ones. */
+  @Column({ type: "timestamp with time zone", nullable: true })
+  upload_started_at!: Date | null;
+
+  /** Fingerprint of the imported file's content, to spot the same package uploaded twice. */
+  @Column({ type: "varchar", length: 64, nullable: true })
+  source_hash!: string | null;
 
   @ManyToOne(() => File, { nullable: true })
   @JoinColumn({ name: "logo_file" })
@@ -88,6 +111,8 @@ export class Package {
     this.age_restriction = data.ageRestriction;
     this.author = data.author;
     this.tags = data.tags;
+    this.authors = nonEmpty(data.authors);
+    this.sources = nonEmpty(data.sources);
 
     if (data.logo) {
       this.logo = data.logo;
@@ -126,8 +151,11 @@ export class Package {
       createdAt: this.created_at,
       description: this.description,
       language: this.language,
+      authors: this.authors ?? null,
+      sources: this.sources ?? null,
       logo: this.logoDTO(fileUrlBuilder),
-      tags: this.tags.map((tag) => tag.toDTO())
+      tags: this.tags.map((tag) => tag.toDTO()),
+      uploadStatus: this.upload_status ?? PackageUploadStatus.READY
     };
   }
 
@@ -142,6 +170,7 @@ export class Package {
         missing: "rounds:notLoaded"
       });
     }
+
     if (this.rounds.length < 1) {
       throw new ClientError(ClientResponse.PACKAGE_CORRUPTED, undefined, {
         id: this.id,
@@ -165,9 +194,12 @@ export class Package {
       createdAt: this.created_at,
       description: this.description,
       language: this.language,
+      authors: this.authors ?? null,
+      sources: this.sources ?? null,
       logo: logoDTO,
       rounds: roundsDTO,
-      tags: tagsDTO
+      tags: tagsDTO,
+      uploadStatus: this.upload_status ?? PackageUploadStatus.READY
     };
 
     if (options.fetchIds) {

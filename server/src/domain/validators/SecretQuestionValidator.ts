@@ -37,6 +37,10 @@ export class SecretQuestionValidator {
       throw new ClientError(ClientResponse.SECRET_QUESTION_DATA_NOT_FOUND);
     }
 
+    if (!secretData.transferDecisionPhase) {
+      throw new ClientError(ClientResponse.CANNOT_TRANSFER_SECRET_QUESTION);
+    }
+
     const isShowmanOverride = currentPlayer.role === PlayerRole.SHOWMAN;
     const isPickerPlayer = secretData.pickerPlayerId === currentPlayer.meta.id;
 
@@ -55,6 +59,37 @@ export class SecretQuestionValidator {
 
     if (targetPlayerId !== undefined) {
       this._validateTransferTarget(game, secretData, targetPlayerId);
+    }
+  }
+
+  /**
+   * Validates the price pick of a customPrice secret question: only its
+   * receiver picks, and only one of the allowed prices.
+   */
+  public static validatePriceSelection(
+    context: Omit<SecretQuestionContext, "targetPlayerId"> & { price: number }
+  ): void {
+    const { game, currentPlayer, secretData, price } = context;
+
+    if (!currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    if (game.gameState.questionState !== QuestionState.SECRET_TRANSFER) {
+      throw new ClientError(ClientResponse.GAME_NOT_IN_SECRET_TRANSFER_PHASE);
+    }
+
+    const selection = secretData?.priceSelection;
+    if (!selection) {
+      throw new ClientError(ClientResponse.SECRET_QUESTION_DATA_NOT_FOUND);
+    }
+
+    if (selection.playerId !== currentPlayer.meta.id) {
+      throw new ClientError(ClientResponse.CANNOT_PICK_SECRET_QUESTION_PRICE);
+    }
+
+    if (!selection.allowedPrices.includes(price)) {
+      throw new ClientError(ClientResponse.INVALID_SECRET_QUESTION_PRICE);
     }
   }
 

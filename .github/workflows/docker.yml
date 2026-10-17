@@ -30,6 +30,8 @@ jobs:
           filters: |
             server:
               - 'server/**'
+              - 'web/**'
+              - 'docker/**'
       - name: Check if we should force jobs to run
         id: should_force
         run: echo "should_force=${{ github.event_name == 'workflow_dispatch' || github.workflow == 'Release' || github.event_name == 'push' }}" >> "$GITHUB_OUTPUT"
@@ -79,5 +81,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            VITE_DISCORD_CLIENT_ID=${{ vars.WEB_DISCORD_CLIENT_ID }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

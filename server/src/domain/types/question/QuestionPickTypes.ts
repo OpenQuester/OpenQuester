@@ -8,6 +8,8 @@ export enum QuestionPickType {
   NORMAL = "normal",
   SECRET = "secret",
   STAKE = "stake",
+  /** Stake for everyone: hidden stakes first (broadcast by the transition) */
+  ALL_PLAY = "allPlay",
 }
 
 /**

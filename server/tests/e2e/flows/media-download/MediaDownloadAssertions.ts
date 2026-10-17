@@ -1,6 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { GAME_QUESTION_ANSWER_TIME, MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
+import {
+  CONTENT_IMAGE_TIME,
+  GAME_QUESTION_ANSWER_TIME,
+  MEDIA_DOWNLOAD_TIMEOUT
+} from "domain/constants/game";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { type PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
@@ -60,7 +64,8 @@ export function assertMediaDownloadStatus(
   status: MediaDownloadStatusBroadcastData,
   playerId: number,
   allPlayersReady: boolean,
-  timerDurationMs: number | null = allPlayersReady ? GAME_QUESTION_ANSWER_TIME : null
+  /** Expected question timer; defaults to content timeline + answer window */
+  timerDurationMs: number | null = allPlayersReady ? questionTimerFor(status) : null
 ): void {
   if (
     status?.playerId !== playerId ||
@@ -79,7 +84,28 @@ export function assertMediaDownloadStatus(
     }
   } else {
     assertFreshTimer(status.timer, timerDurationMs, "final media readiness");
+    if (status.contentPlan === undefined) {
+      throw new Error(
+        `Final media readiness expected a contentPlan (object or null), received ${JSON.stringify(status)}`
+      );
+    }
   }
+}
+
+/**
+ * Question timer for the scenario fixture question (one image file, no
+ * displayTime): the image step, then the answer window.
+ */
+export const IMAGE_QUESTION_TIMER_MS = CONTENT_IMAGE_TIME + GAME_QUESTION_ANSWER_TIME;
+
+/** Question timer implied by a completion status: content timeline + answer window. */
+export function questionTimerFor(
+  status: MediaDownloadStatusBroadcastData,
+  answerTimeMs: number = GAME_QUESTION_ANSWER_TIME
+): number {
+  const contentMs = status.contentPlan?.totalMs ?? 0;
+  const opensAtMs = status.buzzerOpensAtMs ?? 0;
+  return answerTimeMs + Math.max(contentMs, opensAtMs);
 }
 
 export function assertFreshTimer(

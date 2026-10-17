@@ -97,6 +97,32 @@ export class UserService {
     return user.toDTO(this.fileUrlBuilder);
   }
 
+  /** Load a projection for several existing, undeleted users in one query. */
+  /**
+   * Several users in one query; throws 404 when one is missing. Deleted
+   * users count as missing unless `deletedAllowedIds` lists them (restoring
+   * an account has to find it first).
+   */
+  public async getManyRaw(
+    ids: userId[],
+    selectOptions: SelectOptions<User>,
+    deletedAllowedIds: userId[] = []
+  ): Promise<User[]> {
+    const users = await this.userRepository.findByIds(ids, {
+      ...selectOptions,
+      select: [...new Set<keyof User>(["id", "is_deleted", ...selectOptions.select])]
+    });
+    const deletedAllowed = new Set<number>(deletedAllowedIds);
+    const foundIds = new Set(
+      users.filter((user) => !user.is_deleted || deletedAllowed.has(user.id)).map((user) => user.id)
+    );
+    if (ids.some((id) => !foundIds.has(id))) {
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+
+    return users;
+  }
+
   public async getRaw(userId: userId, selectOptions?: SelectOptions<User>): Promise<User> {
     this.logger.debug("Retrieving user with options: ", {
       prefix: LogPrefix.USER,
@@ -205,6 +231,7 @@ export class UserService {
   public async delete(userId: userId) {
     const result = await this._performDelete(userId);
     await this._forceLeaveAllGames(userId);
+
     return result;
   }
 
@@ -302,8 +329,9 @@ export class UserService {
     // Update user permissions (replace all)
     user.permissions = newPermissions;
 
-    // Save the user with updated permissions
-    await this.userRepository.update(user);
+    // save(), not update(): update() writes columns only and drops the
+    // many-to-many permission links
+    await this.userRepository.save(user);
 
     this.logger.audit("User permissions updated", {
       prefix: LogPrefix.USER,
@@ -340,13 +368,16 @@ export class UserService {
   private async _forceLeaveAllGames(userId: number): Promise<void> {
     const socketId = await this.socketUserDataService.findSocketIdByUserId(userId);
 
-    if (!socketId) return;
+    if (!socketId) {
+      return;
+    }
 
     const sessionAndGame = await this.gamePipelineService.fetchSessionAndGame(socketId);
 
     if (!sessionAndGame) {
       // User is connected but not in any game — just disconnect
       this.realtimeGateway.disconnectSocket(socketId);
+
       return;
     }
 
@@ -376,6 +407,7 @@ export class UserService {
     }
 
     const mutedUntilDate = new Date(mutedUntil);
+
     return mutedUntilDate.getTime() > Date.now() ? mutedUntilDate.toISOString() : null;
   }
 
@@ -418,6 +450,7 @@ export class UserService {
         prefix: LogPrefix.USER,
         userId
       });
+
       throw new ClientError(ClientResponse.USER_NOT_FOUND);
     }
 
@@ -471,6 +504,7 @@ export class UserService {
       if (!ValueUtils.isValidDate(date)) {
         throw new ClientError(ClientResponse.BAD_DATE_FORMAT);
       }
+
       user.birthday = date;
     }
 

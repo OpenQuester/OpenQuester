@@ -10,28 +10,15 @@ import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
+import { type PackageMetaDTO } from "domain/types/dto/package/PackageMetaDTO";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
-
-/**
- * Metadata stored under the "meta" field of a package hash
- *
- * Meta data is immutable, stored in separate key for optimization purpose (separation immutable and mutable data)
- * Helps to avoid serialization/deserialization of the whole package on every action
- */
-export interface PackageMetaDTO {
-  id?: number;
-  title: string;
-  description?: string | null;
-  author: ShortUserInfo;
-  ageRestriction: string;
-  language?: string | null;
-  logo?: { file: unknown } | null;
-  tags: { tag: string }[];
-  createdAt: string;
-}
+import { PackageMediaLogic } from "domain/logic/package/PackageMediaLogic";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { HttpStatus } from "domain/enums/HttpStatus";
+import { ClientError } from "domain/errors/ClientError";
 
 interface PackageThemeStoreDTO {
   id: number;
@@ -63,6 +50,7 @@ interface PackageQuestionThemeDTO {
  *
  * Redis key: `game:package:{gameId}` → HASH
  *   - `meta` → JSON: package metadata (title, author, etc.)
+ *   - `files` → JSON: media filenames retained until this snapshot is removed
  *   - `round:{order}` → JSON: round metadata with theme structure
  *   - `roundState:{order}` → JSON: precomputed GameStateRoundDTO for gameplay
  *   - `q:{id}` → JSON: full PackageQuestionDTO
@@ -71,6 +59,7 @@ interface PackageQuestionThemeDTO {
 @singleton()
 export class PackageStore {
   private static readonly PACKAGE_KEY_PREFIX = `${GAME_NAMESPACE}:package`;
+  private static readonly FILES_FIELD = "files";
 
   constructor(
     private readonly redisRepository: RedisRepository,
@@ -79,9 +68,42 @@ export class PackageStore {
     //
   }
 
-  /**
-   * Get the Redis key for a game's package hash.
-   */
+  /** Media files of every game still running, which storage cleanup must not delete. */
+  public async getFilenamesInRunningGames(): Promise<Set<string>> {
+    const keys = await this.redisRepository.scan(`${PackageStore.PACKAGE_KEY_PREFIX}:*`);
+    const filenames = new Set<string>();
+
+    for (const key of keys) {
+      const files = await this.redisRepository.hget(key, PackageStore.FILES_FIELD);
+      // Games created before the file index was introduced still carry the
+      // immutable question data. Read it without extending the snapshot TTL.
+      const referenced = files
+        ? (JSON.parse(files) as string[])
+        : await this.getLegacyFilenames(key);
+      for (const filename of referenced) {
+        filenames.add(filename);
+      }
+    }
+
+    return filenames;
+  }
+
+  private async getLegacyFilenames(key: string): Promise<string[]> {
+    const fields = await this.redisRepository.hgetall(key);
+    const meta = fields.meta ? (JSON.parse(fields.meta) as Pick<PackageDTO, "logo">) : null;
+    const questions = Object.entries(fields)
+      .filter(([field]) => /^q:\d+$/.test(field))
+      .map(([, value]) => JSON.parse(value) as PackageQuestionDTO);
+
+    return [
+      ...PackageMediaLogic.collectFiles({
+        logo: meta?.logo,
+        rounds: [{ themes: [{ questions }] }]
+      }).keys()
+    ];
+  }
+
+  /** Get the Redis key for a game's package hash. */
   public getPackageKey(gameId: string): string {
     return `${PackageStore.PACKAGE_KEY_PREFIX}:${gameId}`;
   }
@@ -95,6 +117,15 @@ export class PackageStore {
     pack: PackageDTO,
     ttl: number = GAME_TTL_IN_SECONDS
   ): Promise<void> {
+    const filenames = [...PackageMediaLogic.collectFiles(pack).keys()];
+    // Check the exact snapshot: content can be replaced after the earlier
+    // ID-based readiness check, before creation or package switching loads it.
+    if (pack.uploadStatus === PackageUploadStatus.UPLOADING) {
+      throw new ClientError(ClientResponse.PACKAGE_UPLOAD_UNFINISHED, HttpStatus.CONFLICT, {
+        missing: filenames.length,
+        total: filenames.length
+      });
+    }
     const key = this.getPackageKey(gameId);
     const fields: Record<string, string> = {};
 
@@ -112,6 +143,10 @@ export class PackageStore {
         pack.createdAt instanceof Date ? pack.createdAt.toISOString() : String(pack.createdAt)
     };
     fields["meta"] = JSON.stringify(meta);
+
+    // Every media file the game may show: storage cleanup must keep them while
+    // the game runs, even if the package is edited and stops using them
+    fields[PackageStore.FILES_FIELD] = JSON.stringify(filenames);
 
     // Store each round and its questions
     for (const round of pack.rounds) {
@@ -252,6 +287,7 @@ export class PackageStore {
     const questionResults = await this.redisRepository.hmget(key, questionFields);
 
     const questionMap = new Map<number, PackageQuestionDTO>();
+
     for (let i = 0; i < questionIds.length; i++) {
       const questionRaw = questionResults[i];
       if (questionRaw) {

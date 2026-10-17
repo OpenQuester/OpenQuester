@@ -1,18 +1,16 @@
 import { GameService } from "application/services/game/GameService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
-import { ClientResponse } from "domain/enums/ClientResponse";
-import { ClientError } from "domain/errors/ClientError";
+import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import { DataMutationConverter } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
-import { PlayerRole } from "domain/types/game/PlayerRole";
+import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import {
   type EmptyInputData,
   type GameUnpauseBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
-import { GameValidator } from "domain/validators/GameValidator";
 
 /**
  * Handles unpausing a game.
@@ -25,19 +23,16 @@ export class UnpauseGameUseCase
 {
   constructor(
     private readonly socketGameTimerService: SocketGameTimerService,
-    private readonly gameService: GameService
+    private readonly gameService: GameService,
+    private readonly socketGameValidationService: SocketGameValidationService
   ) {}
 
   public async execute(
     ctx: ActionExecutionContext<EmptyInputData>
   ): Promise<ActionHandlerResult<GameUnpauseBroadcastData>> {
-    GameValidator.validatePlayerAuthenticated(ctx);
+    await this.socketGameValidationService.validateShowmanOrModerator(ctx, ShowmanAction.UNPAUSE);
 
-    const { game, currentPlayer } = ctx;
-
-    if (currentPlayer.role !== PlayerRole.SHOWMAN) {
-      throw new ClientError(ClientResponse.ONLY_SHOWMAN_CAN_UNPAUSE);
-    }
+    const { game } = ctx;
 
     GameStateValidator.validateGameNotFinished(game);
     GameStateValidator.validateGameStarted(game);

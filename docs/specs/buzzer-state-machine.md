@@ -36,6 +36,48 @@ Minimum behavior:
 4. If false start has penalty/block semantics, show the penalty/block explicitly.
 5. Do not play repeated fail sounds for key spam; rate-limit local feedback.
 
+### Implemented rules (SIGame parity)
+
+Per-game settings (`GameSettings`, chosen when the game is created):
+
+- `falseStart` (default on): the buzzer opens at `gameState.buzzerOpensAtMs`
+  on the SHOWING timer — after the content timeline, the reading time of a
+  caption text (`QuestionContentPlanLogic.textDuration`) and, for choice
+  questions, `showDelay`. The package's `answerDelay` is not used here: editors
+  default it to 5 s and label it an answer window. A press before that is a false start: the server broadcasts
+  `buzzer-false-start { playerId, lockMs }`, records the lock in
+  `gameState.buzzerLocks`, and rejects that player's presses with
+  `buzzer_locked` for 3 s. With `falseStart` off the buzzer is open from the
+  start (the question timer still covers the content).
+- `buttonPressMode` (default `random_within_window`): the first press in time
+  opens a 300 ms accept window (`gameState.buzzerWindow`). Everyone who presses
+  inside it takes part in a random draw when it closes; the winner is announced
+  with `question-answer`. `first_wins` gives the answer to the first press the
+  server receives.
+- A designated answerer (stake/secret winner) answers on press, without these
+  rules. Pausing drops a pending window; players press again after the pause.
+- The showman can open the buzzer early (`buzzer-open`, no input, SHOWING
+  only): `buzzerOpensAtMs` moves to the current timer position, running
+  false-start locks are lifted and everyone gets `buzzer-open { buzzerOpensAtMs }`.
+  The content keeps playing. It changes nothing when the buzzer is already open.
+
+Server: `BuzzerLogic`, `QuestionAnswerUseCase`,
+`TimerExpirationService._resolveBuzzerWindow` (the window rides on the active
+timer key, so a pause or expiry needs no extra timer). Web: `buzzerOpensIn`,
+`buzzerLockLeft`, `useBuzzer`; the Dock shows "Wait for it…" before the buzzer
+opens (still pressable, so spamming is penalised), with the reason under the
+button, and a lock countdown after a false start. The showman's dock has
+"Open buzzer now" while it is closed. Once the content has played, the stage
+shows a "The buzzer is open" card with the time left, so it is never empty.
+
+Flutter: reads `buzzerOpensAtMs` from question data and media status, shows the
+waiting state before the buzzer opens and a countdown while a false-start lock
+runs (`buzzer_timing.dart`, `game_question_screen.dart`), and blocks presses
+during the lock. Remaining gaps: it does not handle `buzzer-open` yet, so the
+showman's "Open buzzer now" does not lift Flutter players' locks or move their
+deadline until the next state update, and choice options there follow the
+buzzer opening rather than `showDelay` when false starts are off.
+
 ## Input methods
 
 Supported/expected input surfaces:

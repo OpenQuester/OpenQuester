@@ -1,6 +1,16 @@
+import {
+  type GameJoinModeChangeInputData,
+  type QuestionRemoveRestoreInputData
+} from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
+import {
+  type AllPlayAnswerInputData,
+  type AllPlayReviewInputData,
+  type AllPlayStakeInputData
+} from "domain/types/socket/events/game/AllPlayEventPayloads";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameValidator } from "domain/validators/GameValidator";
+import { type MediaDownloadedInputData } from "domain/types/socket/events/game/MediaDownloadedInputData";
 import {
   type GameJoinInputData,
   type PlayerKickInputData,
@@ -13,7 +23,10 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { type AnswerResultData } from "domain/types/socket/game/AnswerResultData";
 import { type AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
-import { type SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
+import {
+  type SecretQuestionPriceInputData,
+  type SecretQuestionTransferInputData
+} from "domain/types/socket/game/SecretQuestionTransferData";
 import { type StakeBidSubmitInputData } from "domain/types/socket/events/game/StakeQuestionEventData";
 import {
   type FinalAnswerSubmitInputData,
@@ -140,6 +153,30 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
       GameValidator.validateTurnPlayerChange(data as TurnPlayerChangeInputData)
   },
   {
+    event: SocketIOGameEvents.QUESTION_REMOVE_RESTORE,
+    actionType: GameActionType.QUESTION_REMOVE_RESTORE,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) =>
+      GameValidator.validateQuestionRemoveRestore(data as QuestionRemoveRestoreInputData)
+  },
+  {
+    event: SocketIOGameEvents.ANSWER_RESULT_UNDO,
+    actionType: GameActionType.LAST_ANSWER_RULING_REVERT,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION
+  },
+  {
+    event: SocketIOGameEvents.BUZZER_OPEN,
+    actionType: GameActionType.BUZZER_OPEN,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION
+  },
+  {
+    event: SocketIOGameEvents.GAME_JOIN_MODE_CHANGE,
+    actionType: GameActionType.GAME_JOIN_MODE_CHANGE,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) =>
+      GameValidator.validateGameJoinModeChange(data as GameJoinModeChangeInputData)
+  },
+  {
     event: SocketIOGameEvents.SCORE_CHANGED,
     actionType: GameActionType.PLAYER_SCORE_CHANGE,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
@@ -226,6 +263,31 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
       GameValidator.validateSecretQuestionTransfer(data as SecretQuestionTransferInputData)
   },
   {
+    event: SocketIOGameEvents.ALL_PLAY_STAKE,
+    actionType: GameActionType.EVERYONE_STAKE_SUBMIT,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) => GameValidator.validateAllPlayStake(data as AllPlayStakeInputData)
+  },
+  {
+    event: SocketIOGameEvents.ALL_PLAY_ANSWER,
+    actionType: GameActionType.EVERYONE_ANSWER_SUBMIT,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) => GameValidator.validateAllPlayAnswer(data as AllPlayAnswerInputData)
+  },
+  {
+    event: SocketIOGameEvents.ALL_PLAY_REVIEW,
+    actionType: GameActionType.EVERYONE_ANSWER_REVIEW,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) => GameValidator.validateAllPlayReview(data as AllPlayReviewInputData)
+  },
+  {
+    event: SocketIOGameEvents.SECRET_QUESTION_PRICE,
+    actionType: GameActionType.SECRET_QUESTION_PRICE_SELECT,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) =>
+      GameValidator.validateSecretQuestionPrice(data as SecretQuestionPriceInputData)
+  },
+  {
     event: SocketIOGameEvents.STAKE_BID_SUBMIT,
     actionType: GameActionType.STAKE_BID_SUBMIT,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
@@ -265,7 +327,9 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
   {
     event: SocketIOGameEvents.MEDIA_DOWNLOADED,
     actionType: GameActionType.MEDIA_DOWNLOADED,
-    gameIdStrategy: GameIdStrategy.FROM_SESSION
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) =>
+      GameValidator.validateMediaDownloaded((data ?? {}) as MediaDownloadedInputData)
   },
 
   // ──────────────── System ────────────────

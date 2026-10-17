@@ -4,6 +4,7 @@ import { DI_TOKENS } from "shared/di/tokens";
 import { RealtimeEvents } from "application/ports/realtime/RealtimeEvent";
 import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
 import { PackageService } from "application/services/package/PackageService";
+import { PackageUploadService } from "application/services/package/PackageUploadService";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import { GameUpdateLogic } from "domain/logic/game/GameUpdateLogic";
@@ -39,7 +40,8 @@ export class GameService {
     private readonly gameRepository: GameRepository,
     private readonly packageService: PackageService,
     private readonly fileUrlBuilder: S3FileUrlBuilder,
-    private readonly packageStore: PackageStore
+    private readonly packageStore: PackageStore,
+    private readonly packageUploadService: PackageUploadService
   ) {
     //
   }
@@ -60,6 +62,10 @@ export class GameService {
 
   public async getGameEntity(gameId: string, updatedTtl?: number): Promise<Game> {
     return this.gameRepository.getGameEntity(gameId, updatedTtl);
+  }
+
+  public async getGameListItem(game: Game): Promise<GameListItemDTO> {
+    return this.gameRepository.getGameListItem(game);
   }
 
   public async list(paginationOpts: GamePaginationOpts) {
@@ -83,6 +89,8 @@ export class GameService {
     createdByUser: ShortUserInfo,
     gameData: GameCreateDTO
   ): Promise<GameListItemDTO> {
+    // Every player must be able to load the media, so a half-uploaded package can't be played.
+    await this.packageUploadService.assertPlayable(gameData.packageId);
     const gameDataOutput = await this.gameRepository.createGame(gameData, createdByUser);
 
     await this._emitGameCreated(gameDataOutput);
@@ -109,6 +117,7 @@ export class GameService {
     GameUpdateLogic.applyPasswordUpdate(game, updateData);
 
     if (ValueUtils.isNumber(updateData.packageId)) {
+      await this.packageUploadService.assertPlayable(updateData.packageId);
       const packageData = await this.packageService.getPackageRaw(
         updateData.packageId,
         PACKAGE_SELECT_FIELDS,
@@ -144,7 +153,7 @@ export class GameService {
 
     await this.gameRepository.updateGameWithIndexes(game, previousIndexData);
 
-    const gameDTO = await this.gameRepository.gameToListItemDTO(game);
+    const gameDTO = await this.getGameListItem(game);
 
     const eventDataDTO: GameEventDTO = {
       event: GameEvent.CHANGED,
@@ -198,6 +207,10 @@ export class GameService {
 
   public async clearTimer(gameId: string, timerAdditional?: string) {
     return this.gameRepository.clearTimer(gameId, timerAdditional);
+  }
+
+  public async clearAllTimers(gameId: string): Promise<void> {
+    await this.gameRepository.clearAllTimers(gameId);
   }
 
   private async _emitGameCreated(gameData: GameListItemDTO): Promise<void> {

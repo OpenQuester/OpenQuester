@@ -3,6 +3,7 @@
 
 # Allow only what the Dockerfile needs
 !server/
+!web/
 !openapi/schema.json
 
 # Re-exclude heavy/unnecessary paths inside server/
@@ -12,3 +13,11 @@ server/data
 server/logs
 server/.env
 server/.env.*
+
+# …and inside web/
+web/node_modules
+web/dist
+web/test-results
+web/playwright-report
+web/screenshots
+web/.e2e-stack

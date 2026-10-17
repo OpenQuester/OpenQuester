@@ -132,12 +132,15 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
 
     // Clear current question after processing
     game.gameState.currentQuestion = null;
+    game.gameState.questionContentPlan = null;
     game.gameState.stakeQuestionData = null;
     game.gameState.secretQuestionData = null;
     game.gameState.answerShowData = {
       answerFiles: question?.answerFiles ?? null,
       answerText: question?.answerText ?? null,
       nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+      answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question),
+      ...ShowAnswerLogic.revealDetails(question),
       answerResult: playerAnswerResult
     };
 

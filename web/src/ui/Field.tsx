@@ -1,0 +1,42 @@
+import { cn } from "@/lib/cn";
+import { forwardRef, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
+
+const fieldBase =
+  "min-h-12 min-w-0 rounded-[12px] border border-line-strong bg-bg px-4 text-base text-text font-medium focus:border-info outline-none";
+
+export const inputClass = `${fieldBase} w-full`;
+
+export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function TextInput({ className, ...rest }, ref) {
+    return <input ref={ref} className={cn(inputClass, className)} {...rest} />;
+  },
+);
+
+export function Select({ className, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select className={cn(fieldBase, "pr-8", className ?? "w-full")} {...rest} />;
+}
+
+export function Label({
+  htmlFor,
+  children,
+  className,
+}: {
+  htmlFor?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <label htmlFor={htmlFor} className={cn("text-[15px] font-semibold", className)}>
+      {children}
+    </label>
+  );
+}
+
+export function FieldError({ children, id }: { children?: React.ReactNode; id?: string }) {
+  if (!children) return null;
+  return (
+    <p id={id} role="alert" className="m-0 text-sm text-danger">
+      {children}
+    </p>
+  );
+}

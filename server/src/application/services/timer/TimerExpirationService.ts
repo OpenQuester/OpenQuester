@@ -7,17 +7,17 @@ import { StakeQuestionService } from "application/services/question/StakeQuestio
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import {
-  GAME_QUESTION_ANSWER_TIME,
-  GAME_TTL_IN_SECONDS,
-  SYSTEM_PLAYER_ID
-} from "domain/constants/game";
+import { GAME_TTL_IN_SECONDS, SYSTEM_PLAYER_ID } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { MIN_TIMER_TTL_MS } from "domain/constants/timer";
 import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
+import { BuzzerLogic } from "domain/logic/question/BuzzerLogic";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
+import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
 import { StakeBiddingTimeoutLogic } from "domain/logic/timer/StakeBiddingTimeoutLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
@@ -39,7 +39,10 @@ import {
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { type MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { type SecretQuestionTransferBroadcastData } from "domain/types/socket/game/SecretQuestionTransferData";
+import {
+  type SecretQuestionPriceBroadcastData,
+  type SecretQuestionTransferBroadcastData
+} from "domain/types/socket/game/SecretQuestionTransferData";
 import {
   AnsweringToShowingAnswerMutationData,
   AnsweringToShowingMutationData
@@ -48,6 +51,8 @@ import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
+import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 
 /**
  * Service handling timer expiration logic.
@@ -79,6 +84,7 @@ export class TimerExpirationService {
       return { success: false, broadcasts: [] };
     }
 
+    // Transition from MEDIA_DOWNLOADING to SHOWING.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
@@ -103,7 +109,9 @@ export class TimerExpirationService {
             playerId: SYSTEM_PLAYER_ID,
             mediaDownloaded: true,
             allPlayersReady: true,
-            timer
+            timer,
+            contentPlan: game.gameState.questionContentPlan ?? null,
+            buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
           } satisfies MediaDownloadStatusBroadcastData,
           room: gameId
         }
@@ -113,7 +121,7 @@ export class TimerExpirationService {
   }
 
   /**
-   * Handle question showing timeout - resets to choosing state.
+   * Handle question showing timeout by revealing the answer or opening everyone-answer review.
    */
   public async handleQuestionShowingExpiration(gameId: string): Promise<TimerExpirationResult> {
     const game = await this.gameService.getGameEntity(gameId, GAME_TTL_IN_SECONDS);
@@ -122,25 +130,54 @@ export class TimerExpirationService {
       return { success: false, broadcasts: [] };
     }
 
+    // The active timer was shortened to the buzzer accept window
+    if (game.gameState.buzzerWindow) {
+      return this._resolveBuzzerWindow(game);
+    }
+
+    const questionResources = await this.transitionResourceService.getCurrentQuestionWithTheme(game);
+    const ruledBefore = AllPlayLogic.ruledPlayerIds(game);
+
+    // Transition from SHOWING to SHOWING_ANSWER, or ALL_PLAY_REVIEWING for everyone answers.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true },
-      resources: await this.transitionResourceService.getCurrentQuestionWithTheme(game)
+      resources: questionResources
     });
 
     if (!transitionResult) {
       return { success: false, broadcasts: [] };
     }
 
+    const broadcasts = [...transitionResult.broadcasts];
+    const timerMutations = [...transitionResult.timerMutations];
+
+    // Everyone answers: when time ran out and every answer was judged
+    // automatically, there is nothing left to review, so reveal the answer now
+    if (game.gameState.allPlay) {
+      // Transition from ALL_PLAY_REVIEWING to SHOWING_ANSWER
+      const revealResult = await this.phaseTransitionRouter.tryTransition({
+        game,
+        trigger: TransitionTrigger.CONDITION_MET,
+        triggeredBy: { isSystem: true },
+        resources: questionResources
+      });
+
+      if (revealResult) {
+        broadcasts.push(...revealResult.broadcasts);
+        timerMutations.push(...revealResult.timerMutations);
+      }
+    }
+
+    // Time ran out on "everyone answers": count the answers judged automatically
+    if (game.gameState.allPlay) {
+      await this.playerGameStatsService.recordEveryoneRulings(game, ruledBefore);
+    }
+
     await this.gameService.updateGame(game);
 
-    return {
-      success: true,
-      game,
-      broadcasts: transitionResult.broadcasts,
-      timerMutations: transitionResult.timerMutations
-    };
+    return { success: true, game, broadcasts, timerMutations };
   }
 
   /**
@@ -154,6 +191,7 @@ export class TimerExpirationService {
       return { success: false, broadcasts: [] };
     }
 
+    // Transition from SHOWING_ANSWER to CHOOSING, advancing the round when needed.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
@@ -247,6 +285,11 @@ export class TimerExpirationService {
       return this._handleStakeBiddingExpiration(game);
     }
 
+    // Stake for everyone: missing stakes are filled and the question preloads
+    if (game.gameState.allPlay) {
+      return this._handleAllPlayBiddingExpiration(game);
+    }
+
     // Final round bidding timeout (existing flow)
     const result = await this.finalRoundService.handleFinalBiddingTimeout(game);
 
@@ -316,10 +359,11 @@ export class TimerExpirationService {
       );
 
       QuestionPickLogic.resetMediaDownloadStatus(game);
+      QuestionContentPlanLogic.applyToGame(game);
 
       const timer = await this.socketQuestionStateService.setupQuestionTimer(
         game,
-        GAME_QUESTION_ANSWER_TIME
+        QuestionContentPlanLogic.questionTimerDuration(game)
       );
       const timerDto = timer.value();
 
@@ -332,7 +376,9 @@ export class TimerExpirationService {
               data: {
                 data: questionData.question,
                 timer: timerDto,
-                questionEligiblePlayers: game.getQuestionEligiblePlayers()
+                questionEligiblePlayers: game.getQuestionEligiblePlayers(),
+                contentPlan: game.gameState.questionContentPlan ?? null,
+                buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
               } satisfies GameQuestionDataEventPayload,
               room: game.id,
               roleFilter: true
@@ -362,6 +408,15 @@ export class TimerExpirationService {
       targetPlayerId = pool[choiceIndex].meta.id;
     }
 
+    // customPrice: the receiver ran out of time to pick, so the question is
+    // theirs at the lowest price (or a random player's, if they left)
+    const selection = secretData.priceSelection ?? null;
+    if (selection && eligiblePlayers.some((p) => p.meta.id === selection.playerId)) {
+      targetPlayerId = selection.playerId;
+    }
+
+    const price = selection ? Math.min(...selection.allowedPrices) : undefined;
+
     const questionData = await this.packageStore.getQuestionWithTheme(
       game.id,
       secretData.questionId
@@ -371,12 +426,13 @@ export class TimerExpirationService {
       return { success: false, broadcasts: [] };
     }
 
+    // Transition from SECRET_QUESTION_TRANSFER to ANSWERING with the automatic receiver/price.
     const transitionResult =
       await this.phaseTransitionRouter.tryTransition<SecretTransferToAnsweringPayload>({
         game,
         trigger: TransitionTrigger.TIMER_EXPIRED,
         triggeredBy: { isSystem: true },
-        payload: { targetPlayerId },
+        payload: price !== undefined ? { targetPlayerId, price } : { targetPlayerId },
         resources: this.transitionResourceService.fromSimpleQuestion(questionData.question)
       });
 
@@ -387,20 +443,28 @@ export class TimerExpirationService {
         eligiblePlayers,
         targetPlayerId
       });
+
       return { success: false, broadcasts: [] };
     }
 
     await this.gameService.updateGame(game);
 
-    const transferBroadcast: BroadcastEvent<SecretQuestionTransferBroadcastData> = {
-      event: SocketIOGameEvents.SECRET_QUESTION_TRANSFER,
-      data: {
-        fromPlayerId: secretData.pickerPlayerId,
-        toPlayerId: targetPlayerId,
-        questionId: secretData.questionId
-      },
-      room: game.id
-    };
+    const transferBroadcast: BroadcastEvent =
+      price !== undefined
+        ? ({
+            event: SocketIOGameEvents.SECRET_QUESTION_PRICE,
+            data: { playerId: targetPlayerId, price, questionId: secretData.questionId },
+            room: game.id
+          } satisfies BroadcastEvent<SecretQuestionPriceBroadcastData>)
+        : ({
+            event: SocketIOGameEvents.SECRET_QUESTION_TRANSFER,
+            data: {
+              fromPlayerId: secretData.pickerPlayerId,
+              toPlayerId: targetPlayerId,
+              questionId: secretData.questionId
+            },
+            room: game.id
+          } satisfies BroadcastEvent<SecretQuestionTransferBroadcastData>);
 
     const broadcasts: BroadcastEvent[] = [transferBroadcast];
 
@@ -408,9 +472,11 @@ export class TimerExpirationService {
       broadcasts.push({
         event: SocketIOGameEvents.QUESTION_DATA,
         data: {
-          data: questionData.question,
+          data: price !== undefined ? { ...questionData.question, price } : questionData.question,
           timer: transitionResult.timer,
-          questionEligiblePlayers: game.getQuestionEligiblePlayers()
+          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
+          contentPlan: game.gameState.questionContentPlan ?? null,
+          buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
         } satisfies GameQuestionDataEventPayload,
         room: game.id,
         roleFilter: true
@@ -423,6 +489,105 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts,
+      timerMutations: transitionResult.timerMutations
+    };
+  }
+
+  /**
+   * Closes the buzzer accept window: draws the answerer among its presses and
+   * moves to ANSWERING, or lets the question timer run on when nobody who
+   * pressed can still answer.
+   */
+  private async _resolveBuzzerWindow(game: Game): Promise<TimerExpirationResult> {
+    const openedAt = game.gameState.buzzerWindow!.openedAt;
+    const timer = game.gameState.timer;
+    const winner = BuzzerLogic.drawWinner(game);
+
+    if (winner === null || !timer) {
+      await this.gameService.updateGame(game);
+
+      if (!timer) {
+        return { success: true, game, broadcasts: [] };
+      }
+
+      const remainingMs = Math.max(
+        MIN_TIMER_TTL_MS,
+        timer.durationMs - GamePauseLogic.calculateElapsedTime(timer)
+      );
+
+      return {
+        success: true,
+        game,
+        broadcasts: [],
+        timerMutations: [
+          {
+            op: "set",
+            key: timerKey(game.id),
+            value: JSON.stringify(timer),
+            pxTtl: remainingMs
+          }
+        ]
+      };
+    }
+
+    // Keep the SHOWING timer as of the first press, so a wrong answer resumes
+    // the question from there
+    const savedTimer = {
+      ...timer,
+      elapsedMs: GamePauseLogic.calculateElapsedTime(timer, openedAt)
+    };
+
+    // Transition from SHOWING to ANSWERING for the player drawn from the buzzer window.
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.USER_ACTION,
+      triggeredBy: { playerId: winner, isSystem: false }
+    });
+
+    if (!transitionResult) {
+      return { success: false, broadcasts: [] };
+    }
+
+    await this.gameService.updateGame(game);
+
+    return {
+      success: true,
+      game,
+      broadcasts: transitionResult.broadcasts,
+      timerMutations: [
+        {
+          op: "set",
+          key: timerKey(game.id, QuestionState.SHOWING),
+          value: JSON.stringify(savedTimer),
+          pxTtl: Math.ceil(game.settings.timers.answerSubmitMs * 1.5)
+        },
+        ...transitionResult.timerMutations
+      ]
+    };
+  }
+
+  private async _handleAllPlayBiddingExpiration(game: Game): Promise<TimerExpirationResult> {
+    // Transition from ALL_PLAY_BIDDING to MEDIA_DOWNLOADING after filling missing stakes.
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.TIMER_EXPIRED,
+      triggeredBy: { isSystem: true },
+      resources: await this.transitionResourceService.getQuestionWithTheme(
+        game,
+        game.gameState.allPlay!.questionId
+      )
+    });
+
+    if (!transitionResult) {
+      return { success: false, broadcasts: [] };
+    }
+
+    await this.gameService.updateGame(game);
+
+    return {
+      success: true,
+      game,
+      broadcasts: transitionResult.broadcasts,
       timerMutations: transitionResult.timerMutations
     };
   }
@@ -445,6 +610,7 @@ export class TimerExpirationService {
   private async handleRegularAnsweringExpiration(game: Game) {
     const transitionResources = await this._getAnsweringTransitionResources(game);
 
+    // Transition from ANSWERING to SHOWING, or SHOWING_ANSWER when nobody can answer again.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,

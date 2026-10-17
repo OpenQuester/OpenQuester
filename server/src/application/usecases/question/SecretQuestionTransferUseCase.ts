@@ -33,12 +33,14 @@ export class SecretQuestionTransferUseCase implements GameActionHandler<
       ctx.action.payload
     );
 
-    const { game, fromPlayerId, toPlayerId, questionId, timer, question } = result;
+    const { game, fromPlayerId, toPlayerId, questionId, timer, question, allowedPrices } =
+      result;
 
     const broadcastData: SecretQuestionTransferBroadcastData = {
       fromPlayerId,
       toPlayerId,
-      questionId
+      questionId,
+      allowedPrices
     };
 
     const resultData: SecretQuestionTransferResult = {

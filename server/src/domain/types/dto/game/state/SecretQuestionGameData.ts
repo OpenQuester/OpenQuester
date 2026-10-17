@@ -10,4 +10,15 @@ export interface SecretQuestionGameData {
   questionId: number;
   /** Whether currently in transfer phase (waiting for transfer decision) */
   transferDecisionPhase: boolean;
+  /**
+   * Set after the transfer of a customPrice question: the receiving player
+   * picks the price from `allowedPrices` before the question is shown.
+   */
+  priceSelection?: SecretPriceSelectionData | null;
+}
+
+export interface SecretPriceSelectionData {
+  /** The player who received the question and picks its price */
+  playerId: number;
+  allowedPrices: number[];
 }

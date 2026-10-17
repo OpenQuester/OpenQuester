@@ -34,6 +34,10 @@ export class QuestionActionValidator {
    * Validates skip action requirements for players
    */
   public static validatePlayerSkipAction(context: QuestionActionContext): void {
+    if (context.game.gameState.allPlay) {
+      throw new ClientError(ClientResponse.ALL_PLAY_NO_BUZZER);
+    }
+
     this._validateBasicRequirements(context);
     this._validateQuestionAction(context);
     this._validateQuestionSkipping(context.game);
@@ -100,6 +104,11 @@ export class QuestionActionValidator {
     this._validateBasicRequirements(context);
     this._validateQuestionAction(context);
     this._validateQuestionPicking(context.game);
+
+    // The round's time ran out while someone was picking: no new question
+    if (context.game.isRoundTimeUp()) {
+      throw new ClientError(ClientResponse.ROUND_TIME_UP);
+    }
   }
 
   /**
@@ -127,6 +136,7 @@ export class QuestionActionValidator {
         if (currentPlayer?.role !== PlayerRole.PLAYER) {
           throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_SKIP);
         }
+
         break;
       case QuestionAction.ANSWER:
         if (
@@ -135,21 +145,25 @@ export class QuestionActionValidator {
         ) {
           throw new ClientError(ClientResponse.YOU_CANNOT_ANSWER_QUESTION);
         }
+
         break;
       case QuestionAction.SUBMIT_ANSWER:
         if (currentPlayer?.role !== PlayerRole.PLAYER) {
           throw new ClientError(ClientResponse.INSUFFICIENT_PERMISSIONS);
         }
+
         break;
       case QuestionAction.ANSWER_RESULT:
         if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
           throw new ClientError(ClientResponse.ONLY_SHOWMAN_SEND_ANSWER_RESULT);
         }
+
         break;
       case QuestionAction.FORCE_SKIP:
         if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
           throw new ClientError(ClientResponse.ONLY_SHOWMAN_SKIP_QUESTION_FORCE);
         }
+
         break;
       case QuestionAction.PICK:
         if (
@@ -158,6 +172,7 @@ export class QuestionActionValidator {
         ) {
           throw new ClientError(ClientResponse.YOU_CANNOT_PICK_QUESTION);
         }
+
         if (
           game.gameState.currentRound?.type === PackageRoundType.SIMPLE &&
           game.gameState.currentTurnPlayerId !== currentPlayer?.meta.id &&
@@ -165,6 +180,7 @@ export class QuestionActionValidator {
         ) {
           throw new ClientError(ClientResponse.NOT_YOUR_TURN);
         }
+
         break;
     }
   }

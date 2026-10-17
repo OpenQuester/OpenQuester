@@ -78,8 +78,11 @@ describe("Secret Question Flow Tests", () => {
 
         const secretPickedEvent = await secretQuestionPickedPromise;
 
-        // Verify secret question picked event
-        expect(secretPickedEvent.pickerPlayerId).toBe(setup.showmanUser.id);
+        // Verify secret question picked event: the showman picked on behalf of
+        // the turn player, who owns the question
+        const turnPlayerId = (await utils.getGameState(gameId))!.currentTurnPlayerId;
+        expect(turnPlayerId).not.toBeNull();
+        expect(secretPickedEvent.pickerPlayerId).toBe(turnPlayerId);
         expect(secretPickedEvent.transferType).toBe(PackageQuestionTransferType.ANY);
         expect(secretPickedEvent.questionId).toBe(secretQuestion!.id);
 
@@ -87,7 +90,7 @@ describe("Secret Question Flow Tests", () => {
         const transferState = await utils.getGameState(gameId);
         expect(transferState!.questionState).toBe(QuestionState.SECRET_TRANSFER);
         expect(transferState!.secretQuestionData).toBeDefined();
-        expect(transferState!.secretQuestionData!.pickerPlayerId).toBe(setup.showmanUser.id);
+        expect(transferState!.secretQuestionData!.pickerPlayerId).toBe(turnPlayerId);
 
         // Set up listeners for transfer error (showman cannot transfer to themselves - invalid target)
         const errorPromise = scenario.waitForEvent(showmanSocket, "error");
@@ -334,7 +337,8 @@ describe("Secret Question Flow Tests", () => {
         const targetPlayerIds = setup.playerUsers.map((user) => user.id);
 
         for (const transferEvent of transferEvents) {
-          expect(transferEvent.fromPlayerId).toBe(setup.showmanUser.id);
+          // Timeout transfers come from the question's owner (the turn player)
+          expect(transferEvent.fromPlayerId).toBe(transferState!.secretQuestionData!.pickerPlayerId);
           expect(targetPlayerIds).toContain(transferEvent.toPlayerId);
           expect(transferEvent.questionId).toBe(secretQuestion!.id);
         }

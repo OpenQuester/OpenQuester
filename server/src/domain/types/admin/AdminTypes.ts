@@ -1,4 +1,9 @@
+import { type StaffRole } from "domain/constants/staffRoles";
+import { type Permissions } from "domain/enums/Permissions";
+import { type GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
+import { type PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
+import { type PlayerRole } from "domain/types/game/PlayerRole";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 
 export interface UsersStats {
@@ -46,4 +51,41 @@ export interface AdminPingData {
   eventLoopLagMs: number;
   redis: { connected: boolean; responseMs: number | null };
   timestamp: string; // ISO string
+}
+
+export interface AdminGameListQuery {
+  limit: number;
+  offset: number;
+  search?: string;
+}
+
+export type AdminGameListData = PaginatedResult<GameListItemDTO[]>;
+
+export interface AdminGamePlayer {
+  id: number;
+  username: string;
+  avatar: string | null;
+  role: PlayerRole;
+  status: PlayerGameStatus;
+  score: number;
+  slot: number | null;
+}
+
+export interface AdminGameDetailsData {
+  game: GameListItemDTO;
+  isPaused: boolean;
+  players: AdminGamePlayer[];
+}
+
+/** A role preset: the permissions a staff role starts with. */
+export interface AdminRolePreset {
+  id: StaffRole;
+  permissions: Permissions[];
+}
+
+export interface AdminRolesData {
+  /** Every permission, in display order. */
+  permissions: Permissions[];
+  /** Presets an admin can apply; permissions can then be ticked one by one. */
+  roles: AdminRolePreset[];
 }

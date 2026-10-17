@@ -1,3 +1,4 @@
+import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -67,6 +68,20 @@ export class GameJoinLogic {
       if (existingPlayer.isRestricted && role !== PlayerRole.SPECTATOR) {
         throw new ClientError(ClientResponse.YOU_ARE_RESTRICTED);
       }
+    }
+
+    // The showman can close the game to newcomers, or open it to spectators only
+    const joinMode = game.gameState.joinMode ?? GameJoinMode.OPEN;
+    if (!existingPlayer && joinMode === GameJoinMode.CLOSED) {
+      throw new ClientError(ClientResponse.GAME_JOIN_CLOSED);
+    }
+
+    if (
+      joinMode === GameJoinMode.SPECTATORS_ONLY &&
+      role !== PlayerRole.SPECTATOR &&
+      (!existingPlayer || existingPlayer.role === PlayerRole.SPECTATOR)
+    ) {
+      throw new ClientError(ClientResponse.GAME_JOIN_SPECTATORS_ONLY);
     }
 
     // Prevent joining as PLAYER during final round unless reconnecting as existing player.

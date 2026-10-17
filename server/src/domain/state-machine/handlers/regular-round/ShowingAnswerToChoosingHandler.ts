@@ -61,7 +61,7 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
       return false;
     }
 
-    const isRoundFinished = game.isAllQuestionsPlayed() ?? false;
+    const isRoundFinished = game.isRoundOver();
     if (isRoundFinished) {
       const nextRound = game.getNextRound();
 
@@ -82,12 +82,14 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
     const { game } = ctx;
 
     // Check if all questions in round are played -> need round progression
-    const isRoundFinished = game.isAllQuestionsPlayed() ?? false;
+    const isRoundFinished = game.isRoundOver();
     let nextGameState: GameStateDTO | null = null;
 
     if (isRoundFinished) {
       const roundHandler = RoundHandlerFactory.createFromGame(game);
       const progressionResult = await roundHandler.handleRoundProgression(game, {
+        // A round whose time is up ends even with questions left
+        forced: game.isRoundTimeUp(),
         nextRound: ctx.resources?.nextRound ?? null,
       });
 

@@ -2,9 +2,12 @@ import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { HttpStatus } from "domain/enums/HttpStatus";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
+import { ButtonPressMode } from "domain/enums/game/GameSettings";
+import type { GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { ValueUtils } from "domain/utils/ValueUtils";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import {
@@ -13,16 +16,35 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { type Express } from "express";
 import { container } from "tsyringe";
+import { File } from "infrastructure/database/models/File";
 import { User } from "infrastructure/database/models/User";
-import { PackageUtils } from "tests/utils/PackageUtils";
-import { Repository } from "typeorm";
+import { PackageUtils, TEST_MEDIA_FILE_MD5 } from "tests/utils/PackageUtils";
+import { In, Repository } from "typeorm";
 
 import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
 import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
 import { GameClientSocket, GameTestSetup } from "./SocketIOGameTestUtils";
 
+/**
+ * Buzzer rules most socket tests run with: the button is open from the start
+ * and the first press answers, so a test can buzz right after the question
+ * shows. Buzzer tests opt into the real defaults through `gameSettings`.
+ */
+export const INSTANT_BUZZER_SETTINGS: GameSettingsInput = Object.freeze({
+  falseStart: false,
+  buttonPressMode: ButtonPressMode.FIRST_WINS
+});
+
+type PackageCreateTestInput = ReturnType<PackageUtils["createTestPackageData"]>;
+
 export class SocketGameTestLobbyUtils {
   private readonly packageUtils = new PackageUtils();
+
+  /** Settings for games created by this helper */
+  public gameSettings: GameSettingsInput = INSTANT_BUZZER_SETTINGS;
+
+  /** Optional change to the fixture package before it is uploaded */
+  public packageTransform: ((pkg: PackageCreateTestInput) => void) | null = null;
 
   constructor(
     private userUtils: SocketGameTestUserUtils,
@@ -91,6 +113,14 @@ export class SocketGameTestLobbyUtils {
     }
   }
 
+  private async markTestMediaStored(userRepo: Repository<User>): Promise<void> {
+    const filenames = [TEST_MEDIA_FILE_MD5, ValueUtils.getRawFilename(TEST_MEDIA_FILE_MD5)];
+
+    await userRepo.manager
+      .getRepository(File)
+      .update({ filename: In(filenames) }, { size: 0, size_verified_at: new Date() });
+  }
+
   async createGameWithShowman(
     app: Express,
     userRepo: Repository<User>,
@@ -117,6 +147,8 @@ export class SocketGameTestLobbyUtils {
         includeMediaQuestionFiles
       );
 
+      this.packageTransform?.(packageData);
+
       const packageRes = await this.userUtils.httpClient
         .post("/v1/packages")
         .set("Cookie", cookie)
@@ -131,6 +163,12 @@ export class SocketGameTestLobbyUtils {
       const createdPackage = packageRes.body;
       const packageId = createdPackage.id;
 
+      // Tests have no real storage: count the shared test picture as stored, so
+      // the package becomes playable the way a finished upload does
+      if (includeMediaQuestionFiles) {
+        await this.markTestMediaStored(userRepo);
+      }
+
       // Create game data
       const gameData: GameCreateDTO = {
         title: "Test Game " + Math.random().toString(36).substring(7),
@@ -138,7 +176,8 @@ export class SocketGameTestLobbyUtils {
         isPrivate: false,
         password: undefined,
         ageRestriction: AgeRestriction.NONE,
-        maxPlayers: 10
+        maxPlayers: 10,
+        settings: this.gameSettings
       };
 
       // Create the game via REST API
@@ -509,12 +548,29 @@ export class SocketGameTestLobbyUtils {
     }
   }
 
+  /**
+   * Starts the game and waits until the START action has fully finished: its
+   * showman-log line has reached the chat and the game lock is free again, so
+   * later chat listeners and lock-holding tests start from a quiet game.
+   */
   public async startGame(showmanSocket: GameClientSocket): Promise<GameStartEventPayload> {
-    return this.eventUtils.emitAndWaitForEvent<GameStartEventPayload>(
+    const logLine = this.eventUtils.waitForEventMatching<{ system?: unknown }>(
+      showmanSocket,
+      SocketIOEvents.CHAT_MESSAGE,
+      (message) => Boolean(message.system)
+    );
+    const started = await this.eventUtils.emitAndWaitForEvent<GameStartEventPayload>(
       showmanSocket,
       SocketIOGameEvents.START,
       () => showmanSocket.emit(SocketIOGameEvents.START)
     );
+    await logLine;
+
+    if (showmanSocket.gameId) {
+      await this.eventUtils.waitForActionsComplete(showmanSocket.gameId);
+    }
+
+    return started;
   }
 
   public async pauseGame(showmanSocket: GameClientSocket): Promise<void> {

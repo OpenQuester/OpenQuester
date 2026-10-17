@@ -187,7 +187,8 @@ export class GameActionExecutor {
     return {
       success: result.success,
       data: result.data,
-      error: result.error
+      error: result.error,
+      errorCode: result.errorCode
     };
   }
 
@@ -298,7 +299,7 @@ export class GameActionExecutor {
       return result;
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const { message } = await ErrorController.resolveError(error, this.logger, undefined, {
+      const { message, code } = await ErrorController.resolveError(error, this.logger, undefined, {
         source: "action-executor",
         actionId: action.id,
         actionType: action.type,
@@ -311,6 +312,7 @@ export class GameActionExecutor {
       return {
         success: false,
         error: message,
+        errorCode: code,
         mutations: [],
         broadcastGame: ctx.game
       };
@@ -342,6 +344,7 @@ export class GameActionExecutor {
         prefix: LogPrefix.ACTION,
         gameId
       });
+
       return null;
     }
 
@@ -417,7 +420,8 @@ export class GameActionExecutor {
       {
         success: result.success,
         data: result.data,
-        error: result.error
+        error: result.error,
+        errorCode: result.errorCode
       },
       result.broadcastGame ?? ctx.game
     );
@@ -427,7 +431,8 @@ export class GameActionExecutor {
       result: {
         success: result.success,
         data: result.data,
-        error: result.error
+        error: result.error,
+        errorCode: result.errorCode
       }
     };
   }
@@ -437,7 +442,7 @@ export class GameActionExecutor {
     error: unknown,
     source: string
   ): Promise<GameActionResult> {
-    const { message } = await ErrorController.resolveError(error, this.logger, undefined, {
+    const { message, code } = await ErrorController.resolveError(error, this.logger, undefined, {
       source,
       actionId: action.id,
       actionType: action.type,
@@ -448,7 +453,8 @@ export class GameActionExecutor {
 
     return {
       success: false,
-      error: message
+      error: message,
+      errorCode: code
     };
   }
 
@@ -492,6 +498,7 @@ export class GameActionExecutor {
             prefix: LogPrefix.ACTION,
             gameId
           });
+
           return targetResult;
 
         case DrainStatus.QUEUE_EMPTY:
@@ -516,6 +523,7 @@ export class GameActionExecutor {
 
             if (drainedResult.stopDraining) {
               await this.lockService.releaseLock(gameId, currentToken);
+
               return targetResult;
             }
 
@@ -524,6 +532,7 @@ export class GameActionExecutor {
             }
           } catch (error) {
             await this.lockService.releaseLock(gameId, currentToken);
+
             throw error;
           }
 
@@ -546,6 +555,7 @@ export class GameActionExecutor {
   private deserializeAction(raw: string): GameAction | null {
     try {
       const parsed = JSON.parse(raw);
+
       return {
         ...parsed,
         timestamp: new Date(parsed.timestamp),

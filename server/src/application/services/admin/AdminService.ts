@@ -5,7 +5,19 @@ import { DI_TOKENS } from "shared/di/tokens";
 import { UserService } from "application/services/user/UserService";
 import { ADMIN_AVERAGE_REDIS_KEY_SIZE_KB, ADMIN_RECENT_USERS_LIMIT } from "domain/constants/admin";
 import {
+  ADMIN_PERMISSIONS,
+  MODERATOR_DEFAULT_PERMISSIONS,
+  StaffRole,
+  staffRoleOf
+} from "domain/constants/staffRoles";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { HttpStatus } from "domain/enums/HttpStatus";
+import { Permissions } from "domain/enums/Permissions";
+import { ClientError } from "domain/errors/ClientError";
+import { asUserId, type userId } from "domain/types/ids";
+import {
   AdminDashboardData,
+  AdminRolesData,
   AdminSystemHealthData,
   AdminUserListData,
   UsersStats
@@ -67,6 +79,7 @@ export class AdminService {
       since
     );
     const data: UserDTO[] = users.map((u) => this.userService.toDTO(u));
+
     return {
       data,
       pageInfo: {
@@ -78,12 +91,14 @@ export class AdminService {
   private async getRedisSnapshot(): Promise<RedisSnapshot> {
     try {
       const allKeys = await this.redisService.scan("*");
+
       return { keys: allKeys.length, connected: true };
     } catch (error) {
       this.logger.error("Failed to scan Redis keys", {
         prefix: LogPrefix.ADMIN,
         error: error instanceof Error ? error.message : String(error)
       });
+
       return { keys: 0, connected: false };
     }
   }
@@ -121,6 +136,7 @@ export class AdminService {
     if (options?.timeframeDays && options.timeframeDays > 0) {
       since = new Date(Date.now() - options.timeframeDays * 24 * 60 * 60 * 1000);
     }
+
     const recentUsersPaginated = await this.getRecentUsers(undefined, since);
     const redis = await this.getRedisSnapshot();
 
@@ -154,5 +170,88 @@ export class AdminService {
         guests: stats.guests
       }
     };
+  }
+
+  /** Permission list and the role presets the admin panel offers. */
+  public getRoles(): AdminRolesData {
+    return {
+      permissions: [...ADMIN_PERMISSIONS],
+      roles: [
+        { id: StaffRole.USER, permissions: [] },
+        { id: StaffRole.MODERATOR, permissions: [...MODERATOR_DEFAULT_PERMISSIONS] },
+        { id: StaffRole.ADMIN, permissions: [...ADMIN_PERMISSIONS] }
+      ]
+    };
+  }
+
+  /**
+   * Guards every admin action on another account: nobody acts on themselves,
+   * and only admins act on staff (admins and moderators).
+   */
+  public async assertCanModerateUser(
+    actorId: number | undefined,
+    targetId: userId,
+    allowDeletedTarget = false
+  ): Promise<void> {
+    if (actorId === undefined) {
+      throw new ClientError(ClientResponse.ACCESS_DENIED, HttpStatus.UNAUTHORIZED);
+    }
+
+    if (actorId === targetId) {
+      throw new ClientError(ClientResponse.CANNOT_MODERATE_SELF, HttpStatus.FORBIDDEN);
+    }
+
+    const users = await this.userService.getManyRaw(
+      [asUserId(actorId), targetId],
+      {
+        select: ["id"],
+        relations: ["permissions"],
+        relationSelects: { permissions: ["id", "name"] }
+      },
+      allowDeletedTarget ? [targetId] : []
+    );
+    const roles = new Map(
+      users.map((user) => [
+        user.id,
+        staffRoleOf(user.permissions?.map((permission) => permission.name) ?? [])
+      ])
+    );
+
+    if (
+      roles.get(targetId) !== StaffRole.USER &&
+      roles.get(asUserId(actorId)) !== StaffRole.ADMIN
+    ) {
+      throw new ClientError(ClientResponse.CANNOT_MODERATE_STAFF, HttpStatus.FORBIDDEN);
+    }
+  }
+
+  /** Replaces a user's permissions; the admin panel's role and permission editor. */
+  public async setUserPermissions(
+    actorId: number | undefined,
+    targetId: userId,
+    permissionNames: string[]
+  ): Promise<UserDTO> {
+    await this.assertCanModerateUser(actorId, targetId);
+
+    const unknown = permissionNames.filter(
+      (name) => !ADMIN_PERMISSIONS.includes(name as Permissions)
+    );
+    if (unknown.length > 0) {
+      throw new ClientError(ClientResponse.INVALID_INPUT, HttpStatus.BAD_REQUEST);
+    }
+
+    const updated = await this.userService.updateUserPermissionsByNames(targetId, [
+      ...new Set(permissionNames)
+    ]);
+
+    this.logger.audit("Staff permissions changed", {
+      prefix: LogPrefix.ADMIN,
+      adminUserId: actorId,
+      targetUserId: targetId,
+      role: staffRoleOf(permissionNames),
+      permissions: permissionNames
+    });
+
+    return updated;
   }
 }

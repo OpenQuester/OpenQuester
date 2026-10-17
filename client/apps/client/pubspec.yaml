@@ -90,12 +90,14 @@ dev_dependencies:
   very_good_analysis: ^10.3.0
   squadron_builder: ^9.3.0
   inno_bundle: ^0.11.2
+  video_player_platform_interface: ^6.7.0
 
 flutter:
   uses-material-design: true
   assets:
     - assets/localization/
     - assets/icons/
+    - assets/sounds/
 
 flutter_gen:
   output: lib/generated/

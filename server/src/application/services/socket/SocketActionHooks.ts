@@ -4,24 +4,35 @@ import { DI_TOKENS } from "shared/di/tokens";
 import { RealtimeEvents } from "application/ports/realtime/RealtimeEvent";
 import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
+import { GameService } from "application/services/game/GameService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { type Game } from "domain/entities/game/Game";
 import { GameActionType } from "domain/enums/GameActionType";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { ShowmanActionLogLogic } from "domain/logic/chat/ShowmanActionLogLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { type GameAction, type GameActionResult } from "domain/types/action/GameAction";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { type QuestionPickResult, QuestionPickType } from "domain/types/question/QuestionPickTypes";
-import { type SecretQuestionTransferResult } from "domain/types/question/SecretQuestionTransferTypes";
+import {
+  type SecretQuestionPriceResult,
+  type SecretQuestionTransferResult
+} from "domain/types/question/SecretQuestionTransferTypes";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import {
   type GameJoinOutputData,
   type GameLeaveBroadcastData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { type SecretQuestionTransferBroadcastData } from "domain/types/socket/game/SecretQuestionTransferData";
+import {
+  type SecretQuestionPriceBroadcastData,
+  type SecretQuestionTransferBroadcastData
+} from "domain/types/socket/game/SecretQuestionTransferData";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
+import { type ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 
@@ -45,15 +56,23 @@ export class SocketActionHooks {
     private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
     private readonly packageStore: PackageStore,
+    private readonly socketChatRepository: SocketChatRepository,
+    private readonly socketUserDataService: SocketUserDataService,
+    private readonly gameService: GameService,
     @inject(DI_TOKENS.RealtimeGateway) private readonly realtimeGateway: RealtimeGateway,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     this.hooks.set(GameActionType.JOIN, this.afterJoinGame.bind(this));
     this.hooks.set(GameActionType.LEAVE, this.afterLeaveGame.bind(this));
+    this.hooks.set(GameActionType.ADMIN_GAME_CLOSE, this.afterCloseGame.bind(this));
     this.hooks.set(GameActionType.QUESTION_PICK, this.afterQuestionPick.bind(this));
     this.hooks.set(
       GameActionType.SECRET_QUESTION_TRANSFER,
       this.afterSecretQuestionTransfer.bind(this)
+    );
+    this.hooks.set(
+      GameActionType.SECRET_QUESTION_PRICE_SELECT,
+      this.afterSecretQuestionPrice.bind(this)
     );
   }
 
@@ -61,6 +80,8 @@ export class SocketActionHooks {
    * Run the configured post-execution hook for the completed action.
    */
   public async run(action: GameAction, result: GameActionResult, game: Game): Promise<void> {
+    await this.logShowmanAction(action, result, game);
+
     if (result.data === undefined) {
       return;
     }
@@ -82,6 +103,69 @@ export class SocketActionHooks {
         error: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  /** Writes what the showman did into the game chat, for everyone to see. */
+  private async logShowmanAction(
+    action: GameAction,
+    result: GameActionResult,
+    game: Game
+  ): Promise<void> {
+    try {
+      const line = ShowmanActionLogLogic.build(action, result, game);
+      if (!line) {
+        return;
+      }
+
+      const saved = await this.socketChatRepository.saveChatMessage({
+        gameId: game.id,
+        gameCreatedAt: game.createdAt,
+        user: action.playerId,
+        message: line.message,
+        system: line.system
+      });
+
+      this.realtimeGateway.publish(
+        RealtimeEvents.toRoom(game.id, SocketIOEvents.CHAT_MESSAGE, {
+          uuid: saved.uuid,
+          timestamp: saved.timestamp,
+          user: saved.user,
+          message: saved.message,
+          system: line.system
+        } satisfies ChatMessageBroadcastData)
+      );
+    } catch (error) {
+      this.logger.warn("Failed to log showman action to chat", {
+        prefix: LogPrefix.SOCKET,
+        actionId: action.id,
+        actionType: action.type,
+        gameId: action.gameId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  private async afterCloseGame({ action, result }: AfterExecutionHookContext): Promise<void> {
+    if (!result.success) {
+      return;
+    }
+
+    await this.gameService.clearAllTimers(action.gameId);
+    const socketIds = await this.realtimeGateway.getRoomSocketIds(action.gameId);
+    await Promise.all(
+      socketIds.map(async (socketId) => {
+        await this.socketUserDataService.update(socketId, { gameId: JSON.stringify(null) });
+        this.realtimeGateway.updateSocketContext({ socketId, gameId: null });
+        this.realtimeGateway.leaveRoom(socketId, action.gameId);
+      })
+    );
+
+    this.logger.audit("Moderator closed a game", {
+      prefix: LogPrefix.ADMIN,
+      adminUserId: action.playerId,
+      gameId: action.gameId,
+      socketsRemoved: socketIds.length
+    });
   }
 
   private async afterJoinGame({ action, game, result }: AfterExecutionHookContext): Promise<void> {
@@ -147,7 +231,9 @@ export class SocketActionHooks {
       RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.QUESTION_DATA, {
         data: questionData,
         timer,
-        questionEligiblePlayers: game.getQuestionEligiblePlayers()
+        questionEligiblePlayers: game.getQuestionEligiblePlayers(),
+        contentPlan: game.gameState.questionContentPlan ?? null,
+        buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
       } satisfies GameQuestionDataEventPayload)
     );
   }
@@ -202,16 +288,45 @@ export class SocketActionHooks {
     }
 
     const data = result.data as SecretQuestionTransferResult;
-    const { gameId, timer, question, fromPlayerId, toPlayerId, questionId } = data;
+    const { gameId, timer, question, fromPlayerId, toPlayerId, questionId, allowedPrices } = data;
 
     const transferData: SecretQuestionTransferBroadcastData = {
       fromPlayerId,
       toPlayerId,
-      questionId
+      questionId,
+      allowedPrices: allowedPrices ?? null,
+      // The price pick runs on its own timer
+      ...(allowedPrices ? { timer } : {})
     };
 
     this.realtimeGateway.publish(
       RealtimeEvents.toRoom(gameId, SocketIOGameEvents.SECRET_QUESTION_TRANSFER, transferData)
+    );
+
+    if (!timer || !question) {
+      return;
+    }
+
+    await this.emitPersonalizedQuestionData(game, gameId, question, timer);
+  }
+
+  private async afterSecretQuestionPrice({
+    game,
+    result
+  }: AfterExecutionHookContext): Promise<void> {
+    if (!result.data) {
+      return;
+    }
+
+    const { gameId, playerId, price, questionId, timer, question } =
+      result.data as SecretQuestionPriceResult;
+
+    this.realtimeGateway.publish(
+      RealtimeEvents.toRoom(gameId, SocketIOGameEvents.SECRET_QUESTION_PRICE, {
+        playerId,
+        price,
+        questionId
+      } satisfies SecretQuestionPriceBroadcastData)
     );
 
     if (!timer || !question) {
@@ -240,7 +355,9 @@ export class SocketActionHooks {
         RealtimeEvents.toSocket(sid, SocketIOGameEvents.QUESTION_DATA, {
           data: questionData,
           timer,
-          questionEligiblePlayers: game.getQuestionEligiblePlayers()
+          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
+          contentPlan: game.gameState.questionContentPlan ?? null,
+          buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
         } satisfies GameQuestionDataEventPayload)
       );
     }

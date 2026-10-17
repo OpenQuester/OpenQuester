@@ -1,3 +1,4 @@
+import type { GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { type Express } from "express";
 import { Socket as ClientSocket } from "socket.io-client";
 import { Repository } from "typeorm";
@@ -166,6 +167,16 @@ export class SocketGameTestUtils {
 
   public async createUnauthenticatedGameClient(): Promise<GameClientSocket> {
     return this.userUtils.createUnauthenticatedGameClient();
+  }
+
+  /** Settings for games this helper creates (instant buzzer by default) */
+  public set gameSettings(settings: GameSettingsInput) {
+    this.lobbyUtils.gameSettings = settings;
+  }
+
+  /** Changes the fixture package of games this helper creates; null resets */
+  public set packageTransform(transform: SocketGameTestLobbyUtils["packageTransform"]) {
+    this.lobbyUtils.packageTransform = transform;
   }
 
   public async setupGameTestEnvironment(

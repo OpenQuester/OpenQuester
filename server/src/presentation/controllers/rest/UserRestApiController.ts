@@ -1,4 +1,8 @@
 import { type Express, type Request, type Response, Router } from "express";
+import { container } from "tsyringe";
+
+import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
+import { StorageQuotaService } from "application/services/storage/StorageQuotaService";
 
 import { FileService } from "application/services/file/FileService";
 import { type UpdateUserDTO } from "application/types/user/UpdateUserDTO";
@@ -49,6 +53,7 @@ export class UserRestApiController {
     this.app.use("/v1/users", router);
 
     meRouter.get("/", asyncHandler(this.getUser));
+    meRouter.get("/storage", asyncHandler(this.getMyStorage));
     meRouter.patch("/", asyncHandler(this.updateUser));
     meRouter.delete("/", asyncHandler(this.deleteUser));
 
@@ -96,6 +101,21 @@ export class UserRestApiController {
     });
   };
 
+  /** The signed-in user's storage use and limits. */
+  private getMyStorage = async (req: Request, res: Response) => {
+    const user = await this.userService.getRaw(asUserId(Number(req.session.userId)), {
+      select: ["id", "is_guest"],
+      relations: ["permissions"],
+      relationSelects: { permissions: ["id", "name"] }
+    });
+
+    if (!user) {
+      throw new ClientError(ClientResponse.USER_NOT_FOUND);
+    }
+
+    res.status(HttpStatus.OK).send(await container.resolve(StorageQuotaService).getMyStorage(user));
+  };
+
   private updateUser = async (req: Request, res: Response) => {
     const id = req.session.userId;
     if (!id) {
@@ -141,11 +161,22 @@ export class UserRestApiController {
       birthday: userInputDTO.birthday
     };
 
+    const previousAvatar = user.avatar?.filename;
     if (avatarFile) {
+      if (avatarFile.filename !== previousAvatar) {
+        await container
+          .resolve(StorageQuotaService)
+          .assertAvatarFits(user, avatarFile.filename, previousAvatar);
+      }
+
       userUpdateDTO.avatar = avatarFile;
     }
 
     const result = await this.userService.update(user, userUpdateDTO);
+
+    if (avatarFile && previousAvatar && avatarFile.filename !== previousAvatar) {
+      await container.resolve(StorageCleanupService).removeIfUnused([previousAvatar]);
+    }
 
     return res.status(HttpStatus.OK).send(result);
   };
@@ -238,6 +269,7 @@ export class UserRestApiController {
       if (!id) {
         throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
       }
+
       return asUserId(id);
     }
   }

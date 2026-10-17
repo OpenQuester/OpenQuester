@@ -23,6 +23,7 @@ import { type EmptyInputData } from "domain/types/socket/events/SocketEventInter
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { GameValidator } from "domain/validators/GameValidator";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
 
 /**
  * Handles advancing to the next round.
@@ -96,7 +97,9 @@ export class NextRoundUseCase implements GameActionHandler<
         ? {
             answerFiles: questionData.answerFiles ?? null,
             answerText: questionData.answerText ?? null,
-            nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null
+            nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+            answerContentPlan: ShowAnswerLogic.buildAnswerPlan(questionData),
+            ...ShowAnswerLogic.revealDetails(questionData)
           }
         : null
     });

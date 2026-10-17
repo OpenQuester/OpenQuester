@@ -11,6 +11,7 @@ abstract class AppSettings with _$AppSettings {
     @Default(AppThemeSeed.indigo) AppThemeSeed themeSeed,
     @Default(AppThemeMode.system) AppThemeMode themeMode,
     @Default(true) bool limitDesktopWidth,
+    @Default(true) bool gameSounds,
     String? localeTag,
   }) = _AppSettings;
 

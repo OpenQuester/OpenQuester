@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:openquester/common_imports.dart';
 
 class GameLobbyMenu extends WatchingWidget {
@@ -12,6 +13,8 @@ class GameLobbyMenu extends WatchingWidget {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final me = gameData?.me;
     final pauseState = gameData?.gameState.isPaused ?? false;
+    // Only the host receives it
+    final password = gameData?.gameState.password;
     final lobbyEditorMode = watchValue(
       (GameLobbyController e) => e.lobbyEditorMode,
     );
@@ -36,6 +39,19 @@ class GameLobbyMenu extends WatchingWidget {
             );
           },
         ),
+        if (password != null)
+          PopupMenuItem<void>(
+            child: Text(LocaleKeys.lobby_password.tr(args: [password])),
+            onTap: () async {
+              await Clipboard.setData(ClipboardData(text: password));
+              if (!getIt.isRegistered<ToastController>()) return;
+              await getIt<ToastController>().show(
+                LocaleKeys.password_copied.tr(),
+                type: ToastType.success,
+                showFor: const Duration(seconds: 2),
+              );
+            },
+          ),
         if (!lobbyEditorMode)
           PopupMenuItem<void>(
             child: Text(

@@ -8,6 +8,7 @@ import { type ApiContext } from "shared/context/ApiContext";
 import { bootstrapContainer, container } from "./bootstrap/bootstrapContainer";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { AdminDiagnosticsService } from "application/services/admin/AdminDiagnosticsService";
+import { AdminGameService } from "application/services/admin/AdminGameService";
 import { AdminService } from "application/services/admin/AdminService";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { FileService } from "application/services/file/FileService";
@@ -49,7 +50,10 @@ import { DevelopmentRestApiController } from "presentation/controllers/rest/Deve
 import { FileRestApiController } from "presentation/controllers/rest/FileRestApiController";
 import { GameRestApiController } from "presentation/controllers/rest/GameRestApiController";
 import { PackageRestApiController } from "presentation/controllers/rest/PackageRestApiController";
+import { StatsRestApiController } from "presentation/controllers/rest/StatsRestApiController";
+import { StorageRestApiController } from "presentation/controllers/rest/StorageRestApiController";
 import { SwaggerRestApiController } from "presentation/controllers/rest/SwaggerRestApiController";
+import { WebAppController } from "presentation/controllers/rest/WebAppController";
 import { UserRestApiController } from "presentation/controllers/rest/UserRestApiController";
 import { errorMiddleware } from "presentation/middleware/errorMiddleware";
 import { SocketIORealtimeGateway } from "presentation/realtime/SocketIORealtimeGateway";
@@ -151,11 +155,7 @@ export class ServeApi {
 
       // Middlewares
       this._assertStartupCanContinue("HTTP middleware initialization");
-      await new MiddlewareController(
-        this._context,
-        this._redis,
-        this._metricsService
-      ).initialize();
+      await new MiddlewareController(this._context, this._redis, this._metricsService).initialize();
 
       this._assertStartupCanContinue("REST and Socket.IO controller initialization");
       this._attachControllers();
@@ -184,6 +184,7 @@ export class ServeApi {
       if (!this._shutdownRequested) {
         this._state = "failed";
       }
+
       this._markReadinessRejected(toLifecycleError("ServeApi startup", err));
       this._context.logger.error(`API initialization failed after ${failureTime}ms`, {
         prefix: LogPrefix.SERVE_API,
@@ -268,6 +269,7 @@ export class ServeApi {
       fileStorageService: container.resolve(FileStorageService),
       adminService: container.resolve(AdminService),
       adminDiagnosticsService: container.resolve(AdminDiagnosticsService),
+      adminGameService: container.resolve(AdminGameService),
       socketGameContextService: container.resolve(SocketGameContextService),
       gameActionExecutor: container.resolve(GameActionExecutor)
     };
@@ -292,8 +294,11 @@ export class ServeApi {
       deps.userService,
       this._context.logger,
       deps.adminService,
-      deps.adminDiagnosticsService
+      deps.adminDiagnosticsService,
+      deps.adminGameService
     );
+    new StorageRestApiController(deps.app, this._context.logger);
+    new StatsRestApiController(deps.app);
     new SwaggerRestApiController(deps.app, this._context.logger);
 
     if (this._context.env.ENV === EnvType.DEV) {
@@ -303,9 +308,17 @@ export class ServeApi {
         this._context.env,
         deps.game,
         deps.storage,
-        this._context.logger
+        this._context.logger,
+        container.resolve(PermissionService)
       );
     }
+
+    // Last, so every API route above wins over the app's client-side routes.
+    new WebAppController(
+      deps.app,
+      this._context.env.getEnvVar("WEB_APP_DIR", "string", "", true),
+      this._context.logger
+    );
 
     const broadcastService = container.resolve(GameActionBroadcastService);
     const metricsService = container.resolve(MetricsService);
@@ -450,12 +463,14 @@ export class ServeApi {
 
   private _sendReadyResponse(res: Response): Response {
     this._setReadinessCacheHeader(res);
+
     return res.status(HttpStatus.OK).json({ status: "ready" });
   }
 
   private _sendNotReadyResponse(res: Response): Response {
     this._setReadinessCacheHeader(res);
     res.setHeader("Retry-After", READINESS_RETRY_AFTER_SECONDS);
+
     return res.status(HttpStatus.SERVICE_UNAVAILABLE).json({ status: "not_ready" });
   }
 
@@ -480,6 +495,7 @@ export class ServeApi {
   private async _listen(): Promise<void> {
     if (this._server.listening) {
       this._serverUrl = this._createServerUrl();
+
       return;
     }
 
@@ -488,6 +504,7 @@ export class ServeApi {
         this._server.off("listening", onListening);
         reject(toLifecycleError(`HTTP listen on port ${this._port}`, error));
       };
+
       const onListening = (): void => {
         this._server.off("error", onError);
         this._serverUrl = this._createServerUrl();
@@ -523,6 +540,7 @@ export class ServeApi {
 
   private _ensureCleanup(): Promise<void> {
     this._cleanupPromise ??= this._cleanupInternal();
+
     return this._cleanupPromise;
   }
 
@@ -562,6 +580,7 @@ export class ServeApi {
 
     if (errors.length > 0) {
       this._state = "shutdown_failed";
+
       throw new AggregateError(errors, "ServeApi shutdown failed");
     }
 
@@ -603,6 +622,7 @@ export class ServeApi {
 
         if (error && !this._isBenignPreListenSocketIoCloseError(error)) {
           reject(error);
+
           return;
         }
 
@@ -641,8 +661,7 @@ export class ServeApi {
 
   private _isBenignPreListenSocketIoCloseError(error: Error): boolean {
     return (
-      hasErrorCode(error, "ERR_SERVER_NOT_RUNNING") &&
-      error.message === "Server is not running."
+      hasErrorCode(error, "ERR_SERVER_NOT_RUNNING") && error.message === "Server is not running."
     );
   }
 
@@ -666,6 +685,7 @@ export class ServeApi {
 
         if (error) {
           reject(error);
+
           return;
         }
 
@@ -681,6 +701,7 @@ export class ServeApi {
         if (typeof this._server.closeAllConnections === "function") {
           this._server.closeAllConnections();
         }
+
         finish(
           new ServerError(
             `Timed out after ${HTTP_SERVER_CLOSE_TIMEOUT_MS}ms waiting for HTTP server graceful close`
@@ -710,6 +731,7 @@ export class ServeApi {
     // namespace.sockets is local to this process; this is shutdown diagnostics only.
     return [SOCKET_ROOT_NAMESPACE, SOCKET_GAME_NAMESPACE].flatMap((namespaceName) => {
       const namespace = this._io.of(namespaceName);
+
       return [...namespace.sockets.values()].map((socket) => ({
         namespace: namespace.name,
         socketId: socket.id,
@@ -740,6 +762,7 @@ export class ServeApi {
     if (address === null) {
       throw new ServerError("HTTP server is not listening");
     }
+
     if (typeof address === "string") {
       throw new ServerError(`HTTP server is listening on unsupported pipe address: ${address}`);
     }
@@ -760,6 +783,7 @@ export class ServeApi {
     if (address.address === "::" || address.address === "0.0.0.0") {
       return "127.0.0.1";
     }
+
     if (address.family === "IPv6") {
       return `[${address.address}]`;
     }

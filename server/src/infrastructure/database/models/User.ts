@@ -16,6 +16,7 @@ import { type UserDTO } from "domain/types/dto/user/UserDTO";
 import { type userId } from "domain/types/ids";
 import { type IFileUrlBuilder } from "domain/types/storage/IFileUrlBuilder";
 import { File } from "infrastructure/database/models/File";
+import { bigintNumber } from "infrastructure/database/models/StorageLimit";
 import { Package } from "infrastructure/database/models/package/Package";
 import { Permission } from "infrastructure/database/models/Permission";
 import { BaseModel } from "domain/types/BaseModel";
@@ -82,6 +83,14 @@ export class User implements UserModel {
   @Column({ type: "timestamp with time zone", nullable: true })
   muted_until?: Date | null;
 
+  /** Per-user storage quota set by an admin; null uses the group's. */
+  @Column({ type: "bigint", nullable: true, transformer: bigintNumber })
+  storage_quota_bytes?: number | null;
+
+  /** Last authenticated request, at most hourly; guest cleanup reads it. */
+  @Column({ type: "timestamp with time zone", nullable: true })
+  last_seen_at?: Date | null;
+
   @OneToMany(() => Package, (packageEntity) => packageEntity.author)
   packages!: Package[];
 
@@ -97,6 +106,7 @@ export class User implements UserModel {
     if (data.id) {
       this.id = data.id;
     }
+
     this.username = data.username;
     this.name = data.name;
     this.email = data.email;

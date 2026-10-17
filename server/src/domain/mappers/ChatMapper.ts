@@ -14,7 +14,8 @@ export class ChatMapper {
       message: msg.message,
       timestamp: new Date(msg.timestamp),
       user: parseInt(msg.user),
-      uuid: msg.uuid
+      uuid: msg.uuid,
+      ...(msg.system ? { system: msg.system } : {})
     };
   }
 }

@@ -1,4 +1,3 @@
-import { GAME_QUESTION_ANSWER_SUBMIT_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -41,8 +40,8 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
   public canTransition(ctx: TransitionContext): boolean {
     const { game, trigger, triggeredBy } = ctx;
 
-    // 1. Verify we're in the expected phase
-    if (getGamePhase(game) !== this.fromPhase) {
+    // 1. Verify we're in the expected phase (no buzzer when everyone answers)
+    if (getGamePhase(game) !== this.fromPhase || game.gameState.allPlay) {
       return false;
     }
 
@@ -88,7 +87,7 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    const timer = new GameStateTimer(GAME_QUESTION_ANSWER_SUBMIT_TIME);
+    const timer = new GameStateTimer(game.settings.timers.answerSubmitMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -99,7 +98,7 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: GAME_QUESTION_ANSWER_SUBMIT_TIME,
+          pxTtl: game.settings.timers.answerSubmitMs,
         },
       ],
     };

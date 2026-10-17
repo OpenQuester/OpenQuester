@@ -1,38 +1,30 @@
 import { singleton } from "tsyringe";
 
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
-import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
-import { SecretQuestionTransferLogic } from "domain/logic/special-question/SecretQuestionTransferLogic";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";
-import { type TimerMutation } from "domain/types/action/ActionExecutionContext";
-import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
-import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
+import {
+  PackageQuestionDTO,
+  PackageQuestionSubType
+} from "domain/types/dto/package/PackageQuestionDTO";
+import type {
+  CompletedSecretQuestionTransferResult,
+  CompleteSecretQuestionTransferInput,
+  SecretQuestionTransferContextResult
+} from "domain/types/question/SecretQuestionTransferTypes";
+import {
+  SecretQuestionPriceInputData,
+  SecretQuestionTransferInputData
+} from "domain/types/socket/game/SecretQuestionTransferData";
 import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition/special-question";
 import { SecretQuestionValidator } from "domain/validators/SecretQuestionValidator";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
-
-/**
- * Result from secret question transfer.
- */
-interface SecretQuestionTransferResult {
-  game: Game;
-  fromPlayerId: number;
-  toPlayerId: number;
-  questionId: number;
-  timer: GameStateTimer;
-  /** Full question data for personalized broadcasts */
-  question: PackageQuestionDTO;
-}
-
-export interface SecretQuestionTransferContextResult extends SecretQuestionTransferResult {
-  timerMutations: TimerMutation[];
-}
 
 /**
  * Service handling secret question type.
@@ -48,7 +40,8 @@ export class SecretQuestionService {
   }
 
   /**
-   * Handles secret question transfer to another player.
+   * Handles secret question transfer to another player. A customPrice
+   * question then waits for the receiver to pick its price.
    */
   public async handleSecretQuestionTransfer(
     game: Game,
@@ -63,23 +56,72 @@ export class SecretQuestionService {
       targetPlayerId: data.targetPlayerId
     });
 
-    const questionData = await this.packageStore.getQuestionWithTheme(
-      game.id,
-      secretData!.questionId
-    );
+    const question = await this._loadQuestion(game, secretData!.questionId);
+    const allowedPrices = SecretQuestionService.customPrices(question);
 
-    if (!questionData) {
-      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
+    if (allowedPrices) {
+      return this._startPriceSelection(game, data.targetPlayerId, allowedPrices);
     }
 
-    // Transition to ANSWERING phase
+    return this.completeTransfer(game, {
+      targetPlayerId: data.targetPlayerId,
+      question,
+      trigger: TransitionTrigger.USER_ACTION,
+      triggeredBy: currentPlayer.meta.id,
+      fromPlayerId: currentPlayer.meta.id
+    });
+  }
+
+  /**
+   * The receiver of a customPrice question picks its price; the question is
+   * then shown to them at that price.
+   */
+  public async handlePriceSelection(
+    game: Game,
+    currentPlayer: Player,
+    data: SecretQuestionPriceInputData
+  ): Promise<SecretQuestionTransferContextResult> {
+    const secretData = game.gameState.secretQuestionData;
+    SecretQuestionValidator.validatePriceSelection({
+      game,
+      currentPlayer,
+      secretData: secretData ?? null,
+      price: data.price
+    });
+
+    const question = await this._loadQuestion(game, secretData!.questionId);
+
+    return this.completeTransfer(game, {
+      targetPlayerId: currentPlayer.meta.id,
+      question,
+      price: data.price,
+      trigger: TransitionTrigger.USER_ACTION,
+      triggeredBy: currentPlayer.meta.id
+    });
+  }
+
+  /**
+   * Hands the question to its answerer and starts answering (SECRET_TRANSFER
+   * → ANSWERING). Used for a plain transfer, a picked price, and timeouts.
+   */
+  public async completeTransfer(
+    game: Game,
+    input: CompleteSecretQuestionTransferInput
+  ): Promise<CompletedSecretQuestionTransferResult> {
+    const secretData = game.gameState.secretQuestionData!;
+    const { targetPlayerId, question, price, trigger, triggeredBy } = input;
+
+    // Transition from SECRET_QUESTION_TRANSFER to ANSWERING.
     const transitionResult =
       await this.phaseTransitionRouter.tryTransition<SecretTransferToAnsweringPayload>({
         game,
-        trigger: TransitionTrigger.USER_ACTION,
-        triggeredBy: { playerId: currentPlayer.meta.id, isSystem: false },
-        payload: { targetPlayerId: data.targetPlayerId },
-        resources: this.transitionResourceService.fromSimpleQuestion(questionData.question)
+        trigger,
+        triggeredBy:
+          triggeredBy !== undefined
+            ? { playerId: triggeredBy, isSystem: false }
+            : { isSystem: true },
+        payload: price !== undefined ? { targetPlayerId, price } : { targetPlayerId },
+        resources: this.transitionResourceService.fromSimpleQuestion(question)
       });
 
     if (!transitionResult) {
@@ -87,24 +129,80 @@ export class SecretQuestionService {
     }
 
     return {
-      ...SecretQuestionTransferLogic.buildResult({
-        game,
-        fromPlayerId: currentPlayer.meta.id,
-        toPlayerId: data.targetPlayerId,
-        secretData: secretData!,
-        timer:
-          transitionResult.timer !== null
-            ? GameStateTimer.fromDTO(transitionResult.timer)
-            : this._getFallbackTimer(GAME_QUESTION_ANSWER_TIME),
-        question: questionData.question
-      }),
-      timerMutations: transitionResult.timerMutations
+      game,
+      fromPlayerId: input.fromPlayerId ?? secretData.pickerPlayerId,
+      toPlayerId: targetPlayerId,
+      questionId: secretData.questionId,
+      timer:
+        transitionResult.timer !== null
+          ? GameStateTimer.fromDTO(transitionResult.timer)
+          : this._startedTimer(game.settings.timers.answerMs),
+      question: price !== undefined ? { ...question, price } : question,
+      allowedPrices: null,
+      price: price ?? null,
+      timerMutations: transitionResult.timerMutations,
+      transition: transitionResult
     };
   }
 
-  private _getFallbackTimer(duration: number): GameStateTimer {
+  /** Allowed prices when the question lets its receiver pick one */
+  public static customPrices(question: PackageQuestionDTO): number[] | null {
+    if (question.subType !== PackageQuestionSubType.CUSTOM_PRICE) {
+      return null;
+    }
+
+    const prices = [...new Set(question.allowedPrices ?? [])].sort((a, b) => a - b);
+
+    return prices.length > 0 ? prices : null;
+  }
+
+  private _startPriceSelection(
+    game: Game,
+    targetPlayerId: number,
+    allowedPrices: number[]
+  ): SecretQuestionTransferContextResult {
+    const secretData = game.gameState.secretQuestionData!;
+    secretData.transferDecisionPhase = false;
+    secretData.priceSelection = { playerId: targetPlayerId, allowedPrices };
+
+    const timer = this._startedTimer(game.settings.timers.secretTransferMs);
+    game.gameState.timer = timer.value();
+
+    return {
+      game,
+      fromPlayerId: secretData.pickerPlayerId,
+      toPlayerId: targetPlayerId,
+      questionId: secretData.questionId,
+      timer,
+      question: null,
+      allowedPrices,
+      price: null,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()),
+          pxTtl: game.settings.timers.secretTransferMs
+        }
+      ]
+    };
+  }
+
+  private async _loadQuestion(game: Game, questionId: number): Promise<PackageQuestionDTO> {
+    const questionData = await this.packageStore.getQuestionWithTheme(game.id, questionId);
+
+    if (!questionData) {
+      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
+    }
+
+    return questionData.question;
+  }
+
+  private _startedTimer(duration: number): GameStateTimer {
     const timer = new GameStateTimer(duration);
     timer.start();
+
     return timer;
   }
 }

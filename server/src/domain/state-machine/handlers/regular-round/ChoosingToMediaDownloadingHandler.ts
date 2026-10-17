@@ -1,3 +1,4 @@
+import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -11,7 +12,7 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
@@ -33,31 +34,28 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
   public canTransition(ctx: ChoosingToMediaDownloadingCtx): boolean {
     const { game, trigger, payload } = ctx;
 
-    if (!payload) return false;
-
-    if (getGamePhase(game) !== this.fromPhase) return false;
-
-    if (
-      !TransitionGuards.canTransitionInRegularRound(
-        game,
-        QuestionState.CHOOSING
-      )
-    ) {
+    if (!payload) {
       return false;
     }
 
-    if (trigger !== TransitionTrigger.USER_ACTION) return false;
+    if (getGamePhase(game) !== this.fromPhase) {
+      return false;
+    }
+
+    if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.CHOOSING)) {
+      return false;
+    }
+
+    if (trigger !== TransitionTrigger.USER_ACTION) {
+      return false;
+    }
 
     // Validate question existence and type; silence on failure
     try {
-      const { question } = QuestionPickLogic.validateQuestionPick(
-        game,
-        payload.questionData
-      );
+      const { question } = QuestionPickLogic.validateQuestionPick(game, payload.questionData);
 
       return (
-        question.type !== PackageQuestionType.SECRET &&
-        question.type !== PackageQuestionType.STAKE
+        question.type !== PackageQuestionType.SECRET && question.type !== PackageQuestionType.STAKE
       );
     } catch {
       return false;
@@ -69,26 +67,28 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
   }
 
   /** Transition to media downloading for non-secret/stake questions */
-  protected async mutate(
-    ctx: ChoosingToMediaDownloadingCtx
-  ): Promise<MutationResult> {
+  protected async mutate(ctx: ChoosingToMediaDownloadingCtx): Promise<MutationResult> {
     const { game, payload } = ctx;
 
-    const { question, theme } = QuestionPickLogic.validateQuestionPick(
-      game,
-      payload!.questionData
-    );
+    const { question, theme } = QuestionPickLogic.validateQuestionPick(game, payload!.questionData);
 
     // Set current question and mark as played
     QuestionPickLogic.processNormalQuestionPick(game, question, theme.id!);
+
+    // No-risk for everyone: every player answers in writing
+    const allPlayMode = AllPlayLogic.modeOf(question);
+    if (allPlayMode) {
+      AllPlayLogic.start(game, question, theme.id!, allPlayMode);
+    }
+
     QuestionPickLogic.resetMediaDownloadStatus(game);
 
     game.setQuestionState(QuestionState.MEDIA_DOWNLOADING);
 
     return {
       data: {
-        question: GameQuestionMapper.mapToSimpleQuestion(question),
-      },
+        question: GameQuestionMapper.mapToSimpleQuestion(question)
+      }
     };
   }
 
@@ -109,9 +109,9 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: MEDIA_DOWNLOAD_TIMEOUT,
-        },
-      ],
+          pxTtl: MEDIA_DOWNLOAD_TIMEOUT
+        }
+      ]
     };
   }
 
@@ -120,10 +120,12 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
    * (showman gets full question, players get filtered data).
    */
   protected collectBroadcasts(
-    _ctx: ChoosingToMediaDownloadingCtx,
+    ctx: ChoosingToMediaDownloadingCtx,
     _mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {
-    return [];
+    return ctx.game.gameState.allPlay
+      ? [GameQuestionMapper.buildEveryoneQuestionStartBroadcast(ctx.game, null)]
+      : [];
   }
 }

@@ -12,6 +12,8 @@ import {
 } from "domain/enums/SocketIOEvents";
 import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
+import { type FinalQuestionEventData } from "domain/types/socket/events/FinalRoundEventData";
 import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
@@ -79,6 +81,7 @@ export class GameActionBroadcastService {
               RealtimeEvents.toRoom(gameId, broadcast.event, broadcast.data)
             );
           }
+
           break;
 
         case SocketBroadcastTarget.GAME:
@@ -86,9 +89,11 @@ export class GameActionBroadcastService {
             // Handle role-based broadcasts
             if (broadcast.useRoleBasedBroadcast) {
               if (broadcast.event === SocketIOGameEvents.QUESTION_DATA) {
-                await this.emitQuestionDataWithRoleBasedFiltering(
+                await this.emitQuestionDataWithRoleBasedFiltering(gameId, broadcast.data, game);
+              } else if (broadcast.event === SocketIOGameEvents.FINAL_QUESTION_DATA) {
+                await this.emitFinalQuestionDataWithRoleBasedFiltering(
                   gameId,
-                  broadcast.data,
+                  broadcast.data as FinalQuestionEventData,
                   game
                 );
               } else {
@@ -100,6 +105,7 @@ export class GameActionBroadcastService {
               );
             }
           }
+
           break;
 
         case SocketBroadcastTarget.ALL:
@@ -127,6 +133,7 @@ export class GameActionBroadcastService {
         this.realtimeGateway.publish(
           RealtimeEvents.toRoom(game.id, event, { gameState: game.gameState })
         );
+
         return;
       }
 
@@ -138,6 +145,7 @@ export class GameActionBroadcastService {
         this.realtimeGateway.publish(
           RealtimeEvents.toRoom(game.id, event, { gameState: game.gameState })
         );
+
         return;
       }
 
@@ -152,6 +160,57 @@ export class GameActionBroadcastService {
       // Fallback to regular room emit if role-based filtering fails
       this.realtimeGateway.publish(
         RealtimeEvents.toRoom(game.id, event, { gameState: game.gameState })
+      );
+    }
+  }
+
+  /**
+   * Final question: the showman's copy keeps the answer so they can judge,
+   * everyone else gets the answer-free question.
+   */
+  private async emitFinalQuestionDataWithRoleBasedFiltering(
+    gameId: string,
+    payload: FinalQuestionEventData,
+    game: Game
+  ): Promise<void> {
+    const fullQuestion = payload.questionData.question as PackageQuestionDTO;
+    const publicPayload: FinalQuestionEventData = {
+      questionData: {
+        ...payload.questionData,
+        question: GameQuestionMapper.mapToSimpleQuestion(fullQuestion)
+      }
+    };
+
+    try {
+      const socketIds = await this.realtimeGateway.getRoomSocketIds(gameId);
+      const broadcastMap =
+        socketIds.length > 0
+          ? await this.questionService.mapSocketToQuestionPayload(socketIds, game, fullQuestion)
+          : new Map();
+
+      if (broadcastMap.size === 0) {
+        this.realtimeGateway.publish(
+          RealtimeEvents.toRoom(gameId, SocketIOGameEvents.FINAL_QUESTION_DATA, publicPayload)
+        );
+
+        return;
+      }
+
+      for (const [socketId, question] of broadcastMap.entries()) {
+        this.realtimeGateway.publish(
+          RealtimeEvents.toSocket(socketId, SocketIOGameEvents.FINAL_QUESTION_DATA, {
+            questionData: { ...payload.questionData, question }
+          } satisfies FinalQuestionEventData)
+        );
+      }
+    } catch (error: unknown) {
+      this.logger.error(
+        `Error in final-question-data role-based filtering emit: ${JSON.stringify(error)}`,
+        { prefix: LogPrefix.BROADCAST }
+      );
+
+      this.realtimeGateway.publish(
+        RealtimeEvents.toRoom(gameId, SocketIOGameEvents.FINAL_QUESTION_DATA, publicPayload)
       );
     }
   }

@@ -1,3 +1,14 @@
+import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
+import {
+  GameJoinModeChangeInputData,
+  QuestionRemoveRestoreInputData
+} from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
+import { ALL_PLAY_ANSWER_MAX_LENGTH } from "domain/constants/game";
+import {
+  AllPlayAnswerInputData,
+  AllPlayReviewInputData,
+  AllPlayStakeInputData
+} from "domain/types/socket/events/game/AllPlayEventPayloads";
 import Joi from "joi";
 
 import {
@@ -13,6 +24,7 @@ import {
 } from "domain/types/action/ActionExecutionContext";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
+import { MediaDownloadedInputData } from "domain/types/socket/events/game/MediaDownloadedInputData";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
 import {
   FinalAnswerSubmitInputData,
@@ -35,7 +47,10 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultData, AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
-import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
+import {
+  SecretQuestionPriceInputData,
+  SecretQuestionTransferInputData
+} from "domain/types/socket/game/SecretQuestionTransferData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { SchemaValidator } from "domain/validators/SchemaValidator";
 
@@ -68,6 +83,7 @@ export class GameValidator {
     if (!ctx.userData) {
       throw new ClientError(ClientResponse.SOCKET_USER_NOT_AUTHENTICATED);
     }
+
     if (!ctx.currentPlayer || !ctx.userData.gameId) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
@@ -96,6 +112,25 @@ export class GameValidator {
     return this._validate<ChatMessageInputData>(data, schema);
   }
 
+  public static validateMediaDownloaded(data: MediaDownloadedInputData) {
+    const schema = Joi.object<MediaDownloadedInputData>({
+      mediaDurations: Joi.array()
+        .items(
+          Joi.object({
+            md5: Joi.string().max(64).required(),
+            durationMs: Joi.number()
+              .positive()
+              .max(24 * 60 * 60 * 1000)
+              .required()
+          })
+        )
+        .max(100)
+        .optional()
+    });
+
+    return this._validate<MediaDownloadedInputData>(data, schema);
+  }
+
   public static validatePickQuestion(data: QuestionPickInputData) {
     const schema = Joi.object<QuestionPickInputData>({
       questionId: Joi.number().min(0).required()
@@ -110,6 +145,56 @@ export class GameValidator {
     });
 
     return this._validate<SecretQuestionTransferInputData>(data, schema);
+  }
+
+  public static validateQuestionRemoveRestore(data: QuestionRemoveRestoreInputData) {
+    return this._validate<QuestionRemoveRestoreInputData>(
+      data,
+      Joi.object<QuestionRemoveRestoreInputData>({ questionId: Joi.number().integer().required() })
+    );
+  }
+
+  public static validateGameJoinModeChange(data: GameJoinModeChangeInputData) {
+    return this._validate<GameJoinModeChangeInputData>(
+      data,
+      Joi.object<GameJoinModeChangeInputData>({
+        joinMode: Joi.valid(...Object.values(GameJoinMode)).required()
+      })
+    );
+  }
+
+  public static validateAllPlayStake(data: AllPlayStakeInputData) {
+    return this._validate<AllPlayStakeInputData>(
+      data,
+      Joi.object<AllPlayStakeInputData>({ amount: Joi.number().integer().min(0).required() })
+    );
+  }
+
+  public static validateAllPlayAnswer(data: AllPlayAnswerInputData) {
+    return this._validate<AllPlayAnswerInputData>(
+      data,
+      Joi.object<AllPlayAnswerInputData>({
+        answerText: Joi.string().allow("").max(ALL_PLAY_ANSWER_MAX_LENGTH).required()
+      })
+    );
+  }
+
+  public static validateAllPlayReview(data: AllPlayReviewInputData) {
+    return this._validate<AllPlayReviewInputData>(
+      data,
+      Joi.object<AllPlayReviewInputData>({
+        playerId: Joi.number().integer().required(),
+        isCorrect: Joi.boolean().required()
+      })
+    );
+  }
+
+  public static validateSecretQuestionPrice(data: SecretQuestionPriceInputData) {
+    const schema = Joi.object<SecretQuestionPriceInputData>({
+      price: Joi.number().integer().min(0).required()
+    });
+
+    return this._validate<SecretQuestionPriceInputData>(data, schema);
   }
 
   public static validateAnswerSubmitted(data: AnswerSubmittedData) {
@@ -179,7 +264,8 @@ export class GameValidator {
 
   public static validatePlayerRoleChange(data: PlayerRoleChangeInputData) {
     const schema = Joi.object<PlayerRoleChangeInputData>({
-      playerId: Joi.number().min(0),
+      // null (or omitted) means "change my own role", as the contract documents
+      playerId: Joi.number().min(0).allow(null),
       newRole: Joi.valid(...Object.values(PlayerRole)).required()
     });
 

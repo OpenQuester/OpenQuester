@@ -1,7 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, it } from "@jest/globals";
 
 import {
-  GAME_QUESTION_ANSWER_TIME,
   MEDIA_DOWNLOAD_TIMEOUT,
   SYSTEM_PLAYER_ID
 } from "domain/constants/game";
@@ -17,6 +16,7 @@ import {
   MediaDownloadFlow,
   withMediaDownloadFlow
 } from "tests/e2e/flows/media-download/MediaDownloadFlow";
+import { IMAGE_QUESTION_TIMER_MS } from "tests/e2e/flows/media-download/MediaDownloadAssertions";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { type ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
@@ -51,7 +51,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const status = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterLeave,
-        expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
+        expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
       );
       const leave = flow.waitForLeaveBroadcast(flow.allRecipients, afterLeave, leavingPlayer);
 
@@ -106,7 +106,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const status = flow.waitForMediaDownloadBroadcast(
         remainingRecipients,
         afterDisconnect,
-        expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
+        expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
       );
       const leave = flow.waitForLeaveBroadcast(
         remainingRecipients,
@@ -172,7 +172,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const status = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterKick,
-        expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
+        expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
       );
       const kicked = flow.waitForKickBroadcast(flow.allRecipients, afterKick, kickedPlayer);
       const leave = flow.waitForLeaveBroadcast(flow.allRecipients, afterKick, kickedPlayer);
@@ -285,7 +285,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const status = flow.waitForMediaDownloadBroadcast(
         activeRecipients,
         afterFinalDownload,
-        expectedStatus(remainingPlayer.userId!, true, GAME_QUESTION_ANSWER_TIME)
+        expectedStatus(remainingPlayer.userId!, true, IMAGE_QUESTION_TIMER_MS)
       );
 
       flow.emitPlayerDownloaded(remainingPlayer);
@@ -481,7 +481,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const status = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterRestriction,
-        expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
+        expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
       );
 
       flow.emitPlayerRestriction(restrictedPlayer);
@@ -687,7 +687,7 @@ async function assertMediaDownloading(flow: MediaDownloadFlow): Promise<void> {
 
 async function assertShowing(flow: MediaDownloadFlow): Promise<void> {
   await flow.expectQuestionState(QuestionState.SHOWING);
-  await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+  await flow.expectActiveTimerDuration(IMAGE_QUESTION_TIMER_MS);
 }
 
 function expectedStatus(

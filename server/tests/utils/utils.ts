@@ -1,3 +1,5 @@
+import { StorageLimit } from "infrastructure/database/models/StorageLimit";
+import { QuestionReport } from "infrastructure/database/models/report/QuestionReport";
 import { DataSource, DataSourceOptions } from "typeorm";
 import {
   getTestApiPort,
@@ -138,7 +140,9 @@ export function createTestAppDataSource() {
       PackageTheme,
       PackageQuestionChoiceAnswer,
       GameStatistics,
-      PlayerGameStats
+      PlayerGameStats,
+      StorageLimit,
+      QuestionReport
     ],
     migrations: [],
     synchronize: true,

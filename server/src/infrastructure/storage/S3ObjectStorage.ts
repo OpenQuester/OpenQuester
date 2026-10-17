@@ -2,6 +2,7 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client
@@ -24,17 +25,45 @@ import { ValueUtils } from "domain/utils/ValueUtils";
 @singleton()
 export class S3ObjectStorage implements ObjectStorage {
   private readonly client: S3Client;
+  /**
+   * Signs upload links for the public proxy (S3_URL_PREFIX) when files are
+   * served through it (S3_USE_SUB_DOMAIN_BUCKET_FORMAT): the link is signed
+   * for the virtual-hosted bucket host, which the proxy sets as Host upstream,
+   * and handed out under the proxy's address.
+   */
+  private readonly proxyUploadClient: S3Client | null;
 
   constructor(@inject(DI_TOKENS.S3Context) private readonly s3Context: S3Context) {
-    this.client = new S3Client({
+    this.client = this._createClient(true);
+    this.proxyUploadClient =
+      this.s3Context.useSubDomainBucketFormat && this.s3Context.urlPrefix
+        ? this._createClient(false)
+        : null;
+  }
+
+  private _createClient(forcePathStyle: boolean): S3Client {
+    return new S3Client({
       credentials: {
         accessKeyId: this.s3Context.accessKey,
         secretAccessKey: this.s3Context.secretKey
       },
-      forcePathStyle: true,
+      forcePathStyle,
       endpoint: this.s3Context.endpoint,
-      region: this.s3Context.region
+      region: this.s3Context.region,
+      // Presigned uploads come from clients, so the SDK must not sign a CRC32
+      // of the (empty) request body into the URL; strict S3 servers then reject
+      // every upload as a bad digest. Content-MD5 already guards the payload.
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED"
     });
+  }
+
+  /** Moves a virtual-hosted presigned URL onto the public proxy's address. */
+  private _viaProxy(signedUrl: string): string {
+    const signed = new URL(signedUrl);
+    const prefix = this.s3Context.urlPrefix.replace(/\/+$/, "");
+
+    return `${prefix}${signed.pathname}${signed.search}`;
   }
 
   public getIgnoredCleanupFolder(): string {
@@ -52,10 +81,12 @@ export class S3ObjectStorage implements ObjectStorage {
         IfNoneMatch: "*"
       });
 
-      return getSignedUrl(this.client, command, {
+      const signed = await getSignedUrl(this.proxyUploadClient ?? this.client, command, {
         expiresIn: input.expiresInSeconds,
         unhoistableHeaders: new Set(["Content-MD5", "If-None-Match"])
       });
+
+      return this.proxyUploadClient ? this._viaProxy(signed) : signed;
     }
 
     const command = new GetObjectCommand({
@@ -88,6 +119,23 @@ export class S3ObjectStorage implements ObjectStorage {
     await this.client.send(command);
   }
 
+  public async headObject(bucket: string, key: string): Promise<{ size: number } | null> {
+    try {
+      const result = await this.client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+
+      return { size: Number(result.ContentLength ?? 0) };
+    } catch (error) {
+      const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata
+        ?.httpStatusCode;
+      // Hetzner answers 403 rather than 404 for a missing key.
+      if (status === 404 || status === 403) {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
   public async deleteObjects(bucket: string, keys: string[]): Promise<ObjectStorageDeleteResult> {
     if (keys.length === 0) {
       return { errors: [] };
@@ -105,6 +153,7 @@ export class S3ObjectStorage implements ObjectStorage {
     this.applyMinioContentMD5Workaround(command, objects);
 
     const result = await this.client.send(command);
+
     return {
       errors:
         result.Errors?.map((error) => ({
@@ -135,7 +184,8 @@ export class S3ObjectStorage implements ObjectStorage {
           const key = obj.Key!;
           const parts = key.split("/");
           const filename = parts[parts.length - 1];
-          return { filename, key };
+
+          return { filename, key, size: obj.Size };
         });
       }
 
@@ -155,6 +205,7 @@ export class S3ObjectStorage implements ObjectStorage {
         if (args.request && args.request.headers) {
           args.request.headers["content-md5"] = contentMD5;
         }
+
         return next(args);
       },
       {

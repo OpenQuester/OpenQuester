@@ -1,4 +1,5 @@
 import { GameService } from "application/services/game/GameService";
+import { PermissionService } from "application/services/permission/PermissionService";
 import { UserService } from "application/services/user/UserService";
 import cookieSignature from "cookie-signature";
 import {
@@ -26,7 +27,8 @@ export class DevelopmentRestApiController {
     private readonly env: Environment,
     private readonly gameService: GameService,
     private readonly storage: S3StorageService,
-    private readonly logger: ILogger
+    private readonly logger: ILogger,
+    private readonly permissionService: PermissionService
   ) {
     const dummyUser = {
       username: "dev-user",
@@ -67,7 +69,15 @@ export class DevelopmentRestApiController {
             birthday: null,
             avatar: null
           });
+
+          // ADMIN_EMAILS is applied at startup; a dev account listed there
+          // but created later becomes admin on its first login.
+          const email = (dummyUser.email + num).toLowerCase();
+          if (this.env.ADMIN_EMAILS.includes(email)) {
+            await this.permissionService.grantAllPermissionsByEmails([email]);
+          }
         }
+
         req.session.userId = user.id;
         req.session.isGuest = user.is_guest;
         req.session.save((err) => {
@@ -75,8 +85,10 @@ export class DevelopmentRestApiController {
             this.logger.error(`Session save error: ${err}`, {
               prefix: LogPrefix.DEV
             });
+
             return res.status(500).json({ error: "Session save failed" });
           }
+
           // Signed session value to put it in Postman
           const signedSessionID =
             "s:" + cookieSignature.sign(req.sessionID, this.env.SESSION_SECRET!);
@@ -115,6 +127,7 @@ export class DevelopmentRestApiController {
         }
 
         const games: GameListItemDTO[] = [];
+
         for (let i = 0; i < count; i++) {
           const gameData = this.generateRandomGameData(packageId);
           const createdByUser = await this.userService.getUserBySession(req.session.userId, {
@@ -197,9 +210,11 @@ export class DevelopmentRestApiController {
   private generateRandomString(length: number): string {
     const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let result = "";
+
     for (let i = 0; i < length; i++) {
       result += characters.charAt(Math.floor(Math.random() * characters.length));
     }
+
     return result;
   }
 }

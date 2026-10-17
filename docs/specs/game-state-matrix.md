@@ -81,6 +81,62 @@ When changing gameplay state, make sure:
 5. New public event/payload changes are reflected in `openapi/schema.json`.
 6. Tests cover invalid roles, invalid phases, and race-sensitive behavior when applicable.
 
+## Rules confirmed while building the web client
+
+- A question ends as soon as nobody can still buzz: every eligible player has
+  either answered or passed. A pass after someone else's wrong answer reveals
+  the answer immediately instead of waiting for the timer.
+- When the showman picks a stake or secret question, it belongs to the player
+  whose turn it was: they make the opening bid or choose the recipient. The
+  showman never bids, receives or answers.
+- `start` carries `currentTurnPlayerId`, so every client shows who picks first.
+- The showman's copy of the final question includes the answer for judging.
+
+## Special question rules (SIGame parity)
+
+- **Choice:** a picked option is checked by the server when the question's
+  right answer is exactly one of the options (`ChoiceAnswerLogic`); right
+  scores +price, wrong −price, and the showman does not judge. Otherwise the
+  showman judges as usual. Options appear `showDelay` after the content, and
+  the buzzer opens then.
+- **Number and point answers** (`answerType`): a typed number is checked
+  against `answerNumber` ± `answerDeviation`; a point answer is a click on the
+  question's first picture, sent as `"x,y"` fractions and checked against
+  `answerPoint` within `answerDeviation` (a share of the width, 5% by
+  default). Right +price, wrong −price, no showman ruling; text that isn't a
+  number / point goes to the showman. In "everyone answers" questions these
+  answers are ruled when the review starts.
+- **Secret, customPrice:** after the transfer, the receiver picks the price
+  from `allowedPrices` (`secret-question-price`, 30 s; on timeout the lowest
+  price). The question is then shown and answered at that price.
+- **Hidden price:** the board shows the price as unknown until the question
+  is picked.
+- **Everyone answers** (stake or no-risk with `subType: forEveryone`,
+  `gameState.allPlay`): no buzzer. Stake mode starts with hidden stakes from
+  every player (`all-play-stake`, 30 s, at most the player's score or the
+  price, capped by `maxPrice`; missing stakes become the price). The question
+  then preloads and shows; every player types an answer (`all-play-answer`,
+  45 s after the content). The showman rules on each answer in REVIEWING
+  (`all-play-review`); a missing answer is wrong. Stake: right +stake, wrong
+  −stake. No-risk: right +price × multiplier, wrong ±0. Answers and stakes
+  stay hidden from players until the review.
+
+## Showman tools
+
+- **Remove / restore a question** (`question-remove-restore`, while choosing): the
+  question's `isPlayed` flips. A removed question can't be picked; the round
+  still ends only after a question is played or the showman moves on.
+- **Undo the last ruling** (`answer-result-undo`, while the question is open
+  or its answer is shown): the score change is reverted. After a wrong answer
+  on an open question the player may buzz again.
+- **Who can join** (`game-join-mode-change`: open / spectators only / closed): blocks
+  newcomers; people already in the game can always come back. Shown in the
+  game list as `joinMode`.
+
+The public events `question-toggle` and `game-join-mode` were renamed to
+`question-remove-restore` and `game-join-mode-change`. Their payloads are unchanged.
+Update the backend and browser assets together; older browser tabs need a reload.
+
 ## Common disabled reason categories
 
 Use consistent categories in UI copy and server/client logic:
