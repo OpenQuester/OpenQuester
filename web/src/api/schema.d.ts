@@ -5543,7 +5543,7 @@ export interface components {
              */
             finalAnswerMs: number;
             /**
-             * @description Length of a regular round: 0 for no limit, otherwise 300000–10800000 ms. Once it has passed (not counting pauses), the round ends after the question in play
+             * @description Length of a regular round: 0 for no limit, otherwise 300000–10800000 ms. Once it has passed (not counting pauses), the round ends after the question in play, or on the next pick if the board is open
              * @default 0
              */
             roundMs: number;
@@ -5581,7 +5581,7 @@ export interface components {
              */
             finalAnswerMs: number;
             /**
-             * @description Length of a regular round: 0 for no limit, otherwise 300000–10800000 ms. Once it has passed (not counting pauses), the round ends after the question in play
+             * @description Length of a regular round: 0 for no limit, otherwise 300000–10800000 ms. Once it has passed (not counting pauses), the round ends after the question in play, or on the next pick if the board is open
              * @default 0
              */
             roundMs: number;
