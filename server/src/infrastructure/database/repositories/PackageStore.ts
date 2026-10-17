@@ -15,6 +15,10 @@ import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 import { PackageMediaLogic } from "domain/logic/package/PackageMediaLogic";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { HttpStatus } from "domain/enums/HttpStatus";
+import { ClientError } from "domain/errors/ClientError";
 
 interface PackageThemeStoreDTO {
   id: number;
@@ -98,6 +102,15 @@ export class PackageStore {
     pack: PackageDTO,
     ttl: number = GAME_TTL_IN_SECONDS
   ): Promise<void> {
+    const filenames = [...PackageMediaLogic.collectFiles(pack).keys()];
+    // Check the exact snapshot: content can be replaced after the earlier
+    // ID-based readiness check, before creation or package switching loads it.
+    if (pack.uploadStatus === PackageUploadStatus.UPLOADING) {
+      throw new ClientError(ClientResponse.PACKAGE_UPLOAD_UNFINISHED, HttpStatus.CONFLICT, {
+        missing: filenames.length,
+        total: filenames.length
+      });
+    }
     const key = this.getPackageKey(gameId);
     const fields: Record<string, string> = {};
 
@@ -118,9 +131,7 @@ export class PackageStore {
 
     // Every media file the game may show: storage cleanup must keep them while
     // the game runs, even if the package is edited and stops using them
-    fields[PackageStore.FILES_FIELD] = JSON.stringify([
-      ...PackageMediaLogic.collectFiles(pack).keys()
-    ]);
+    fields[PackageStore.FILES_FIELD] = JSON.stringify(filenames);
 
     // Store each round and its questions
     for (const round of pack.rounds) {

@@ -3,6 +3,7 @@ import { inject, singleton } from "tsyringe";
 import { DI_TOKENS } from "shared/di/tokens";
 import { PackageStorageService } from "application/services/package/PackageStorageService";
 import { StorageQuotaService } from "application/services/storage/StorageQuotaService";
+import { PACKAGE_DETAILED_RELATIONS, PACKAGE_SELECT_FIELDS } from "domain/constants/package";
 import { UPLOAD_PACKAGE_LINKS_EXPIRES_IN } from "domain/constants/storage";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
@@ -12,6 +13,8 @@ import { type PackageUploadStateDTO } from "domain/types/dto/package/PackageUplo
 import { type FileLocation } from "domain/types/file/FileLocation";
 import { PackageRepository } from "infrastructure/database/repositories/PackageRepository";
 import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
+import { Package } from "infrastructure/database/models/package/Package";
+import { S3FileUrlBuilder } from "infrastructure/storage/S3FileUrlBuilder";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 
@@ -41,6 +44,7 @@ export class PackageUploadService {
     private readonly storageRepository: StorageRepository,
     private readonly storageQuotaService: StorageQuotaService,
     private readonly packageStorageService: PackageStorageService,
+    private readonly fileUrlBuilder: S3FileUrlBuilder,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -55,29 +59,22 @@ export class PackageUploadService {
    * After a package is created or replaced: ready when storage already holds
    * every file it uses (nothing new to upload), otherwise uploading.
    */
-  public async markSaved(
-    packageId: number,
-    sourceHash?: string | null
-  ): Promise<PackageUploadStatus> {
-    const files = await this.storageRepository.getPackageFileStates(packageId);
-
-    const allStored = files.every((file) => file.verified);
-    const status = allStored ? PackageUploadStatus.READY : PackageUploadStatus.UPLOADING;
-
-    await this.packageRepository.setUploadState(packageId, status, sourceHash);
-
-    return status;
+  public async markSaved(packageId: number): Promise<PackageUploadStatus> {
+    return this.finalize(await this.getUploadPackage(packageId));
   }
 
   /** Asks storage about every file not confirmed yet and saves the result. */
   public async refresh(packageId: number): Promise<UploadCheck> {
-    const pack = await this.packageRepository.get(packageId, ["id", "upload_status"], []);
-
-    if (!pack) {
-      throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND, HttpStatus.NOT_FOUND);
-    }
-
+    const pack = await this.getUploadPackage(packageId);
     const files = await this.storageRepository.getPackageFileStates(packageId);
+    if (pack.upload_status === PackageUploadStatus.READY) {
+      return {
+        status: PackageUploadStatus.READY,
+        files,
+        missingFilenames: [],
+        uncheckedFilenames: []
+      };
+    }
     const pendingFilenames = files.filter((file) => !file.verified).map((file) => file.filename);
 
     const missingFilenames: string[] = [];
@@ -109,11 +106,11 @@ export class PackageUploadService {
       );
     }
 
-    const status = this.nextStatus(pack.upload_status, missingFilenames, uncheckedFilenames);
-
-    if (status !== pack.upload_status) {
-      await this.packageRepository.setUploadState(packageId, status);
-
+    const status =
+      missingFilenames.length === 0 && uncheckedFilenames.length === 0
+        ? await this.finalize(pack)
+        : PackageUploadStatus.UPLOADING;
+    if (status === PackageUploadStatus.READY) {
       this.logger.info(`Package ${packageId} upload is ${status}`, {
         prefix: LogPrefix.S3,
         packageId,
@@ -149,8 +146,8 @@ export class PackageUploadService {
   /**
    * Throws 409 unless every media file of the package is in storage. A
    * package marked uploading is checked again first, so a finished upload
-   * from a client that never reported back still counts. When storage
-   * can't be reached, only files it confirmed missing block the game.
+   * from a client that never reported back still counts. Unconfirmed files
+   * and exceeded measured quotas keep the package unplayable.
    */
   public async assertPlayable(packageId: number): Promise<void> {
     const pack = await this.packageRepository.get(packageId, ["id", "upload_status"], []);
@@ -159,34 +156,51 @@ export class PackageUploadService {
     }
 
     const check = await this.refresh(packageId);
-    if (check.missingFilenames.length === 0) {
+    if (check.status === PackageUploadStatus.READY) {
       return;
     }
 
     throw new ClientError(ClientResponse.PACKAGE_UPLOAD_UNFINISHED, HttpStatus.CONFLICT, {
-      missing: check.missingFilenames.length,
+      missing: check.missingFilenames.length + check.uncheckedFilenames.length,
       total: check.files.length
     });
   }
 
-  /**
-   * Uploading while a file is missing, ready once every file is confirmed;
-   * when some checks failed and none came back missing, nothing is known
-   * for sure, so the status stays as it was.
-   */
-  private nextStatus(
-    current: PackageUploadStatus,
-    missingFilenames: string[],
-    uncheckedFilenames: string[]
-  ): PackageUploadStatus {
-    if (missingFilenames.length > 0) {
+  private async getUploadPackage(packageId: number): Promise<Package> {
+    const pack = await this.packageRepository.get(
+      packageId,
+      [...PACKAGE_SELECT_FIELDS, "upload_started_at"],
+      PACKAGE_DETAILED_RELATIONS
+    );
+    if (!pack) {
+      throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+    return pack;
+  }
+
+  private async finalize(pack: Package): Promise<PackageUploadStatus> {
+    if (pack.upload_status === PackageUploadStatus.READY) return PackageUploadStatus.READY;
+    const files = await this.storageRepository.getPackageFileStates(pack.id);
+    if (files.some((file) => !file.verified) || !pack.author) {
       return PackageUploadStatus.UPLOADING;
     }
-
-    if (uncheckedFilenames.length === 0) {
-      return PackageUploadStatus.READY;
-    }
-
-    return current;
+    await this.storageQuotaService.assertStoredPackageFits(
+      pack.author,
+      {
+        logo: pack.logoDTO(this.fileUrlBuilder),
+        rounds: pack.rounds.map((round) => ({
+          themes: round.themes.map((theme) => ({
+            questions: theme.questions.map((question) =>
+              question.toDTO(this.fileUrlBuilder, { fetchIds: false })
+            )
+          }))
+        }))
+      },
+      pack.id
+    );
+    // A concurrent replacement must be checked using its own content and limits.
+    return (await this.packageRepository.markUploadReady(pack.id, pack.upload_started_at))
+      ? PackageUploadStatus.READY
+      : PackageUploadStatus.UPLOADING;
   }
 }

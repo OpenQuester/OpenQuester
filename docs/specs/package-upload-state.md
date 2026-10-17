@@ -14,13 +14,16 @@ be played, and its author can finish the upload later.
 
 - `package.upload_status`: `uploading` or `ready` (existing packages were
   migrated as `ready`). `upload_started_at` records when it last became
-  `uploading`.
+  `uploading`. Each content replacement receives a new timestamp; an older
+  check cannot mark a newer replacement ready.
 - A file counts as stored once `file.size_verified_at` is set, i.e. storage
   answered `HeadObject` for it (`StorageQuotaService.verifyFile`) or the
   nightly listing saw it.
-- `POST`/`PUT /v1/packages` set the status right after saving: `ready` when
-  every file the package uses is already confirmed (nothing new to upload),
-  otherwise `uploading`. The response carries `uploadStatus`.
+- `POST`/`PUT /v1/packages` save content, source hash and `uploading` status
+  together. The status becomes `ready` only when every referenced file is
+  confirmed and its measured sizes pass the file, package, author and bucket
+  limits. Already confirmed files need no new upload. The response carries
+  `uploadStatus`.
 - `PackageUploadService.refresh` asks storage about each unconfirmed file and
   saves the result. It runs on `GET /v1/packages/{id}/upload`, before a game
   is created with the package, and every 5 minutes for packages that started
@@ -31,8 +34,9 @@ be played, and its author can finish the upload later.
 
 - `POST /v1/games` and changing a game's package refuse an `uploading`
   package with **409** `package_upload_unfinished`, naming how many files are
-  missing. A storage error is not proof of a missing file: only files storage
-  says it doesn't have block the game.
+  missing or unconfirmed. Storage errors keep unconfirmed uploads unplayable;
+  ready packages keep working. Measured quota violations return **413**, or
+  **507** for the bucket, and keep the package `uploading`.
 - Games snapshot the package when created, so a ready package can't become
   unplayable under a running game.
 - `GET /v1/packages?uploadStatus=ready` lists only playable packages. The web

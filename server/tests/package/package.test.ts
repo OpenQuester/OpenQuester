@@ -105,6 +105,23 @@ describe("PackageRestApiController", () => {
     await deleteAll(permRepo);
   });
 
+  it("allows credentialed cross-origin PUT preflight for package edits", async () => {
+    const origin = "http://localhost:5173";
+    const response = await http
+      .options("/v1/packages/1")
+      .set("Origin", origin)
+      .set("Access-Control-Request-Method", "PUT")
+      .set("Access-Control-Request-Headers", "content-type");
+
+    expect(response.status).toBe(204);
+    expect(response.headers["access-control-allow-origin"]).toBe(origin);
+    expect(response.headers["access-control-allow-credentials"]).toBe("true");
+    expect(response.headers["access-control-allow-methods"].split(",")).toContain("PUT");
+    expect(response.headers["access-control-allow-headers"].toLowerCase().split(",")).toContain(
+      "content-type"
+    );
+  });
+
   it("should create package successfully", async () => {
     const loginData = await testUtils.createAndLoginUser("testuser");
     const packageData = packageUtils.createTestPackageData(loginData.user, false);

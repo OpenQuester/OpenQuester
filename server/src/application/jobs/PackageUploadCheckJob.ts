@@ -1,5 +1,6 @@
 import { BaseCronJob } from "application/jobs/BaseCronJob";
 import { PackageUploadService } from "application/services/package/PackageUploadService";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 
@@ -33,7 +34,7 @@ export class PackageUploadCheckJob extends BaseCronJob {
     let ready = 0;
     for (const id of ids) {
       try {
-        if ((await this.packageUploadService.refresh(id)).missingFilenames.length === 0) {
+        if ((await this.packageUploadService.refresh(id)).status === PackageUploadStatus.READY) {
           ready++;
         }
       } catch (error) {

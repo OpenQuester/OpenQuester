@@ -18,7 +18,7 @@ export const PACKAGE_SELECT_FIELDS: PackageSelectField[] = [
   "language",
   "authors",
   "sources",
-  "upload_status",
+  "upload_status"
 ];
 
 // Minimal relations for lightweight listings or shallow fetch (used in lists)
@@ -37,4 +37,5 @@ export const PACKAGE_DETAILED_RELATIONS: string[] = [
   "rounds.themes.questions.answerFiles",
   "rounds.themes.questions.answerFiles.file",
   "rounds.themes.questions.answers",
+  "rounds.themes.questions.answers.file"
 ];

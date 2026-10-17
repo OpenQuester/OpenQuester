@@ -1,5 +1,5 @@
 import { inject, singleton } from "tsyringe";
-import { EntityManager, In, Repository } from "typeorm";
+import { EntityManager, In, IsNull, Repository } from "typeorm";
 
 import { DI_TOKENS } from "shared/di/tokens";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -78,20 +78,17 @@ export class PackageRepository {
     return searchHelper.searchWithoutStatsFiltering(searchOpts);
   }
 
-  /**
-   * Records whether all media reached storage. `sourceHash` is left alone
-   * when undefined; null clears it.
-   */
-  public async setUploadState(
-    id: number,
-    status: PackageUploadStatus,
-    sourceHash?: string | null
-  ): Promise<void> {
-    await this.repository.update(id, {
-      upload_status: status,
-      ...(status === PackageUploadStatus.UPLOADING ? { upload_started_at: new Date() } : {}),
-      ...(sourceHash !== undefined ? { source_hash: sourceHash } : {})
-    });
+  /** Only the content generation whose measured quotas passed may become ready. */
+  public async markUploadReady(id: number, startedAt: Date | null): Promise<boolean> {
+    const result = await this.repository.update(
+      {
+        id,
+        upload_status: PackageUploadStatus.UPLOADING,
+        upload_started_at: startedAt ?? IsNull()
+      },
+      { upload_status: PackageUploadStatus.READY }
+    );
+    return result.affected === 1;
   }
 
   /** Ids of packages still uploading that started after `since`, newest first. */
@@ -156,7 +153,8 @@ export class PackageRepository {
   public async create(
     packageData: PackageDTO,
     author: User,
-    replaceId?: number
+    replaceId?: number,
+    sourceHash?: string | null
   ): Promise<{
     pack: Package;
     files: FileDTO[];
@@ -169,7 +167,8 @@ export class PackageRepository {
       if (replaceId !== undefined) {
         existing = await transaction.findOne(Package, {
           where: { id: replaceId },
-          relations: ["author", "tags", "logo"]
+          relations: ["author", "tags", "logo"],
+          lock: { mode: "pessimistic_write", tables: ["package"] }
         });
 
         if (!existing) {
@@ -241,6 +240,13 @@ export class PackageRepository {
       });
       // import() keeps an old logo when none is given; an edit may remove it.
       pack.logo = logoFile;
+      // Publish readiness only after measured quota validation. The monotonic
+      // timestamp also prevents an older refresh from accepting a replacement.
+      pack.upload_status = PackageUploadStatus.UPLOADING;
+      pack.upload_started_at = new Date(
+        Math.max(Date.now(), (existing?.upload_started_at?.getTime() ?? 0) + 1)
+      );
+      if (sourceHash !== undefined) pack.source_hash = sourceHash;
       await transaction.save(pack);
 
       // Create file usage for logo if it exists (for both new and existing files)

@@ -1,4 +1,13 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest
+} from "@jest/globals";
 import { container } from "tsyringe";
 import { type DataSource, type Repository } from "typeorm";
 
@@ -10,6 +19,7 @@ import { File } from "infrastructure/database/models/File";
 import { Package } from "infrastructure/database/models/package/Package";
 import { User } from "infrastructure/database/models/User";
 import { S3ObjectStorage } from "infrastructure/storage/S3ObjectStorage";
+import { PackageRepository } from "infrastructure/database/repositories/PackageRepository";
 import { DI_TOKENS } from "shared/di/tokens";
 import { type ILogger } from "shared/logging/ILogger";
 import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
@@ -45,6 +55,12 @@ describe("Package upload state", () => {
   beforeEach(() => {
     http = createHttpTestClient(harness.serverUrl);
     stored = new Set();
+    jest
+      .spyOn(container.resolve(S3ObjectStorage), "deleteObjects")
+      .mockImplementation(async (_bucket, keys) => {
+        for (const key of keys) stored.delete(key.split("/").pop()!);
+        return { errors: [] };
+      });
     jest
       .spyOn(container.resolve(S3ObjectStorage), "headObject")
       .mockImplementation(async (_bucket: string, key: string) => {
@@ -158,7 +174,9 @@ describe("Package upload state", () => {
       .set("Cookie", cookie)
       .send({ content: packageWith(user, [md5(3)]) });
 
-    const res = await http.get(`/v1/packages/${created.body.id}/upload`).set("Cookie", other.cookie);
+    const res = await http
+      .get(`/v1/packages/${created.body.id}/upload`)
+      .set("Cookie", other.cookie);
     expect(res.status).toBe(403);
   });
 
@@ -195,7 +213,9 @@ describe("Package upload state", () => {
     expect(ready.body.uploadStatus).toBe("ready");
 
     const list = (query: string) =>
-      http.get(`/v1/packages?limit=50&offset=0&${query}`).then((r) => r.body.data as { id: number }[]);
+      http
+        .get(`/v1/packages?limit=50&offset=0&${query}`)
+        .then((r) => r.body.data as { id: number }[]);
     const playable = (await list("uploadStatus=ready")).map((p) => p.id);
     expect(playable).toContain(ready.body.id);
     expect(playable).not.toContain(pending.body.id);
@@ -235,5 +255,152 @@ describe("Package upload state", () => {
 
     const pack = await packageRepo.findOneByOrFail({ id: created.body.id });
     expect(pack.upload_status).toBe("ready");
+  });
+
+  it("keeps an unconfirmed package unplayable during a storage outage", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`upload_outage_${Date.now()}`);
+    const created = await http
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content: packageWith(user, [md5(80)]) });
+    expect(created.status).toBe(200);
+    jest
+      .mocked(container.resolve(S3ObjectStorage).headObject)
+      .mockRejectedValue(new Error("storage unavailable"));
+
+    expect((await createGame(cookie, created.body.id)).status).toBe(409);
+    expect((await packageRepo.findOneByOrFail({ id: created.body.id })).upload_status).toBe(
+      "uploading"
+    );
+  });
+
+  it("does not let an old refresh mark replacement media ready", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`upload_race_${Date.now()}`);
+    const oldFile = md5(81);
+    const newFile = md5(82);
+    const created = await http
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content: packageWith(user, [oldFile]) });
+    expect(created.status).toBe(200);
+    let replaced = false;
+    jest
+      .mocked(container.resolve(S3ObjectStorage).headObject)
+      .mockImplementation(async (_bucket, key) => {
+        if (key.endsWith(oldFile) && !replaced) {
+          replaced = true;
+          const replacement = await http
+            .put(`/v1/packages/${created.body.id}`)
+            .set("Cookie", cookie)
+            .send({ content: packageWith(user, [newFile]) });
+          expect(replacement.status).toBe(200);
+          expect(replacement.body.uploadStatus).toBe("uploading");
+          return { size: 100 };
+        }
+        return null;
+      });
+
+    const staleCheck = await http
+      .get(`/v1/packages/${created.body.id}/upload`)
+      .set("Cookie", cookie);
+    expect(staleCheck.status).toBe(200);
+    expect(replaced).toBe(true);
+    expect(staleCheck.body.status).toBe("uploading");
+    expect((await packageRepo.findOneByOrFail({ id: created.body.id })).upload_status).toBe(
+      "uploading"
+    );
+    expect((await createGame(cookie, created.body.id)).status).toBe(409);
+  });
+
+  it("does not accept a replacement made after the previous content passed validation", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`upload_cas_${Date.now()}`);
+    const oldFile = md5(83);
+    const created = await http
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content: packageWith(user, [oldFile]), sourceHash: "a".repeat(32) });
+    expect(created.status).toBe(200);
+    stored.add(oldFile);
+    const repository = container.resolve(PackageRepository);
+    const markReady = repository.markUploadReady.bind(repository);
+    const newHash = "b".repeat(32);
+    jest.spyOn(repository, "markUploadReady").mockImplementationOnce(async (id, startedAt) => {
+      const replacement = await http
+        .put(`/v1/packages/${id}`)
+        .set("Cookie", cookie)
+        .send({ content: packageWith(user, [md5(84)]), sourceHash: newHash });
+      expect(replacement.status).toBe(200);
+      expect(replacement.body.uploadStatus).toBe("uploading");
+      return markReady(id, startedAt);
+    });
+
+    const staleCheck = await http
+      .get(`/v1/packages/${created.body.id}/upload`)
+      .set("Cookie", cookie);
+    expect(staleCheck.status).toBe(200);
+    expect(staleCheck.body.status).toBe("uploading");
+    expect(await packageRepo.findOneByOrFail({ id: created.body.id })).toMatchObject({
+      upload_status: "uploading",
+      source_hash: newHash
+    });
+    expect((await createGame(cookie, created.body.id)).status).toBe(409);
+  });
+
+  it.each([false, true])(
+    "saves content as unplayable before finalization can fail (replacement: %s)",
+    async (replace) => {
+      const { user, cookie } = await testUtils.createAndLoginUser(`upload_atomic_${Date.now()}`);
+      const content = packageWith(user, []);
+      let id: number | undefined;
+      if (replace) {
+        const created = await http.post("/v1/packages").set("Cookie", cookie).send({ content });
+        expect(created.status).toBe(200);
+        expect(created.body.uploadStatus).toBe("ready");
+        id = created.body.id;
+      }
+      jest
+        .spyOn(container.resolve(PackageUploadService), "markSaved")
+        .mockRejectedValueOnce(new Error("finalization failed"));
+      const request = replace ? http.put(`/v1/packages/${id}`) : http.post("/v1/packages");
+      const result = await request
+        .set("Cookie", cookie)
+        .send({ content, sourceHash: "c".repeat(32) });
+      expect(result.status).toBe(500);
+      const saved = await packageRepo.findOneByOrFail({ source_hash: "c".repeat(32) });
+      expect(saved.upload_status).toBe("uploading");
+      expect(saved.upload_started_at).toBeInstanceOf(Date);
+      if (replace) expect(saved.id).toBe(id);
+    }
+  );
+
+  it("preserves saving a schema-valid theme with no questions", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`upload_empty_${Date.now()}`);
+    const content = packageWith(user, []);
+    content.rounds[0].themes[0].questions = [];
+    const saved = await http.post("/v1/packages").set("Cookie", cookie).send({ content });
+    expect(saved.status).toBe(200);
+    expect(saved.body.uploadStatus).toBe("ready");
+  });
+
+  it("rejects replacement media changed after the game readiness check", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`upload_snapshot_${Date.now()}`);
+    const created = await http
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content: packageWith(user, []) });
+    expect(created.body.uploadStatus).toBe("ready");
+    const uploads = container.resolve(PackageUploadService);
+    const assertPlayable = uploads.assertPlayable.bind(uploads);
+    jest.spyOn(uploads, "assertPlayable").mockImplementationOnce(async (id) => {
+      await assertPlayable(id);
+      const replaced = await http
+        .put(`/v1/packages/${id}`)
+        .set("Cookie", cookie)
+        .send({ content: packageWith(user, [md5(85)]) });
+      expect(replaced.status).toBe(200);
+      expect(replaced.body.uploadStatus).toBe("uploading");
+    });
+    const game = await createGame(cookie, created.body.id);
+    expect(game.status).toBe(409);
   });
 });

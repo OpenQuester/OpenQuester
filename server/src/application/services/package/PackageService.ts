@@ -125,12 +125,14 @@ export class PackageService {
       request.content,
       request.fileSizes
     );
-    const { pack, files } = await this.packageRepository.create(request.content, author);
-    await this.storageRepository.setDeclaredSizes(unverifiedFileSizes);
-    const uploadStatus = await this.packageUploadService.markSaved(
-      pack.id,
+    const { pack, files } = await this.packageRepository.create(
+      request.content,
+      author,
+      undefined,
       request.sourceHash ?? null
     );
+    await this.storageRepository.setDeclaredSizes(unverifiedFileSizes);
+    const uploadStatus = await this.packageUploadService.markSaved(pack.id);
 
     const links = await this.packageStorageService.generateUploadLinks(files, expiresIn);
 
@@ -178,11 +180,16 @@ export class PackageService {
     );
     const previousFilenames = await this.storageRepository.getPackageFilenames(packageId);
     // The repository replaces content in place; package identity and original author stay intact.
-    const { pack, files } = await this.packageRepository.create(request.content, user, packageId);
+    const { pack, files } = await this.packageRepository.create(
+      request.content,
+      user,
+      packageId,
+      request.sourceHash
+    );
     await this.storageRepository.setDeclaredSizes(unverifiedFileSizes);
     // Media the edit dropped is deleted unless something else still uses it.
     await this.storageCleanupService.removeIfUnused(previousFilenames);
-    const uploadStatus = await this.packageUploadService.markSaved(pack.id, request.sourceHash);
+    const uploadStatus = await this.packageUploadService.markSaved(pack.id);
     const links = await this.packageStorageService.generateUploadLinks(files, expiresIn);
 
     return { id: pack.id, uploadLinks: links, uploadStatus };

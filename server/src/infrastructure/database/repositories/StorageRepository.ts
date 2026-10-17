@@ -84,20 +84,23 @@ export class StorageRepository {
   }
 
   /** Known sizes for these MD5s, whoever uploaded them. */
-  public async getSizes(filenames: string[]): Promise<Map<string, number>> {
+  public async getSizes(filenames: string[], verifiedOnly = false): Promise<Map<string, number>> {
     if (filenames.length === 0) {
       return new Map();
     }
 
-    const rows = await this.ds
+    const query = this.ds
       .getRepository(File)
       .createQueryBuilder("file")
       .select("file.filename", "filename")
       .addSelect("MAX(file.size)", "size")
       .where("file.filename IN (:...filenames)", { filenames })
       .andWhere("file.size IS NOT NULL")
-      .groupBy("file.filename")
-      .getRawMany<FileSizeRow>();
+      .groupBy("file.filename");
+    if (verifiedOnly) {
+      query.andWhere("file.size_verified_at IS NOT NULL");
+    }
+    const rows = await query.getRawMany<FileSizeRow>();
 
     return new Map(rows.map((row) => [row.filename, Number(row.size)]));
   }

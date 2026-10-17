@@ -53,7 +53,17 @@ limit and the total using the stored object's real size.
 `POST /v1/files/{filename}` needs a session (guests included).
 
 Clients that send no `fileSizes` (older Flutter builds) are checked with the
-sizes already known; their files are measured by the nightly job.
+sizes already known at creation. Before new or replaced content becomes
+`ready`, every referenced file must have a storage-confirmed size and the
+file, package, author's total, and bucket limits are checked again. This
+includes logos, question/answer media, and choice images. Missing or false
+declarations cannot make over-quota content playable; the upload state and
+game creation endpoints return 413 (or 507 for the bucket) until it fits.
+
+This is an acceptance limit, not an S3 transfer limit: presigned PUTs and the
+generic file endpoint can still receive bytes before they are checked.
+Rejected packages remain `uploading` and retain their references until edited
+or deleted. Existing ready packages and running games are not revalidated.
 
 ## Cleanup
 

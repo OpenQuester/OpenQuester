@@ -5,6 +5,7 @@ import { staffRoleOf, StaffRole } from "domain/constants/staffRoles";
 import { ClientError } from "domain/errors/ClientError";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { type S3Context } from "domain/types/file/S3Context";
 import {
@@ -25,7 +26,10 @@ import { Environment } from "shared/config/Environment";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { type ObjectStorage } from "shared/storage/ObjectStorage";
-import { PackageMediaLogic } from "domain/logic/package/PackageMediaLogic";
+import {
+  PackageMediaLogic,
+  type PackageMediaContent
+} from "domain/logic/package/PackageMediaLogic";
 import { ByteUtils } from "domain/utils/ByteUtils";
 
 /** Uploads stop when the bucket reaches this share of S3_BUCKET_QUOTA_BYTES. */
@@ -157,21 +161,55 @@ export class StorageQuotaService {
       )
     );
 
+    await this.assertSizesFit(user, fileKinds, sizes, replacePackageId);
+
+    return unverifiedFileSizes;
+  }
+
+  /** Final acceptance uses only sizes confirmed by storage, never declarations. */
+  public async assertStoredPackageFits(
+    user: StorageQuotaUser,
+    content: PackageMediaContent,
+    packageId: number
+  ): Promise<void> {
+    const fileKinds = PackageMediaLogic.collectFiles(content);
+    const sizes = await this.storageRepository.getSizes([...fileKinds.keys()], true);
+    if (sizes.size !== fileKinds.size) {
+      throw new ClientError(ClientResponse.PACKAGE_UPLOAD_UNFINISHED, HttpStatus.CONFLICT, {
+        missing: fileKinds.size - sizes.size,
+        total: fileKinds.size
+      });
+    }
+    await this.assertSizesFit(user, fileKinds, sizes, packageId);
+  }
+
+  private async assertSizesFit(
+    user: StorageQuotaUser,
+    fileKinds: Map<string, Set<PackageFileType>>,
+    sizes: Map<string, number>,
+    replacePackageId?: number
+  ): Promise<void> {
     if (!user.id) {
-      return unverifiedFileSizes;
+      return;
     }
 
     const { limits } = await this.getLimitsFor(user);
 
-    for (const [filename, kind] of fileKinds) {
+    for (const [filename, kinds] of fileKinds) {
       const size = sizes.get(filename);
-      const limit = limits[`${kind}Bytes`];
-      if (size !== undefined && limit !== null && size > limit) {
-        throw new ClientError(ClientResponse.STORAGE_FILE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE, {
-          kind,
-          size: ByteUtils.format(size),
-          limit: ByteUtils.format(limit)
-        });
+      for (const kind of kinds) {
+        const limit = limits[`${kind}Bytes`];
+        if (size !== undefined && limit !== null && size > limit) {
+          throw new ClientError(
+            ClientResponse.STORAGE_FILE_TOO_LARGE,
+            HttpStatus.PAYLOAD_TOO_LARGE,
+            {
+              kind,
+              size: ByteUtils.format(size),
+              limit: ByteUtils.format(limit)
+            }
+          );
+        }
       }
     }
 
@@ -204,9 +242,7 @@ export class StorageQuotaService {
       }
     }
 
-    await this.assertBucketHasRoom(user, filenames, sizes);
-
-    return unverifiedFileSizes;
+    await this.assertBucketHasRoom(user, [...fileKinds.keys()], sizes);
   }
 
   /**

@@ -31,6 +31,7 @@ import { FileUsage } from "infrastructure/database/models/FileUsage";
 import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { DI_TOKENS } from "shared/di/tokens";
+import { Environment } from "shared/config/Environment";
 import { type ILogger } from "shared/logging/ILogger";
 import { S3ObjectStorage } from "infrastructure/storage/S3ObjectStorage";
 import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
@@ -189,6 +190,87 @@ describe("Storage limits", () => {
       headObject.mockRestore();
     }
   });
+
+  it.each([
+    { kind: "omitted file", sizes: [4_000], status: 413, message: "one image file" },
+    { kind: "underdeclared file", sizes: [4_000], status: 413, message: "one image file" },
+    { kind: "choice image", sizes: [4_000], status: 413, message: "one image file" },
+    { kind: "shared media", sizes: [4_000], status: 413, message: "one image file" },
+    { kind: "package", sizes: [2_000, 2_000, 2_000], status: 413, message: "one package" },
+    { kind: "user", sizes: [2_500, 2_500], status: 413, message: "your limit" },
+    { kind: "bucket", sizes: [2_500, 2_500], status: 507, message: "Storage is full" }
+  ])(
+    "rejects the measured $kind quota before accepting an uploaded package",
+    async ({ kind, sizes, status, message }) => {
+      const { user, cookie } = await testUtils.createAndLoginUser(`measured_${Date.now()}`);
+      if (kind === "user") {
+        await limitRepo.update({ group: StorageGroup.USER }, { user_quota_bytes: 4_000 });
+      }
+      if (kind === "shared media") {
+        await limitRepo.update({ group: StorageGroup.USER }, { video_bytes: 10_000 });
+      }
+      const environment = Environment.getInstance(container.resolve<ILogger>(DI_TOKENS.Logger));
+      const previousBucketQuota = environment.S3_BUCKET_QUOTA_BYTES;
+      if (kind === "bucket") environment.S3_BUCKET_QUOTA_BYTES = 5_000;
+      const filenames = sizes.map((_, index) => md5(100 + index));
+      const actualSizes = new Map(filenames.map((filename, index) => [filename, sizes[index]]));
+      const head = jest
+        .spyOn(container.resolve(S3ObjectStorage), "headObject")
+        .mockImplementation(async (_bucket, key) => {
+          const size = actualSizes.get(key.split("/").pop()!);
+          return size === undefined ? null : { size };
+        });
+      try {
+        const content = packageWith(user, filenames);
+        if (kind === "shared media") {
+          content.logo = { file: { md5: filenames[0], type: PackageFileType.IMAGE } };
+          content.rounds[0].themes[0].questions[0].questionFiles![0].file.type =
+            PackageFileType.VIDEO;
+        }
+        if (kind === "choice image") {
+          const question = content.rounds[0].themes[0].questions[0];
+          question.questionFiles = [];
+          question.type = PackageQuestionType.CHOICE;
+          question.showDelay = 1;
+          question.answers = [
+            { order: 0, file: { md5: filenames[0], type: PackageFileType.IMAGE }, text: "Image" },
+            { order: 1, file: null, text: "Text" }
+          ];
+        }
+        const created = await http
+          .post("/v1/packages")
+          .set("Cookie", cookie)
+          .send({
+            content,
+            ...(kind === "omitted file"
+              ? {}
+              : { fileSizes: Object.fromEntries(filenames.map((filename) => [filename, 1])) })
+          });
+        expect(created.status).toBe(200);
+        expect(created.body.uploadStatus).toBe("uploading");
+
+        const finalized = await http
+          .get(`/v1/packages/${created.body.id}/upload`)
+          .set("Cookie", cookie);
+        expect(finalized.status).toBe(status);
+        expect(finalized.body.error).toContain(message);
+        expect((await packageRepo.findOneByOrFail({ id: created.body.id })).upload_status).toBe(
+          "uploading"
+        );
+        const game = await http.post("/v1/games").set("Cookie", cookie).send({
+          title: "Measured quota game",
+          packageId: created.body.id,
+          isPrivate: false,
+          ageRestriction: AgeRestriction.NONE,
+          maxPlayers: 5
+        });
+        expect(game.status).toBe(status);
+      } finally {
+        head.mockRestore();
+        environment.S3_BUCKET_QUOTA_BYTES = previousBucketQuota;
+      }
+    }
+  );
 
   it("preserves distinct storage accounting, verification and admin usage across duplicate rows", async () => {
     const owner = await testUtils.createAndLoginUser(`storage_rows_owner_${Date.now()}`);
