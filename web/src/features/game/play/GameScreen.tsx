@@ -66,14 +66,14 @@ export function GameScreen() {
   const docked = wide ? PANEL_ORDER.filter(isOpen) : [];
 
   const chatVisible = isOpen("chat");
-  const lastChatId = session.chat.at(-1)?.uuid;
-  const [seenChat, setSeenChat] = useState(lastChatId);
-  if (chatVisible && seenChat !== lastChatId) setSeenChat(lastChatId);
-  const unread = chatVisible
-    ? 0
-    : session.chat
-        .slice(session.chat.findIndex((m) => m.uuid === seenChat) + 1)
-        .filter((m) => !m.system).length;
+  const chatIds = session.chat.filter((m) => !m.system).map((m) => m.uuid);
+  const [seenChat, setSeenChat] = useState(() => new Set(chatIds));
+  const unseenChat = chatIds.filter((id) => !seenChat.has(id));
+  if (chatVisible && unseenChat.length > 0) {
+    // Keep read UUIDs through snapshot reordering, bounded to the chat history limit.
+    setSeenChat(new Set([...new Set([...chatIds, ...seenChat])].slice(0, 200)));
+  }
+  const unread = chatVisible ? 0 : unseenChat.length;
 
   const toggleMenu = useCallback(() => setMenuOpen((v) => !v), []);
   useHotkeys({ onChat: () => setPanel("chat", true), onMenu: toggleMenu });

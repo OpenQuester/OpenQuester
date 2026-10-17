@@ -21,7 +21,7 @@ export function ChatBody() {
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-  }, [session.chat.length]);
+  }, [session.chat]);
 
   function onSend(e: FormEvent) {
     e.preventDefault();
