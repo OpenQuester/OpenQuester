@@ -6,6 +6,7 @@ import { type GuestCleanupBatch } from "domain/types/storage/GuestCleanupTypes";
 import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 
 /** Files younger than this are never treated as unused: an upload may still be under way. */
 export const UNUSED_FILE_GRACE_MS = 24 * 60 * 60 * 1000;
@@ -19,6 +20,7 @@ export class StorageCleanupService {
   constructor(
     private readonly storageRepository: StorageRepository,
     private readonly packageStorageService: PackageStorageService,
+    private readonly packageStore: PackageStore,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -28,9 +30,8 @@ export class StorageCleanupService {
   public async removeIfUnused(filenames: string[]): Promise<string[]> {
     try {
       const unused = await this.storageRepository.filterUnused([...new Set(filenames)]);
-      await this.remove(unused);
 
-      return unused;
+      return await this.remove(unused);
     } catch (error) {
       this.logger.error("Failed to clean up unused files", {
         prefix: LogPrefix.S3,
@@ -46,9 +47,9 @@ export class StorageCleanupService {
     const unused = await this.storageRepository.getUnusedFilenames(
       new Date(Date.now() - UNUSED_FILE_GRACE_MS)
     );
-    await this.remove(unused);
+    const deleted = await this.remove(unused);
 
-    return unused.length;
+    return deleted.length;
   }
 
   /** Removes one guest batch, then deletes only avatars with no remaining references. */
@@ -64,13 +65,28 @@ export class StorageCleanupService {
     await this.storageRepository.setVerifiedSizes(sizes);
   }
 
-  private async remove(filenames: string[]): Promise<void> {
+  /**
+   * Deletes these files, except the ones a running game still shows: a game
+   * plays from its own copy of the package, made when it was created, so an
+   * edit to the package must not pull media out from under it. Those files
+   * are left for a later cleanup. Returns the files actually deleted.
+   */
+  private async remove(filenames: string[]): Promise<string[]> {
     if (filenames.length === 0) {
-      return;
+      return [];
     }
 
-    await this.storageRepository.deleteFileRows(filenames);
-    await this.packageStorageService.deleteFiles(filenames);
-    this.logger.info("Deleted unused files", { prefix: LogPrefix.S3, count: filenames.length });
+    const inRunningGames = await this.packageStore.getFilenamesInRunningGames();
+    const deletable = filenames.filter((filename) => !inRunningGames.has(filename));
+
+    if (deletable.length === 0) {
+      return [];
+    }
+
+    await this.storageRepository.deleteFileRows(deletable);
+    await this.packageStorageService.deleteFiles(deletable);
+    this.logger.info("Deleted unused files", { prefix: LogPrefix.S3, count: deletable.length });
+
+    return deletable;
   }
 }

@@ -14,6 +14,7 @@ import { type PackageMetaDTO } from "domain/types/dto/package/PackageMetaDTO";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
+import { PackageMediaLogic } from "domain/logic/package/PackageMediaLogic";
 
 interface PackageThemeStoreDTO {
   id: number;
@@ -53,6 +54,7 @@ interface PackageQuestionThemeDTO {
 @singleton()
 export class PackageStore {
   private static readonly PACKAGE_KEY_PREFIX = `${GAME_NAMESPACE}:package`;
+  private static readonly FILES_FIELD = "files";
 
   constructor(
     private readonly redisRepository: RedisRepository,
@@ -64,6 +66,25 @@ export class PackageStore {
   /**
    * Get the Redis key for a game's package hash.
    */
+  /** Media files of every game still running, which storage cleanup must not delete. */
+  public async getFilenamesInRunningGames(): Promise<Set<string>> {
+    const keys = await this.redisRepository.scan(`${PackageStore.PACKAGE_KEY_PREFIX}:*`);
+    const filenames = new Set<string>();
+
+    for (const key of keys) {
+      const files = await this.redisRepository.hget(key, PackageStore.FILES_FIELD);
+      if (!files) {
+        continue;
+      }
+
+      for (const filename of JSON.parse(files) as string[]) {
+        filenames.add(filename);
+      }
+    }
+
+    return filenames;
+  }
+
   public getPackageKey(gameId: string): string {
     return `${PackageStore.PACKAGE_KEY_PREFIX}:${gameId}`;
   }
@@ -94,6 +115,12 @@ export class PackageStore {
         pack.createdAt instanceof Date ? pack.createdAt.toISOString() : String(pack.createdAt)
     };
     fields["meta"] = JSON.stringify(meta);
+
+    // Every media file the game may show: storage cleanup must keep them while
+    // the game runs, even if the package is edited and stops using them
+    fields[PackageStore.FILES_FIELD] = JSON.stringify([
+      ...PackageMediaLogic.collectFiles(pack).keys()
+    ]);
 
     // Store each round and its questions
     for (const round of pack.rounds) {

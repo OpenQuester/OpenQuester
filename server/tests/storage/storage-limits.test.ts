@@ -13,6 +13,7 @@ import { In, type DataSource, type Repository } from "typeorm";
 
 import { GuestCleanupJob } from "application/jobs/GuestCleanupJob";
 import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { FileSource } from "domain/enums/file/FileSource";
 import { Permissions } from "domain/enums/Permissions";
@@ -403,6 +404,29 @@ describe("Storage limits", () => {
     expect(await fileRepo.count({ where: { filename: md5(9) } })).toBeGreaterThan(0);
     const me = await http.get("/v1/me/storage").set("Cookie", cookie);
     expect(me.body.usedBytes).toBe(200);
+  });
+
+  it("keeps media an edit drops while a running game still shows it", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`storage_game_${Date.now()}`);
+    const content = packageWith(user, [md5(17)]);
+    const created = await upload(cookie, content, { [md5(17)]: 100 });
+    expect(created.status).toBe(200);
+
+    // A game made before the edit plays from its own copy of the package
+    const packageStore = container.resolve(PackageStore);
+    await packageStore.storePackage("EDIT", { ...content, id: created.body.id, tags: [] });
+
+    const edit = await http
+      .put(`/v1/packages/${created.body.id}`)
+      .send({ content: packageWith(user, [md5(18)]), fileSizes: { [md5(18)]: 100 } })
+      .set("Cookie", cookie);
+    expect(edit.status).toBe(200);
+    expect(await fileRepo.count({ where: { filename: md5(17) } })).toBeGreaterThan(0);
+
+    // Once the game is gone, the next cleanup deletes it
+    await packageStore.deletePackage("EDIT");
+    await container.resolve(StorageCleanupService).removeIfUnused([md5(17)]);
+    expect(await fileRepo.count({ where: { filename: md5(17) } })).toBe(0);
   });
 
   it("asks for an account before handing out a file upload link", async () => {
