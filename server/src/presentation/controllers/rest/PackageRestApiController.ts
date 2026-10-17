@@ -65,10 +65,7 @@ export class PackageRestApiController {
       packIdScheme()
     ).validate();
     // Permission first, so someone else's package answers 403 whatever the body
-    const editable = await this.packageService.getEditablePackage({
-      sessionUserId: req.session.userId,
-      packageId
-    });
+    const editable = await this.packageService.getEditablePackage(req.session.userId, packageId);
 
     const validatedData = new RequestDataValidator<PackageUploadBody>(
       req.body,
@@ -101,10 +98,7 @@ export class PackageRestApiController {
       packIdScheme()
     ).validate();
 
-    const data = await this.packageService.getUploadStateForSession({
-      sessionUserId: req.session.userId,
-      packageId
-    });
+    const data = await this.packageService.getUploadStateForSession(req.session.userId, packageId);
 
     return res.status(HttpStatus.OK).send(data);
   };

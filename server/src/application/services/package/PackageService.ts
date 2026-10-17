@@ -222,13 +222,13 @@ export class PackageService {
    * links for them, so its author (or an EDIT_PACKAGE user) can finish an
    * interrupted upload. Checking also marks the package ready once complete.
    */
-  public async getUploadStateForSession(input: {
-    sessionUserId: number | undefined;
-    packageId: number;
-  }): Promise<PackageUploadStateDTO> {
-    await this.assertCanEditPackage(input);
+  public async getUploadStateForSession(
+    sessionUserId: number | undefined,
+    packageId: number
+  ): Promise<PackageUploadStateDTO> {
+    await this.assertCanEditPackage(sessionUserId, packageId);
 
-    return this.packageUploadService.getState(input.packageId);
+    return this.packageUploadService.getState(packageId);
   }
 
   /**
@@ -239,15 +239,12 @@ export class PackageService {
    * banned or deleted while its session is still alive; the session
    * middleware only checks that a session exists.
    */
-  public async getEditablePackage(input: {
-    sessionUserId: number | undefined;
-    packageId: number;
-  }): Promise<EditablePackage> {
-    const user = await this.userSessionService.getValidatedSessionUser({
-      sessionUserId: input.sessionUserId
-    });
-
-    const pack = await this.getPackageRaw(input.packageId, ["id"], ["author"]);
+  public async getEditablePackage(
+    sessionUserId: number | undefined,
+    packageId: number
+  ): Promise<EditablePackage> {
+    const user = await this.userSessionService.getValidatedSessionUser({ sessionUserId });
+    const pack = await this.getPackageRaw(packageId, ["id"], ["author"]);
 
     const isAuthor = pack.author?.id === user.id;
     if (!isAuthor && !this.userSessionService.userHasPermission(user, Permissions.EDIT_PACKAGE)) {
@@ -258,11 +255,11 @@ export class PackageService {
   }
 
   /** Throws 403 unless the session user wrote the package or has EDIT_PACKAGE. */
-  public async assertCanEditPackage(input: {
-    sessionUserId: number | undefined;
-    packageId: number;
-  }): Promise<void> {
-    await this.getEditablePackage(input);
+  public async assertCanEditPackage(
+    sessionUserId: number | undefined,
+    packageId: number
+  ): Promise<void> {
+    await this.getEditablePackage(sessionUserId, packageId);
   }
 
   public async canDeletePackage(input: {

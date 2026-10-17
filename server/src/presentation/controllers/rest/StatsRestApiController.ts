@@ -76,11 +76,7 @@ export class StatsRestApiController {
       req.body,
       questionReportScheme()
     ).validate();
-    const data = await this.reports.reportFromGame({
-      sessionUserId: req.session.userId,
-      gameId,
-      report
-    });
+    const data = await this.reports.reportFromGame(req.session.userId, gameId, report);
 
     res.status(HttpStatus.OK).send(data);
   };
@@ -90,10 +86,7 @@ export class StatsRestApiController {
       { id: Number(req.params.id) },
       idScheme()
     ).validate();
-    const data = await this.reports.listForPackage({
-      sessionUserId: req.session.userId,
-      packageId: id
-    });
+    const data = await this.reports.listForPackage(req.session.userId, id);
 
     res.status(HttpStatus.OK).send(data);
   };
@@ -111,12 +104,7 @@ export class StatsRestApiController {
       req.body,
       questionReportResolveScheme()
     ).validate();
-    const data = await this.reports.setResolved({
-      sessionUserId: req.session.userId,
-      packageId: id,
-      reportId,
-      resolved
-    });
+    const data = await this.reports.setResolved(req.session.userId, id, reportId, resolved);
 
     res.status(HttpStatus.OK).send(data);
   };
