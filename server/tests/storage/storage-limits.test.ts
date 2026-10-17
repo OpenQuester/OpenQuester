@@ -532,6 +532,29 @@ describe("Storage limits", () => {
     }
   });
 
+  it("keeps a file that a package started using after it was found unused", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`storage_race_${Date.now()}`);
+    const filename = md5(41);
+    expect((await upload(cookie, packageWith(user, [filename]), { [filename]: 100 })).status).toBe(
+      200
+    );
+
+    // The unused check ran before the package above saved its use of the file
+    const repository = container.resolve(StorageRepository);
+    const filterUnused = jest.spyOn(repository, "filterUnused").mockResolvedValue([filename]);
+    const deleteObjects = jest
+      .spyOn(container.resolve(S3ObjectStorage), "deleteObjects")
+      .mockResolvedValue({ errors: [] });
+    try {
+      expect(await container.resolve(StorageCleanupService).removeIfUnused([filename])).toEqual([]);
+      expect(await fileRepo.countBy({ filename })).toBeGreaterThanOrEqual(1);
+      expect(deleteObjects).not.toHaveBeenCalled();
+    } finally {
+      filterUnused.mockRestore();
+      deleteObjects.mockRestore();
+    }
+  });
+
   it("deletes media an edit drops, but keeps media another package still uses", async () => {
     const { user, cookie } = await testUtils.createAndLoginUser(`storage_edit_${Date.now()}`);
     const first = await upload(cookie, packageWith(user, [md5(7), md5(8)]), {

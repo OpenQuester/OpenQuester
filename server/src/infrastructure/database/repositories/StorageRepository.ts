@@ -1,5 +1,12 @@
 import { inject, singleton } from "tsyringe";
-import { Brackets, In, IsNull, type DataSource, type SelectQueryBuilder } from "typeorm";
+import {
+  Brackets,
+  In,
+  IsNull,
+  type DataSource,
+  type EntityManager,
+  type SelectQueryBuilder
+} from "typeorm";
 
 import { DI_TOKENS } from "shared/di/tokens";
 import {
@@ -272,12 +279,38 @@ export class StorageRepository {
       .getRawMany<PackageFileState>();
   }
 
-  public async deleteFileRows(filenames: string[]): Promise<void> {
+  /**
+   * Deletes the rows of these files that are still unused and returns their
+   * names. The rows are locked first, so a package or avatar that starts
+   * using one of them meanwhile either commits before the check (and the
+   * file is kept) or waits until the row is gone.
+   */
+  public async deleteUnusedFileRows(filenames: string[]): Promise<string[]> {
     if (filenames.length === 0) {
-      return;
+      return [];
     }
 
-    await this.ds.getRepository(File).delete({ filename: In(filenames) });
+    return this.ds.transaction(async (manager) => {
+      await manager
+        .getRepository(File)
+        .createQueryBuilder("file")
+        .select("file.id")
+        .where("file.filename IN (:...filenames)", { filenames })
+        .setLock("pessimistic_write")
+        .getMany();
+
+      const unused = await this.unusedFilesQuery(manager)
+        .andWhere("file.filename IN (:...filenames)", { filenames })
+        .getRawMany<StorageFilename>();
+      const unusedFilenames = unused.map((file) => file.filename);
+      if (unusedFilenames.length === 0) {
+        return [];
+      }
+
+      await manager.getRepository(File).delete({ filename: In(unusedFilenames) });
+
+      return unusedFilenames;
+    });
   }
 
   /** Files whose size came from the uploader only. */
@@ -453,8 +486,8 @@ export class StorageRepository {
   }
 
   /** Protect references on every duplicate row, even when legacy file_usage entries are absent. */
-  private unusedFilesQuery(): SelectQueryBuilder<File> {
-    const query = this.ds
+  private unusedFilesQuery(manager: EntityManager = this.ds.manager): SelectQueryBuilder<File> {
+    const query = manager
       .getRepository(File)
       .createQueryBuilder("file")
       .select("file.filename", "filename")

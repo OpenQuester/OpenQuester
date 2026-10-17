@@ -83,10 +83,15 @@ export class StorageCleanupService {
       return [];
     }
 
-    await this.storageRepository.deleteFileRows(deletable);
-    await this.packageStorageService.deleteFiles(deletable);
-    this.logger.info("Deleted unused files", { prefix: LogPrefix.S3, count: deletable.length });
+    // A file someone started using since it was found unused stays
+    const deleted = await this.storageRepository.deleteUnusedFileRows(deletable);
+    if (deleted.length === 0) {
+      return [];
+    }
 
-    return deletable;
+    await this.packageStorageService.deleteFiles(deleted);
+    this.logger.info("Deleted unused files", { prefix: LogPrefix.S3, count: deleted.length });
+
+    return deleted;
   }
 }

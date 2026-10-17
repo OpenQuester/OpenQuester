@@ -71,7 +71,10 @@ or deleted. Existing ready packages and running games are not revalidated.
 ## Cleanup
 
 - Package delete, package edit and avatar change delete files that lost
-  their last use (`StorageCleanupService.removeIfUnused`).
+  their last use (`StorageCleanupService.removeIfUnused`). The file rows are
+  locked and checked for uses again just before they are deleted, and only
+  the rows actually deleted lose their stored objects, so a package that
+  starts using a file meanwhile keeps it.
 - Active game package snapshots retain their media even after the source
   package is edited or deleted. Cleanup checks the snapshot's `files` index;
   older snapshots without that index are read from their metadata and full
