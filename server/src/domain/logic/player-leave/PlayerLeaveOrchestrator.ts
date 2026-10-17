@@ -3,6 +3,7 @@ import { singleton } from "tsyringe";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AnsweringLeaveStrategy } from "domain/logic/player-leave/strategies/AnsweringLeaveStrategy";
+import { EveryoneAnswersLeaveStrategy } from "domain/logic/player-leave/strategies/EveryoneAnswersLeaveStrategy";
 import { FinalBiddingLeaveStrategy } from "domain/logic/player-leave/strategies/FinalBiddingLeaveStrategy";
 import {
   IPlayerLeaveStrategy,
@@ -38,13 +39,16 @@ export interface PlayerLeaveCleanupOptions {
 @singleton()
 export class PlayerLeaveOrchestrator {
   private readonly strategies: IPlayerLeaveStrategy[];
+  /** Strategies that react to the player being gone, so they run after removal */
+  private readonly afterRemovalStrategies: IPlayerLeaveStrategy[];
 
   constructor(
     private readonly stakeBiddingStrategy: StakeBiddingLeaveStrategy,
     private readonly finalBiddingStrategy: FinalBiddingLeaveStrategy,
     private readonly answeringStrategy: AnsweringLeaveStrategy,
     private readonly turnPlayerStrategy: TurnPlayerLeaveStrategy,
-    private readonly mediaDownloadStrategy: MediaDownloadLeaveStrategy
+    private readonly mediaDownloadStrategy: MediaDownloadLeaveStrategy,
+    private readonly everyoneAnswersStrategy: EveryoneAnswersLeaveStrategy
   ) {
     this.strategies = [
       this.stakeBiddingStrategy,
@@ -52,7 +56,9 @@ export class PlayerLeaveOrchestrator {
       this.answeringStrategy,
       this.turnPlayerStrategy,
       this.mediaDownloadStrategy,
+      this.everyoneAnswersStrategy,
     ];
+    this.afterRemovalStrategies = [this.mediaDownloadStrategy, this.everyoneAnswersStrategy];
   }
 
   public async processLeave(
@@ -73,8 +79,7 @@ export class PlayerLeaveOrchestrator {
 
     // Execute strategies BEFORE removing player
     for (const strategy of this.strategies) {
-      // MediaDownloadLeaveStrategy must be executed AFTER removing player
-      if (strategy instanceof MediaDownloadLeaveStrategy) {
+      if (this.afterRemovalStrategies.includes(strategy)) {
         continue;
       }
 
@@ -95,14 +100,13 @@ export class PlayerLeaveOrchestrator {
       );
     }
 
-    // Execute MediaDownloadLeaveStrategy AFTER removing player
-    const mediaDownloadStrategy = this.strategies.find(
-      (s) => s instanceof MediaDownloadLeaveStrategy
-    );
-    if (mediaDownloadStrategy?.canHandle(strategyInput)) {
-      const strategyResult = await mediaDownloadStrategy.execute(strategyInput);
-      result.mutations.push(...strategyResult.mutations);
-      result.broadcasts.push(...strategyResult.broadcasts);
+    // Execute the strategies that depend on the player being gone
+    for (const strategy of this.afterRemovalStrategies) {
+      if (strategy.canHandle(strategyInput)) {
+        const strategyResult = await strategy.execute(strategyInput);
+        result.mutations.push(...strategyResult.mutations);
+        result.broadcasts.push(...strategyResult.broadcasts);
+      }
     }
 
     // Build broadcasts based on reason

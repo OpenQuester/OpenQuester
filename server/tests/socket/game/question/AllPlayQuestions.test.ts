@@ -335,4 +335,72 @@ describe("Everyone-answers questions", () => {
       await expectSavedStats(scenario, showmanSocket, gameId, playerUsers, [150, -200]);
     });
   });
+
+  it("everyone answers: the review starts when the last player still answering leaves", async () => {
+    await suite.scenario(async (scenario) => {
+      forEveryone(PackageQuestionType.NO_RISK);
+      const { showmanSocket, playerSockets, playerUsers, gameId } =
+        await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
+      await utils.startGame(showmanSocket);
+      const question = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
+      await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ALL_PLAY_ANSWER, () =>
+        scenario
+          .actor(playerSockets[0])
+          .emit(SocketIOGameEvents.ALL_PLAY_ANSWER, { answerText: "Answered before" })
+      );
+
+      // Nobody else is left to answer: no need to wait for the answer timer
+      const reviewing = scenario.waitForEvent<AllPlayReviewingEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.ALL_PLAY_REVIEWING
+      );
+      await utils.leaveGame(playerSockets[1]);
+      const review = await reviewing;
+
+      expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.REVIEWING);
+      expect(review.allPlay.entries).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ playerId: playerUsers[0].id, answer: "Answered before" })
+        ])
+      );
+    });
+  });
+
+  it("stake for everyone: the question starts when the last player still staking leaves", async () => {
+    await suite.scenario(async (scenario) => {
+      forEveryone(PackageQuestionType.STAKE);
+      const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        2,
+        0,
+        false
+      );
+      await utils.startGame(showmanSocket);
+      const question = await utils.findQuestionByType(PackageQuestionType.STAKE, gameId);
+      await scenario.emitAndWaitForEvent(playerSockets[0], SocketIOGameEvents.ALL_PLAY_START, () =>
+        scenario
+          .actor(showmanSocket)
+          .emit(SocketIOGameEvents.QUESTION_PICK, { questionId: question!.id })
+      );
+
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ALL_PLAY_STAKE, () =>
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ALL_PLAY_STAKE, { amount: 150 })
+      );
+
+      // The only stake still missing belongs to the player who leaves
+      const questionData = scenario.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.QUESTION_DATA
+      );
+      await utils.leaveGame(playerSockets[1]);
+      await questionData;
+
+      expect((await utils.getGameState(gameId))!.questionState).toBe(
+        QuestionState.MEDIA_DOWNLOADING
+      );
+    });
+  });
 });
