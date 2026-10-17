@@ -2,6 +2,7 @@ import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
 import { Database } from "infrastructure/database/Database";
+import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 
 export interface UserTotalsRow {
   gamesPlayed: number;
@@ -32,43 +33,6 @@ export interface LeaderboardRow {
   correctAnswers: number;
 }
 
-const USER_TOTALS_SQL = `
-  SELECT COUNT(*)::int AS "gamesPlayed",
-         COUNT(*) FILTER (WHERE s."placement" = 1)::int AS "wins",
-         COALESCE(SUM(s."final_score"), 0)::int AS "totalScore",
-         COALESCE(MAX(s."final_score"), 0)::int AS "bestScore",
-         COALESCE(SUM(s."questions_answered"), 0)::int AS "questionsAnswered",
-         COALESCE(SUM(s."correct_answers"), 0)::int AS "correctAnswers",
-         COALESCE(SUM(s."wrong_answers"), 0)::int AS "wrongAnswers"
-  FROM "player_game_stats" s
-  WHERE s."user_id" = $1`;
-
-const RECENT_GAMES_SQL = `
-  SELECT g."game_id" AS "gameId", g."finished_at" AS "finishedAt",
-         s."final_score" AS "finalScore", s."placement", g."total_players" AS "totalPlayers"
-  FROM "player_game_stats" s
-  JOIN "game_statistics" g ON g."id" = s."game_stats_id"
-  WHERE s."user_id" = $1
-  ORDER BY g."finished_at" DESC
-  LIMIT $2`;
-
-/** Wins rank first, then total score; guests, deleted and banned accounts are left out. */
-const LEADERBOARD_SQL = `
-  SELECT u."id" AS "userId", u."username", u."name", f."filename" AS "avatarFilename",
-         COUNT(*)::int AS "gamesPlayed",
-         COUNT(*) FILTER (WHERE s."placement" = 1)::int AS "wins",
-         COALESCE(SUM(s."final_score"), 0)::int AS "totalScore",
-         COALESCE(SUM(s."correct_answers"), 0)::int AS "correctAnswers"
-  FROM "player_game_stats" s
-  JOIN "game_statistics" g ON g."id" = s."game_stats_id"
-  JOIN "user" u ON u."id" = s."user_id"
-  LEFT JOIN "file" f ON f."id" = u."avatar"
-  WHERE u."is_guest" = false AND u."is_deleted" = false AND u."is_banned" = false
-    AND ($1::timestamp IS NULL OR g."finished_at" >= $1)
-  GROUP BY u."id", u."username", u."name", f."filename"
-  ORDER BY "wins" DESC, "totalScore" DESC, u."id" ASC
-  LIMIT $2`;
-
 /** Aggregates over saved player game stats for profiles and the leaderboard. */
 @singleton()
 export class PlayerStatsQueryRepository {
@@ -81,15 +45,71 @@ export class PlayerStatsQueryRepository {
   }
 
   public async getUserTotals(userId: number): Promise<UserTotalsRow> {
-    const rows: UserTotalsRow[] = await this.ds.query(USER_TOTALS_SQL, [userId]);
-    return rows[0];
+    // Aggregation without GROUP BY always returns one row, including for new players.
+    const totals = await this.ds
+      .getRepository(PlayerGameStats)
+      .createQueryBuilder("stats")
+      .select("COUNT(*)::int", "gamesPlayed")
+      .addSelect("COUNT(*) FILTER (WHERE stats.placement = 1)::int", "wins")
+      .addSelect("COALESCE(SUM(stats.final_score), 0)::int", "totalScore")
+      .addSelect("COALESCE(MAX(stats.final_score), 0)::int", "bestScore")
+      .addSelect("COALESCE(SUM(stats.questions_answered), 0)::int", "questionsAnswered")
+      .addSelect("COALESCE(SUM(stats.correct_answers), 0)::int", "correctAnswers")
+      .addSelect("COALESCE(SUM(stats.wrong_answers), 0)::int", "wrongAnswers")
+      .where("stats.user_id = :userId", { userId })
+      .getRawOne<UserTotalsRow>();
+
+    return totals!;
   }
 
   public async getRecentGames(userId: number, limit: number): Promise<RecentGameRow[]> {
-    return this.ds.query(RECENT_GAMES_SQL, [userId, limit]);
+    return this.ds
+      .getRepository(PlayerGameStats)
+      .createQueryBuilder("stats")
+      .innerJoin("stats.gameStats", "game")
+      .select("game.game_id", "gameId")
+      .addSelect("game.finished_at", "finishedAt")
+      .addSelect("stats.final_score", "finalScore")
+      .addSelect("stats.placement", "placement")
+      .addSelect("game.total_players", "totalPlayers")
+      .where("stats.user_id = :userId", { userId })
+      .orderBy("game.finished_at", "DESC")
+      .limit(limit)
+      .getRawMany<RecentGameRow>();
   }
 
+  /** Wins rank first, then score; only active registered accounts appear. */
   public async getLeaderboard(since: Date | null, limit: number): Promise<LeaderboardRow[]> {
-    return this.ds.query(LEADERBOARD_SQL, [since, limit]);
+    const query = this.ds
+      .getRepository(PlayerGameStats)
+      .createQueryBuilder("stats")
+      .innerJoin("stats.gameStats", "game")
+      .innerJoin("stats.user", "user")
+      .leftJoin("user.avatar", "avatar")
+      .select("user.id", "userId")
+      .addSelect("user.username", "username")
+      .addSelect("user.name", "name")
+      .addSelect("avatar.filename", "avatarFilename")
+      .addSelect("COUNT(*)::int", "gamesPlayed")
+      .addSelect("COUNT(*) FILTER (WHERE stats.placement = 1)::int", "wins")
+      .addSelect("COALESCE(SUM(stats.final_score), 0)::int", "totalScore")
+      .addSelect("COALESCE(SUM(stats.correct_answers), 0)::int", "correctAnswers")
+      .where("user.is_guest = :excluded", { excluded: false })
+      .andWhere("user.is_deleted = :excluded")
+      .andWhere("user.is_banned = :excluded")
+      .groupBy("user.id")
+      .addGroupBy("user.username")
+      .addGroupBy("user.name")
+      .addGroupBy("avatar.filename")
+      .orderBy('"wins"', "DESC")
+      .addOrderBy('"totalScore"', "DESC")
+      .addOrderBy("user.id", "ASC")
+      .limit(limit);
+
+    if (since !== null) {
+      query.andWhere("game.finished_at >= :since", { since });
+    }
+
+    return query.getRawMany<LeaderboardRow>();
   }
 }

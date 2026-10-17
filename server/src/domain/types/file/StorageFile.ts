@@ -1,6 +1,9 @@
-/** A content-addressed file and its directory in object storage. */
-export interface StorageFile {
+export interface StorageFilename {
   filename: string;
+}
+
+/** A content-addressed file and its directory in object storage. */
+export interface StorageFile extends StorageFilename {
   path: string;
 }
 

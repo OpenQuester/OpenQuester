@@ -9,15 +9,20 @@ import {
   jest
 } from "@jest/globals";
 import { container } from "tsyringe";
-import { type DataSource, type Repository } from "typeorm";
+import { In, type DataSource, type Repository } from "typeorm";
 
 import { GuestCleanupJob } from "application/jobs/GuestCleanupJob";
 import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
 import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { FileSource } from "domain/enums/file/FileSource";
+import { Permissions } from "domain/enums/Permissions";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { StorageGroup } from "domain/types/storage/StorageTypes";
 import { File } from "infrastructure/database/models/File";
+import { Permission } from "infrastructure/database/models/Permission";
+import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
 import { Package } from "infrastructure/database/models/package/Package";
 import { StorageLimit } from "infrastructure/database/models/StorageLimit";
 import { User } from "infrastructure/database/models/User";
@@ -181,6 +186,198 @@ describe("Storage limits", () => {
       expect(measuredFile.size_verified_at).not.toBeNull();
     } finally {
       headObject.mockRestore();
+    }
+  });
+
+  it("preserves distinct storage accounting, verification and admin usage across duplicate rows", async () => {
+    const owner = await testUtils.createAndLoginUser(`storage_rows_owner_${Date.now()}`);
+    const other = await testUtils.createAndLoginUser(`storage_rows_other_${Date.now()}`);
+    const filename = md5(15);
+    const ownerUpload = await upload(owner.cookie, packageWith(owner.user, [filename]), {
+      [filename]: 1_000
+    });
+    expect(ownerUpload.status).toBe(200);
+    expect(
+      (await upload(other.cookie, packageWith(other.user, [filename]), { [filename]: 1_000 }))
+        .status
+    ).toBe(200);
+
+    const original = await fileRepo.findOneByOrFail({ filename });
+    const confirmed = await fileRepo.save(
+      fileRepo.create({
+        filename,
+        path: original.path,
+        source: original.source,
+        created_at: new Date(),
+        size: 1_500,
+        size_verified_at: new Date()
+      })
+    );
+    const repository = container.resolve(StorageRepository);
+    expect((await repository.getSizes([filename])).get(filename)).toBe(1_500);
+    expect(await repository.getUserFiles(owner.user.id)).toEqual([{ filename, size: 1_500 }]);
+    expect(await repository.getUserFiles(owner.user.id, ownerUpload.body.id)).toEqual([]);
+    expect(await repository.getPackageFileStates(ownerUpload.body.id)).toEqual([
+      { filename, path: original.path, verified: true }
+    ]);
+
+    await repository.setDeclaredSizes(new Map([[filename, 2_000]]));
+    expect((await fileRepo.findOneByOrFail({ id: confirmed.id })).size).toBe(1_500);
+    expect(await repository.getUnverifiedFilenames(50, owner.user.id)).toContain(filename);
+    await repository.setVerifiedSizes(new Map([[filename, 3_000]]));
+    expect(
+      (await fileRepo.findBy({ filename })).every(
+        (file) => file.size === 3_000 && file.size_verified_at !== null
+      )
+    ).toBe(true);
+    expect(await repository.getUnverifiedFilenames(50, owner.user.id)).toEqual([]);
+
+    const permissionRepository = dataSource.getRepository(Permission);
+    const permissions: Permission[] = [];
+    for (const name of [Permissions.ADMIN_PANEL_ACCESS, Permissions.MANAGE_STORAGE]) {
+      permissions.push(
+        (await permissionRepository.findOneBy({ name })) ??
+          (await permissionRepository.save(permissionRepository.create({ name })))
+      );
+    }
+    await userRepo.save({ ...owner.user, permissions });
+    await repository.setUserQuota(owner.user.id, 2_500);
+    expect(await repository.getUserQuota(owner.user.id)).toBe(2_500);
+    expect(await repository.getUserFacts(owner.user.id)).toMatchObject({
+      is_guest: false,
+      permissions: expect.arrayContaining(
+        permissions.map((permission) => ({ name: permission.name }))
+      )
+    });
+    const admin = await userRepo.save(
+      userRepo.create({
+        username: `storage_rows_admin_${Date.now()}`,
+        is_guest: false,
+        is_deleted: false,
+        permissions
+      })
+    );
+    const login = await http.post("/v1/test/login").send({ userId: admin.id });
+    expect(login.status).toBe(200);
+    const overview = await http
+      .get("/v1/admin/api/storage")
+      .set("Cookie", login.headers["set-cookie"]);
+    expect(overview.status).toBe(200);
+    expect(overview.body.bucket).toMatchObject({ usedBytes: 3_000, fileCount: 1 });
+    expect(overview.body.topUsers).toHaveLength(2);
+    expect(overview.body.topUsers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: owner.user.id,
+          usedBytes: 3_000,
+          quotaBytes: 2_500,
+          quotaOverridden: true
+        }),
+        expect.objectContaining({
+          id: other.user.id,
+          usedBytes: 3_000,
+          quotaBytes: 10_000,
+          quotaOverridden: false
+        })
+      ])
+    );
+  });
+
+  it("protects every legacy direct file reference across duplicate rows during cleanup", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`storage_references_${Date.now()}`);
+    const [
+      logoFilename,
+      questionFilename,
+      answerFilename,
+      choiceFilename,
+      avatarFilename,
+      unusedFilename,
+      futureFilename
+    ] = [20, 21, 22, 23, 24, 25, 26].map(md5);
+    const content = packageWith(user, [questionFilename]);
+    const question = content.rounds[0].themes[0].questions[0];
+    const questionFile = question.questionFiles![0];
+    content.logo = { file: { md5: logoFilename, type: PackageFileType.IMAGE } };
+    question.answerFiles = [
+      { ...questionFile, file: { md5: answerFilename, type: PackageFileType.IMAGE } }
+    ];
+    question.type = PackageQuestionType.CHOICE;
+    question.showDelay = 1;
+    question.answers = [
+      { order: 0, file: { md5: choiceFilename, type: PackageFileType.IMAGE }, text: "Picture" },
+      { order: 1, file: null, text: "Text" }
+    ];
+    const packageFilenames = [logoFilename, questionFilename, answerFilename, choiceFilename];
+    const created = await upload(
+      cookie,
+      content,
+      Object.fromEntries(packageFilenames.map((filename) => [filename, 100]))
+    );
+    expect(created.status).toBe(200);
+    await dataSource.getRepository(FileUsage).delete({ package: { id: created.body.id } });
+
+    const old = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const avatar = await fileRepo.save(
+      fileRepo.create({
+        filename: avatarFilename,
+        path: "",
+        source: FileSource.S3,
+        created_at: old,
+        size: 100
+      })
+    );
+    await userRepo.update(user.id, { avatar });
+    const protectedFilenames = [...packageFilenames, avatarFilename];
+    const originals = await fileRepo.findBy({ filename: In(protectedFilenames) });
+    await fileRepo.save(
+      originals.map((file) =>
+        fileRepo.create({
+          filename: file.filename,
+          path: file.path,
+          source: file.source,
+          created_at: old,
+          size: 100
+        })
+      )
+    );
+    await fileRepo.save(
+      [1, 2].map(() =>
+        fileRepo.create({
+          filename: unusedFilename,
+          path: "",
+          source: FileSource.S3,
+          created_at: old,
+          size: 100
+        })
+      )
+    );
+
+    await fileRepo.save(fileRepo.create({
+      filename: futureFilename,
+      path: "",
+      source: FileSource.S3,
+      created_at: new Date(Date.now() + 120_000),
+      size: 100
+    }));
+
+    const repository = container.resolve(StorageRepository);
+    const candidates = [...protectedFilenames, unusedFilename, futureFilename];
+    expect(await repository.filterUnused(candidates)).toEqual([unusedFilename]);
+    expect(await repository.getUnusedFilenames(new Date())).toEqual([unusedFilename]);
+    const deleteObjects = jest
+      .spyOn(container.resolve(S3ObjectStorage), "deleteObjects")
+      .mockResolvedValue({ errors: [] });
+    try {
+      expect(await container.resolve(StorageCleanupService).removeIfUnused(candidates)).toEqual([
+        unusedFilename
+      ]);
+      expect(await fileRepo.countBy({ filename: unusedFilename })).toBe(0);
+      expect(await fileRepo.countBy({ filename: futureFilename })).toBe(1);
+      for (const filename of protectedFilenames) {
+        expect(await fileRepo.countBy({ filename })).toBeGreaterThanOrEqual(2);
+      }
+    } finally {
+      deleteObjects.mockRestore();
     }
   });
 

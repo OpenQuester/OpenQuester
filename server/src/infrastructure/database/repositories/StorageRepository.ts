@@ -1,52 +1,45 @@
 import { inject, singleton } from "tsyringe";
-import { In } from "typeorm";
+import { Brackets, In, IsNull, type DataSource, type SelectQueryBuilder } from "typeorm";
 
 import { DI_TOKENS } from "shared/di/tokens";
-import { StorageGroup } from "domain/types/storage/StorageTypes";
+import {
+  StorageGroup,
+  type StorageBucketUsage,
+  type StorageUserFacts,
+  type StorageUserUsageRecord,
+  type StoredFileSize
+} from "domain/types/storage/StorageTypes";
+import { type StorageFilename, type StorageFileState } from "domain/types/file/StorageFile";
+import { asUserId } from "domain/types/ids";
 import { type GuestCleanupBatch, type InactiveGuest } from "domain/types/storage/GuestCleanupTypes";
 import { Database } from "infrastructure/database/Database";
 import { StorageLimit } from "infrastructure/database/models/StorageLimit";
 import { FileUsage } from "infrastructure/database/models/FileUsage";
+import { File } from "infrastructure/database/models/File";
 import { User } from "infrastructure/database/models/User";
 import { Package } from "infrastructure/database/models/package/Package";
 import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
+import { PackageQuestionFile } from "infrastructure/database/models/package/PackageQuestionFile";
+import { PackageAnswerFile } from "infrastructure/database/models/package/PackageAnswerFile";
+import { PackageQuestionChoiceAnswer } from "infrastructure/database/models/package/PackageQuestionChoiceAnswer";
 
-/** A stored file as quota counts it: one row per MD5. */
-export interface StoredFileSize {
+interface FileSizeRow {
   filename: string;
-  size: number | null;
+  size: string | null;
 }
 
-/**
- * Every file a user references: files used by packages they wrote, plus
- * their avatar. One row per MD5, so a file used twice counts once.
- */
-const USER_FILES_SQL = `
-  SELECT f."filename",
-         (SELECT MAX(g."size") FROM "file" g WHERE g."filename" = f."filename") AS "size"
-  FROM "file_usage" u
-  JOIN "file" f ON f."id" = u."file_id"
-  LEFT JOIN "package" p ON p."id" = u."package_id"
-  WHERE (p."author" = $1 AND ($2::int IS NULL OR p."id" <> $2))
-     OR (u."package_id" IS NULL AND u."user_id" = $1)
-  GROUP BY f."filename"`;
+interface BucketUsageRow {
+  usedBytes: string;
+  fileCount: string;
+}
 
-/** File rows nothing points at: no usage and no package, question, answer or avatar reference. */
-const UNUSED_FILES_SQL = `
-  SELECT DISTINCT f."filename"
-  FROM "file" f
-  WHERE f."created_at" < $1
-    AND NOT EXISTS (
-      SELECT 1 FROM "file" g JOIN "file_usage" u ON u."file_id" = g."id"
-      WHERE g."filename" = f."filename")
-    AND NOT EXISTS (
-      SELECT 1 FROM "file" g WHERE g."filename" = f."filename" AND (
-        EXISTS (SELECT 1 FROM "user" x WHERE x."avatar" = g."id")
-        OR EXISTS (SELECT 1 FROM "package" x WHERE x."logo_file" = g."id")
-        OR EXISTS (SELECT 1 FROM "package_question_file" x WHERE x."file" = g."id")
-        OR EXISTS (SELECT 1 FROM "package_answer_file" x WHERE x."file" = g."id")
-        OR EXISTS (SELECT 1 FROM "package_question_choice_answer" x WHERE x."file" = g."id")))`;
+interface UserUsageRow {
+  id: number;
+  username: string;
+  usedBytes: string;
+  isGuest: boolean;
+}
 
 @singleton()
 export class StorageRepository {
@@ -54,7 +47,7 @@ export class StorageRepository {
     //
   }
 
-  private get ds() {
+  private get ds(): DataSource {
     return this.db.dataSource;
   }
 
@@ -72,47 +65,62 @@ export class StorageRepository {
 
   /** Files the user references, optionally leaving out one package (it is being replaced). */
   public async getUserFiles(userId: number, excludePackageId?: number): Promise<StoredFileSize[]> {
-    const rows: { filename: string; size: string | null }[] = await this.ds.query(
-      USER_FILES_SQL,
-      [userId, excludePackageId ?? null]
-    );
-    return rows.map((r) => ({ filename: r.filename, size: r.size === null ? null : Number(r.size) }));
+    const query = this.userFilesQuery()
+      .where("CASE WHEN usage.package_id IS NULL THEN usage.user_id ELSE package.author END = :userId", { userId });
+    if (excludePackageId !== undefined) {
+      query.andWhere("(usage.package_id IS NULL OR package.id <> :excludePackageId)", { excludePackageId });
+    }
+    const rows = await query.getRawMany<FileSizeRow>();
+    return rows.map((row) => ({
+      filename: row.filename,
+      size: row.size === null ? null : Number(row.size)
+    }));
   }
 
   /** Known sizes for these MD5s, whoever uploaded them. */
   public async getSizes(filenames: string[]): Promise<Map<string, number>> {
-    if (filenames.length === 0) return new Map();
-    const rows: { filename: string; size: string }[] = await this.ds.query(
-      `SELECT "filename", MAX("size") AS "size" FROM "file"
-       WHERE "filename" = ANY($1) AND "size" IS NOT NULL GROUP BY "filename"`,
-      [filenames]
-    );
-    return new Map(rows.map((r) => [r.filename, Number(r.size)]));
+    if (filenames.length === 0) {
+      return new Map();
+    }
+    const rows = await this.ds.getRepository(File).createQueryBuilder("file")
+      .select("file.filename", "filename")
+      .addSelect("MAX(file.size)", "size")
+      .where("file.filename IN (:...filenames)", { filenames })
+      .andWhere("file.size IS NOT NULL")
+      .groupBy("file.filename")
+      .getRawMany<FileSizeRow>();
+    return new Map(rows.map((row) => [row.filename, Number(row.size)]));
   }
 
   /** Which of these MD5s already have a file row (and so are, or will be, stored). */
   public async getKnownFilenames(filenames: string[]): Promise<Set<string>> {
-    if (filenames.length === 0) return new Set();
-    const rows: { filename: string }[] = await this.ds.query(
-      `SELECT DISTINCT "filename" FROM "file" WHERE "filename" = ANY($1)`,
-      [filenames]
-    );
-    return new Set(rows.map((r) => r.filename));
+    if (filenames.length === 0) {
+      return new Set();
+    }
+    const rows = await this.ds.getRepository(File).find({
+      select: { filename: true },
+      where: { filename: In(filenames) }
+    });
+    return new Set(rows.map((file) => file.filename));
   }
 
   /** Records sizes the uploader declared, without overwriting a size read from storage. */
   public async setDeclaredSizes(sizes: Map<string, number>): Promise<void> {
     for (const [filename, size] of sizes) {
-      await this.ds.query(
-        `UPDATE "file" SET "size" = $2 WHERE "filename" = $1 AND "size_verified_at" IS NULL`,
-        [filename, size]
+      await this.ds.getRepository(File).update(
+        { filename, size_verified_at: IsNull() },
+        { size }
       );
     }
   }
 
   /** Sizes read from a bucket listing; rows already correct are left alone. */
   public async setVerifiedSizes(sizes: Map<string, number>): Promise<void> {
-    if (sizes.size === 0) return;
+    if (sizes.size === 0) {
+      return;
+    }
+    // PostgreSQL bulk UPDATE avoids one round trip per listed object. Filename is
+    // not unique, so ORM upsert cannot update all duplicate rows for each MD5.
     await this.ds.query(
       `UPDATE "file" f SET "size" = v."size", "size_verified_at" = now()
        FROM unnest($1::text[], $2::bigint[]) AS v("filename", "size")
@@ -123,128 +131,128 @@ export class StorageRepository {
   }
 
   public async setVerifiedSize(filename: string, size: number): Promise<void> {
-    await this.ds.query(
-      `UPDATE "file" SET "size" = $2, "size_verified_at" = now() WHERE "filename" = $1`,
-      [filename, size]
-    );
+    await this.ds.getRepository(File).update({ filename }, { size, size_verified_at: new Date() });
   }
 
   /** Bucket usage as the database knows it: distinct MD5s with a size. */
-  public async getBucketUsage(): Promise<{ usedBytes: number; fileCount: number }> {
-    const [row]: { used: string | null; count: string }[] = await this.ds.query(
-      `SELECT COALESCE(SUM(s), 0) AS "used", COUNT(*) AS "count"
-       FROM (SELECT MAX("size") AS s FROM "file" GROUP BY "filename") t`
-    );
-    return { usedBytes: Number(row?.used ?? 0), fileCount: Number(row?.count ?? 0) };
+  public async getBucketUsage(): Promise<StorageBucketUsage> {
+    const row = await this.ds.createQueryBuilder()
+      .select("COALESCE(SUM(files.size), 0)", "usedBytes")
+      .addSelect("COUNT(*)", "fileCount")
+      .from((query) => query.select("MAX(file.size)", "size")
+        .from(File, "file")
+        .groupBy("file.filename"), "files")
+      .getRawOne<BucketUsageRow>();
+    return { usedBytes: Number(row?.usedBytes ?? 0), fileCount: Number(row?.fileCount ?? 0) };
   }
 
   /** Heaviest users by referenced bytes, for the admin page. */
-  public async getTopUsers(
-    limit: number
-  ): Promise<
-    { id: number; username: string; usedBytes: number; isGuest: boolean; permissions: string[] }[]
-  > {
-    const rows: {
-      id: number;
-      username: string;
-      used: string;
-      is_guest: boolean;
-      perms: string[] | null;
-    }[] = await this.ds.query(
-      `SELECT x."id", x."username", x."is_guest", COALESCE(SUM(t."size"), 0) AS "used",
-              (SELECT array_agg(p."name") FROM "user_permissions" up
-               JOIN "permission" p ON p."id" = up."permission_id"
-               WHERE up."user_id" = x."id") AS "perms"
-       FROM "user" x
-       JOIN LATERAL (
-         SELECT f."filename",
-                (SELECT MAX(g."size") FROM "file" g WHERE g."filename" = f."filename") AS "size"
-         FROM "file_usage" u
-         JOIN "file" f ON f."id" = u."file_id"
-         LEFT JOIN "package" p ON p."id" = u."package_id"
-         WHERE p."author" = x."id" OR (u."package_id" IS NULL AND u."user_id" = x."id")
-         GROUP BY f."filename"
-       ) t ON true
-       WHERE x."is_deleted" = false
-       GROUP BY x."id", x."username", x."is_guest"
-       ORDER BY "used" DESC
-       LIMIT $1`,
-      [limit]
-    );
-    return rows.map((r) => ({
-      id: r.id,
-      username: r.username,
-      usedBytes: Number(r.used),
-      isGuest: r.is_guest,
-      permissions: r.perms ?? []
+  public async getTopUsers(limit: number): Promise<StorageUserUsageRecord[]> {
+    const files = this.userFilesQuery();
+    const rows = await this.ds.getRepository(User).createQueryBuilder("user")
+      .select("user.id", "id")
+      .addSelect("user.username", "username")
+      .addSelect("user.is_guest", "isGuest")
+      .addSelect("COALESCE(SUM(files.size), 0)", "usedBytes")
+      .innerJoin(`(${files.getQuery()})`, "files", 'files."userId" = user.id')
+      .where("user.is_deleted = false")
+      .groupBy("user.id")
+      .addGroupBy("user.username")
+      .addGroupBy("user.is_guest")
+      .orderBy('"usedBytes"', "DESC")
+      .limit(limit)
+      .getRawMany<UserUsageRow>();
+    if (rows.length === 0) {
+      return [];
+    }
+    // Load permissions after grouping, so multiple permissions cannot multiply usage.
+    const users = await this.ds.getRepository(User).find({
+      select: { id: true, permissions: { id: true, name: true } },
+      relations: { permissions: true },
+      where: { id: In(rows.map((row) => row.id)) }
+    });
+    const permissionsByUser = new Map(users.map((user) => [
+      user.id, user.permissions.map((permission) => permission.name)
+    ]));
+    return rows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      usedBytes: Number(row.usedBytes),
+      isGuest: row.isGuest,
+      permissions: permissionsByUser.get(asUserId(row.id)) ?? []
     }));
   }
 
   /** MD5s with no usage and no reference, created before `olderThan`. */
   public async getUnusedFilenames(olderThan: Date): Promise<string[]> {
-    const rows: { filename: string }[] = await this.ds.query(UNUSED_FILES_SQL, [olderThan]);
-    return rows.map((r) => r.filename);
+    const files = await this.unusedFilesQuery()
+      .andWhere("file.created_at < :olderThan", { olderThan })
+      .getRawMany<StorageFilename>();
+    return files.map((file) => file.filename);
   }
 
   /** Of these MD5s, the ones nothing uses or references any more (no grace period). */
   public async filterUnused(filenames: string[]): Promise<string[]> {
-    if (filenames.length === 0) return [];
-    const rows: { filename: string }[] = await this.ds.query(
-      `${UNUSED_FILES_SQL} AND f."filename" = ANY($2)`,
-      [new Date(Date.now() + 60_000), filenames]
-    );
-    return rows.map((r) => r.filename);
+    if (filenames.length === 0) {
+      return [];
+    }
+    const latestCreationTime = new Date(Date.now() + 60_000);
+    const files = await this.unusedFilesQuery()
+      .andWhere("file.filename IN (:...filenames)", { filenames })
+      .andWhere("file.created_at < :latestCreationTime", { latestCreationTime })
+      .getRawMany<StorageFilename>();
+    return files.map((file) => file.filename);
   }
 
   public async getPackageFilenames(packageId: number): Promise<string[]> {
-    const rows: { filename: string }[] = await this.ds.query(
-      `SELECT DISTINCT f."filename" FROM "file_usage" u JOIN "file" f ON f."id" = u."file_id"
-       WHERE u."package_id" = $1`,
-      [packageId]
-    );
-    return rows.map((r) => r.filename);
+    const files = await this.ds.getRepository(File).createQueryBuilder("file")
+      .innerJoin(FileUsage, "usage", "usage.file = file.id")
+      .select("file.filename", "filename")
+      .distinct(true)
+      .where("usage.package_id = :packageId", { packageId })
+      .getRawMany<StorageFilename>();
+    return files.map((file) => file.filename);
   }
 
   /** Every MD5 the package uses, and whether storage has confirmed it holds that file. */
   public async getPackageFileStates(
     packageId: number
-  ): Promise<{ filename: string; path: string; verified: boolean }[]> {
-    const rows: { filename: string; path: string; verified: boolean }[] = await this.ds.query(
-      `SELECT f."filename", MIN(f."path") AS "path",
-              BOOL_OR(EXISTS (SELECT 1 FROM "file" g
-                              WHERE g."filename" = f."filename" AND g."size_verified_at" IS NOT NULL)) AS "verified"
-       FROM "file_usage" u JOIN "file" f ON f."id" = u."file_id"
-       WHERE u."package_id" = $1
-       GROUP BY f."filename"`,
-      [packageId]
-    );
-    return rows.map((r) => ({
-      filename: r.filename,
-      path: r.path,
-      verified: Boolean(r.verified)
-    }));
+  ): Promise<StorageFileState[]> {
+    const query = this.ds.getRepository(FileUsage).createQueryBuilder("usage")
+      .innerJoin("usage.file", "file")
+      .select("file.filename", "filename")
+      .addSelect("MIN(file.path)", "path")
+      .where("usage.package_id = :packageId", { packageId })
+      .groupBy("file.filename");
+    const confirmedFile = query.subQuery().select("1").from(File, "confirmedFile")
+      .where("confirmedFile.filename = file.filename")
+      .andWhere("confirmedFile.size_verified_at IS NOT NULL");
+    return query.addSelect(`EXISTS ${confirmedFile.getQuery()}`, "verified")
+      .getRawMany<StorageFileState>();
   }
 
   public async deleteFileRows(filenames: string[]): Promise<void> {
-    if (filenames.length === 0) return;
-    await this.ds.query(`DELETE FROM "file" WHERE "filename" = ANY($1)`, [filenames]);
+    if (filenames.length === 0) {
+      return;
+    }
+    await this.ds.getRepository(File).delete({ filename: In(filenames) });
   }
 
-  /** Files whose size came from the uploader only, oldest first. */
+  /** Files whose size came from the uploader only. */
   public async getUnverifiedFilenames(limit: number, userId?: number): Promise<string[]> {
-    const rows: { filename: string }[] =
-      userId === undefined
-        ? await this.ds.query(
-            `SELECT DISTINCT "filename" FROM "file" WHERE "size_verified_at" IS NULL LIMIT $1`,
-            [limit]
-          )
-        : await this.ds.query(
-            `SELECT t."filename" FROM (${USER_FILES_SQL}) t
-             WHERE EXISTS (SELECT 1 FROM "file" f WHERE f."filename" = t."filename" AND f."size_verified_at" IS NULL)
-             LIMIT $3`,
-            [userId, null, limit]
-          );
-    return rows.map((r) => r.filename);
+    const query = this.ds.getRepository(File).createQueryBuilder("file")
+      .select("file.filename", "filename")
+      .distinct(true)
+      .where("file.size_verified_at IS NULL")
+      .limit(limit);
+    if (userId !== undefined) {
+      const userFiles = this.userFilesQuery()
+        .where("CASE WHEN usage.package_id IS NULL THEN usage.user_id ELSE package.author END = :userId", { userId });
+      query.innerJoin(`(${userFiles.getQuery()})`, "userFiles", '"userFiles".filename = file.filename')
+        .setParameters(userFiles.getParameters());
+    }
+    const files = await query.getRawMany<StorageFilename>();
+    return files.map((file) => file.filename);
   }
 
   public async touchLastSeen(userId: number): Promise<void> {
@@ -317,33 +325,68 @@ export class StorageRepository {
   /** Guest flag and permission names, for working out a user's storage group. */
   public async getUserFacts(
     userId: number
-  ): Promise<{ is_guest: boolean; permissions: { name: string }[] }> {
-    const [row]: { is_guest: boolean; perms: string[] | null }[] = await this.ds.query(
-      `SELECT x."is_guest",
-              (SELECT array_agg(p."name") FROM "user_permissions" up
-               JOIN "permission" p ON p."id" = up."permission_id"
-               WHERE up."user_id" = x."id") AS "perms"
-       FROM "user" x WHERE x."id" = $1`,
-      [userId]
-    );
+  ): Promise<StorageUserFacts> {
+    const user = await this.ds.getRepository(User).findOne({
+      select: { id: true, is_guest: true, permissions: { id: true, name: true } },
+      relations: { permissions: true },
+      where: { id: asUserId(userId) }
+    });
     return {
-      is_guest: row?.is_guest ?? false,
-      permissions: (row?.perms ?? []).map((name) => ({ name }))
+      is_guest: user?.is_guest ?? false,
+      permissions: (user?.permissions ?? []).map((permission) => ({ name: permission.name }))
     };
   }
 
   public async getUserQuota(userId: number): Promise<number | null> {
-    const [row]: { q: string | null }[] = await this.ds.query(
-      `SELECT "storage_quota_bytes" AS "q" FROM "user" WHERE "id" = $1`,
-      [userId]
-    );
-    return row?.q == null ? null : Number(row.q);
+    const user = await this.ds.getRepository(User).findOne({
+      select: { storage_quota_bytes: true },
+      where: { id: asUserId(userId) }
+    });
+    return user?.storage_quota_bytes ?? null;
   }
 
   public async setUserQuota(userId: number, quota: number | null): Promise<void> {
-    await this.ds.query(`UPDATE "user" SET "storage_quota_bytes" = $2 WHERE "id" = $1`, [
-      userId,
-      quota
-    ]);
+    await this.ds.getRepository(User).createQueryBuilder().update()
+      .set({ storage_quota_bytes: quota, updated_at: () => '"updated_at"' })
+      .where("id = :userId", { userId })
+      .execute();
+  }
+
+  /** One file per owner, with the largest known size from any duplicate file row. */
+  private userFilesQuery(): SelectQueryBuilder<FileUsage> {
+    const ownerId = "CASE WHEN usage.package_id IS NULL THEN usage.user_id ELSE package.author END";
+    return this.ds.getRepository(FileUsage).createQueryBuilder("usage")
+      .innerJoin("usage.file", "file")
+      .leftJoin("usage.package", "package")
+      .select(ownerId, "userId")
+      .addSelect("file.filename", "filename")
+      .addSelect((query) => query.select("MAX(duplicateFile.size)")
+        .from(File, "duplicateFile")
+        .where("duplicateFile.filename = file.filename"), "size")
+      .groupBy(ownerId)
+      .addGroupBy("file.filename");
+  }
+
+  /** Protect references on every duplicate row, even when legacy file_usage entries are absent. */
+  private unusedFilesQuery(): SelectQueryBuilder<File> {
+    const query = this.ds.getRepository(File).createQueryBuilder("file")
+      .select("file.filename", "filename")
+      .distinct(true);
+    const references = query.subQuery().select("1").from(File, "referencedFile")
+      .leftJoin(FileUsage, "usage", "usage.file = referencedFile.id")
+      .leftJoin(User, "avatarUser", "avatarUser.avatar = referencedFile.id")
+      .leftJoin(Package, "logoPackage", "logoPackage.logo = referencedFile.id")
+      .leftJoin(PackageQuestionFile, "questionFile", "questionFile.file = referencedFile.id")
+      .leftJoin(PackageAnswerFile, "answerFile", "answerFile.file = referencedFile.id")
+      .leftJoin(PackageQuestionChoiceAnswer, "choiceAnswer", "choiceAnswer.file = referencedFile.id")
+      .where("referencedFile.filename = file.filename")
+      .andWhere(new Brackets((reference) => reference
+        .where("usage.id IS NOT NULL")
+        .orWhere("avatarUser.id IS NOT NULL")
+        .orWhere("logoPackage.id IS NOT NULL")
+        .orWhere("questionFile.id IS NOT NULL")
+        .orWhere("answerFile.id IS NOT NULL")
+        .orWhere("choiceAnswer.id IS NOT NULL")));
+    return query.where(`NOT EXISTS ${references.getQuery()}`);
   }
 }
