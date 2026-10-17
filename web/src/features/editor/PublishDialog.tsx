@@ -18,6 +18,7 @@ import { AlertIcon, CheckIcon, UploadIcon } from "@/ui/icons";
 import { toParsed } from "./media";
 import { useEditor } from "./store";
 import type { Issue, Report } from "./validate";
+import { ImportWarnings } from "@/features/upload/ImportWarnings";
 
 type Step =
   | { kind: "check" }
@@ -82,6 +83,7 @@ function PublishBody({
   const media = useEditor((s) => s.media);
   const setPublished = useEditor((s) => s.setPublished);
   const publishedId = useEditor((s) => s.publishedId);
+  const importWarnings = useEditor((s) => s.importWarnings);
 
   /** With `replace`, saves over the package this draft was published as. */
   const publish = async (replace: boolean) => {
@@ -104,7 +106,8 @@ function PublishBody({
         kind: "done",
         id,
         failed: failed.length,
-        unfinished: state ? state.status !== "ready" : failed.length > 0,
+        // Without the server's final status, completion is unknown: keep it resumable
+        unfinished: state === null || state.status !== "ready",
       });
     } catch (err) {
       setStep({
@@ -210,6 +213,8 @@ function PublishBody({
 
   return (
     <div className="flex flex-col gap-5 p-5" data-testid="publish-check">
+      {/* What importing the original file changed; the checks below can't see it */}
+      {importWarnings.length > 0 && <ImportWarnings warnings={importWarnings} />}
       <p
         className={cn(
           "m-0 flex items-center gap-2 font-semibold",

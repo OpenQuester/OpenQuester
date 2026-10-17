@@ -1,3 +1,4 @@
+import type { ImportWarning } from "@/features/upload/types";
 import type { MediaFile } from "@/features/upload/types";
 
 import { countQuestions, reachableMedia, type EditorPackage } from "./model";
@@ -14,6 +15,8 @@ export interface Draft {
   updatedAt: number;
   /** Set once uploaded, so the list can link to the published package. */
   publishedId?: number;
+  /** What the import of the original file changed or left out, until dismissed. */
+  importWarnings?: ImportWarning[];
 }
 
 export interface DraftSummary {

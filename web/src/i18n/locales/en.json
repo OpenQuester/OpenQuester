@@ -1191,7 +1191,10 @@
       "searchCount_one": "{{count}} question found",
       "searchCount_other": "{{count}} questions found",
       "noText": "(no text)"
-    }
+    },
+    "saveFailed": "Changes aren't saved on this device (its storage may be full). They stay in this tab: retry, or export a file to keep them.",
+    "saveRetry": "Retry saving",
+    "importReportHide": "Hide this report"
   },
   "panels": {
     "pin": "Pin {{name}}",

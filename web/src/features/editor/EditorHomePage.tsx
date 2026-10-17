@@ -18,7 +18,12 @@ import { emptyPackage, fromUpload, newId, newRound, starterTheme } from "./model
 export async function draftFromParsed(parsed: ParsedPackage): Promise<string> {
   const id = newId();
   await putMedia(parsed.files.values());
-  await saveDraft({ id, pkg: fromUpload(parsed.content), updatedAt: Date.now() });
+  await saveDraft({
+    id,
+    pkg: fromUpload(parsed.content),
+    updatedAt: Date.now(),
+    importWarnings: parsed.warnings,
+  });
   return id;
 }
 

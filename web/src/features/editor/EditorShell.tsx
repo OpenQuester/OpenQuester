@@ -38,6 +38,7 @@ import { QuestionPreview } from "./QuestionPreview";
 import { RoundBoard, type BoardActions } from "./RoundBoard";
 import { useEditor, useEditorStore } from "./store";
 import { validate, type Issue } from "./validate";
+import { ImportWarnings } from "@/features/upload/ImportWarnings";
 
 function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(
@@ -167,6 +168,10 @@ export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
     }
   };
 
+  const importWarnings = useEditor((s) => s.importWarnings);
+  const dismissImportWarnings = useEditor((s) => s.dismissImportWarnings);
+  const exportDraft = () => downloadBlob(exportOq(pkg, media), `${safeFileName(pkg.title)}.oq`);
+
   const mediaBytes = useMemo(() => {
     let n = 0;
     for (const md5 of reachableMedia(pkg)) n += media.get(md5)?.bytes.byteLength ?? 0;
@@ -179,7 +184,7 @@ export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
         <EditorHeader
           onPublish={() => setPublish(true)}
           onDetails={() => setDetails(true)}
-          onExport={() => downloadBlob(exportOq(pkg, media), `${safeFileName(pkg.title)}.oq`)}
+          onExport={exportDraft}
           onSearch={() => setSearch(true)}
           report={report}
           mediaBytes={mediaBytes}
@@ -198,6 +203,10 @@ export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
 
         <main id="main" className="min-w-0 flex-1 overflow-y-auto">
           <div className="flex flex-col gap-5 px-4 py-5 sm:px-6 lg:px-7">
+            <SaveFailedBanner onExport={exportDraft} />
+            {importWarnings.length > 0 && (
+              <ImportWarnings warnings={importWarnings} onDismiss={dismissImportWarnings} />
+            )}
             <RoundChips onAdd={readOnly ? undefined : addRound} />
             {round ? (
               <RoundBoard
@@ -646,4 +655,32 @@ function UndoToast() {
 export function formatBytes(n: number): string {
   if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/**
+ * Autosave failed (device storage full, or the write was aborted): the edits
+ * only live in this tab. Offers a retry and a file export so nothing is lost.
+ */
+function SaveFailedBanner({ onExport }: { onExport: () => void }) {
+  const { t } = useTranslation();
+  const saveError = useEditor((s) => s.saveError);
+  const retrySave = useEditor((s) => s.retrySave);
+
+  if (!saveError) return null;
+
+  return (
+    <div
+      role="alert"
+      className="flex flex-wrap items-center gap-3 rounded-md border border-danger/40 bg-danger-surface px-4 py-3"
+      data-testid="save-failed"
+    >
+      <span className="min-w-0 flex-1 text-sm">{t("editor.saveFailed")}</span>
+      <Button size="sm" onClick={retrySave}>
+        {t("editor.saveRetry")}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={onExport}>
+        {t("editor.export")}
+      </Button>
+    </div>
+  );
 }

@@ -37,6 +37,7 @@ export function EditorPage() {
           media,
           savedAt: draft.updatedAt,
           publishedId: draft.publishedId,
+          importWarnings: draft.importWarnings,
         }),
       });
     })();
@@ -80,15 +81,35 @@ function useAutosave(store: StoreApi<EditorState> | null) {
     const flush = async () => {
       timer = null;
       const s = store.getState();
-      const fresh = [...s.media.values()].filter((f) => !savedMedia.has(f.md5));
-      await putMedia(fresh);
-      for (const f of fresh) savedMedia.add(f.md5);
-      const at = Date.now();
-      await saveDraft({ id: s.draftId, pkg: s.pkg, updatedAt: at, publishedId: s.publishedId });
-      s.markSaved(at);
+      try {
+        const fresh = [...s.media.values()].filter((f) => !savedMedia.has(f.md5));
+        await putMedia(fresh);
+        for (const f of fresh) savedMedia.add(f.md5);
+        const at = Date.now();
+        await saveDraft({
+          id: s.draftId,
+          pkg: s.pkg,
+          updatedAt: at,
+          publishedId: s.publishedId,
+          importWarnings: s.importWarnings,
+        });
+        s.markSaved(at);
+      } catch (error) {
+        // IndexedDB full or the write aborted: the edits only live in this tab
+        s.markSaveFailed(error instanceof Error ? error.message : String(error));
+      }
     };
     const unsub = store.subscribe((s, prev) => {
-      if (s.pkg === prev.pkg && s.media === prev.media && s.publishedId === prev.publishedId)
+      if (s.saveRequest !== prev.saveRequest) {
+        void flush();
+        return;
+      }
+      if (
+        s.pkg === prev.pkg &&
+        s.media === prev.media &&
+        s.publishedId === prev.publishedId &&
+        s.importWarnings === prev.importWarnings
+      )
         return;
       if (timer != null) window.clearTimeout(timer);
       timer = window.setTimeout(() => void flush(), SAVE_DELAY);

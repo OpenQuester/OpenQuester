@@ -20,7 +20,7 @@ import { Toggle } from "@/features/settings/SettingsPage";
 import { useSettings } from "@/features/settings/settingsStore";
 import { StorageMeter } from "@/features/storage/StorageMeter";
 
-import type { ImportWarning, ParsedPackage } from "./types";
+import type { ParsedPackage } from "./types";
 import {
   ACCEPT,
   contentHash,
@@ -36,6 +36,7 @@ import {
   type UploadState,
 } from "./upload";
 import { UploadProgressCard } from "./UploadProgressCard";
+import { ImportWarnings } from "./ImportWarnings";
 
 type Step =
   | { kind: "pick"; error?: string }
@@ -89,7 +90,9 @@ export function UploadPackagePage() {
     void qc.invalidateQueries({ queryKey: ["package", id] });
     void qc.invalidateQueries({ queryKey: ["package-upload", id] });
     void qc.invalidateQueries({ queryKey: ["me", "storage"] });
-    const complete = state ? state.status === "ready" : failed.length === 0;
+    // No answer from the final status check proves nothing (skipped archive files
+    // never enter `failed`), so the upload stays resumable
+    const complete = state !== null && state.status === "ready";
     setStep(
       complete
         ? { kind: "done", id, title: parsed.content.title, savings }
@@ -447,7 +450,7 @@ function Review({
         </div>
       </Card>
 
-      {parsed.warnings.length > 0 && <Warnings warnings={parsed.warnings} />}
+      {parsed.warnings.length > 0 && <ImportWarnings warnings={parsed.warnings} />}
 
       {totals.mediaCount > 0 && <CompressToggle />}
       {totals.mediaCount > 0 && <StorageMeter />}
@@ -473,42 +476,6 @@ function Review({
       </div>
       {empty && <p className="m-0 text-sm text-danger">{t("upload.noQuestions")}</p>}
     </div>
-  );
-}
-
-const SHOWN_WARNINGS = 6;
-
-function Warnings({ warnings }: { warnings: ImportWarning[] }) {
-  const { t } = useTranslation();
-  const [all, setAll] = useState(false);
-  const shown = all ? warnings : warnings.slice(0, SHOWN_WARNINGS);
-  return (
-    <Card tone="raised" data-testid="upload-warnings">
-      <div className="flex flex-col gap-3">
-        <p className="m-0 font-semibold text-warning">
-          {t("upload.warningsTitle", { count: warnings.length })}
-        </p>
-        <p className="m-0 text-sm text-soft">{t("upload.warningsHelp")}</p>
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {shown.map((w, i) => (
-            <li key={i} className="text-sm [overflow-wrap:anywhere]">
-              {w.where && <span className="text-muted">{w.where} · </span>}
-              {t(`upload.warnings.${w.code}`, { detail: w.detail ?? "" })}
-            </li>
-          ))}
-        </ul>
-        {warnings.length > SHOWN_WARNINGS && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="self-start"
-            onClick={() => setAll((v) => !v)}
-          >
-            {all ? t("upload.showFewer") : t("upload.showAll", { count: warnings.length })}
-          </Button>
-        )}
-      </div>
-    </Card>
   );
 }
 

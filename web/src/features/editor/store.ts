@@ -1,3 +1,4 @@
+import type { ImportWarning } from "@/features/upload/types";
 import { createContext, useContext } from "react";
 import { createStore, useStore, type StoreApi } from "zustand";
 
@@ -35,6 +36,12 @@ export interface EditorState {
   publishedId?: number;
   /** A published package opened to look at: no edits, no autosave. */
   readOnly: boolean;
+  /** The import report of the file this draft came from, until dismissed. */
+  importWarnings: ImportWarning[];
+  /** Why the last autosave failed (storage full, aborted write); null when saved. */
+  saveError: string | null;
+  /** Bumped to ask for an immediate save (Retry after a failed one). */
+  saveRequest: number;
 
   apply: (fn: (pkg: EditorPackage) => EditorPackage, change?: Omit<Change, "at">) => void;
   undo: () => void;
@@ -45,6 +52,9 @@ export interface EditorState {
   setDensity: (d: Density) => void;
   addMedia: (files: MediaFile[]) => void;
   markSaved: (at: number) => void;
+  markSaveFailed: (error: string) => void;
+  retrySave: () => void;
+  dismissImportWarnings: () => void;
   setPublished: (id: number) => void;
 }
 
@@ -58,10 +68,14 @@ export function createEditorStore(init: {
   savedAt: number | null;
   publishedId?: number;
   readOnly?: boolean;
+  importWarnings?: ImportWarning[];
 }): StoreApi<EditorState> {
   return createStore<EditorState>((set, get) => ({
     ...init,
     readOnly: init.readOnly ?? false,
+    importWarnings: init.importWarnings ?? [],
+    saveError: null,
+    saveRequest: 0,
     past: [],
     future: [],
     roundId: init.pkg.rounds[0]?.id ?? null,
@@ -106,7 +120,10 @@ export function createEditorStore(init: {
       for (const f of files) media.set(f.md5, f);
       set({ media });
     },
-    markSaved: (savedAt) => set({ savedAt }),
+    markSaved: (savedAt) => set({ savedAt, saveError: null }),
+    markSaveFailed: (saveError) => set({ saveError }),
+    retrySave: () => set({ saveRequest: get().saveRequest + 1 }),
+    dismissImportWarnings: () => set({ importWarnings: [] }),
     setPublished: (publishedId) => set({ publishedId }),
   }));
 }
