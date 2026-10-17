@@ -55,6 +55,7 @@ export class StatsRestApiController {
     if (!userId) {
       throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
+
     res.status(HttpStatus.OK).send(await this.stats.getUserStats(userId));
   };
 
@@ -80,6 +81,7 @@ export class StatsRestApiController {
       gameId,
       report
     });
+
     res.status(HttpStatus.OK).send(data);
   };
 
@@ -92,6 +94,7 @@ export class StatsRestApiController {
       sessionUserId: req.session.userId,
       packageId: id
     });
+
     res.status(HttpStatus.OK).send(data);
   };
 
@@ -114,6 +117,7 @@ export class StatsRestApiController {
       reportId,
       resolved
     });
+
     res.status(HttpStatus.OK).send(data);
   };
 }

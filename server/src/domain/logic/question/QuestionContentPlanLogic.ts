@@ -46,6 +46,14 @@ interface PlanEntry {
   waitForFinish: boolean;
 }
 
+/** A plan entry with its place in the package's content order. */
+interface OrderedPlanEntry extends PlanEntry {
+  /** The item's `order` in the package. */
+  sortKey: number;
+  /** At equal order the question text (0) comes before files (1). */
+  tieBreak: number;
+}
+
 /**
  * Builds the content timeline of a question or answer, following SIGame:
  * items play in order, and consecutive items are grouped into one step until
@@ -58,7 +66,7 @@ export class QuestionContentPlanLogic {
     mediaDurations: MediaDurations | null = null,
     defaults: ContentDefaults = QUESTION_DEFAULTS
   ): QuestionContentPlanDTO | null {
-    const entries: (PlanEntry & { sortKey: number; tieBreak: number })[] = [];
+    const entries: OrderedPlanEntry[] = [];
 
     for (const file of source.files ?? []) {
       const placement =
@@ -112,6 +120,7 @@ export class QuestionContentPlanLogic {
         (e) =>
           e.waitForFinish || e.item.placement !== ContentPlacement.BACKGROUND
       );
+
       const durationMs = Math.max(0, ...blocking.map((e) => e.item.durationMs));
 
       steps.push({
@@ -119,6 +128,7 @@ export class QuestionContentPlanLogic {
         durationMs,
         items: current.map((e) => e.item),
       });
+
       cursor += durationMs;
       current = [];
     };
@@ -127,6 +137,7 @@ export class QuestionContentPlanLogic {
       current.push(entry);
       if (entry.waitForFinish) close();
     }
+
     close();
 
     return { steps, totalMs: cursor };
@@ -152,6 +163,7 @@ export class QuestionContentPlanLogic {
 
     game.gameState.questionContentPlan = plan;
     game.gameState.buzzerOpensAtMs = this.buzzerOpensAt(game);
+
     return plan?.totalMs ?? 0;
   }
 
@@ -189,6 +201,7 @@ export class QuestionContentPlanLogic {
     const opensAtMs = game.gameState.buzzerOpensAtMs ?? 0;
     const timers = game.settings.timers;
     const answerMs = game.gameState.allPlay ? timers.allPlayAnswerMs : timers.answerMs;
+
     return Math.max(contentMs, opensAtMs) + answerMs;
   }
 
@@ -214,12 +227,14 @@ export class QuestionContentPlanLogic {
         (f) => f.file.md5
       )
     );
+
     const durations: MediaDurations = { ...(game.gameState.mediaDurations ?? {}) };
 
     for (const { md5, durationMs } of reported) {
       if (!known.has(md5) || !Number.isFinite(durationMs) || durationMs <= 0) {
         continue;
       }
+
       const clamped = Math.min(CONTENT_ITEM_MAX_TIME, Math.round(durationMs));
       durations[md5] = Math.max(durations[md5] ?? 0, clamped);
     }
@@ -243,6 +258,7 @@ export class QuestionContentPlanLogic {
         if (reported && reported > 0) {
           return Math.min(CONTENT_ITEM_MAX_TIME, reported);
         }
+
         return file.file.type === PackageFileType.AUDIO
           ? defaults.audioMs
           : defaults.videoMs;

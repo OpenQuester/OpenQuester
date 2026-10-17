@@ -10,6 +10,7 @@ import { type S3Context } from "domain/types/file/S3Context";
 import {
   type AdminStorageDTO,
   type MyStorageDTO,
+  type ClientFileSizes,
   StorageGroup,
   type StorageGroupLimits,
   type StorageLimits
@@ -22,8 +23,8 @@ import { Environment } from "shared/config/Environment";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { type ObjectStorage } from "shared/storage/ObjectStorage";
-
-type MediaKind = "image" | "audio" | "video";
+import { PackageMediaLogic } from "domain/logic/package/PackageMediaLogic";
+import { ByteUtils } from "domain/utils/ByteUtils";
 
 /** Uploads stop when the bucket reaches this share of S3_BUCKET_QUOTA_BYTES. */
 const BUCKET_HARD_SHARE = 0.95;
@@ -67,15 +68,18 @@ export class StorageQuotaService {
 
   public groupOf(user: QuotaUser): StorageGroup {
     if (user.is_guest) return StorageGroup.GUEST;
+
     const role = staffRoleOf((user.permissions ?? []).map((p) => p.name));
     if (role === StaffRole.ADMIN) return StorageGroup.ADMIN;
     if (role === StaffRole.MODERATOR) return StorageGroup.MODERATOR;
+
     return StorageGroup.USER;
   }
 
   public async getGroupLimits(group: StorageGroup): Promise<StorageLimits> {
     const row = await this.storageRepository.getLimit(group);
-    return row ? toLimits(row) : NO_LIMITS;
+
+    return row ? StorageQuotaService.toLimits(row) : NO_LIMITS;
   }
 
   /** The group's limits with the user's own quota applied. */
@@ -86,20 +90,24 @@ export class StorageQuotaService {
       const facts = await this.storageRepository.getUserFacts(user.id);
       user = { ...user, ...facts };
     }
+
     const group = this.groupOf(user);
     const limits = { ...(await this.getGroupLimits(group)) };
     const own = user.id ? await this.storageRepository.getUserQuota(user.id) : null;
     if (own !== null) limits.userQuotaBytes = own;
+
     return { group, limits, overridden: own !== null };
   }
 
   public async getUsage(userId: number, excludePackageId?: number): Promise<number> {
     const files = await this.storageRepository.getUserFiles(userId, excludePackageId);
+
     return files.reduce((n, f) => n + (f.size ?? 0), 0);
   }
 
   public async getMyStorage(user: QuotaUser): Promise<MyStorageDTO> {
     const { group, limits, overridden } = await this.getLimitsFor(user);
+
     return {
       group,
       usedBytes: user.id ? await this.getUsage(user.id) : 0,
@@ -111,29 +119,34 @@ export class StorageQuotaService {
 
   /**
    * Throws 413 when a package (new, or replacing `replaceId`) breaks a file,
-   * package or user limit, and 507 when the bucket is full. `declared` holds
-   * the sizes the client sent; files already in storage use their known size.
+   * package or user limit, and 507 when the bucket is full. Files already in
+   * storage count with their known size, new ones with `clientFileSizes`.
+   *
+   * @returns sizes of the files storage doesn't know yet, as the client sent
+   *   them; save them once the package is stored.
    */
   public async assertPackageFits(
     user: QuotaUser,
     content: PackageDTO,
-    declared: Record<string, number> | undefined,
+    clientFileSizes: ClientFileSizes | undefined,
     replaceId?: number
   ): Promise<Map<string, number>> {
-    const kinds = collectFiles(content);
+    const kinds = PackageMediaLogic.collectFiles(content);
     const md5s = [...kinds.keys()];
     const known = await this.storageRepository.getSizes(md5s);
     const sizes = new Map<string, number>();
     for (const md5 of md5s) {
       const raw = ValueUtils.getRawFilename(md5);
-      const size = known.get(md5) ?? declared?.[raw] ?? declared?.[md5];
+      const size = known.get(md5) ?? clientFileSizes?.[raw] ?? clientFileSizes?.[md5];
       if (typeof size === "number" && Number.isFinite(size) && size >= 0) sizes.set(md5, size);
     }
-    const declaredOnly = new Map(
-      [...sizes].filter(([md5]) => !known.has(md5) && declared !== undefined)
+
+    const newFileSizes = new Map(
+      [...sizes].filter(([md5]) => !known.has(md5) && clientFileSizes !== undefined)
     );
 
-    if (!user.id) return declaredOnly;
+    if (!user.id) return newFileSizes;
+
     await this.verifyUserFiles(user.id);
     const { limits } = await this.getLimitsFor(user);
 
@@ -143,8 +156,8 @@ export class StorageQuotaService {
       if (size !== undefined && limit !== null && size > limit) {
         throw new ClientError(ClientResponse.STORAGE_FILE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE, {
           kind,
-          size: formatBytes(size),
-          limit: formatBytes(limit)
+          size: ByteUtils.format(size),
+          limit: ByteUtils.format(limit)
         });
       }
     }
@@ -152,8 +165,8 @@ export class StorageQuotaService {
     const packageBytes = [...sizes.values()].reduce((a, b) => a + b, 0);
     if (limits.packageBytes !== null && packageBytes > limits.packageBytes) {
       throw new ClientError(ClientResponse.STORAGE_PACKAGE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE, {
-        size: formatBytes(packageBytes),
-        limit: formatBytes(limits.packageBytes)
+        size: ByteUtils.format(packageBytes),
+        limit: ByteUtils.format(limits.packageBytes)
       });
     }
 
@@ -164,36 +177,39 @@ export class StorageQuotaService {
       const used = [...total.values()].reduce((a, b) => a + b, 0);
       if (used > limits.userQuotaBytes) {
         throw new ClientError(ClientResponse.STORAGE_QUOTA_EXCEEDED, HttpStatus.PAYLOAD_TOO_LARGE, {
-          size: formatBytes(used),
-          limit: formatBytes(limits.userQuotaBytes)
+          size: ByteUtils.format(used),
+          limit: ByteUtils.format(limits.userQuotaBytes)
         });
       }
     }
 
     await this.assertBucketHasRoom(user, md5s, sizes);
-    return declaredOnly;
+
+    return newFileSizes;
   }
 
   /** Avatars: the picture is already stored, so its real size is checked. */
   public async assertAvatarFits(user: QuotaUser, filename: string): Promise<void> {
     const size = await this.verifyFile(filename);
     if (size === null || !user.id) return;
+
     const { limits } = await this.getLimitsFor(user);
     if (limits.imageBytes !== null && size > limits.imageBytes) {
       throw new ClientError(ClientResponse.STORAGE_FILE_TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE, {
         kind: "image",
-        size: formatBytes(size),
-        limit: formatBytes(limits.imageBytes)
+        size: ByteUtils.format(size),
+        limit: ByteUtils.format(limits.imageBytes)
       });
     }
+
     if (limits.userQuotaBytes !== null) {
       const files = await this.storageRepository.getUserFiles(user.id);
       const used =
         files.filter((f) => f.filename !== filename).reduce((n, f) => n + (f.size ?? 0), 0) + size;
       if (used > limits.userQuotaBytes) {
         throw new ClientError(ClientResponse.STORAGE_QUOTA_EXCEEDED, HttpStatus.PAYLOAD_TOO_LARGE, {
-          size: formatBytes(used),
-          limit: formatBytes(limits.userQuotaBytes)
+          size: ByteUtils.format(used),
+          limit: ByteUtils.format(limits.userQuotaBytes)
         });
       }
     }
@@ -206,6 +222,7 @@ export class StorageQuotaService {
   ): Promise<void> {
     const quota = this.env.S3_BUCKET_QUOTA_BYTES;
     if (!quota || (await this.getLimitsFor(user)).group === StorageGroup.ADMIN) return;
+
     const stored = await this.storageRepository.getKnownFilenames(md5s);
     const incoming = md5s.filter((m) => !stored.has(m)).reduce((n, m) => n + (sizes.get(m) ?? 0), 0);
     const { usedBytes } = await this.storageRepository.getBucketUsage();
@@ -216,6 +233,7 @@ export class StorageQuotaService {
         incoming,
         quota
       });
+
       throw new ClientError(ClientResponse.STORAGE_FULL, HttpStatus.INSUFFICIENT_STORAGE);
     }
   }
@@ -226,7 +244,9 @@ export class StorageQuotaService {
       this.s3Context.bucket,
       StorageUtils.parseFilePath(filename)
     );
+
     if (head) await this.storageRepository.setVerifiedSize(filename, head.size);
+
     return head?.size ?? null;
   }
 
@@ -242,6 +262,7 @@ export class StorageQuotaService {
           filename,
           error: error instanceof Error ? error.message : String(error)
         });
+
         return;
       }
     }
@@ -256,9 +277,11 @@ export class StorageQuotaService {
     const groups = Object.values(StorageGroup).map(
       (group): StorageGroupLimits => {
         const row = rows.find((r) => r.group === group);
-        return { group, ...(row ? toLimits(row) : NO_LIMITS) };
+
+        return { group, ...(row ? StorageQuotaService.toLimits(row) : NO_LIMITS) };
       }
     );
+
     const topUsers = await Promise.all(
       top.map(async (u) => {
         const quota = await this.storageRepository.getUserQuota(u.id);
@@ -266,7 +289,9 @@ export class StorageQuotaService {
           is_guest: u.isGuest,
           permissions: u.permissions.map((name) => ({ name }))
         });
+
         const groupQuota = groups.find((g) => g.group === group)?.userQuotaBytes ?? null;
+
         return {
           id: u.id,
           username: u.username,
@@ -277,6 +302,7 @@ export class StorageQuotaService {
         };
       })
     );
+
     return {
       bucket: { ...bucket, quotaBytes: this.env.S3_BUCKET_QUOTA_BYTES || null },
       groups,
@@ -294,47 +320,22 @@ export class StorageQuotaService {
     row.video_bytes = limits.videoBytes;
     const saved = await this.storageRepository.saveLimit(row);
     this.logger.audit("Storage limits changed", { prefix: LogPrefix.ADMIN, group, limits });
-    return { group, ...toLimits(saved) };
+
+    return { group, ...StorageQuotaService.toLimits(saved) };
   }
 
   public async setUserQuota(userId: number, quotaBytes: number | null): Promise<void> {
     await this.storageRepository.setUserQuota(userId, quotaBytes);
     this.logger.audit("User storage quota changed", { prefix: LogPrefix.ADMIN, userId, quotaBytes });
   }
-}
 
-function toLimits(row: StorageLimit): StorageLimits {
-  return {
-    userQuotaBytes: row.user_quota_bytes,
-    packageBytes: row.package_bytes,
-    imageBytes: row.image_bytes,
-    audioBytes: row.audio_bytes,
-    videoBytes: row.video_bytes
-  };
-}
-
-/** Every file the content references, by its name as stored (an MD5, sometimes with an extension), with its media kind. */
-export function collectFiles(content: PackageDTO): Map<string, MediaKind> {
-  const out = new Map<string, MediaKind>();
-  const add = (file: { md5?: string; type?: string } | null | undefined) => {
-    if (!file?.md5) return;
-    const kind = file.type === "audio" || file.type === "video" ? file.type : "image";
-    out.set(file.md5, kind);
-  };
-  add(content.logo?.file);
-  for (const round of content.rounds ?? [])
-    for (const theme of round.themes ?? [])
-      for (const q of theme.questions ?? []) {
-        for (const f of q.questionFiles ?? []) add(f.file);
-        for (const f of q.answerFiles ?? []) add(f.file);
-        for (const a of (q as { answers?: { file?: { md5?: string; type?: string } | null }[] }).answers ?? [])
-          add(a.file);
-      }
-  return out;
-}
-
-export function formatBytes(n: number): string {
-  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1).replace(/\.0$/, "")} MB`;
-  return `${(n / 1024 / 1024 / 1024).toFixed(2).replace(/\.?0+$/, "")} GB`;
+  private static toLimits(row: StorageLimit): StorageLimits {
+    return {
+      userQuotaBytes: row.user_quota_bytes,
+      packageBytes: row.package_bytes,
+      imageBytes: row.image_bytes,
+      audioBytes: row.audio_bytes,
+      videoBytes: row.video_bytes
+    };
+  }
 }

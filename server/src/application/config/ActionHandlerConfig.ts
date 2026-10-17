@@ -46,8 +46,8 @@ import {
 import {
   AnswerResultUndoUseCase,
   BuzzerOpenUseCase,
-  GameJoinModeUseCase,
-  QuestionToggleUseCase
+  GameJoinModeChangeUseCase,
+  QuestionRemoveRestoreUseCase
 } from "application/usecases/game/ShowmanToolsUseCases";
 import { SecretQuestionPriceUseCase } from "application/usecases/question/SecretQuestionPriceUseCase";
 import { SecretQuestionTransferUseCase } from "application/usecases/question/SecretQuestionTransferUseCase";
@@ -167,9 +167,9 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   );
 
   registry.register(GameActionType.TURN_PLAYER_CHANGE, new TurnPlayerChangeUseCase());
-  registry.register(GameActionType.QUESTION_TOGGLE, new QuestionToggleUseCase());
+  registry.register(GameActionType.QUESTION_REMOVE_RESTORE, new QuestionRemoveRestoreUseCase());
   registry.register(GameActionType.ANSWER_RESULT_UNDO, new AnswerResultUndoUseCase());
-  registry.register(GameActionType.GAME_JOIN_MODE, new GameJoinModeUseCase());
+  registry.register(GameActionType.GAME_JOIN_MODE_CHANGE, new GameJoinModeChangeUseCase());
   registry.register(GameActionType.BUZZER_OPEN, new BuzzerOpenUseCase());
 
   // =====================================
@@ -177,11 +177,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   registry.register(
     GameActionType.QUESTION_PICK,
-    new QuestionPickUseCase(
-      packageStore,
-      phaseTransitionRouter,
-      transitionResourceService
-    )
+    new QuestionPickUseCase(packageStore, phaseTransitionRouter, transitionResourceService)
   );
 
   registry.register(
@@ -218,11 +214,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.SKIP_QUESTION_FORCE,
-    new SkipQuestionForceUseCase(
-      packageStore,
-      phaseTransitionRouter,
-      transitionResourceService
-    )
+    new SkipQuestionForceUseCase(packageStore, phaseTransitionRouter, transitionResourceService)
   );
 
   registry.register(
@@ -239,10 +231,12 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     GameActionType.ALL_PLAY_STAKE,
     new AllPlayStakeUseCase(phaseTransitionRouter, transitionResourceService)
   );
+
   registry.register(
     GameActionType.ALL_PLAY_ANSWER,
     new AllPlayAnswerUseCase(phaseTransitionRouter, transitionResourceService)
   );
+
   registry.register(
     GameActionType.ALL_PLAY_REVIEW,
     new AllPlayReviewUseCase(phaseTransitionRouter, transitionResourceService)
@@ -292,21 +286,6 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   // Moderation Handlers (admin panel, not socket events)
   // =====================================
-  registry.register(
-    GameActionType.ADMIN_PLAYER_KICK,
-    new PlayerKickUseCase(playerLeaveService, { moderator: true })
-  );
-
-  registry.register(
-    GameActionType.ADMIN_GAME_PAUSE,
-    new PauseGameUseCase(socketGameTimerService, { moderator: true })
-  );
-
-  registry.register(
-    GameActionType.ADMIN_GAME_UNPAUSE,
-    new UnpauseGameUseCase(socketGameTimerService, gameService, { moderator: true })
-  );
-
   registry.register(GameActionType.ADMIN_GAME_CLOSE, new AdminGameCloseUseCase());
 
   // =====================================
@@ -319,10 +298,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     new MediaDownloadedUseCase(phaseTransitionRouter)
   );
 
-  registry.register(
-    GameActionType.CHAT_MESSAGE,
-    new ChatMessageUseCase(socketChatRepository)
-  );
+  registry.register(GameActionType.CHAT_MESSAGE, new ChatMessageUseCase(socketChatRepository));
 
   // =====================================
   // Timer Handlers - single handler for all timer types

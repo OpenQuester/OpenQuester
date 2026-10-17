@@ -63,7 +63,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
 
       if (question.type !== PackageQuestionType.STAKE) return false;
       // Stake for everyone has its own flow (ChoosingToAllPlayBiddingHandler)
-      if (AllPlayLogic.modeOf(question)) return false;
+      if (AllPlayLogic.modeOf(question) != null) return false;
 
       return TransitionGuards.hasEligiblePlayers(game);
     } catch {

@@ -97,6 +97,16 @@ export class UserService {
     return user.toDTO(this.fileUrlBuilder);
   }
 
+  /** Permission names of each user, read in one query; unknown ids map to none. */
+  public async getPermissionNames(ids: userId[]): Promise<Map<number, string[]>> {
+    const users = await this.userRepository.findByIds([...new Set(ids)], {
+      select: ["id"],
+      relations: ["permissions"]
+    });
+
+    return new Map(users.map((user) => [user.id, user.permissions?.map((p) => p.name) ?? []]));
+  }
+
   public async getRaw(userId: userId, selectOptions?: SelectOptions<User>): Promise<User> {
     this.logger.debug("Retrieving user with options: ", {
       prefix: LogPrefix.USER,

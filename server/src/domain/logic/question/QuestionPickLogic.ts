@@ -67,9 +67,6 @@ export class QuestionPickLogic {
   }
 
   /**
-   * Mark question as played for special questions.
-   */
-  /**
    * The player a stake or secret question belongs to. When the showman picks
    * on someone's behalf, it is the player whose turn it was, never the
    * showman: the showman cannot bid, receive the question or score.
@@ -89,6 +86,9 @@ export class QuestionPickLogic {
     return inGamePlayers[0]?.meta.id ?? triggeringPlayerId;
   }
 
+  /**
+   * Mark question as played for special questions.
+   */
   public static markQuestionPlayed(game: Game, questionId: number, themeId: number): void {
     GameQuestionMapper.setQuestionPlayed(game, questionId, themeId);
   }

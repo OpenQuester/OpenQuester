@@ -28,11 +28,22 @@ export enum GameActionType {
   SKIP_QUESTION_FORCE = "skip-question-force",
   SKIP_SHOW_ANSWER = "skip-show-answer",
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
+  /**
+   * The player who got a secret question picks its cost from the allowed
+   * prices (SIGame "cat in a bag" with a choosable price). It is the
+   * question's price, not a bet: a right answer gains it, a wrong one loses it.
+   */
   SECRET_QUESTION_PRICE = "secret-question-price",
   ALL_PLAY_STAKE = "all-play-stake",
-  QUESTION_TOGGLE = "question-toggle",
+  /** Showman takes a question off the board, or puts a removed one back. */
+  QUESTION_REMOVE_RESTORE = "question-remove-restore",
+  /**
+   * Showman takes back their last ruling on the current question (a misclick
+   * on right/wrong): the points are returned and that player may answer again.
+   */
   ANSWER_RESULT_UNDO = "answer-result-undo",
-  GAME_JOIN_MODE = "game-join-mode",
+  /** Showman changes who can join the game: everyone, spectators only, nobody new. */
+  GAME_JOIN_MODE_CHANGE = "game-join-mode-change",
   ALL_PLAY_ANSWER = "all-play-answer",
   ALL_PLAY_REVIEW = "all-play-review",
   STAKE_BID_SUBMIT = "stake-bid-submit",
@@ -44,9 +55,6 @@ export enum GameActionType {
   FINAL_ANSWER_REVIEW = "final-answer-review",
 
   // Moderation (admin panel; never mapped to a socket event)
-  ADMIN_PLAYER_KICK = "admin-player-kick",
-  ADMIN_GAME_PAUSE = "admin-game-pause",
-  ADMIN_GAME_UNPAUSE = "admin-game-unpause",
   ADMIN_GAME_CLOSE = "admin-game-close",
 
   // System

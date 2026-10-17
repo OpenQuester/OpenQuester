@@ -1,4 +1,5 @@
 import { timerKey } from "domain/constants/redisKeys";
+import { type Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
@@ -14,6 +15,7 @@ import {
   TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
@@ -30,6 +32,7 @@ export class AllPlayReviewingToShowingAnswerHandler extends BaseTransitionHandle
   public canTransition(ctx: TransitionContext): boolean {
     const { game, trigger } = ctx;
     if (getGamePhase(game) !== this.fromPhase) return false;
+
     return (
       (trigger === TransitionTrigger.CONDITION_MET && AllPlayLogic.allReviewed(game)) ||
       trigger === TransitionTrigger.USER_ACTION
@@ -50,20 +53,33 @@ export class AllPlayReviewingToShowingAnswerHandler extends BaseTransitionHandle
     }
 
     game.setQuestionState(QuestionState.SHOWING_ANSWER);
+    this.clearQuestionRound(game);
+    game.gameState.answerShowData = this.buildAnswerShowData(game, question);
+
+    return { data: { question } };
+  }
+
+  /** The question is over: forget it and everyone's answers to it. */
+  private clearQuestionRound(game: Game): void {
     game.gameState.currentQuestion = null;
     game.gameState.questionContentPlan = null;
     game.gameState.answeredPlayers = null;
     game.gameState.skippedPlayers = null;
     game.gameState.answeringPlayer = null;
-    game.gameState.answerShowData = {
+  }
+
+  /** What everyone sees while the answer is shown, and who picks next. */
+  private buildAnswerShowData(
+    game: Game,
+    question: PackageQuestionDTO | null
+  ): QuestionFinishEventPayload {
+    return {
       answerFiles: question?.answerFiles ?? null,
       answerText: question?.answerText ?? null,
       nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
       answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question),
       ...ShowAnswerLogic.revealDetails(question)
     };
-
-    return { data: { question } };
   }
 
   protected async handleTimer(

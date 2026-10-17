@@ -3,7 +3,9 @@ import { inject, singleton } from "tsyringe";
 import { DI_TOKENS } from "shared/di/tokens";
 import { RealtimeEvents } from "application/ports/realtime/RealtimeEvent";
 import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
+import { GameService } from "application/services/game/GameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { type Game } from "domain/entities/game/Game";
 import { GameActionType } from "domain/enums/GameActionType";
@@ -11,6 +13,7 @@ import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents"
 import { ShowmanActionLogLogic } from "domain/logic/chat/ShowmanActionLogLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { type GameAction, type GameActionResult } from "domain/types/action/GameAction";
+import { GameEvent, type GameEventDTO } from "domain/types/dto/game/GameEventDTO";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { type QuestionPickResult, QuestionPickType } from "domain/types/question/QuestionPickTypes";
@@ -55,6 +58,8 @@ export class SocketActionHooks {
     private readonly userNotificationRoomService: UserNotificationRoomService,
     private readonly packageStore: PackageStore,
     private readonly socketChatRepository: SocketChatRepository,
+    private readonly gameService: GameService,
+    private readonly socketUserDataService: SocketUserDataService,
     @inject(DI_TOKENS.RealtimeGateway) private readonly realtimeGateway: RealtimeGateway,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
@@ -66,6 +71,7 @@ export class SocketActionHooks {
       this.afterSecretQuestionTransfer.bind(this)
     );
     this.hooks.set(GameActionType.SECRET_QUESTION_PRICE, this.afterSecretQuestionPrice.bind(this));
+    this.hooks.set(GameActionType.ADMIN_GAME_CLOSE, this.afterAdminGameClose.bind(this));
   }
 
   /**
@@ -135,6 +141,29 @@ export class SocketActionHooks {
         error: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  /**
+   * After a moderator closed a game (the action already told the room and
+   * deleted the game): empty the room, forget the game in every socket
+   * session, stop its timers, drop the package copy and update game lists.
+   */
+  private async afterAdminGameClose({ action }: AfterExecutionHookContext): Promise<void> {
+    const gameId = action.gameId;
+    const socketIds = await this.realtimeGateway.getRoomSocketIds(gameId);
+
+    await Promise.all(
+      socketIds.map(async (socketId) => {
+        this.realtimeGateway.leaveRoom(socketId, gameId);
+        await this.socketUserDataService.update(socketId, { gameId: JSON.stringify(null) });
+      })
+    );
+
+    await this.gameService.clearAllTimers(gameId);
+    await this.packageStore.deletePackage(gameId);
+
+    const deleted: GameEventDTO = { event: GameEvent.DELETED, data: { id: gameId } };
+    this.realtimeGateway.publish(RealtimeEvents.toAll(SocketIOEvents.GAMES, deleted));
   }
 
   private async afterJoinGame({ action, game, result }: AfterExecutionHookContext): Promise<void> {

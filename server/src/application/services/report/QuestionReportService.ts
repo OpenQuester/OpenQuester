@@ -36,14 +36,17 @@ export class QuestionReportService {
     const user = await this.userSessionService.getValidatedSessionUser({
       sessionUserId: input.sessionUserId
     });
+
     const meta = await this.packageStore.getMeta(input.gameId);
     if (!meta?.id) {
       throw new ClientError(ClientResponse.GAME_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
+
     const question = await this.packageStore.getQuestion(input.gameId, input.report.questionId);
     if (!question) {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
+
     if (await this.reportRepository.hasOpenReport(user.id, meta.id, input.report.questionId)) {
       throw new ClientError(ClientResponse.QUESTION_REPORT_ALREADY_SENT, HttpStatus.CONFLICT);
     }
@@ -57,7 +60,9 @@ export class QuestionReportService {
       reason: input.report.reason,
       comment: input.report.comment?.trim() || null
     });
+
     report.user = user;
+
     return this.toDTO(report);
   }
 
@@ -70,6 +75,7 @@ export class QuestionReportService {
       this.reportRepository.listForPackage(input.packageId, REPORTS_LIST_LIMIT),
       this.reportRepository.countOpen(input.packageId)
     ]);
+
     return { data: reports.map((r) => this.toDTO(r)), open };
   }
 
@@ -84,7 +90,9 @@ export class QuestionReportService {
     if (!report) {
       throw new ClientError(ClientResponse.QUESTION_REPORT_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
+
     report.resolved = input.resolved;
+
     return this.toDTO(await this.reportRepository.save(report));
   }
 

@@ -211,8 +211,12 @@ export function getGamePhase(game: Game): GamePhase {
 
   // "Everyone answers" questions bid and review in regular rounds
   if (game.gameState.allPlay && currentRound?.type !== PackageRoundType.FINAL) {
-    if (questionState === QuestionState.BIDDING) return GamePhase.ALL_PLAY_BIDDING;
-    if (questionState === QuestionState.REVIEWING) return GamePhase.ALL_PLAY_REVIEWING;
+    switch (questionState) {
+      case QuestionState.BIDDING:
+        return GamePhase.ALL_PLAY_BIDDING;
+      case QuestionState.REVIEWING:
+        return GamePhase.ALL_PLAY_REVIEWING;
+    }
   }
 
   // Final round phases

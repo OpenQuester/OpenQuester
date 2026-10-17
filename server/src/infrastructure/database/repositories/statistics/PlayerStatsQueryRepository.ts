@@ -82,6 +82,7 @@ export class PlayerStatsQueryRepository {
 
   public async getUserTotals(userId: number): Promise<UserTotalsRow> {
     const rows: UserTotalsRow[] = await this.ds.query(USER_TOTALS_SQL, [userId]);
+
     return rows[0];
   }
 

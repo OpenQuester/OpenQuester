@@ -1,12 +1,3 @@
-import {
-  ALL_PLAY_ANSWER_TIME,
-  GAME_FINAL_ANSWER_TIME,
-  GAME_QUESTION_ANSWER_SUBMIT_TIME,
-  GAME_QUESTION_ANSWER_TIME,
-  SECRET_QUESTION_TRANSFER_TIME,
-  STAKE_QUESTION_BID_TIME
-} from "domain/constants/game";
-
 /** How the server picks the answerer when several players press */
 export enum ButtonPressMode {
   /** Presses inside a short window after the first one are drawn at random */
@@ -57,35 +48,7 @@ export interface GameSettingsDTO {
   timers: GameTimerSettingsDTO;
 }
 
-export const DEFAULT_GAME_TIMERS: Readonly<GameTimerSettingsDTO> = Object.freeze({
-  answerMs: GAME_QUESTION_ANSWER_TIME,
-  answerSubmitMs: GAME_QUESTION_ANSWER_SUBMIT_TIME,
-  stakeMs: STAKE_QUESTION_BID_TIME,
-  secretTransferMs: SECRET_QUESTION_TRANSFER_TIME,
-  allPlayAnswerMs: ALL_PLAY_ANSWER_TIME,
-  finalAnswerMs: GAME_FINAL_ANSWER_TIME,
-  roundMs: 0
-});
-
-export const DEFAULT_GAME_SETTINGS: Readonly<GameSettingsDTO> = Object.freeze({
-  falseStart: true,
-  buttonPressMode: ButtonPressMode.RANDOM_WITHIN_WINDOW,
-  wrongAnswerPenalty: WrongAnswerPenalty.SUBTRACT,
-  timers: DEFAULT_GAME_TIMERS
-});
-
 /** Partial settings as accepted on game creation */
 export type GameSettingsInput = Partial<Omit<GameSettingsDTO, "timers">> & {
   timers?: Partial<GameTimerSettingsDTO>;
 };
-
-/** Fills missing settings (older games, partial input) with the defaults */
-export function normalizeGameSettings(
-  settings: GameSettingsInput | null | undefined
-): GameSettingsDTO {
-  return {
-    ...DEFAULT_GAME_SETTINGS,
-    ...(settings ?? {}),
-    timers: { ...DEFAULT_GAME_TIMERS, ...(settings?.timers ?? {}) }
-  };
-}

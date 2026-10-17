@@ -193,10 +193,10 @@ export class AdminService {
       throw new ClientError(ClientResponse.CANNOT_MODERATE_SELF, HttpStatus.FORBIDDEN);
     }
 
-    const [actorRole, targetRole] = await Promise.all([
-      this.getStaffRole(actorId as userId),
-      this.getStaffRole(targetId)
-    ]);
+    // One query for both accounts
+    const permissions = await this.userService.getPermissionNames([actorId as userId, targetId]);
+    const actorRole = staffRoleOf(permissions.get(actorId) ?? []);
+    const targetRole = staffRoleOf(permissions.get(targetId) ?? []);
 
     if (targetRole !== StaffRole.USER && actorRole !== StaffRole.ADMIN) {
       throw new ClientError(ClientResponse.CANNOT_MODERATE_STAFF, HttpStatus.FORBIDDEN);
@@ -214,6 +214,7 @@ export class AdminService {
     const unknown = permissionNames.filter(
       (name) => !ADMIN_PERMISSIONS.includes(name as Permissions)
     );
+
     if (unknown.length > 0) {
       throw new ClientError(ClientResponse.INVALID_INPUT, HttpStatus.BAD_REQUEST);
     }
@@ -231,14 +232,5 @@ export class AdminService {
     });
 
     return updated;
-  }
-
-  private async getStaffRole(id: userId): Promise<StaffRole> {
-    const user = await this.userService.getRaw(id, {
-      select: ["id"],
-      relations: ["permissions"],
-      relationSelects: { permissions: ["id", "name"] }
-    });
-    return staffRoleOf(user?.permissions?.map((p) => p.name) ?? []);
   }
 }

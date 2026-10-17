@@ -50,7 +50,7 @@ export class GameMapper {
       questionsCount: parseInt(data.questionsCount),
       players: JSON.parse(data.players).map((p: PlayerDTO) => new Player(p)),
       gameState: JSON.parse(data.gameState),
-      settings: data.settings ? JSON.parse(data.settings) : null
+      settings: JSON.parse(data.settings)
     });
   }
 }

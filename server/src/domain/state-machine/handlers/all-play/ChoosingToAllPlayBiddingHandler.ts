@@ -1,6 +1,5 @@
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -15,7 +14,6 @@ import {
 import { AllPlayMode } from "domain/types/dto/game/state/AllPlayDataDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
-import { AllPlayStartEventPayload } from "domain/types/socket/events/game/AllPlayEventPayloads";
 import { ChoosingToStakeBiddingCtx } from "domain/types/socket/transition/choosing";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
@@ -32,12 +30,14 @@ export class ChoosingToAllPlayBiddingHandler extends BaseTransitionHandler {
 
     if (!payload || trigger !== TransitionTrigger.USER_ACTION) return false;
     if (getGamePhase(game) !== this.fromPhase) return false;
+
     if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.CHOOSING)) {
       return false;
     }
 
     try {
       const { question } = QuestionPickLogic.validateQuestionPick(game, payload.questionData);
+
       return (
         AllPlayLogic.modeOf(question) === AllPlayMode.STAKE &&
         TransitionGuards.hasEligiblePlayers(game)
@@ -91,26 +91,6 @@ export class ChoosingToAllPlayBiddingHandler extends BaseTransitionHandler {
     _mutationResult: MutationResult,
     timerResult: TimerResult
   ): BroadcastEvent[] {
-    return [allPlayStartBroadcast(ctx.game, timerResult.timer ?? null)];
+    return [AllPlayLogic.startBroadcast(ctx.game, timerResult.timer ?? null)];
   }
-}
-
-export function allPlayStartBroadcast(
-  game: ChoosingToStakeBiddingCtx["game"],
-  timer: AllPlayStartEventPayload["timer"]
-): BroadcastEvent<AllPlayStartEventPayload> {
-  const data = game.gameState.allPlay!;
-  return {
-    event: SocketIOGameEvents.ALL_PLAY_START,
-    data: {
-      mode: data.mode,
-      questionId: data.questionId,
-      players: data.entries.map((e) => e.playerId),
-      price: data.price,
-      maxStake: data.maxStake,
-      priceMultiplier: data.priceMultiplier,
-      timer
-    },
-    room: game.id
-  };
 }

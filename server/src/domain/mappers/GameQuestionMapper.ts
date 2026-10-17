@@ -32,7 +32,8 @@ export class GameQuestionMapper {
     return {
       id: question.id,
       answerDelay: question.answerDelay,
-      // How to answer is public; the right number or spot is not
+      // Players may know what kind of answer is expected (text, a number, a spot on
+      // the picture); the correct value itself stays in answerText/answerPoint
       answerType: question.answerType ?? null,
       isHidden: question.isHidden,
       order: question.order,

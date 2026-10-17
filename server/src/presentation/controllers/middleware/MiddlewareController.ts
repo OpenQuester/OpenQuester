@@ -140,6 +140,7 @@ export class MiddlewareController {
       if (req.session?.cookie) {
         req.session.cookie.domain = this._cookieDomainFor(req.hostname);
       }
+
       next();
     });
     this.ctx.app.use(verifySession(this.ctx.env, this.ctx.logger));
@@ -148,7 +149,9 @@ export class MiddlewareController {
   private _cookieDomainFor(hostname: string): string | undefined {
     const domain = this.ctx.env.API_DOMAIN?.replace(/^\./, "");
     if (!domain) return undefined;
+
     const matches = hostname === domain || hostname.endsWith(`.${domain}`);
+
     return matches ? this.ctx.env.API_DOMAIN : undefined;
   }
 

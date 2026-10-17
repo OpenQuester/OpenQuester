@@ -42,6 +42,24 @@ export interface SecretQuestionTransferContextResult {
 /**
  * Service handling secret question type.
  */
+/** What it takes to hand a secret question to the player who will answer it. */
+export interface SecretTransferCompletionInput {
+  targetPlayerId: number;
+  question: PackageQuestionDTO;
+  /** The price the receiver picked, for questions with a choosable price. */
+  price?: number;
+  trigger: TransitionTrigger;
+  /** Player whose action completes the transfer; unset when the timer does. */
+  triggeredBy?: number;
+  /** Who handed the question over; defaults to its picker */
+  fromPlayerId?: number;
+}
+
+/** A finished secret question transfer and the phase transition it caused. */
+export interface CompletedSecretTransfer extends SecretQuestionTransferContextResult {
+  transition: TransitionResult;
+}
+
 @singleton()
 export class SecretQuestionService {
   constructor(
@@ -73,7 +91,7 @@ export class SecretQuestionService {
     const allowedPrices = SecretQuestionService.customPrices(question);
 
     if (allowedPrices) {
-      return this._startPriceSelection(game, data.targetPlayerId, question, allowedPrices);
+      return this._startPriceSelection(game, data.targetPlayerId, allowedPrices);
     }
 
     return this.completeTransfer(game, {
@@ -119,16 +137,8 @@ export class SecretQuestionService {
    */
   public async completeTransfer(
     game: Game,
-    input: {
-      targetPlayerId: number;
-      question: PackageQuestionDTO;
-      price?: number;
-      trigger: TransitionTrigger;
-      triggeredBy?: number;
-      /** Who handed the question over; defaults to its picker */
-      fromPlayerId?: number;
-    }
-  ): Promise<SecretQuestionTransferContextResult & { transition: TransitionResult }> {
+    input: SecretTransferCompletionInput
+  ): Promise<CompletedSecretTransfer> {
     const secretData = game.gameState.secretQuestionData!;
     const { targetPlayerId, question, price, trigger, triggeredBy } = input;
 
@@ -170,14 +180,15 @@ export class SecretQuestionService {
     if (question.subType !== PackageQuestionSubType.CUSTOM_PRICE) {
       return null;
     }
+
     const prices = [...new Set(question.allowedPrices ?? [])].sort((a, b) => a - b);
+
     return prices.length > 0 ? prices : null;
   }
 
   private _startPriceSelection(
     game: Game,
     targetPlayerId: number,
-    question: PackageQuestionDTO,
     allowedPrices: number[]
   ): SecretQuestionTransferContextResult {
     const secretData = game.gameState.secretQuestionData!;

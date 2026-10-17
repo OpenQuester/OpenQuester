@@ -16,6 +16,7 @@ const API_PREFIXES = ["/v1", "/socket.io", "/health", "/assets"];
 export class WebAppController {
   constructor(app: Express, dir: string | undefined, logger: ILogger) {
     if (!dir) return;
+
     const root = path.resolve(dir);
     const index = path.join(root, "index.html");
     // Checked once at startup.
@@ -24,6 +25,7 @@ export class WebAppController {
       logger.warn(`WEB_APP_DIR is set but ${index} is missing; web app not served`, {
         prefix: LogPrefix.SERVE_API
       });
+
       return;
     }
 
@@ -35,6 +37,7 @@ export class WebAppController {
         maxAge: "1y"
       })
     );
+
     app.use(express.static(root, { index: false, maxAge: "1h" }));
 
     // Client-side routes (/games/ABCD, /packages/upload, …) all load the app shell.
@@ -43,6 +46,7 @@ export class WebAppController {
       if (isApi || !req.accepts("html")) {
         return next();
       }
+
       res.setHeader("Cache-Control", "no-cache");
       res.sendFile(index);
     });

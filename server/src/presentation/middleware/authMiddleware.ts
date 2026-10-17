@@ -103,6 +103,7 @@ const LAST_SEEN_EVERY_MS = 60 * 60 * 1000;
 function touchLastSeen(userId: number, logger: ILogger): void {
   const now = Date.now();
   if (now - (lastSeenWritten.get(userId) ?? 0) < LAST_SEEN_EVERY_MS) return;
+
   lastSeenWritten.set(userId, now);
   if (lastSeenWritten.size > 50_000) lastSeenWritten.clear();
   container

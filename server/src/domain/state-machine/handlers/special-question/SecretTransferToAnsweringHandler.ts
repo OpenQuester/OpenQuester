@@ -91,10 +91,14 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
       game.gameState.currentQuestion = questionData;
     }
     // customPrice: the receiver's pick replaces the board price
-    if (payload!.price !== undefined && game.gameState.currentQuestion) {
-      game.gameState.currentQuestion.price = payload!.price;
-      if (questionData) questionData.price = payload!.price;
+    if (payload?.price !== undefined && game.gameState.currentQuestion) {
+      game.gameState.currentQuestion.price = payload.price;
+
+      if (questionData) {
+        questionData.price = payload.price;
+      }
     }
+
     QuestionContentPlanLogic.applyToGame(game);
 
     // Transition to answering state

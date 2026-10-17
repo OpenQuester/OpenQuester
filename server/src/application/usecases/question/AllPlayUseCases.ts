@@ -54,6 +54,7 @@ function requirePlayer(ctx: ActionExecutionContext<unknown>): number {
   if (ctx.currentPlayer?.role !== PlayerRole.PLAYER) {
     throw new ClientError(ClientResponse.ALL_PLAY_NOT_PARTICIPANT);
   }
+
   return ctx.currentPlayer.meta.id;
 }
 
@@ -75,6 +76,7 @@ export class AllPlayStakeUseCase
     AllPlayLogic.submitStake(ctx.game, playerId, ctx.action.payload.amount);
 
     const data: AllPlaySubmittedEventPayload = { playerId };
+
     return {
       success: true,
       data,
@@ -110,6 +112,7 @@ export class AllPlayAnswerUseCase
     AllPlayLogic.submitAnswer(ctx.game, playerId, ctx.action.payload.answerText);
 
     const data: AllPlaySubmittedEventPayload = { playerId };
+
     return {
       success: true,
       data,

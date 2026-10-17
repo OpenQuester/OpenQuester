@@ -14,6 +14,11 @@ export interface GameAction<TPayload = unknown> {
   timestamp: Date;
   payload: TPayload;
   userData?: SocketRedisUserData;
+  /**
+   * Set when an admin or moderator acts from the admin panel instead of a
+   * player: showman-only actions accept it in place of the showman.
+   */
+  moderatorId?: number;
 }
 
 /**
@@ -28,6 +33,7 @@ export interface SerializedGameAction {
   timestamp: string;
   payload: string;
   userData?: SocketRedisUserData;
+  moderatorId?: number;
 }
 
 /**

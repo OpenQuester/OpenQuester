@@ -1,5 +1,4 @@
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
-import { allPlayStartBroadcast } from "domain/state-machine/handlers/all-play/ChoosingToAllPlayBiddingHandler";
 import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -132,6 +131,6 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
     _mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {
-    return ctx.game.gameState.allPlay ? [allPlayStartBroadcast(ctx.game, null)] : [];
+    return ctx.game.gameState.allPlay ? [AllPlayLogic.startBroadcast(ctx.game, null)] : [];
   }
 }

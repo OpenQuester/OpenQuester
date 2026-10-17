@@ -44,7 +44,8 @@ export class StakeBiddingMapper {
    * Main function to place a bid with comprehensive validation and logic
    */
   public static placeBid(params: PlaceBidParams): PlaceBidResult {
-    const { playerId, bid, stakeData, currentPlayer, questionPrice, allPlayers } = params;
+    const { playerId, bid, stakeData, currentPlayer, questionPrice, allPlayers, bidTimeMs } =
+      params;
 
     // Check if any ALL_IN bids have been made previously
     const allInPlayers = BiddingTurn.getAllInPlayersFromStakeData(stakeData, allPlayers);
@@ -105,7 +106,7 @@ export class StakeBiddingMapper {
     }
 
     // Create timer for next bid or null if phase complete
-    const timer = nextBidder.isPhaseComplete ? null : this.createBidTimer(params.bidTimeMs);
+    const timer = nextBidder.isPhaseComplete ? null : this.createBidTimer(bidTimeMs);
 
     return {
       playerId,

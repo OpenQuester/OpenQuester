@@ -192,6 +192,7 @@ export class GameActionBroadcastService {
         this.realtimeGateway.publish(
           RealtimeEvents.toRoom(gameId, SocketIOGameEvents.FINAL_QUESTION_DATA, publicPayload)
         );
+
         return;
       }
 
@@ -207,6 +208,7 @@ export class GameActionBroadcastService {
         `Error in final-question-data role-based filtering emit: ${JSON.stringify(error)}`,
         { prefix: LogPrefix.BROADCAST }
       );
+
       this.realtimeGateway.publish(
         RealtimeEvents.toRoom(gameId, SocketIOGameEvents.FINAL_QUESTION_DATA, publicPayload)
       );

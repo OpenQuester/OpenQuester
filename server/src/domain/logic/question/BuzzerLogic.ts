@@ -50,6 +50,7 @@ export class BuzzerLogic {
     now: number = Date.now()
   ): number | null {
     const until = game.gameState.buzzerLocks?.[String(playerId)];
+
     return until && until > now ? until : null;
   }
 
@@ -64,6 +65,7 @@ export class BuzzerLogic {
       ...this._activeLocks(game, now),
       [String(playerId)]: until,
     };
+
     return until;
   }
 
@@ -80,6 +82,7 @@ export class BuzzerLogic {
 
     if (!window) {
       game.gameState.buzzerWindow = { openedAt: now, presses: [playerId] };
+
       return true;
     }
 
@@ -110,6 +113,7 @@ export class BuzzerLogic {
 
     const candidates = presses.filter((id) => {
       const player = game.getPlayer(id, { fetchDisconnected: false });
+
       return (
         !!player &&
         player.role === PlayerRole.PLAYER &&

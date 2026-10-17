@@ -81,6 +81,7 @@ export class TimerExpirationService {
       return { success: false, broadcasts: [] };
     }
 
+    // Transition from MEDIA_DOWNLOADING to SHOWING: stop waiting for slow players
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
@@ -131,108 +132,12 @@ export class TimerExpirationService {
       return this._resolveBuzzerWindow(game);
     }
 
+    // Transition from SHOWING to SHOWING_ANSWER: nobody answered in time
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true },
       resources: await this.transitionResourceService.getCurrentQuestionWithTheme(game)
-    });
-
-    if (!transitionResult) {
-      return { success: false, broadcasts: [] };
-    }
-
-    await this.gameService.updateGame(game);
-
-    return {
-      success: true,
-      game,
-      broadcasts: transitionResult.broadcasts,
-      timerMutations: transitionResult.timerMutations
-    };
-  }
-
-  /**
-   * Closes the buzzer accept window: draws the answerer among its presses and
-   * moves to ANSWERING, or lets the question timer run on when nobody who
-   * pressed can still answer.
-   */
-  private async _resolveBuzzerWindow(game: Game): Promise<TimerExpirationResult> {
-    const openedAt = game.gameState.buzzerWindow!.openedAt;
-    const timer = game.gameState.timer;
-    const winner = BuzzerLogic.drawWinner(game);
-
-    if (winner === null || !timer) {
-      await this.gameService.updateGame(game);
-
-      if (!timer) {
-        return { success: true, game, broadcasts: [] };
-      }
-
-      const remainingMs = Math.max(
-        MIN_TIMER_TTL_MS,
-        timer.durationMs - GamePauseLogic.calculateElapsedTime(timer)
-      );
-
-      return {
-        success: true,
-        game,
-        broadcasts: [],
-        timerMutations: [
-          {
-            op: "set",
-            key: timerKey(game.id),
-            value: JSON.stringify(timer),
-            pxTtl: remainingMs
-          }
-        ]
-      };
-    }
-
-    // Keep the SHOWING timer as of the first press, so a wrong answer resumes
-    // the question from there
-    const savedTimer = {
-      ...timer,
-      elapsedMs: GamePauseLogic.calculateElapsedTime(timer, openedAt)
-    };
-
-    const transitionResult = await this.phaseTransitionRouter.tryTransition({
-      game,
-      trigger: TransitionTrigger.USER_ACTION,
-      triggeredBy: { playerId: winner, isSystem: false }
-    });
-
-    if (!transitionResult) {
-      return { success: false, broadcasts: [] };
-    }
-
-    await this.gameService.updateGame(game);
-
-    return {
-      success: true,
-      game,
-      broadcasts: transitionResult.broadcasts,
-      timerMutations: [
-        {
-          op: "set",
-          key: timerKey(game.id, QuestionState.SHOWING),
-          value: JSON.stringify(savedTimer),
-          pxTtl: Math.ceil(game.settings.timers.answerSubmitMs * 1.5)
-        },
-        ...transitionResult.timerMutations
-      ]
-    };
-  }
-
-  private async _handleAllPlayBiddingExpiration(game: Game): Promise<TimerExpirationResult> {
-    const transitionResult = await this.phaseTransitionRouter.tryTransition({
-      game,
-      trigger: TransitionTrigger.TIMER_EXPIRED,
-      triggeredBy: { isSystem: true },
-      resources: await this.transitionResourceService.getQuestionWithTheme(
-        game,
-        game.gameState.allPlay!.questionId
-      )
     });
 
     if (!transitionResult) {
@@ -260,6 +165,7 @@ export class TimerExpirationService {
       return { success: false, broadcasts: [] };
     }
 
+    // Transition from SHOWING_ANSWER to CHOOSING (or the next round when the board is done)
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
@@ -482,6 +388,7 @@ export class TimerExpirationService {
     if (selection && eligiblePlayers.some((p) => p.meta.id === selection.playerId)) {
       targetPlayerId = selection.playerId;
     }
+
     const price = selection ? Math.min(...selection.allowedPrices) : undefined;
 
     const questionData = await this.packageStore.getQuestionWithTheme(
@@ -493,6 +400,7 @@ export class TimerExpirationService {
       return { success: false, broadcasts: [] };
     }
 
+    // Transition from SECRET_QUESTION_TRANSFER to ANSWERING with the system's pick
     const transitionResult =
       await this.phaseTransitionRouter.tryTransition<SecretTransferToAnsweringPayload>({
         game,
@@ -559,6 +467,105 @@ export class TimerExpirationService {
   }
 
   /**
+   * Closes the buzzer accept window: draws the answerer among its presses and
+   * moves to ANSWERING, or lets the question timer run on when nobody who
+   * pressed can still answer.
+   */
+  private async _resolveBuzzerWindow(game: Game): Promise<TimerExpirationResult> {
+    const openedAt = game.gameState.buzzerWindow!.openedAt;
+    const timer = game.gameState.timer;
+    const winner = BuzzerLogic.drawWinner(game);
+
+    if (winner === null || !timer) {
+      await this.gameService.updateGame(game);
+
+      if (!timer) {
+        return { success: true, game, broadcasts: [] };
+      }
+
+      const remainingMs = Math.max(
+        MIN_TIMER_TTL_MS,
+        timer.durationMs - GamePauseLogic.calculateElapsedTime(timer)
+      );
+
+      return {
+        success: true,
+        game,
+        broadcasts: [],
+        timerMutations: [
+          {
+            op: "set",
+            key: timerKey(game.id),
+            value: JSON.stringify(timer),
+            pxTtl: remainingMs
+          }
+        ]
+      };
+    }
+
+    // Keep the SHOWING timer as of the first press, so a wrong answer resumes
+    // the question from there
+    const savedTimer = {
+      ...timer,
+      elapsedMs: GamePauseLogic.calculateElapsedTime(timer, openedAt)
+    };
+
+    // Transition from SHOWING to ANSWERING: the earliest buzz in the window wins
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.USER_ACTION,
+      triggeredBy: { playerId: winner, isSystem: false }
+    });
+
+    if (!transitionResult) {
+      return { success: false, broadcasts: [] };
+    }
+
+    await this.gameService.updateGame(game);
+
+    return {
+      success: true,
+      game,
+      broadcasts: transitionResult.broadcasts,
+      timerMutations: [
+        {
+          op: "set",
+          key: timerKey(game.id, QuestionState.SHOWING),
+          value: JSON.stringify(savedTimer),
+          pxTtl: Math.ceil(game.settings.timers.answerSubmitMs * 1.5)
+        },
+        ...transitionResult.timerMutations
+      ]
+    };
+  }
+
+  private async _handleAllPlayBiddingExpiration(game: Game): Promise<TimerExpirationResult> {
+    // Transition from ALL_PLAY_BIDDING to MEDIA_DOWNLOADING: missing stakes get filled in
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.TIMER_EXPIRED,
+      triggeredBy: { isSystem: true },
+      resources: await this.transitionResourceService.getQuestionWithTheme(
+        game,
+        game.gameState.allPlay!.questionId
+      )
+    });
+
+    if (!transitionResult) {
+      return { success: false, broadcasts: [] };
+    }
+
+    await this.gameService.updateGame(game);
+
+    return {
+      success: true,
+      game,
+      broadcasts: transitionResult.broadcasts,
+      timerMutations: transitionResult.timerMutations
+    };
+  }
+
+  /**
    * Handle stake question bidding timeout (regular rounds).
    */
   private async _handleStakeBiddingExpiration(game: Game): Promise<TimerExpirationResult> {
@@ -576,6 +583,7 @@ export class TimerExpirationService {
   private async handleRegularAnsweringExpiration(game: Game) {
     const transitionResources = await this._getAnsweringTransitionResources(game);
 
+    // Transition from ANSWERING to SHOWING (buzzer reopens) or SHOWING_ANSWER
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,

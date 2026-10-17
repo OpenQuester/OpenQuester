@@ -1,7 +1,7 @@
 import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 import {
-  GameJoinModeInputData,
-  QuestionToggleInputData
+  GameJoinModeChangeInputData,
+  QuestionRemoveRestoreInputData
 } from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
 import { ALL_PLAY_ANSWER_MAX_LENGTH } from "domain/constants/game";
 import {
@@ -47,8 +47,10 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultData, AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
-import { SecretQuestionPriceInputData,
-  SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
+import {
+  SecretQuestionPriceInputData,
+  SecretQuestionTransferInputData
+} from "domain/types/socket/game/SecretQuestionTransferData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { SchemaValidator } from "domain/validators/SchemaValidator";
 
@@ -86,6 +88,25 @@ export class GameValidator {
     }
   }
 
+  /**
+   * Lets the showman act, or a moderator acting from the admin panel
+   * (`action.moderatorId`), who is not a player in the game.
+   */
+  public static validateShowmanOrModerator<T>(
+    ctx: ActionExecutionContext<T>,
+    notShowmanError: ClientResponse
+  ): void {
+    if (ctx.action.moderatorId !== undefined) {
+      return;
+    }
+
+    GameValidator.validatePlayerAuthenticated(ctx);
+
+    if (ctx.currentPlayer.role !== PlayerRole.SHOWMAN) {
+      throw new ClientError(notShowmanError);
+    }
+  }
+
   public static validateJoinInput(data: GameJoinInputData) {
     const schema = Joi.object({
       gameId: Joi.string().length(GAME_ID_CHARACTERS_LENGTH).required(),
@@ -115,7 +136,10 @@ export class GameValidator {
         .items(
           Joi.object({
             md5: Joi.string().max(64).required(),
-            durationMs: Joi.number().positive().max(24 * 60 * 60 * 1000).required()
+            durationMs: Joi.number()
+              .positive()
+              .max(24 * 60 * 60 * 1000)
+              .required()
           })
         )
         .max(100)
@@ -141,17 +165,17 @@ export class GameValidator {
     return this._validate<SecretQuestionTransferInputData>(data, schema);
   }
 
-  public static validateQuestionToggle(data: QuestionToggleInputData) {
-    return this._validate<QuestionToggleInputData>(
+  public static validateQuestionRemoveRestore(data: QuestionRemoveRestoreInputData) {
+    return this._validate<QuestionRemoveRestoreInputData>(
       data,
-      Joi.object<QuestionToggleInputData>({ questionId: Joi.number().integer().required() })
+      Joi.object<QuestionRemoveRestoreInputData>({ questionId: Joi.number().integer().required() })
     );
   }
 
-  public static validateGameJoinMode(data: GameJoinModeInputData) {
-    return this._validate<GameJoinModeInputData>(
+  public static validateGameJoinModeChange(data: GameJoinModeChangeInputData) {
+    return this._validate<GameJoinModeChangeInputData>(
       data,
-      Joi.object<GameJoinModeInputData>({
+      Joi.object<GameJoinModeChangeInputData>({
         joinMode: Joi.valid(...Object.values(GameJoinMode)).required()
       })
     );

@@ -8,7 +8,7 @@ import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
+import { type PackageUploadBody } from "domain/types/dto/package/PackageUploadBody";
 import {
   type PackageQuestionDTO,
   PackageQuestionSubType,
@@ -250,7 +250,7 @@ const rounds = Joi.array()
 
 // Top-level upload package schema
 export const uploadPackageScheme = () =>
-  Joi.object<{ content: PackageDTO; fileSizes?: Record<string, number>; sourceHash?: string | null }>({
+  Joi.object<PackageUploadBody>({
     // Fingerprint of the imported file, so a second upload of it can be spotted.
     sourceHash: Joi.string().hex().max(64).allow(null).optional(),
     // Bytes per media file (MD5 → size), checked against the storage limits.

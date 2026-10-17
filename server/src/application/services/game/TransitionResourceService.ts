@@ -20,6 +20,12 @@ import { PackageStore } from "infrastructure/database/repositories/PackageStore"
 /**
  * Loads server-side data needed by pure transition handlers.
  */
+/** The final round's last question: what players get, and the full one with its answer. */
+interface FinalRoundQuestion {
+  questionData: FinalRoundQuestionData;
+  fullQuestion: PackageQuestionDTO;
+}
+
 @singleton()
 export class TransitionResourceService {
   public constructor(
@@ -141,7 +147,7 @@ export class TransitionResourceService {
 
   private async resolveFinalRoundQuestionData(
     game: Game
-  ): Promise<{ questionData: FinalRoundQuestionData; fullQuestion: PackageQuestionDTO } | null> {
+  ): Promise<FinalRoundQuestion | null> {
     const handler = RoundHandlerFactory.create(
       PackageRoundType.FINAL
     ) as FinalRoundHandler;

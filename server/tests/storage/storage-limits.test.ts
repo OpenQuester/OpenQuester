@@ -12,7 +12,6 @@ import { StorageLimit } from "infrastructure/database/models/StorageLimit";
 import { User } from "infrastructure/database/models/User";
 import { DI_TOKENS } from "shared/di/tokens";
 import { type ILogger } from "shared/logging/ILogger";
-import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
 import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { PackageUtils, TEST_MEDIA_FILE_MD5 } from "tests/utils/PackageUtils";
@@ -179,7 +178,6 @@ describe("Storage limits", () => {
 
     const job = new GuestCleanupJob(
       container.resolve<ILogger>(DI_TOKENS.Logger),
-      container.resolve(StorageRepository),
       container.resolve(StorageCleanupService),
       30,
       "0 4 * * *"

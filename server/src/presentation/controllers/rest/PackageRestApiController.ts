@@ -4,7 +4,7 @@ import { PackageService } from "application/services/package/PackageService";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
-import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
+import { type PackageUploadBody } from "domain/types/dto/package/PackageUploadBody";
 import { type PackageInputDTO } from "domain/types/dto/package/PackageInputDTO";
 import { type PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
 import { type ILogger } from "shared/logging/ILogger";
@@ -44,11 +44,10 @@ export class PackageRestApiController {
 
   private uploadPackage = async (req: Request, res: Response) => {
     // Validate and get data that can be safely saved in DB
-    const validatedData = new RequestDataValidator<{
-      content: PackageDTO;
-      fileSizes?: Record<string, number>;
-      sourceHash?: string | null;
-    }>(req.body, uploadPackageScheme()).validate();
+    const validatedData = new RequestDataValidator<PackageUploadBody>(
+      req.body,
+      uploadPackageScheme()
+    ).validate();
 
     const data = await this.packageService.uploadPackageForSession({
       sessionUserId: req.session.userId,
@@ -56,6 +55,7 @@ export class PackageRestApiController {
       fileSizes: validatedData.fileSizes,
       sourceHash: validatedData.sourceHash
     });
+
     return res.status(HttpStatus.OK).send(data);
   };
 
@@ -64,20 +64,19 @@ export class PackageRestApiController {
       { packageId: Number(req.params.id) },
       packIdScheme()
     ).validate();
-    // Permission first, so someone else's package answers 403 whatever the body.
-    await this.packageService.assertCanEditPackage({
+    // Permission first, so someone else's package answers 403 whatever the body
+    const editable = await this.packageService.getEditablePackage({
       sessionUserId: req.session.userId,
       packageId
     });
-    const validatedData = new RequestDataValidator<{
-      content: PackageDTO;
-      fileSizes?: Record<string, number>;
-      sourceHash?: string | null;
-    }>(req.body, uploadPackageScheme()).validate();
+
+    const validatedData = new RequestDataValidator<PackageUploadBody>(
+      req.body,
+      uploadPackageScheme()
+    ).validate();
 
     const data = await this.packageService.updatePackageForSession({
-      sessionUserId: req.session.userId,
-      packageId,
+      editable,
       packageData: validatedData.content,
       fileSizes: validatedData.fileSizes,
       sourceHash: validatedData.sourceHash
@@ -106,6 +105,7 @@ export class PackageRestApiController {
       sessionUserId: req.session.userId,
       packageId
     });
+
     return res.status(HttpStatus.OK).send(data);
   };
 

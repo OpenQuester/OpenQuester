@@ -6,6 +6,12 @@ import {
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import { AnswerPointDTO, PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { type PackageAnswerFileDTO } from "domain/types/dto/package/PackageAnswerFileDTO";
+
+/** Anything that carries a question's answer files (a full question, or just the files). */
+export interface AnswerFilesSource {
+  answerFiles?: PackageAnswerFileDTO[] | null;
+}
 
 /**
  * Logic class for handling show answer phase.
@@ -17,7 +23,7 @@ export class ShowAnswerLogic {
    * SHOWING_ANSWER timer. The answer text stays visible as the headline.
    */
   public static buildAnswerPlan(
-    question: Pick<PackageQuestionDTO, "answerFiles"> | null
+    question: AnswerFilesSource | null
   ): QuestionContentPlanDTO | null {
     if (!question?.answerFiles?.length) {
       return null;

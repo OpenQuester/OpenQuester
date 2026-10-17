@@ -1,13 +1,13 @@
 import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
-import { type FileDTO } from "domain/types/dto/file/FileDTO";
 import { type S3Context } from "domain/types/file/S3Context";
 import { ValueUtils } from "domain/utils/ValueUtils";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { type ObjectStorage } from "shared/storage/ObjectStorage";
 import { StorageUtils } from "infrastructure/utils/StorageUtils";
+import { type FileLocation } from "domain/types/file/FileLocation";
 
 const S3_DELETE_BATCH_SIZE = 1000;
 
@@ -28,7 +28,7 @@ export class PackageStorageService {
    * Generate upload links for files declared by an uploaded package.
    */
   public async generateUploadLinks(
-    files: Pick<FileDTO, "path" | "filename">[],
+    files: FileLocation[],
     expiresIn: number
   ): Promise<Record<string, string>> {
     const links: Record<string, string> = {};

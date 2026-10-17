@@ -64,6 +64,16 @@ export class GameService {
     return this.gameRepository.getGameEntity(gameId, updatedTtl);
   }
 
+  /** The game as a list card, for a game entity already in hand. */
+  public async gameToListItemDTO(game: Game): Promise<GameListItemDTO> {
+    return this.gameRepository.gameToListItemDTO(game);
+  }
+
+  /** Removes every running timer of a game (used when a game is closed). */
+  public async clearAllTimers(gameId: string): Promise<void> {
+    await this.gameRepository.clearAllTimers(gameId);
+  }
+
   public async list(paginationOpts: GamePaginationOpts) {
     return this.gameRepository.getAllGames(paginationOpts);
   }

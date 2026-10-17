@@ -38,6 +38,7 @@ export class GamePauseLogic {
   ): number {
     const since = new Date(timer.resumedAt ?? timer.startedAt).getTime();
     const running = Number.isFinite(since) ? Math.max(0, now - since) : 0;
+
     return (timer.resumedAt ? timer.elapsedMs || 0 : 0) + running;
   }
 

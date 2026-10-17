@@ -26,6 +26,7 @@ export class UserStatsService {
       this.statsQuery.getUserTotals(userId),
       this.statsQuery.getRecentGames(userId, RECENT_GAMES_LIMIT)
     ]);
+
     return { userId, ...totals, recentGames };
   }
 
@@ -35,6 +36,7 @@ export class UserStatsService {
     now: Date = new Date()
   ): Promise<LeaderboardEntryDTO[]> {
     const rows = await this.statsQuery.getLeaderboard(this._periodStart(period, now), limit);
+
     return rows.map((row, index) => ({
       rank: index + 1,
       user: {

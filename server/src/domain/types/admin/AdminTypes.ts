@@ -76,9 +76,15 @@ export interface AdminGameDetailsData {
   players: AdminGamePlayer[];
 }
 
+/** A role preset: the permissions a staff role starts with. */
+export interface AdminRolePreset {
+  id: StaffRole;
+  permissions: string[];
+}
+
 export interface AdminRolesData {
   /** Every permission, in display order. */
   permissions: string[];
   /** Presets an admin can apply; permissions can then be ticked one by one. */
-  roles: { id: StaffRole; permissions: string[] }[];
+  roles: AdminRolePreset[];
 }

@@ -5,7 +5,6 @@ import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { S3StorageService } from "application/services/storage/S3StorageService";
 import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
-import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
 
 /**
  * Daily storage maintenance:
@@ -23,7 +22,6 @@ export class S3FilesCleanupJob extends BaseCronJob {
     private readonly s3Service: S3StorageService,
     private readonly fileService: FileService,
     private readonly storageCleanupService: StorageCleanupService,
-    private readonly storageRepository: StorageRepository,
     cronExpression: string = CRON_EXP_2_AM_DAILY
   ) {
     super(logger);
@@ -91,11 +89,15 @@ export class S3FilesCleanupJob extends BaseCronJob {
         const existingFilenames = await this.fileService.getExistingFilenames(filenames);
         const existingSet = new Set(existingFilenames);
 
+        // Storage reports the real size of every file it has: keep it
         const sizes = new Map<string, number>();
-        for (const file of filteredBatch)
-          if (existingSet.has(file.filename) && typeof file.size === "number")
+        for (const file of filteredBatch) {
+          if (existingSet.has(file.filename) && typeof file.size === "number") {
             sizes.set(file.filename, file.size);
-        await this.storageRepository.setVerifiedSizes(sizes);
+          }
+        }
+
+        await this.storageCleanupService.recordVerifiedSizes(sizes);
 
         // Find orphaned files in this batch
         const batchOrphaned = filteredBatch.filter((file) => !existingSet.has(file.filename));

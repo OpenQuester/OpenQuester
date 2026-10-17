@@ -13,9 +13,9 @@ import {
   GameStateDTO
 } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { GameSettingsLogic } from "domain/logic/game/GameSettingsLogic";
 import {
   GameSettingsDTO,
-  normalizeGameSettings,
   WrongAnswerPenalty
 } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -72,7 +72,7 @@ export class Game {
     this._questionsCount = data.questionsCount;
     this._players = data.players;
     this._gameState = data.gameState;
-    this._settings = normalizeGameSettings(data.settings);
+    this._settings = GameSettingsLogic.normalize(data.settings);
   }
 
   // Getters
@@ -117,7 +117,7 @@ export class Game {
   }
 
   public set settings(settings: GameSettingsDTO) {
-    this._settings = normalizeGameSettings(settings);
+    this._settings = GameSettingsLogic.normalize(settings);
   }
 
   public get maxPlayers() {
@@ -306,7 +306,9 @@ export class Game {
     if (!limit || !startedAt || this._gameState.currentRound?.type === PackageRoundType.FINAL) {
       return false;
     }
+
     const pausedNow = this._gameState.pausedAt ? now - this._gameState.pausedAt : 0;
+
     return now - startedAt - (this._gameState.roundPausedMs ?? 0) - pausedNow >= limit;
   }
 
@@ -355,6 +357,7 @@ export class Game {
       this._gameState.roundPausedMs =
         (this._gameState.roundPausedMs ?? 0) + Math.max(0, Date.now() - this._gameState.pausedAt);
     }
+
     this._gameState.pausedAt = null;
   }
 
@@ -550,6 +553,7 @@ export class Game {
 
     const skippedPlayers = this.gameState.skippedPlayers ?? [];
     const answeredPlayerIds = this.gameState.answeredPlayers?.map((ap) => ap.player) ?? [];
+
     return activePlayers.every(
       (player) =>
         skippedPlayers.includes(player.meta.id) || answeredPlayerIds.includes(player.meta.id)

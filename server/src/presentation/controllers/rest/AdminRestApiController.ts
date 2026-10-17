@@ -190,6 +190,7 @@ export class AdminRestApiController {
     ).validate();
 
     await this.adminService.assertCanModerateUser(req.session.userId, asUserId(userId));
+
     return asUserId(userId);
   }
 
@@ -245,21 +246,25 @@ export class AdminRestApiController {
     ).validate();
 
     await this.adminGameService.kick(req.session.userId!, gameId, playerId);
+
     return res.status(HttpStatus.NO_CONTENT).send();
   };
 
   private pauseGame = async (req: Request, res: Response) => {
     await this.adminGameService.setPaused(req.session.userId!, this.validGameId(req), true);
+
     return res.status(HttpStatus.NO_CONTENT).send();
   };
 
   private unpauseGame = async (req: Request, res: Response) => {
     await this.adminGameService.setPaused(req.session.userId!, this.validGameId(req), false);
+
     return res.status(HttpStatus.NO_CONTENT).send();
   };
 
   private closeGame = async (req: Request, res: Response) => {
     await this.adminGameService.close(req.session.userId!, this.validGameId(req));
+
     return res.status(HttpStatus.NO_CONTENT).send();
   };
 

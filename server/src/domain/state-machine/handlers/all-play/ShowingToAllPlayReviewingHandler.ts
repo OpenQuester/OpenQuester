@@ -28,8 +28,8 @@ export class ShowingToAllPlayReviewingHandler extends BaseTransitionHandler {
     const { game, trigger } = ctx;
     if (!game.gameState.allPlay) return false;
     if (getGamePhase(game) !== this.fromPhase) return false;
-
     if (trigger === TransitionTrigger.TIMER_EXPIRED) return true;
+
     return trigger === TransitionTrigger.CONDITION_MET && AllPlayLogic.allAnswered(game);
   }
 
@@ -41,12 +41,14 @@ export class ShowingToAllPlayReviewingHandler extends BaseTransitionHandler {
     const { game } = ctx;
     game.setQuestionState(QuestionState.REVIEWING);
     AllPlayLogic.startReview(game, ctx.resources?.questionWithTheme?.question ?? null);
+
     return {};
   }
 
   /** The showman reviews at their own pace */
   protected async handleTimer(ctx: TransitionContext): Promise<TimerResult> {
     ctx.game.gameState.timer = null;
+
     return { timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }] };
   }
 

@@ -20,15 +20,14 @@ import { GameValidator } from "domain/validators/GameValidator";
 /**
  * Handles kicking a player from the game.
  *
- * With `moderator: true` (admin panel, `ADMIN_PLAYER_KICK`) the actor is not
- * in the game, so the showman check is skipped and the showman can be kicked too.
+ * A moderator (admin panel, `action.moderatorId`) is not in the game, so the
+ * showman check is skipped and the showman can be kicked too.
  */
 export class PlayerKickUseCase
   implements GameActionHandler<PlayerKickInputData, PlayerKickBroadcastData>
 {
   constructor(
-    private readonly playerLeaveService: PlayerLeaveService,
-    private readonly options: { moderator: boolean } = { moderator: false }
+    private readonly playerLeaveService: PlayerLeaveService
   ) {}
 
   public async execute(
@@ -37,13 +36,10 @@ export class PlayerKickUseCase
     const { game, action } = ctx;
     const targetPlayerId = action.payload.playerId;
 
-    if (!this.options.moderator) {
-      GameValidator.validatePlayerAuthenticated(ctx);
-
-      if (ctx.currentPlayer.role !== PlayerRole.SHOWMAN) {
-        throw new ClientError(ClientResponse.ONLY_SHOWMAN_CAN_MANAGE_PLAYERS);
-      }
-    }
+    GameValidator.validateShowmanOrModerator(
+      ctx,
+      ClientResponse.ONLY_SHOWMAN_CAN_MANAGE_PLAYERS
+    );
 
     const targetPlayer = game.getPlayer(targetPlayerId, {
       fetchDisconnected: false,

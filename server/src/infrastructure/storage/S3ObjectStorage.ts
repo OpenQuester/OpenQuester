@@ -62,6 +62,7 @@ export class S3ObjectStorage implements ObjectStorage {
   private _viaProxy(signedUrl: string): string {
     const signed = new URL(signedUrl);
     const prefix = this.s3Context.urlPrefix.replace(/\/+$/, "");
+
     return `${prefix}${signed.pathname}${signed.search}`;
   }
 
@@ -120,6 +121,7 @@ export class S3ObjectStorage implements ObjectStorage {
   public async headObject(bucket: string, key: string): Promise<{ size: number } | null> {
     try {
       const result = await this.client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+
       return { size: Number(result.ContentLength ?? 0) };
     } catch (error) {
       const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata
@@ -128,6 +130,7 @@ export class S3ObjectStorage implements ObjectStorage {
       if (status === 404 || status === 403) {
         return null;
       }
+
       throw error;
     }
   }

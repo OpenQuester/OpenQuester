@@ -35,7 +35,9 @@ export class AnswerCheckLogic {
   public static parseNumber(text: string): number | null {
     const cleaned = text.trim().replace(/[\s ]/g, "").replace(",", ".");
     if (!/^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i.test(cleaned)) return null;
+
     const value = Number(cleaned);
+
     return Number.isFinite(value) ? value : null;
   }
 
@@ -45,6 +47,7 @@ export class AnswerCheckLogic {
     if (parts.length !== 2 || parts.some((n) => !Number.isFinite(n) || n < 0 || n > 1)) {
       return null;
     }
+
     return { x: parts[0], y: parts[1] };
   }
 
@@ -52,6 +55,7 @@ export class AnswerCheckLogic {
     const right = question.answerNumber;
     const value = this.parseNumber(answer);
     if (right === null || right === undefined || value === null) return null;
+
     return Math.abs(value - right) <= Math.max(0, question.answerDeviation ?? 0);
   }
 
@@ -59,7 +63,9 @@ export class AnswerCheckLogic {
     const right = question.answerPoint;
     const point = this.parsePoint(answer);
     if (!right || !point) return null;
+
     const radius = question.answerDeviation ?? DEFAULT_POINT_DEVIATION;
+
     return Math.hypot(point.x - right.x, point.y - right.y) <= radius;
   }
 }

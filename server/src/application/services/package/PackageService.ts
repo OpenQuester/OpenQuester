@@ -30,10 +30,17 @@ import { StorageRepository } from "infrastructure/database/repositories/StorageR
 import { PackageUploadService } from "application/services/package/PackageUploadService";
 import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { type PackageUploadStateDTO } from "domain/types/dto/package/PackageUploadStateDTO";
+import { type ClientFileSizes } from "domain/types/storage/StorageTypes";
 
 /**
  * Service for package management operations.
  */
+/** A package together with the session user who is allowed to edit it. */
+export interface EditablePackage {
+  user: User;
+  pack: Package;
+}
+
 @singleton()
 export class PackageService {
   constructor(
@@ -65,6 +72,7 @@ export class PackageService {
         // Keep the stored status.
       }
     }
+
     return pack.toDTO(this.fileUrlBuilder, {
       fetchIds: true
     });
@@ -112,21 +120,21 @@ export class PackageService {
     author: User | null,
     packageData: PackageDTO,
     expiresIn: number = UPLOAD_PACKAGE_LINKS_EXPIRES_IN,
-    /** Bytes per MD5 as the client measured them; checked against the storage limits. */
-    fileSizes?: Record<string, number>,
+    fileSizes?: ClientFileSizes,
     sourceHash?: string | null
   ): Promise<PackageUploadResponse> {
     if (!author || !author.id) {
       throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND);
     }
 
-    const declared = await this.storageQuotaService.assertPackageFits(
+    const newFileSizes = await this.storageQuotaService.assertPackageFits(
       author,
       packageData,
       fileSizes
     );
+
     const { pack, files } = await this.packageRepository.create(packageData, author);
-    await this.storageRepository.setDeclaredSizes(declared);
+    await this.storageRepository.setDeclaredSizes(newFileSizes);
     const uploadStatus = await this.packageUploadService.markSaved(pack.id, sourceHash ?? null);
 
     const links = await this.packageStorageService.generateUploadLinks(files, expiresIn);
@@ -141,7 +149,7 @@ export class PackageService {
     sessionUserId: number | undefined;
     packageData: PackageDTO;
     expiresIn?: number;
-    fileSizes?: Record<string, number>;
+    fileSizes?: ClientFileSizes;
     sourceHash?: string | null;
   }): Promise<PackageUploadResponse> {
     const author = await this.userSessionService.getValidatedSessionUser({
@@ -162,43 +170,50 @@ export class PackageService {
   }
 
   /**
-   * Replaces a package's content in place. Allowed for its author and for
-   * users with EDIT_PACKAGE. Returns upload links for every file it uses;
-   * files already in storage answer the upload with 412, which clients skip.
+   * Saves an edited package over the stored one (same id), for its author or
+   * a user with EDIT_PACKAGE (`editable`, from {@link getEditablePackage}).
+   *
+   * Steps: check the new content fits the author's storage limits, replace the
+   * package rows, remember the sizes of new media, delete media the edit
+   * dropped (unless something else uses it), mark the package as uploading
+   * again and hand out upload links. Links come for every file the package
+   * uses; files already in storage answer the upload with 412, which clients
+   * skip.
    */
   public async updatePackageForSession(input: {
-    sessionUserId: number | undefined;
-    packageId: number;
+    editable: EditablePackage;
     packageData: PackageDTO;
     expiresIn?: number;
-    fileSizes?: Record<string, number>;
+    fileSizes?: ClientFileSizes;
     /** Undefined keeps the stored fingerprint; an edited package sends null. */
     sourceHash?: string | null;
   }): Promise<PackageUploadResponse> {
-    const user = await this.assertCanEditPackage(input);
+    const { user, pack: stored } = input.editable;
 
-    // Limits are the author's: an editor with EDIT_PACKAGE fixes someone else's package.
-    const author = (await this.getPackageRaw(input.packageId, ["id"], ["author"])).author;
-    const declared = await this.storageQuotaService.assertPackageFits(
-      author ?? user,
+    // Limits are the author's: an editor with EDIT_PACKAGE fixes someone else's package
+    const newFileSizes = await this.storageQuotaService.assertPackageFits(
+      stored.author ?? user,
       input.packageData,
       input.fileSizes,
-      input.packageId
+      stored.id
     );
-    const before = await this.storageRepository.getPackageFilenames(input.packageId);
+
+    const filenamesBefore = await this.storageRepository.getPackageFilenames(stored.id);
     const { pack, files } = await this.packageRepository.create(
       input.packageData,
       user,
-      input.packageId
+      stored.id
     );
-    await this.storageRepository.setDeclaredSizes(declared);
-    // Media the edit dropped is deleted unless something else still uses it.
-    await this.storageCleanupService.removeIfUnused(before);
+
+    await this.storageRepository.setDeclaredSizes(newFileSizes);
+    await this.storageCleanupService.removeIfUnused(filenamesBefore);
+
     const uploadStatus = await this.packageUploadService.markSaved(pack.id, input.sourceHash);
     const links = await this.packageStorageService.generateUploadLinks(
       files,
       input.expiresIn ?? UPLOAD_PACKAGE_LINKS_EXPIRES_IN
     );
+
     return { id: pack.id, uploadLinks: links, uploadStatus };
   }
 
@@ -212,23 +227,42 @@ export class PackageService {
     packageId: number;
   }): Promise<PackageUploadStateDTO> {
     await this.assertCanEditPackage(input);
+
     return this.packageUploadService.getState(input.packageId);
+  }
+
+  /**
+   * The session user and the package, once it is clear the user may edit it:
+   * they wrote it or have EDIT_PACKAGE. Throws 403 otherwise.
+   *
+   * The session user is re-read and checked here because an account can be
+   * banned or deleted while its session is still alive; the session
+   * middleware only checks that a session exists.
+   */
+  public async getEditablePackage(input: {
+    sessionUserId: number | undefined;
+    packageId: number;
+  }): Promise<EditablePackage> {
+    const user = await this.userSessionService.getValidatedSessionUser({
+      sessionUserId: input.sessionUserId
+    });
+
+    const pack = await this.getPackageRaw(input.packageId, ["id"], ["author"]);
+
+    const isAuthor = pack.author?.id === user.id;
+    if (!isAuthor && !this.userSessionService.userHasPermission(user, Permissions.EDIT_PACKAGE)) {
+      throw new ClientError(ClientResponse.NO_PERMISSION, HttpStatus.FORBIDDEN);
+    }
+
+    return { user, pack };
   }
 
   /** Throws 403 unless the session user wrote the package or has EDIT_PACKAGE. */
   public async assertCanEditPackage(input: {
     sessionUserId: number | undefined;
     packageId: number;
-  }): Promise<User> {
-    const user = await this.userSessionService.getValidatedSessionUser({
-      sessionUserId: input.sessionUserId
-    });
-    const packageEntity = await this.getPackageRaw(input.packageId, ["id"], ["author"]);
-    const isAuthor = packageEntity.author?.id === user.id;
-    if (!isAuthor && !this.userSessionService.userHasPermission(user, Permissions.EDIT_PACKAGE)) {
-      throw new ClientError(ClientResponse.NO_PERMISSION, HttpStatus.FORBIDDEN);
-    }
-    return user;
+  }): Promise<void> {
+    await this.getEditablePackage(input);
   }
 
   public async canDeletePackage(input: {
