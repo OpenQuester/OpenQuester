@@ -396,16 +396,22 @@ describe("Stake Question Zero Price Answer Tests", () => {
         );
 
         // Emit skip (give up)
+        const reveal = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_SHOW_START);
         scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
         const answerResult = await answerResultPromise;
 
         // Skip on stake question is treated as wrong answer (give up)
         expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
+        // The board price is zero, but this player explicitly bid one point.
+        expect(answerResult.answerResult.result).toBe(-1);
+        await reveal;
 
         // Game should transition to SHOWING_ANSWER
         const gameState = await utils.getGameState(setup.gameId);
         expect(gameState?.questionState).toBe(QuestionState.SHOWING_ANSWER);
+        expect(gameState?.currentQuestion).toBeNull();
+        expect(gameState?.timer).toBeTruthy();
       });
     });
   });

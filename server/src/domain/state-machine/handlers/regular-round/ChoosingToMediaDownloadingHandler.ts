@@ -79,6 +79,10 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
     const allPlayMode = AllPlayLogic.modeOf(question);
     if (allPlayMode) {
       AllPlayLogic.start(game, question, theme.id!, allPlayMode);
+    } else if (question.type === PackageQuestionType.NO_RISK) {
+      game.gameState.questionEligiblePlayers = [
+        QuestionPickLogic.resolvePickerPlayerId(game, ctx.triggeredBy.playerId!)
+      ];
     }
 
     QuestionPickLogic.resetMediaDownloadStatus(game);

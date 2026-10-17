@@ -1,6 +1,7 @@
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -190,9 +191,11 @@ export class QuestionActionValidator {
       throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
     }
 
-    // Check if player is eligible to answer (was present when question started)
-    // This prevents players who joined mid-question from answering
+    // Eligibility also reserves a no-risk question for its picker.
     if (!game.isPlayerEligibleToAnswer(currentPlayerId)) {
+      if (game.gameState.currentQuestion.type === PackageQuestionType.NO_RISK) {
+        throw new ClientError(ClientResponse.NOT_YOUR_TURN);
+      }
       throw new ClientError(ClientResponse.YOU_CANNOT_ANSWER_RIGHT_AFTER_BECOMING_PLAYER);
     }
 

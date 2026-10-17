@@ -31,6 +31,15 @@ describe("canBuzz: one reason per unavailable buzzer", () => {
     expect(canBuzz(showing(), ALICE)).toEqual({ ok: true });
   });
 
+  it("reserves no-risk answering for its picker and explains the restriction", () => {
+    const s = showing({
+      currentQuestion: question(100, { type: "noRisk" }),
+      questionEligiblePlayers: [ALICE],
+    });
+    expect(canBuzz(s, ALICE)).toEqual({ ok: true });
+    expect(canBuzz(s, BOB)).toEqual({ ok: false, reason: "not_your_turn" });
+  });
+
   it.each([
     ["showman", SHOWMAN, showing(), "wrong_role"],
     ["spectator", SAM, showing(), "wrong_role"],

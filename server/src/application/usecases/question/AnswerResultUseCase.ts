@@ -64,7 +64,7 @@ export class AnswerResultUseCase
 
   /**
    * Applies a ruling on the current answer: the showman's, or one the server
-   * makes itself (an auto-checked choice). Callers validate first.
+   * makes itself (an auto-checked answer or giving up). Callers validate first.
    */
   public async judge(
     game: Game,

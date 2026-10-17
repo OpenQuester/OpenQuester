@@ -67,7 +67,7 @@ export class QuestionPickLogic {
   }
 
   /**
-   * The player a stake or secret question belongs to. When the showman picks
+   * The player a stake, secret or no-risk question belongs to. When the showman picks
    * on someone's behalf, it is the player whose turn it was, never the
    * showman: the showman cannot bid, receive the question or score.
    */

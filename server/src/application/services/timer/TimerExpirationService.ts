@@ -135,7 +135,8 @@ export class TimerExpirationService {
       return this._resolveBuzzerWindow(game);
     }
 
-    const questionResources = await this.transitionResourceService.getCurrentQuestionWithTheme(game);
+    const questionResources =
+      await this.transitionResourceService.getCurrentQuestionWithTheme(game);
     const ruledBefore = AllPlayLogic.ruledPlayerIds(game);
 
     // Transition from SHOWING to SHOWING_ANSWER, or ALL_PLAY_REVIEWING for everyone answers.
@@ -225,7 +226,7 @@ export class TimerExpirationService {
     }
 
     // Regular answering expiration
-    const { answerResult, timer, timerMutations } =
+    const { answerResult, broadcasts, timerMutations } =
       await this.handleRegularAnsweringExpiration(game);
 
     if (!answerResult) {
@@ -235,7 +236,7 @@ export class TimerExpirationService {
     return {
       success: true,
       game,
-      broadcasts: [AnsweringExpirationLogic.buildBroadcast(gameId, answerResult, timer)],
+      broadcasts,
       timerMutations
     };
   }
@@ -628,9 +629,7 @@ export class TimerExpirationService {
     }
 
     const resultData = transitionResult.data as
-      | AnsweringToShowingMutationData
-      | AnsweringToShowingAnswerMutationData
-      | undefined;
+      AnsweringToShowingMutationData | AnsweringToShowingAnswerMutationData | undefined;
 
     const playerAnswerResult = resultData?.playerAnswerResult ?? null;
 
@@ -656,7 +655,7 @@ export class TimerExpirationService {
 
     return {
       answerResult: playerAnswerResult,
-      timer: transitionResult.timer,
+      broadcasts: transitionResult.broadcasts,
       timerMutations: transitionResult.timerMutations
     };
   }

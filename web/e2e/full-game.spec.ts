@@ -160,14 +160,17 @@ test.describe("full game", () => {
     await expect(played).toBeDisabled();
     await cell(host.page, "Capitals", 300).click();
     await expectPhase(all, "Ready to buzz");
-    await expect(bob.page.getByTestId("buzz")).not.toHaveAttribute("data-early", /.*/, {
+    await expect(bob.page.getByTestId("buzz")).toHaveCount(0);
+    await expect(bob.page.getByTestId("dock-info")).toContainText("Not your turn");
+    await expect(alice.page.getByTestId("buzz")).not.toHaveAttribute("data-early", /.*/, {
       timeout: 20_000,
     });
-    await bob.page.keyboard.press("Space");
+    await alice.page.keyboard.press("Space");
     await expectPhase([host.page], "Answering");
     await host.page.keyboard.press("w");
     await expectPhase(all, "Answer");
     await expect.poll(() => chipScore(host.page, "Bob")).toBe("−200");
+    await expect.poll(() => chipScore(host.page, "Alice")).toBe("100");
     await host.page.getByTestId("continue").click();
     await expectPhase(all, "Choosing");
 

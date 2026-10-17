@@ -230,6 +230,8 @@ describe("Secret Question Flow Tests", () => {
             SocketIOGameEvents.ANSWER_RESULT
           )
         ];
+        const finish = scenario.waitForEvent(spectatorSocket, SocketIOGameEvents.QUESTION_FINISH);
+        const reveal = scenario.waitForEvent(spectatorSocket, SocketIOGameEvents.ANSWER_SHOW_START);
         const beforeSkip = scenario.mark();
         const skipProbe = scenario.createAcceptedActionProbe({
           gameId,
@@ -240,6 +242,7 @@ describe("Secret Question Flow Tests", () => {
         scenario.actor(answeringPlayerSocket).emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
         const answerResults = await Promise.all(answerResultPromises);
+        await Promise.all([finish, reveal]);
         await skipProbe.waitForCount(1);
         await scenario.assert.waitForActionsComplete({ gameId });
         await scenario.assert.noInbound({
@@ -249,19 +252,23 @@ describe("Secret Question Flow Tests", () => {
           durationMs: 100
         });
 
-        const expectedPenalty = -Math.max(1, secretQuestion!.price ?? 1);
+        const expectedPenalty = -(secretQuestion!.price ?? 0);
         for (const answerResult of answerResults) {
           expect(answerResult.answerResult.player).toBe(setup.playerUsers[0].id);
           expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
           expect(answerResult.answerResult.result).toBe(expectedPenalty);
-          expect(answerResult.timer).toBeNull();
+          expect(answerResult.timer).toBeTruthy();
         }
 
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
         expect(finalState!.answeringPlayer).toBeNull();
-        expect(finalState!.timer).toBeNull();
+        expect(finalState!.timer).toBeTruthy();
+        expect(finalState!.currentQuestion).toBeNull();
+        expect(finalState!.answerShowData).toBeTruthy();
         expect(finalState!.secretQuestionData).toBeNull();
+        await utils.skipShowAnswer(showmanSocket);
+        expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.CHOOSING);
       });
     });
 
@@ -338,7 +345,9 @@ describe("Secret Question Flow Tests", () => {
 
         for (const transferEvent of transferEvents) {
           // Timeout transfers come from the question's owner (the turn player)
-          expect(transferEvent.fromPlayerId).toBe(transferState!.secretQuestionData!.pickerPlayerId);
+          expect(transferEvent.fromPlayerId).toBe(
+            transferState!.secretQuestionData!.pickerPlayerId
+          );
           expect(targetPlayerIds).toContain(transferEvent.toPlayerId);
           expect(transferEvent.questionId).toBe(secretQuestion!.id);
         }

@@ -173,7 +173,9 @@ export function canBuzz(session: GameSession, myId: number, connected = true): A
     return session.state.answeringPlayer === myId ? no("already_done") : no("not_your_turn");
   }
   if (phase !== "showing") return no("wrong_phase");
-  if (!isEligible(session, myId)) return no("not_eligible");
+  if (!isEligible(session, myId)) {
+    return no(session.state.currentQuestion?.type === "noRisk" ? "not_your_turn" : "not_eligible");
+  }
   if (hasAnswered(session, myId)) return no("already_done");
   if (hasSkipped(session, myId)) return no("skipped");
   if (buzzerLockLeft(session, myId) > 0) return no("false_start");

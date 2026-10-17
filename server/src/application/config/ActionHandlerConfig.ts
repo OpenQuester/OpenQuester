@@ -207,13 +207,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.QUESTION_SKIP,
-    new QuestionSkipUseCase(
-      phaseTransitionRouter,
-      socketGameTimerService,
-      playerGameStatsService,
-      transitionResourceService,
-      logger
-    )
+    new QuestionSkipUseCase(phaseTransitionRouter, transitionResourceService, answerResultUseCase)
   );
 
   registry.register(GameActionType.QUESTION_UNSKIP, new QuestionUnskipUseCase());

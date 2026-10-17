@@ -6,19 +6,16 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
  * Utilities for special-question related logic shared across validators and services
  */
 export class SpecialRegularQuestionUtils {
-  public static readonly singleAnswererQuestionTypes: ReadonlySet<PackageQuestionType> =
-    new Set([
-      PackageQuestionType.NO_RISK,
-      PackageQuestionType.SECRET,
-      PackageQuestionType.STAKE,
-    ]);
+  public static readonly singleAnswererQuestionTypes: ReadonlySet<PackageQuestionType> = new Set([
+    PackageQuestionType.NO_RISK,
+    PackageQuestionType.SECRET,
+    PackageQuestionType.STAKE
+  ]);
 
   public static isSingleAnswererQuestion(game: Game): boolean {
     const currentType = game.gameState.currentQuestion?.type;
     if (currentType == null) return false;
-    return SpecialRegularQuestionUtils.singleAnswererQuestionTypes.has(
-      currentType
-    );
+    return SpecialRegularQuestionUtils.singleAnswererQuestionTypes.has(currentType);
   }
 
   /**
@@ -27,16 +24,8 @@ export class SpecialRegularQuestionUtils {
    */
   public static isGiveUpScenario(game: Game): boolean {
     if (!game.gameState.currentQuestion) return false;
-    const isAnswering =
-      game.gameState.questionState === QuestionState.ANSWERING;
+    const isAnswering = game.gameState.questionState === QuestionState.ANSWERING;
 
-    return (
-      isAnswering && SpecialRegularQuestionUtils.isSingleAnswererQuestion(game)
-    );
-  }
-
-  public static calculateGiveUpPenalty(game: Game): number {
-    const price = game.gameState.currentQuestion?.price ?? 1;
-    return -Math.max(1, price);
+    return isAnswering && SpecialRegularQuestionUtils.isSingleAnswererQuestion(game);
   }
 }

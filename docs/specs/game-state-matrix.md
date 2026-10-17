@@ -116,6 +116,14 @@ When changing gameplay state, make sure:
   price). The question is then shown and answered at that price.
 - **Hidden price:** the board shows the price as unknown until the question
   is picked.
+- **No risk (single player):** only the player who picked the question may
+  answer. A showman picking on a player's behalf uses the current turn player.
+  Media readiness still includes all players. One answer or its timeout ends the question;
+  wrong answers and giving up cost no points.
+- **Give up (no risk, secret, stake):** the designated answerer's
+  `question-skip` follows the normal wrong-answer ruling, including its scoring,
+  answer reveal, reveal timer and return to the board. A stake loses the winning
+  bid; a secret question loses its selected price.
 - **Everyone answers** (stake or no-risk with `subType: forEveryone`,
   `gameState.allPlay`): no buzzer. Stake mode starts with hidden stakes from
   every player (`all-play-stake`, 30 s, at most the player's score or the

@@ -3,7 +3,11 @@ import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { GameActionType } from "domain/enums/GameActionType";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
+import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
@@ -31,6 +35,79 @@ describe("NoRisk Question Implementation", () => {
   });
 
   describe("NoRisk question prevents score loss on wrong answers", () => {
+    it.each([
+      ["player", "give up"],
+      ["showman", "wrong"],
+      ["player", "timeout"]
+    ])(
+      "reserves a %s-picked question for the turn player and ends it on %s",
+      async (picker, outcome) => {
+        await suite.scenario(async (scenario) => {
+          const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+          const { showmanSocket, playerSockets, playerUsers, gameId } = setup;
+          await utils.startGame(showmanSocket);
+          const state = await utils.getGameState(gameId);
+          const ownerIndex = playerUsers.findIndex((p) => p.id === state!.currentTurnPlayerId);
+          const owner = playerSockets[ownerIndex];
+          const other = playerSockets[1 - ownerIndex];
+          const ownerId = playerUsers[ownerIndex].id;
+          const question = (await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId))!;
+          const questionData = scenario.waitForEvent<GameQuestionDataEventPayload>(
+            other,
+            SocketIOGameEvents.QUESTION_DATA
+          );
+          await utils.pickQuestion(
+            picker === "player" ? owner : showmanSocket,
+            question.id,
+            playerSockets
+          );
+          expect((await questionData).questionEligiblePlayers).toEqual([ownerId]);
+
+          const rejected = scenario.waitForEvent<{ message: string }>(other, SocketIOEvents.ERROR);
+          scenario.actor(other).emit(SocketIOGameEvents.QUESTION_ANSWER);
+          expect((await rejected).message).toBe("It's not your turn");
+          await utils.answerQuestion(owner, showmanSocket);
+
+          const result = scenario.waitForEvent<QuestionAnswerResultEventPayload>(
+            other,
+            SocketIOGameEvents.ANSWER_RESULT
+          );
+          const finished = scenario.waitForEvent(other, SocketIOGameEvents.QUESTION_FINISH);
+          const reveal = scenario.waitForEvent(other, SocketIOGameEvents.ANSWER_SHOW_START);
+          if (outcome === "give up") {
+            scenario.actor(owner).emit(SocketIOGameEvents.QUESTION_SKIP, {});
+          } else if (outcome === "wrong") {
+            scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+              scoreResult: -400,
+              answerType: AnswerResultType.WRONG
+            });
+          } else {
+            await suite.testUtils.expireTimerAndWaitForAction(
+              gameId,
+              GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED
+            );
+          }
+          const [answer] = await Promise.all([result, finished, reveal]);
+          expect(answer.answerResult).toMatchObject({
+            player: ownerId,
+            answerType: AnswerResultType.WRONG,
+            result: 0,
+            score: 0
+          });
+          const revealed = await utils.getGameState(gameId);
+          expect(revealed).toMatchObject({
+            questionState: QuestionState.SHOWING_ANSWER,
+            currentQuestion: null,
+            answeringPlayer: null
+          });
+          expect(revealed!.answerShowData?.answerText).toBe("No risk answer");
+          expect(revealed!.timer).toBeTruthy();
+          await utils.skipShowAnswer(showmanSocket);
+          expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.CHOOSING);
+        });
+      }
+    );
+
     it("should not decrease player score when answering NoRisk question incorrectly", async () => {
       await suite.scenario(async (scenario) => {
         // Setup game with 1 player
