@@ -65,7 +65,8 @@ export function AdminPage() {
       {
         id: "users",
         label: t("adminPanel.users"),
-        show: can(user, "view_users_info") || can(user, "get_all_users"),
+        // The users endpoint requires view_users_info
+        show: can(user, "view_users_info"),
       },
       {
         id: "packages",
@@ -185,7 +186,7 @@ function Users({ me }: { me: User }) {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [q, setQ] = useState<UserQuery>({ search: "", status: "", userType: "all", page: 0 });
-  const users = useAdminUsers(q, can(me, "view_users_info") || can(me, "get_all_users"));
+  const users = useAdminUsers(q, can(me, "view_users_info"));
   const action = useUserAction();
 
   useEffect(() => {
