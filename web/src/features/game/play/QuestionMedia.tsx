@@ -8,8 +8,8 @@ import { Spinner } from "@/ui/Spinner";
 import { ReplayIcon, VolumeIcon } from "@/ui/icons";
 
 /**
- * Every file of a question at once, in order. Only the showman's preview uses
- * this; the game itself plays content one step at a time (ContentStage).
+ * Every file of a question at once, in order. Used by the showman's preview
+ * and final questions; regular questions use the timeline in ContentStage.
  * Audio and video have no player controls: they play by themselves while
  * `playing` is true, so everybody sees and hears the same thing at the same
  * moment. Every file sits in a fixed frame, so nothing jumps when it loads.
