@@ -164,7 +164,9 @@ export class UserRestApiController {
     const previousAvatar = user.avatar?.filename;
     if (avatarFile) {
       if (avatarFile.filename !== previousAvatar) {
-        await container.resolve(StorageQuotaService).assertAvatarFits(user, avatarFile.filename);
+        await container
+          .resolve(StorageQuotaService)
+          .assertAvatarFits(user, avatarFile.filename, previousAvatar);
       }
 
       userUpdateDTO.avatar = avatarFile;
