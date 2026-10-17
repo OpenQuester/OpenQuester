@@ -1,4 +1,5 @@
 import { type StaffRole } from "domain/constants/staffRoles";
+import { type Permissions } from "domain/enums/Permissions";
 import { type GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { type PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
@@ -78,7 +79,7 @@ export interface AdminGameDetailsData {
 
 export interface AdminRolesData {
   /** Every permission, in display order. */
-  permissions: string[];
+  permissions: Permissions[];
   /** Presets an admin can apply; permissions can then be ticked one by one. */
-  roles: { id: StaffRole; permissions: string[] }[];
+  roles: { id: StaffRole; permissions: Permissions[] }[];
 }

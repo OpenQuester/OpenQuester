@@ -1,5 +1,5 @@
 import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
-import { GameSettingsDTO } from "domain/types/dto/game/settings/GameSettingsDTO";
+import type { GameSettingsDTO } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageListItemDTO } from "domain/types/dto/game/items/PackageIListItemDTO";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";

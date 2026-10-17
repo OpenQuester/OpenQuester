@@ -1,5 +1,4 @@
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
-import { allPlayStartBroadcast } from "domain/state-machine/handlers/all-play/ChoosingToAllPlayBiddingHandler";
 import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -13,7 +12,7 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
@@ -39,12 +38,7 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
 
     if (getGamePhase(game) !== this.fromPhase) return false;
 
-    if (
-      !TransitionGuards.canTransitionInRegularRound(
-        game,
-        QuestionState.CHOOSING
-      )
-    ) {
+    if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.CHOOSING)) {
       return false;
     }
 
@@ -52,14 +46,10 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
 
     // Validate question existence and type; silence on failure
     try {
-      const { question } = QuestionPickLogic.validateQuestionPick(
-        game,
-        payload.questionData
-      );
+      const { question } = QuestionPickLogic.validateQuestionPick(game, payload.questionData);
 
       return (
-        question.type !== PackageQuestionType.SECRET &&
-        question.type !== PackageQuestionType.STAKE
+        question.type !== PackageQuestionType.SECRET && question.type !== PackageQuestionType.STAKE
       );
     } catch {
       return false;
@@ -71,15 +61,10 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
   }
 
   /** Transition to media downloading for non-secret/stake questions */
-  protected async mutate(
-    ctx: ChoosingToMediaDownloadingCtx
-  ): Promise<MutationResult> {
+  protected async mutate(ctx: ChoosingToMediaDownloadingCtx): Promise<MutationResult> {
     const { game, payload } = ctx;
 
-    const { question, theme } = QuestionPickLogic.validateQuestionPick(
-      game,
-      payload!.questionData
-    );
+    const { question, theme } = QuestionPickLogic.validateQuestionPick(game, payload!.questionData);
 
     // Set current question and mark as played
     QuestionPickLogic.processNormalQuestionPick(game, question, theme.id!);
@@ -95,8 +80,8 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
 
     return {
       data: {
-        question: GameQuestionMapper.mapToSimpleQuestion(question),
-      },
+        question: GameQuestionMapper.mapToSimpleQuestion(question)
+      }
     };
   }
 
@@ -117,9 +102,9 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: MEDIA_DOWNLOAD_TIMEOUT,
-        },
-      ],
+          pxTtl: MEDIA_DOWNLOAD_TIMEOUT
+        }
+      ]
     };
   }
 
@@ -132,6 +117,8 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
     _mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {
-    return ctx.game.gameState.allPlay ? [allPlayStartBroadcast(ctx.game, null)] : [];
+    return ctx.game.gameState.allPlay
+      ? [GameQuestionMapper.buildEveryoneQuestionStartBroadcast(ctx.game, null)]
+      : [];
   }
 }

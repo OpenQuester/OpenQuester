@@ -14,7 +14,7 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { Permissions } from "domain/enums/Permissions";
 import { ClientError } from "domain/errors/ClientError";
-import { type userId } from "domain/types/ids";
+import { asUserId, type userId } from "domain/types/ids";
 import {
   AdminDashboardData,
   AdminRolesData,
@@ -193,12 +193,19 @@ export class AdminService {
       throw new ClientError(ClientResponse.CANNOT_MODERATE_SELF, HttpStatus.FORBIDDEN);
     }
 
-    const [actorRole, targetRole] = await Promise.all([
-      this.getStaffRole(actorId as userId),
-      this.getStaffRole(targetId)
-    ]);
+    const users = await this.userService.getManyRaw([asUserId(actorId), targetId], {
+      select: ["id"],
+      relations: ["permissions"],
+      relationSelects: { permissions: ["id", "name"] }
+    });
+    const roles = new Map(
+      users.map((user) => [
+        user.id,
+        staffRoleOf(user.permissions?.map((permission) => permission.name) ?? [])
+      ])
+    );
 
-    if (targetRole !== StaffRole.USER && actorRole !== StaffRole.ADMIN) {
+    if (roles.get(targetId) !== StaffRole.USER && roles.get(asUserId(actorId)) !== StaffRole.ADMIN) {
       throw new ClientError(ClientResponse.CANNOT_MODERATE_STAFF, HttpStatus.FORBIDDEN);
     }
   }
@@ -231,14 +238,5 @@ export class AdminService {
     });
 
     return updated;
-  }
-
-  private async getStaffRole(id: userId): Promise<StaffRole> {
-    const user = await this.userService.getRaw(id, {
-      select: ["id"],
-      relations: ["permissions"],
-      relationSelects: { permissions: ["id", "name"] }
-    });
-    return staffRoleOf(user?.permissions?.map((p) => p.name) ?? []);
   }
 }

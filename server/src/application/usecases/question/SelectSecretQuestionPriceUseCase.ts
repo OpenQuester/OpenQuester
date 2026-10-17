@@ -12,9 +12,10 @@ import { SecretQuestionPriceInputData } from "domain/types/socket/game/SecretQue
  * Like the transfer, the question data is emitted per socket by the
  * post-execution hook (showman sees the answer, players don't).
  */
-export class SecretQuestionPriceUseCase
-  implements GameActionHandler<SecretQuestionPriceInputData, SecretQuestionPriceResult>
-{
+export class SelectSecretQuestionPriceUseCase implements GameActionHandler<
+  SecretQuestionPriceInputData,
+  SecretQuestionPriceResult
+> {
   constructor(private readonly secretQuestionService: SecretQuestionService) {
     //
   }

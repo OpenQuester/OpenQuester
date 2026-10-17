@@ -163,12 +163,18 @@ export class UserRepository {
     return !!existing;
   }
 
-  public findByIds(ids: number[], selectOptions: SelectOptions<User>): Promise<User[]> {
-    return this.repository.find({
-      where: { id: In(ids) },
-      select: selectOptions.select,
-      relations: selectOptions.relations
-    });
+  public async findByIds(ids: number[], selectOptions: SelectOptions<User>): Promise<User[]> {
+    const qb = this.repository
+      .createQueryBuilder("user")
+      .where({ id: In(ids) })
+      .select(selectOptions.select.map((field) => `user.${String(field)}`));
+    return (
+      await QueryBuilder.buildRelationsSelect(
+        qb,
+        selectOptions.relations,
+        selectOptions.relationSelects
+      )
+    ).getMany();
   }
 
   public async list(paginationOpts: UserPaginationOpts, selectOptions: SelectOptions<User>) {

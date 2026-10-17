@@ -1,8 +1,8 @@
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
+import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -15,7 +15,6 @@ import {
 import { AllPlayMode } from "domain/types/dto/game/state/AllPlayDataDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
-import { AllPlayStartEventPayload } from "domain/types/socket/events/game/AllPlayEventPayloads";
 import { ChoosingToStakeBiddingCtx } from "domain/types/socket/transition/choosing";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
@@ -53,10 +52,7 @@ export class ChoosingToAllPlayBiddingHandler extends BaseTransitionHandler {
 
   protected async mutate(ctx: ChoosingToStakeBiddingCtx): Promise<MutationResult> {
     const { game, payload } = ctx;
-    const { question, theme } = QuestionPickLogic.validateQuestionPick(
-      game,
-      payload!.questionData
-    );
+    const { question, theme } = QuestionPickLogic.validateQuestionPick(game, payload!.questionData);
 
     AllPlayLogic.start(game, question, theme.id!, AllPlayMode.STAKE);
     game.gameState.answerShowData = null;
@@ -91,26 +87,8 @@ export class ChoosingToAllPlayBiddingHandler extends BaseTransitionHandler {
     _mutationResult: MutationResult,
     timerResult: TimerResult
   ): BroadcastEvent[] {
-    return [allPlayStartBroadcast(ctx.game, timerResult.timer ?? null)];
+    return [
+      GameQuestionMapper.buildEveryoneQuestionStartBroadcast(ctx.game, timerResult.timer ?? null)
+    ];
   }
-}
-
-export function allPlayStartBroadcast(
-  game: ChoosingToStakeBiddingCtx["game"],
-  timer: AllPlayStartEventPayload["timer"]
-): BroadcastEvent<AllPlayStartEventPayload> {
-  const data = game.gameState.allPlay!;
-  return {
-    event: SocketIOGameEvents.ALL_PLAY_START,
-    data: {
-      mode: data.mode,
-      questionId: data.questionId,
-      players: data.entries.map((e) => e.playerId),
-      price: data.price,
-      maxStake: data.maxStake,
-      priceMultiplier: data.priceMultiplier,
-      timer
-    },
-    room: game.id
-  };
 }

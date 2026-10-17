@@ -8,9 +8,16 @@ import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
-import { type TransitionResult, TransitionTrigger } from "domain/state-machine/types";
-import { type TimerMutation } from "domain/types/action/ActionExecutionContext";
-import { PackageQuestionDTO, PackageQuestionSubType } from "domain/types/dto/package/PackageQuestionDTO";
+import { TransitionTrigger } from "domain/state-machine/types";
+import {
+  PackageQuestionDTO,
+  PackageQuestionSubType
+} from "domain/types/dto/package/PackageQuestionDTO";
+import type {
+  CompletedSecretQuestionTransferResult,
+  CompleteSecretQuestionTransferInput,
+  SecretQuestionTransferContextResult
+} from "domain/types/question/SecretQuestionTransferTypes";
 import {
   SecretQuestionPriceInputData,
   SecretQuestionTransferInputData
@@ -18,26 +25,6 @@ import {
 import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition/special-question";
 import { SecretQuestionValidator } from "domain/validators/SecretQuestionValidator";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
-
-/**
- * Result of a secret question step: either the question goes to its answerer
- * (`question` set), or, for a customPrice question, the receiver must first
- * pick a price (`allowedPrices` set, `question` null).
- */
-export interface SecretQuestionTransferContextResult {
-  game: Game;
-  fromPlayerId: number;
-  toPlayerId: number;
-  questionId: number;
-  timer: GameStateTimer;
-  /** Full question data for personalized broadcasts; null while a price is picked */
-  question: PackageQuestionDTO | null;
-  /** Prices the receiver picks from (customPrice), when waiting for the pick */
-  allowedPrices: number[] | null;
-  /** The price the receiver picked */
-  price: number | null;
-  timerMutations: TimerMutation[];
-}
 
 /**
  * Service handling secret question type.
@@ -73,7 +60,7 @@ export class SecretQuestionService {
     const allowedPrices = SecretQuestionService.customPrices(question);
 
     if (allowedPrices) {
-      return this._startPriceSelection(game, data.targetPlayerId, question, allowedPrices);
+      return this._startPriceSelection(game, data.targetPlayerId, allowedPrices);
     }
 
     return this.completeTransfer(game, {
@@ -119,19 +106,12 @@ export class SecretQuestionService {
    */
   public async completeTransfer(
     game: Game,
-    input: {
-      targetPlayerId: number;
-      question: PackageQuestionDTO;
-      price?: number;
-      trigger: TransitionTrigger;
-      triggeredBy?: number;
-      /** Who handed the question over; defaults to its picker */
-      fromPlayerId?: number;
-    }
-  ): Promise<SecretQuestionTransferContextResult & { transition: TransitionResult }> {
+    input: CompleteSecretQuestionTransferInput
+  ): Promise<CompletedSecretQuestionTransferResult> {
     const secretData = game.gameState.secretQuestionData!;
     const { targetPlayerId, question, price, trigger, triggeredBy } = input;
 
+    // Transition from SECRET_QUESTION_TRANSFER to ANSWERING.
     const transitionResult =
       await this.phaseTransitionRouter.tryTransition<SecretTransferToAnsweringPayload>({
         game,
@@ -170,6 +150,7 @@ export class SecretQuestionService {
     if (question.subType !== PackageQuestionSubType.CUSTOM_PRICE) {
       return null;
     }
+
     const prices = [...new Set(question.allowedPrices ?? [])].sort((a, b) => a - b);
     return prices.length > 0 ? prices : null;
   }
@@ -177,7 +158,6 @@ export class SecretQuestionService {
   private _startPriceSelection(
     game: Game,
     targetPlayerId: number,
-    question: PackageQuestionDTO,
     allowedPrices: number[]
   ): SecretQuestionTransferContextResult {
     const secretData = game.gameState.secretQuestionData!;

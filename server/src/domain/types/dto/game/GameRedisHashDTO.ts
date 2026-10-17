@@ -13,5 +13,5 @@ export interface GameRedisHashDTO {
   roundsCount: string;
   questionsCount: string;
   gameState: string; // JSON string of GameStateDTO
-  settings?: string; // JSON string of GameSettingsDTO (absent on older games)
+  settings: string; // JSON string of GameSettingsDTO
 }

@@ -4,7 +4,7 @@ import {
   CONTENT_MEDIA_UNKNOWN_TIME,
   CONTENT_TEXT_MAX_TIME,
   CONTENT_TEXT_MIN_TIME,
-  CONTENT_TEXT_MS_PER_CHAR,
+  CONTENT_TEXT_MS_PER_CHAR
 } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
@@ -13,38 +13,23 @@ import { PackageFileType } from "domain/enums/package/PackageFileType";
 import {
   QuestionContentItemKind,
   QuestionContentPlanDTO,
-  QuestionContentPlanItemDTO,
-  QuestionContentStepDTO,
+  QuestionContentStepDTO
 } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import { PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
-
-/** Fallback lengths when neither displayTime nor a reported length exists */
-export interface ContentDefaults {
-  imageMs: number;
-  audioMs: number;
-  videoMs: number;
-}
+import type {
+  ContentDefaults,
+  ContentPlanEntry,
+  MediaDurations,
+  OrderedContentPlanEntry,
+  QuestionContentSource
+} from "domain/types/question/QuestionContentPlanTypes";
+import type { MediaDurationReport } from "domain/types/socket/events/game/MediaDownloadedInputData";
 
 const QUESTION_DEFAULTS: ContentDefaults = {
   imageMs: CONTENT_IMAGE_TIME,
   audioMs: CONTENT_MEDIA_UNKNOWN_TIME,
-  videoMs: CONTENT_MEDIA_UNKNOWN_TIME,
+  videoMs: CONTENT_MEDIA_UNKNOWN_TIME
 };
-
-export interface QuestionContentSource {
-  text?: string | null;
-  /** Null/undefined: the text is a caption, not a step */
-  textOrder?: number | null;
-  files?: PackageQuestionFileDTO[] | null;
-}
-
-/** Real media lengths reported by clients, keyed by file md5 */
-export type MediaDurations = Record<string, number>;
-
-interface PlanEntry {
-  item: QuestionContentPlanItemDTO;
-  waitForFinish: boolean;
-}
 
 /**
  * Builds the content timeline of a question or answer, following SIGame:
@@ -58,12 +43,11 @@ export class QuestionContentPlanLogic {
     mediaDurations: MediaDurations | null = null,
     defaults: ContentDefaults = QUESTION_DEFAULTS
   ): QuestionContentPlanDTO | null {
-    const entries: (PlanEntry & { sortKey: number; tieBreak: number })[] = [];
+    const entries: OrderedContentPlanEntry[] = [];
 
     for (const file of source.files ?? []) {
       const placement =
-        file.file.type === PackageFileType.AUDIO &&
-        file.placement === ContentPlacement.BACKGROUND
+        file.file.type === PackageFileType.AUDIO && file.placement === ContentPlacement.BACKGROUND
           ? ContentPlacement.BACKGROUND
           : ContentPlacement.SCREEN;
 
@@ -72,11 +56,11 @@ export class QuestionContentPlanLogic {
           kind: QuestionContentItemKind.FILE,
           order: file.order,
           placement,
-          durationMs: this._fileDuration(file, mediaDurations, defaults),
+          durationMs: this._fileDuration(file, mediaDurations, defaults)
         },
         waitForFinish: file.waitForFinish ?? true,
         sortKey: file.order,
-        tieBreak: 1,
+        tieBreak: 1
       });
     }
 
@@ -87,11 +71,11 @@ export class QuestionContentPlanLogic {
           kind: QuestionContentItemKind.TEXT,
           order: source.textOrder,
           placement: ContentPlacement.SCREEN,
-          durationMs: this.textDuration(text),
+          durationMs: this.textDuration(text)
         },
         waitForFinish: true,
         sortKey: source.textOrder,
-        tieBreak: 0,
+        tieBreak: 0
       });
     }
 
@@ -102,22 +86,23 @@ export class QuestionContentPlanLogic {
     entries.sort((a, b) => a.sortKey - b.sortKey || a.tieBreak - b.tieBreak);
 
     const steps: QuestionContentStepDTO[] = [];
-    let current: PlanEntry[] = [];
+    let current: ContentPlanEntry[] = [];
     let cursor = 0;
 
     const close = () => {
-      if (current.length === 0) return;
+      if (current.length === 0) {
+        return;
+      }
 
       const blocking = current.filter(
-        (e) =>
-          e.waitForFinish || e.item.placement !== ContentPlacement.BACKGROUND
+        (e) => e.waitForFinish || e.item.placement !== ContentPlacement.BACKGROUND
       );
       const durationMs = Math.max(0, ...blocking.map((e) => e.item.durationMs));
 
       steps.push({
         startMs: cursor,
         durationMs,
-        items: current.map((e) => e.item),
+        items: current.map((e) => e.item)
       });
       cursor += durationMs;
       current = [];
@@ -125,8 +110,12 @@ export class QuestionContentPlanLogic {
 
     for (const entry of entries) {
       current.push(entry);
-      if (entry.waitForFinish) close();
+
+      if (entry.waitForFinish) {
+        close();
+      }
     }
+
     close();
 
     return { steps, totalMs: cursor };
@@ -144,7 +133,7 @@ export class QuestionContentPlanLogic {
           {
             text: question.text,
             textOrder: question.textOrder,
-            files: question.questionFiles,
+            files: question.questionFiles
           },
           game.gameState.mediaDurations ?? null
         )
@@ -174,9 +163,11 @@ export class QuestionContentPlanLogic {
     const isCaption =
       !!caption && (question.textOrder === null || question.textOrder === undefined);
     const readingMs = isCaption ? this.textDuration(caption) : 0;
+
     // Choice options appear showDelay after the question, then the buzzer
     const optionsMs =
       question.type === PackageQuestionType.CHOICE ? Math.max(0, question.showDelay ?? 0) : 0;
+
     return Math.max(contentMs, readingMs) + optionsMs;
   }
 
@@ -189,6 +180,7 @@ export class QuestionContentPlanLogic {
     const opensAtMs = game.gameState.buzzerOpensAtMs ?? 0;
     const timers = game.settings.timers;
     const answerMs = game.gameState.allPlay ? timers.allPlayAnswerMs : timers.answerMs;
+
     return Math.max(contentMs, opensAtMs) + answerMs;
   }
 
@@ -205,14 +197,14 @@ export class QuestionContentPlanLogic {
    */
   public static mergeMediaDurations(
     game: Game,
-    reported: { md5: string; durationMs: number }[] | null | undefined
+    reported: MediaDurationReport[] | null | undefined
   ): void {
-    if (!reported?.length) return;
+    if (!reported?.length) {
+      return;
+    }
 
     const known = new Set(
-      (game.gameState.currentQuestion?.questionFiles ?? []).map(
-        (f) => f.file.md5
-      )
+      (game.gameState.currentQuestion?.questionFiles ?? []).map((f) => f.file.md5)
     );
     const durations: MediaDurations = { ...(game.gameState.mediaDurations ?? {}) };
 
@@ -220,6 +212,7 @@ export class QuestionContentPlanLogic {
       if (!known.has(md5) || !Number.isFinite(durationMs) || durationMs <= 0) {
         continue;
       }
+
       const clamped = Math.min(CONTENT_ITEM_MAX_TIME, Math.round(durationMs));
       durations[md5] = Math.max(durations[md5] ?? 0, clamped);
     }
@@ -243,9 +236,8 @@ export class QuestionContentPlanLogic {
         if (reported && reported > 0) {
           return Math.min(CONTENT_ITEM_MAX_TIME, reported);
         }
-        return file.file.type === PackageFileType.AUDIO
-          ? defaults.audioMs
-          : defaults.videoMs;
+
+        return file.file.type === PackageFileType.AUDIO ? defaults.audioMs : defaults.videoMs;
       }
       case PackageFileType.IMAGE:
       default:

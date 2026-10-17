@@ -5,7 +5,7 @@ import {
   BUZZER_FALSE_START_LOCK_TIME,
 } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
-import { ButtonPressMode } from "domain/types/dto/game/settings/GameSettingsDTO";
+import { ButtonPressMode } from "domain/enums/game/GameSettings";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";

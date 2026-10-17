@@ -10,28 +10,10 @@ import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
+import { type PackageMetaDTO } from "domain/types/dto/package/packageMeta";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
-
-/**
- * Metadata stored under the "meta" field of a package hash
- *
- * Meta data is immutable, stored in separate key for optimization purpose (separation immutable and mutable data)
- * Helps to avoid serialization/deserialization of the whole package on every action
- */
-export interface PackageMetaDTO {
-  id?: number;
-  title: string;
-  description?: string | null;
-  author: ShortUserInfo;
-  ageRestriction: string;
-  language?: string | null;
-  logo?: { file: unknown } | null;
-  tags: { tag: string }[];
-  createdAt: string;
-}
 
 interface PackageThemeStoreDTO {
   id: number;

@@ -1,4 +1,4 @@
-import { GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
+import type { GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { type Express } from "express";
 import { Socket as ClientSocket } from "socket.io-client";
 import { Repository } from "typeorm";

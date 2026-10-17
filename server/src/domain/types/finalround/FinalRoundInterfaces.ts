@@ -1,4 +1,5 @@
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import type { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 
 /**
@@ -10,6 +11,12 @@ export interface FinalRoundQuestionData {
   themeId: number;
   themeName: string;
   question: SimplePackageQuestionDTO;
+}
+
+/** Public final-question data together with its server-side answer data. */
+export interface ResolvedFinalRoundQuestion {
+  questionData: FinalRoundQuestionData;
+  fullQuestion: PackageQuestionDTO;
 }
 
 /**

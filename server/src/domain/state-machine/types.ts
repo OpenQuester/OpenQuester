@@ -41,7 +41,7 @@ export enum GamePhase {
   FINAL_REVIEWING = "final-reviewing",
 
   // End states
-  GAME_FINISHED = "game-finished",
+  GAME_FINISHED = "game-finished"
 }
 
 /**
@@ -62,7 +62,7 @@ export enum TransitionTrigger {
   PLAYER_DISCONNECTED = "player-disconnected",
 
   /** Automatic condition was met (all players answered, etc.) */
-  CONDITION_MET = "condition-met",
+  CONDITION_MET = "condition-met"
 }
 
 /**
@@ -184,8 +184,7 @@ export interface TimerResult {
  * Centralizes the logic for determining which phase we're in.
  */
 export function getGamePhase(game: Game): GamePhase {
-  const { questionState, currentRound, stakeQuestionData, secretQuestionData } =
-    game.gameState;
+  const { questionState, currentRound, stakeQuestionData, secretQuestionData } = game.gameState;
 
   // Game not started or finished
   if (!game.startedAt) {
@@ -211,8 +210,12 @@ export function getGamePhase(game: Game): GamePhase {
 
   // "Everyone answers" questions bid and review in regular rounds
   if (game.gameState.allPlay && currentRound?.type !== PackageRoundType.FINAL) {
-    if (questionState === QuestionState.BIDDING) return GamePhase.ALL_PLAY_BIDDING;
-    if (questionState === QuestionState.REVIEWING) return GamePhase.ALL_PLAY_REVIEWING;
+    switch (questionState) {
+      case QuestionState.BIDDING:
+        return GamePhase.ALL_PLAY_BIDDING;
+      case QuestionState.REVIEWING:
+        return GamePhase.ALL_PLAY_REVIEWING;
+    }
   }
 
   // Final round phases

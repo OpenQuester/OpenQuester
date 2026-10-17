@@ -154,13 +154,13 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
   },
   {
     event: SocketIOGameEvents.QUESTION_TOGGLE,
-    actionType: GameActionType.QUESTION_TOGGLE,
+    actionType: GameActionType.QUESTION_EXCLUDE_OR_RESTORE,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
     inputValidator: (data) => GameValidator.validateQuestionToggle(data as QuestionToggleInputData)
   },
   {
     event: SocketIOGameEvents.ANSWER_RESULT_UNDO,
-    actionType: GameActionType.ANSWER_RESULT_UNDO,
+    actionType: GameActionType.LAST_ANSWER_RULING_REVERT,
     gameIdStrategy: GameIdStrategy.FROM_SESSION
   },
   {
@@ -170,7 +170,7 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
   },
   {
     event: SocketIOGameEvents.GAME_JOIN_MODE,
-    actionType: GameActionType.GAME_JOIN_MODE,
+    actionType: GameActionType.GAME_JOIN_POLICY_CHANGE,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
     inputValidator: (data) => GameValidator.validateGameJoinMode(data as GameJoinModeInputData)
   },
@@ -262,25 +262,25 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
   },
   {
     event: SocketIOGameEvents.ALL_PLAY_STAKE,
-    actionType: GameActionType.ALL_PLAY_STAKE,
+    actionType: GameActionType.EVERYONE_STAKE_SUBMIT,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
     inputValidator: (data) => GameValidator.validateAllPlayStake(data as AllPlayStakeInputData)
   },
   {
     event: SocketIOGameEvents.ALL_PLAY_ANSWER,
-    actionType: GameActionType.ALL_PLAY_ANSWER,
+    actionType: GameActionType.EVERYONE_ANSWER_SUBMIT,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
     inputValidator: (data) => GameValidator.validateAllPlayAnswer(data as AllPlayAnswerInputData)
   },
   {
     event: SocketIOGameEvents.ALL_PLAY_REVIEW,
-    actionType: GameActionType.ALL_PLAY_REVIEW,
+    actionType: GameActionType.EVERYONE_ANSWER_REVIEW,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
     inputValidator: (data) => GameValidator.validateAllPlayReview(data as AllPlayReviewInputData)
   },
   {
     event: SocketIOGameEvents.SECRET_QUESTION_PRICE,
-    actionType: GameActionType.SECRET_QUESTION_PRICE,
+    actionType: GameActionType.SECRET_QUESTION_PRICE_SELECT,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
     inputValidator: (data) =>
       GameValidator.validateSecretQuestionPrice(data as SecretQuestionPriceInputData)

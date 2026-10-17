@@ -63,13 +63,13 @@ export class ShowmanActionLogLogic {
         return entry({ round: game.gameState.currentRound?.name ?? null });
 
       case GameActionType.QUESTION_PICK:
-      case GameActionType.QUESTION_TOGGLE: {
+      case GameActionType.QUESTION_EXCLUDE_OR_RESTORE: {
         const cell = this._cell(game, payload.questionId);
         if (!cell) return null;
         const played = this._isPlayed(game, payload.questionId);
         return entry({
           ...cell,
-          ...(action.type === GameActionType.QUESTION_TOGGLE ? { removed: played } : {})
+          ...(action.type === GameActionType.QUESTION_EXCLUDE_OR_RESTORE ? { removed: played } : {})
         });
       }
 
@@ -84,13 +84,13 @@ export class ShowmanActionLogLogic {
         });
       }
 
-      case GameActionType.ANSWER_RESULT_UNDO: {
+      case GameActionType.LAST_ANSWER_RULING_REVERT: {
         const data = result.data as AnswerResultUndoEventPayload | undefined;
         if (!data) return null;
         return entry({ player: name(data.playerId), points: -data.revertedResult });
       }
 
-      case GameActionType.GAME_JOIN_MODE:
+      case GameActionType.GAME_JOIN_POLICY_CHANGE:
         return entry({ joinMode: String(payload.joinMode ?? "open") });
 
       case GameActionType.PLAYER_KICK:
@@ -130,7 +130,7 @@ export class ShowmanActionLogLogic {
       case GameActionType.SECRET_QUESTION_TRANSFER:
         return entry({ player: name(payload.targetPlayerId) });
 
-      case GameActionType.ALL_PLAY_REVIEW:
+      case GameActionType.EVERYONE_ANSWER_REVIEW:
         return entry({ player: name(payload.playerId), correct: Boolean(payload.isCorrect) });
 
       case GameActionType.FINAL_ANSWER_REVIEW: {
@@ -184,13 +184,13 @@ export class ShowmanActionLogLogic {
         return `Showman moved on to the next round${p.round ? `: ${p.round}` : ""}`;
       case GameActionType.QUESTION_PICK:
         return `Showman picked ${p.theme} for ${p.price ?? 0}`;
-      case GameActionType.QUESTION_TOGGLE:
+      case GameActionType.QUESTION_EXCLUDE_OR_RESTORE:
         return `Showman ${p.removed ? "removed" : "restored"} ${p.theme} for ${p.price ?? 0}`;
       case GameActionType.ANSWER_RESULT:
         return `Showman judged ${who}'s answer ${p.answerType === "correct" ? "right" : "wrong"} (${signed(p.points)})`;
-      case GameActionType.ANSWER_RESULT_UNDO:
+      case GameActionType.LAST_ANSWER_RULING_REVERT:
         return `Showman took back the ruling on ${who} (${signed(p.points)})`;
-      case GameActionType.GAME_JOIN_MODE:
+      case GameActionType.GAME_JOIN_POLICY_CHANGE:
         return `Showman set who can join: ${p.joinMode}`;
       case GameActionType.PLAYER_KICK:
         return `Showman removed ${who} from the game`;
@@ -206,7 +206,7 @@ export class ShowmanActionLogLogic {
         return p.player ? `Showman gave the pick to ${p.player}` : "Showman took the pick";
       case GameActionType.SECRET_QUESTION_TRANSFER:
         return `Showman gave the question to ${who}`;
-      case GameActionType.ALL_PLAY_REVIEW:
+      case GameActionType.EVERYONE_ANSWER_REVIEW:
       case GameActionType.FINAL_ANSWER_REVIEW:
         return `Showman judged ${who}'s answer ${p.correct ? "right" : "wrong"}`;
       case GameActionType.THEME_ELIMINATE:

@@ -28,13 +28,13 @@ export enum GameActionType {
   SKIP_QUESTION_FORCE = "skip-question-force",
   SKIP_SHOW_ANSWER = "skip-show-answer",
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
-  SECRET_QUESTION_PRICE = "secret-question-price",
-  ALL_PLAY_STAKE = "all-play-stake",
-  QUESTION_TOGGLE = "question-toggle",
-  ANSWER_RESULT_UNDO = "answer-result-undo",
-  GAME_JOIN_MODE = "game-join-mode",
-  ALL_PLAY_ANSWER = "all-play-answer",
-  ALL_PLAY_REVIEW = "all-play-review",
+  SECRET_QUESTION_PRICE_SELECT = "secret-question-price",
+  EVERYONE_STAKE_SUBMIT = "all-play-stake",
+  QUESTION_EXCLUDE_OR_RESTORE = "question-toggle",
+  LAST_ANSWER_RULING_REVERT = "answer-result-undo",
+  GAME_JOIN_POLICY_CHANGE = "game-join-mode",
+  EVERYONE_ANSWER_SUBMIT = "all-play-answer",
+  EVERYONE_ANSWER_REVIEW = "all-play-review",
   STAKE_BID_SUBMIT = "stake-bid-submit",
 
   // Final Round
@@ -44,9 +44,6 @@ export enum GameActionType {
   FINAL_ANSWER_REVIEW = "final-answer-review",
 
   // Moderation (admin panel; never mapped to a socket event)
-  ADMIN_PLAYER_KICK = "admin-player-kick",
-  ADMIN_GAME_PAUSE = "admin-game-pause",
-  ADMIN_GAME_UNPAUSE = "admin-game-unpause",
   ADMIN_GAME_CLOSE = "admin-game-close",
 
   // System
@@ -60,5 +57,5 @@ export enum GameActionType {
   TIMER_QUESTION_ANSWERING_EXPIRED = "timer-question-answering-expired",
   TIMER_THEME_ELIMINATION_EXPIRED = "timer-theme-elimination-expired",
   TIMER_BIDDING_EXPIRED = "timer-bidding-expired",
-  TIMER_FINAL_ANSWERING_EXPIRED = "timer-final-answering-expired",
+  TIMER_FINAL_ANSWERING_EXPIRED = "timer-final-answering-expired"
 }

@@ -97,6 +97,19 @@ export class UserService {
     return user.toDTO(this.fileUrlBuilder);
   }
 
+  /** Load a projection for several existing, undeleted users in one query. */
+  public async getManyRaw(ids: userId[], selectOptions: SelectOptions<User>): Promise<User[]> {
+    const users = await this.userRepository.findByIds(ids, {
+      ...selectOptions,
+      select: [...new Set<keyof User>(["id", "is_deleted", ...selectOptions.select])]
+    });
+    const foundIds = new Set(users.filter((user) => !user.is_deleted).map((user) => user.id));
+    if (ids.some((id) => !foundIds.has(id))) {
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+    return users;
+  }
+
   public async getRaw(userId: userId, selectOptions?: SelectOptions<User>): Promise<User> {
     this.logger.debug("Retrieving user with options: ", {
       prefix: LogPrefix.USER,

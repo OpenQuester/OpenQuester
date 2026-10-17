@@ -1,10 +1,35 @@
 import { Game } from "domain/entities/game/Game";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import type { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import type { BroadcastEvent } from "domain/types/service/ServiceResult";
+import type { AllPlayStartEventPayload } from "domain/types/socket/events/game/AllPlayEventPayloads";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 
 export class GameQuestionMapper {
+  public static buildEveryoneQuestionStartBroadcast(
+    game: Game,
+    timer: GameStateTimerDTO | null
+  ): BroadcastEvent<AllPlayStartEventPayload> {
+    const data = game.gameState.allPlay!;
+
+    return {
+      event: SocketIOGameEvents.ALL_PLAY_START,
+      data: {
+        mode: data.mode,
+        questionId: data.questionId,
+        players: data.entries.map((entry) => entry.playerId),
+        price: data.price,
+        maxStake: data.maxStake,
+        priceMultiplier: data.priceMultiplier,
+        timer
+      },
+      room: game.id
+    };
+  }
+
   /**
    * Retrieve DTO of question by package data, round and questionId (from DB)
    * @param pack package DTO
@@ -32,7 +57,7 @@ export class GameQuestionMapper {
     return {
       id: question.id,
       answerDelay: question.answerDelay,
-      // How to answer is public; the right number or spot is not
+      // Players receive the answer format. Correct values stay in the full server-side question.
       answerType: question.answerType ?? null,
       isHidden: question.isHidden,
       order: question.order,

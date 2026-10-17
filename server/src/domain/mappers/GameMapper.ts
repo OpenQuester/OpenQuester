@@ -2,10 +2,55 @@ import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { GameRedisHashDTO } from "domain/types/dto/game/GameRedisHashDTO";
+import { type GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
+import { type PackageFileDTO } from "domain/types/dto/package/PackageFileDTO";
+import { type PackageMetaDTO } from "domain/types/dto/package/packageMeta";
+import { type ShortUserInfo } from "domain/types/user/ShortUserInfo";
 import { asUserId } from "domain/types/ids";
 
 export class GameMapper {
+  public static gameToListItemDTO(
+    game: Game,
+    createdBy: ShortUserInfo,
+    packMeta: PackageMetaDTO
+  ): GameListItemDTO {
+    return {
+      id: game.id,
+      title: game.title,
+      ageRestriction: game.ageRestriction,
+      isPrivate: game.isPrivate,
+      maxPlayers: game.maxPlayers,
+      settings: game.settings,
+      joinMode: game.gameState.joinMode ?? null,
+      players: game.players.map((p) => ({
+        id: p.meta.id,
+        role: p.role,
+        slot: p.gameSlot,
+        status: p.gameStatus
+      })),
+      createdBy: { id: createdBy.id, username: createdBy.username },
+      startedAt: game.startedAt,
+      finishedAt: game.finishedAt,
+      createdAt: game.createdAt,
+      currentRound: game.gameState.currentRound ? game.gameState.currentRound.order + 1 : null,
+      currentQuestion: game.gameState.currentQuestion?.id ?? null,
+      package: {
+        id: packMeta.id!,
+        title: packMeta.title,
+        description: packMeta.description,
+        ageRestriction: packMeta.ageRestriction as AgeRestriction,
+        author: { id: packMeta.author.id, username: packMeta.author.username },
+        createdAt: new Date(packMeta.createdAt),
+        language: packMeta.language,
+        logo: packMeta.logo as { file: PackageFileDTO } | null | undefined,
+        roundsCount: game.roundsCount ?? 0,
+        questionsCount: game.questionsCount ?? 0,
+        tags: packMeta.tags.map((t) => t.tag)
+      }
+    };
+  }
+
   /**
    * @param game Game instance
    * @returns Serialized save-ready Game object for Redis
@@ -50,7 +95,7 @@ export class GameMapper {
       questionsCount: parseInt(data.questionsCount),
       players: JSON.parse(data.players).map((p: PlayerDTO) => new Player(p)),
       gameState: JSON.parse(data.gameState),
-      settings: data.settings ? JSON.parse(data.settings) : null
+      settings: JSON.parse(data.settings)
     });
   }
 }

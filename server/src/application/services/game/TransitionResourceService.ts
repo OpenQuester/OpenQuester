@@ -5,14 +5,11 @@ import { Game } from "domain/entities/game/Game";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { FinalRoundHandler } from "domain/handlers/round/FinalRoundHandler";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
-import {
-  TransitionQuestionWithTheme,
-  TransitionResources,
-} from "domain/state-machine/types";
+import { TransitionQuestionWithTheme, TransitionResources } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
-import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
+import type { ResolvedFinalRoundQuestion } from "domain/types/finalround/FinalRoundInterfaces";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { QuestionAnswerData } from "domain/types/socket/finalround/QuestionAnswerData";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
@@ -29,20 +26,13 @@ export class TransitionResourceService {
     //
   }
 
-  public async getSavedShowingTimer(
-    game: Game
-  ): Promise<TransitionResources> {
+  public async getSavedShowingTimer(game: Game): Promise<TransitionResources> {
     return {
-      savedShowingTimer: await this.gameService.getTimer(
-        game.id,
-        QuestionState.SHOWING
-      ),
+      savedShowingTimer: await this.gameService.getTimer(game.id, QuestionState.SHOWING)
     };
   }
 
-  public async getCurrentQuestionWithTheme(
-    game: Game
-  ): Promise<TransitionResources | undefined> {
+  public async getCurrentQuestionWithTheme(game: Game): Promise<TransitionResources | undefined> {
     const questionId = game.gameState.currentQuestion?.id;
     if (!questionId) {
       return undefined;
@@ -55,10 +45,7 @@ export class TransitionResourceService {
     game: Game,
     questionId: number
   ): Promise<TransitionResources | undefined> {
-    const questionWithTheme = await this.packageStore.getQuestionWithTheme(
-      game.id,
-      questionId
-    );
+    const questionWithTheme = await this.packageStore.getQuestionWithTheme(game.id, questionId);
 
     return this.fromQuestionWithTheme(questionWithTheme);
   }
@@ -72,13 +59,11 @@ export class TransitionResourceService {
 
     return {
       questionWithTheme,
-      simpleQuestion: this.mapSimpleQuestion(questionWithTheme.question),
+      simpleQuestion: this.mapSimpleQuestion(questionWithTheme.question)
     };
   }
 
-  public fromSimpleQuestion(
-    question: PackageQuestionDTO | null
-  ): TransitionResources | undefined {
+  public fromSimpleQuestion(question: PackageQuestionDTO | null): TransitionResources | undefined {
     const simpleQuestion = this.mapSimpleQuestion(question);
     if (!simpleQuestion) {
       return undefined;
@@ -87,9 +72,7 @@ export class TransitionResourceService {
     return { simpleQuestion };
   }
 
-  public async getFinalRoundQuestionData(
-    game: Game
-  ): Promise<TransitionResources | undefined> {
+  public async getFinalRoundQuestionData(game: Game): Promise<TransitionResources | undefined> {
     const resolved = await this.resolveFinalRoundQuestionData(game);
     if (!resolved) {
       return undefined;
@@ -97,7 +80,7 @@ export class TransitionResourceService {
 
     return {
       finalRoundQuestionData: resolved.questionData,
-      finalRoundFullQuestion: resolved.fullQuestion,
+      finalRoundFullQuestion: resolved.fullQuestion
     };
   }
 
@@ -107,13 +90,11 @@ export class TransitionResourceService {
     return {
       nextRound: nextRoundEntry
         ? await this.packageStore.getRound(game.id, nextRoundEntry.order)
-        : null,
+        : null
     };
   }
 
-  public async getFinalReviewingToGameFinishResources(
-    game: Game
-  ): Promise<TransitionResources> {
+  public async getFinalReviewingToGameFinishResources(game: Game): Promise<TransitionResources> {
     const nextRoundEntry = game.getNextRound();
     const nextRound = nextRoundEntry
       ? await this.packageStore.getRound(game.id, nextRoundEntry.order)
@@ -121,7 +102,7 @@ export class TransitionResourceService {
 
     return {
       nextRound,
-      finalQuestionAnswerData: await this.resolveFinalQuestionAnswerData(game),
+      finalQuestionAnswerData: await this.resolveFinalQuestionAnswerData(game)
     };
   }
 
@@ -141,10 +122,8 @@ export class TransitionResourceService {
 
   private async resolveFinalRoundQuestionData(
     game: Game
-  ): Promise<{ questionData: FinalRoundQuestionData; fullQuestion: PackageQuestionDTO } | null> {
-    const handler = RoundHandlerFactory.create(
-      PackageRoundType.FINAL
-    ) as FinalRoundHandler;
+  ): Promise<ResolvedFinalRoundQuestion | null> {
+    const handler = RoundHandlerFactory.create(PackageRoundType.FINAL) as FinalRoundHandler;
     const remainingTheme = handler.getRemainingTheme(game);
 
     if (!remainingTheme?.questions?.[0]) {
@@ -152,10 +131,7 @@ export class TransitionResourceService {
     }
 
     const questionId = remainingTheme.questions[0].id;
-    const questionWithTheme = await this.packageStore.getQuestionWithTheme(
-      game.id,
-      questionId
-    );
+    const questionWithTheme = await this.packageStore.getQuestionWithTheme(game.id, questionId);
 
     if (!questionWithTheme) {
       return null;
@@ -165,20 +141,14 @@ export class TransitionResourceService {
       questionData: {
         themeId: remainingTheme.id,
         themeName: remainingTheme.name,
-        question: GameQuestionMapper.mapToSimpleQuestion(
-          questionWithTheme.question
-        ),
+        question: GameQuestionMapper.mapToSimpleQuestion(questionWithTheme.question)
       },
-      fullQuestion: questionWithTheme.question,
+      fullQuestion: questionWithTheme.question
     };
   }
 
-  private async resolveFinalQuestionAnswerData(
-    game: Game
-  ): Promise<QuestionAnswerData | null> {
-    const handler = RoundHandlerFactory.create(
-      PackageRoundType.FINAL
-    ) as FinalRoundHandler;
+  private async resolveFinalQuestionAnswerData(game: Game): Promise<QuestionAnswerData | null> {
+    const handler = RoundHandlerFactory.create(PackageRoundType.FINAL) as FinalRoundHandler;
     const remainingTheme = handler.getRemainingTheme(game);
 
     if (!remainingTheme?.id || !remainingTheme?.name) {
@@ -199,13 +169,11 @@ export class TransitionResourceService {
       themeId: remainingTheme.id,
       themeName: remainingTheme.name,
       questionText: question.text || undefined,
-      answerText: question.answerText || undefined,
+      answerText: question.answerText || undefined
     };
   }
 
-  private mapSimpleQuestion(
-    question: PackageQuestionDTO | null
-  ): SimplePackageQuestionDTO | null {
+  private mapSimpleQuestion(question: PackageQuestionDTO | null): SimplePackageQuestionDTO | null {
     if (!question) {
       return null;
     }

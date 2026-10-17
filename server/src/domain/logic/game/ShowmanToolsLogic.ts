@@ -62,7 +62,7 @@ export class ShowmanToolsLogic {
       }
     }
 
-    if (!last || !last.result) {
+    if (!last) {
       throw new ClientError(ClientResponse.NOTHING_TO_UNDO);
     }
 

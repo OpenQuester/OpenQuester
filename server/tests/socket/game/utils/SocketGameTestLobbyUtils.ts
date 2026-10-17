@@ -5,7 +5,8 @@ import { SocketGameContextService } from "application/services/socket/SocketGame
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
-import { ButtonPressMode, GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
+import { ButtonPressMode } from "domain/enums/game/GameSettings";
+import type { GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";

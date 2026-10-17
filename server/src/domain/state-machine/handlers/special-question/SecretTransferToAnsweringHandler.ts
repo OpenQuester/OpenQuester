@@ -7,13 +7,13 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   SecretTransferToAnsweringCtx,
-  SecretTransferToAnsweringMutationData,
+  SecretTransferToAnsweringMutationData
 } from "domain/types/socket/transition/special-question";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
@@ -56,10 +56,7 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     }
 
     // 3. Must be user action or system timeout with target player
-    if (
-      trigger !== TransitionTrigger.USER_ACTION &&
-      trigger !== TransitionTrigger.TIMER_EXPIRED
-    ) {
+    if (trigger !== TransitionTrigger.USER_ACTION && trigger !== TransitionTrigger.TIMER_EXPIRED) {
       return false;
     }
 
@@ -78,9 +75,7 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     GameStateValidator.validateGameInProgress(ctx.game);
   }
 
-  protected async mutate(
-    ctx: SecretTransferToAnsweringCtx
-  ): Promise<MutationResult> {
+  protected async mutate(ctx: SecretTransferToAnsweringCtx): Promise<MutationResult> {
     const { game, payload } = ctx;
     const secretData = game.gameState.secretQuestionData!;
     const targetPlayerId = payload!.targetPlayerId;
@@ -90,11 +85,16 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     if (questionData) {
       game.gameState.currentQuestion = questionData;
     }
+
     // customPrice: the receiver's pick replaces the board price
-    if (payload!.price !== undefined && game.gameState.currentQuestion) {
-      game.gameState.currentQuestion.price = payload!.price;
-      if (questionData) questionData.price = payload!.price;
+    if (payload?.price !== undefined && game.gameState.currentQuestion) {
+      game.gameState.currentQuestion.price = payload.price;
+
+      if (questionData) {
+        questionData.price = payload.price;
+      }
     }
+
     QuestionContentPlanLogic.applyToGame(game);
 
     // Transition to answering state
@@ -107,8 +107,8 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
         fromPlayerId,
         targetPlayerId,
         questionId: secretData.questionId,
-        questionData,
-      } satisfies SecretTransferToAnsweringMutationData,
+        questionData
+      } satisfies SecretTransferToAnsweringMutationData
     };
   }
 
@@ -131,9 +131,9 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: durationMs,
-        },
-      ],
+          pxTtl: durationMs
+        }
+      ]
     };
   }
 

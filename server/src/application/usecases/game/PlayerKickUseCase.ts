@@ -1,4 +1,5 @@
 import { PlayerLeaveService } from "application/services/game/PlayerLeaveService";
+import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { DataMutationType } from "domain/enums/DataMutationType";
 import { ClientError } from "domain/errors/ClientError";
@@ -11,24 +12,23 @@ import {
 } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import {
   type PlayerKickBroadcastData,
   type PlayerKickInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
-import { GameValidator } from "domain/validators/GameValidator";
 
 /**
  * Handles kicking a player from the game.
  *
- * With `moderator: true` (admin panel, `ADMIN_PLAYER_KICK`) the actor is not
- * in the game, so the showman check is skipped and the showman can be kicked too.
+ * Shared by showman socket commands and authorized admin-panel commands.
  */
 export class PlayerKickUseCase
   implements GameActionHandler<PlayerKickInputData, PlayerKickBroadcastData>
 {
   constructor(
     private readonly playerLeaveService: PlayerLeaveService,
-    private readonly options: { moderator: boolean } = { moderator: false }
+    private readonly socketGameValidationService: SocketGameValidationService
   ) {}
 
   public async execute(
@@ -37,13 +37,7 @@ export class PlayerKickUseCase
     const { game, action } = ctx;
     const targetPlayerId = action.payload.playerId;
 
-    if (!this.options.moderator) {
-      GameValidator.validatePlayerAuthenticated(ctx);
-
-      if (ctx.currentPlayer.role !== PlayerRole.SHOWMAN) {
-        throw new ClientError(ClientResponse.ONLY_SHOWMAN_CAN_MANAGE_PLAYERS);
-      }
-    }
+    await this.socketGameValidationService.validateShowmanOrModerator(ctx, ShowmanAction.KICK_PLAYER);
 
     const targetPlayer = game.getPlayer(targetPlayerId, {
       fetchDisconnected: false,

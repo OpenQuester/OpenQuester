@@ -24,16 +24,19 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 function requireShowman(ctx: ActionExecutionContext<unknown>): Game {
   GameStateValidator.validateGameNotFinished(ctx.game);
+
   if (ctx.currentPlayer?.role !== PlayerRole.SHOWMAN) {
     throw new ClientError(ClientResponse.ONLY_SHOWMAN_CAN_MANAGE_PLAYERS);
   }
+
   return ctx.game;
 }
 
 /** The showman removes a question from the board, or restores it */
-export class QuestionToggleUseCase
-  implements GameActionHandler<QuestionToggleInputData, QuestionToggleEventPayload>
-{
+export class ExcludeOrRestoreQuestionUseCase implements GameActionHandler<
+  QuestionToggleInputData,
+  QuestionToggleEventPayload
+> {
   public async execute(
     ctx: ActionExecutionContext<QuestionToggleInputData>
   ): Promise<ActionHandlerResult<QuestionToggleEventPayload>> {
@@ -47,7 +50,11 @@ export class QuestionToggleUseCase
       data,
       mutations: [
         DataMutationConverter.saveGameMutation(game),
-        DataMutationConverter.gameBroadcastMutation(game.id, SocketIOGameEvents.QUESTION_TOGGLE, data)
+        DataMutationConverter.gameBroadcastMutation(
+          game.id,
+          SocketIOGameEvents.QUESTION_TOGGLE,
+          data
+        )
       ],
       broadcastGame: game
     };
@@ -55,9 +62,10 @@ export class QuestionToggleUseCase
 }
 
 /** The showman takes back the last ruling on the current question */
-export class AnswerResultUndoUseCase
-  implements GameActionHandler<EmptyInputData, AnswerResultUndoEventPayload>
-{
+export class RevertLastAnswerRulingUseCase implements GameActionHandler<
+  EmptyInputData,
+  AnswerResultUndoEventPayload
+> {
   public async execute(
     ctx: ActionExecutionContext<EmptyInputData>
   ): Promise<ActionHandlerResult<AnswerResultUndoEventPayload>> {
@@ -81,9 +89,10 @@ export class AnswerResultUndoUseCase
 }
 
 /** The showman opens or closes the game to newcomers */
-export class GameJoinModeUseCase
-  implements GameActionHandler<GameJoinModeInputData, GameJoinModeEventPayload>
-{
+export class ChangeGameJoinPolicyUseCase implements GameActionHandler<
+  GameJoinModeInputData,
+  GameJoinModeEventPayload
+> {
   public async execute(
     ctx: ActionExecutionContext<GameJoinModeInputData>
   ): Promise<ActionHandlerResult<GameJoinModeEventPayload>> {
@@ -97,7 +106,11 @@ export class GameJoinModeUseCase
       data,
       mutations: [
         DataMutationConverter.saveGameMutation(game),
-        DataMutationConverter.gameBroadcastMutation(game.id, SocketIOGameEvents.GAME_JOIN_MODE, data)
+        DataMutationConverter.gameBroadcastMutation(
+          game.id,
+          SocketIOGameEvents.GAME_JOIN_MODE,
+          data
+        )
       ],
       broadcastGame: game
     };
@@ -109,9 +122,10 @@ export class GameJoinModeUseCase
  * finish: a press from here on is not a false start, and running false-start
  * locks are lifted.
  */
-export class BuzzerOpenUseCase
-  implements GameActionHandler<EmptyInputData, BuzzerOpenEventPayload>
-{
+export class BuzzerOpenUseCase implements GameActionHandler<
+  EmptyInputData,
+  BuzzerOpenEventPayload
+> {
   public async execute(
     ctx: ActionExecutionContext<EmptyInputData>
   ): Promise<ActionHandlerResult<BuzzerOpenEventPayload>> {
@@ -122,6 +136,7 @@ export class BuzzerOpenUseCase
     if (gameState.isPaused) {
       throw new ClientError(ClientResponse.GAME_IS_PAUSED);
     }
+
     if (
       gameState.questionState !== QuestionState.SHOWING ||
       gameState.answeringPlayer != null ||
@@ -138,6 +153,7 @@ export class BuzzerOpenUseCase
       gameState.buzzerOpensAtMs = Math.max(1, elapsed);
       gameState.buzzerLocks = null;
     }
+
     const data: BuzzerOpenEventPayload = { buzzerOpensAtMs: gameState.buzzerOpensAtMs ?? 0 };
 
     return {

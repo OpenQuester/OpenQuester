@@ -1,8 +1,5 @@
-import {
-  ButtonPressMode,
-  GameSettingsInput,
-  WrongAnswerPenalty
-} from "domain/types/dto/game/settings/GameSettingsDTO";
+import { ButtonPressMode, WrongAnswerPenalty } from "domain/enums/game/GameSettings";
+import type { GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
 import Joi from "joi";
 
 import {

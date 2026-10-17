@@ -64,6 +64,10 @@ export class GameService {
     return this.gameRepository.getGameEntity(gameId, updatedTtl);
   }
 
+  public async getGameListItem(game: Game): Promise<GameListItemDTO> {
+    return this.gameRepository.getGameListItem(game);
+  }
+
   public async list(paginationOpts: GamePaginationOpts) {
     return this.gameRepository.getAllGames(paginationOpts);
   }
@@ -149,7 +153,7 @@ export class GameService {
 
     await this.gameRepository.updateGameWithIndexes(game, previousIndexData);
 
-    const gameDTO = await this.gameRepository.gameToListItemDTO(game);
+    const gameDTO = await this.getGameListItem(game);
 
     const eventDataDTO: GameEventDTO = {
       event: GameEvent.CHANGED,
@@ -203,6 +207,10 @@ export class GameService {
 
   public async clearTimer(gameId: string, timerAdditional?: string) {
     return this.gameRepository.clearTimer(gameId, timerAdditional);
+  }
+
+  public async clearAllTimers(gameId: string): Promise<void> {
+    await this.gameRepository.clearAllTimers(gameId);
   }
 
   private async _emitGameCreated(gameData: GameListItemDTO): Promise<void> {

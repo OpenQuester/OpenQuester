@@ -3,6 +3,7 @@ import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { WrongAnswerPenalty } from "domain/enums/game/GameSettings";
 import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -13,6 +14,7 @@ import {
 import { GameJoinInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
+import { INSTANT_BUZZER_SETTINGS } from "tests/socket/game/utils/SocketGameTestLobbyUtils";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
@@ -31,6 +33,7 @@ describe("Showman tools", () => {
   });
 
   afterEach(async () => {
+    utils.gameSettings = INSTANT_BUZZER_SETTINGS;
     await suite?.reset();
   });
 
@@ -76,46 +79,54 @@ describe("Showman tools", () => {
     });
   });
 
-  it("takes back a wrong ruling: the points return and the player may buzz again", async () => {
-    await suite.scenario(async (scenario) => {
-      const { showmanSocket, playerSockets, gameId, playerUsers } =
-        await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
-      await utils.answerQuestion(playerSockets[0], showmanSocket);
+  it.each([
+    { penalty: WrongAnswerPenalty.SUBTRACT, expectedScoreChange: -100 },
+    { penalty: WrongAnswerPenalty.NONE, expectedScoreChange: 0 }
+  ])(
+    "takes back a wrong ruling with $penalty penalty and restores buzzer eligibility",
+    async ({ penalty, expectedScoreChange }) => {
+      await suite.scenario(async (scenario) => {
+        utils.gameSettings = { ...INSTANT_BUZZER_SETTINGS, wrongAnswerPenalty: penalty };
 
-      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT, () =>
-        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
-          answerType: AnswerResultType.WRONG,
-          scoreResult: -100
-        })
-      );
+        const { showmanSocket, playerSockets, gameId, playerUsers } =
+          await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-      const undo = await scenario.emitAndWaitForEvent<AnswerResultUndoEventPayload>(
-        playerSockets[1],
-        SocketIOGameEvents.ANSWER_RESULT_UNDO,
-        () => scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT_UNDO)
-      );
-      expect(undo).toEqual({
-        playerId: playerUsers[0].id,
-        revertedResult: -100,
-        newScore: 0,
-        canAnswerAgain: true
+        await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT, () =>
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+            answerType: AnswerResultType.WRONG,
+            scoreResult: -100
+          })
+        );
+
+        const undo = await scenario.emitAndWaitForEvent<AnswerResultUndoEventPayload>(
+          playerSockets[1],
+          SocketIOGameEvents.ANSWER_RESULT_UNDO,
+          () => scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT_UNDO)
+        );
+        expect(undo).toEqual({
+          playerId: playerUsers[0].id,
+          revertedResult: expectedScoreChange,
+          newScore: 0,
+          canAnswerAgain: true
+        });
+
+        const state = await utils.getGameState(gameId);
+        expect(state!.questionState).toBe(QuestionState.SHOWING);
+        expect(state!.answeredPlayers ?? []).toHaveLength(0);
+
+        // Nothing left to undo
+        await scenario.emitAndWaitForEvent(showmanSocket, SocketIOEvents.ERROR, () =>
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT_UNDO)
+        );
+
+        // The player may buzz again
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
       });
-
-      const state = await utils.getGameState(gameId);
-      expect(state!.questionState).toBe(QuestionState.SHOWING);
-      expect(state!.answeredPlayers ?? []).toHaveLength(0);
-
-      // Nothing left to undo
-      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOEvents.ERROR, () =>
-        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT_UNDO)
-      );
-
-      // The player may buzz again
-      await utils.answerQuestion(playerSockets[0], showmanSocket);
-    });
-  });
+    }
+  );
 
   it("closes the game to newcomers, or opens it to spectators only", async () => {
     await suite.scenario(async (scenario) => {

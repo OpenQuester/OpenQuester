@@ -13,11 +13,9 @@ import {
   GameStateDTO
 } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import {
-  GameSettingsDTO,
-  normalizeGameSettings,
-  WrongAnswerPenalty
-} from "domain/types/dto/game/settings/GameSettingsDTO";
+import type { GameSettingsDTO } from "domain/types/dto/game/settings/GameSettingsDTO";
+import { GameSettingsLogic } from "domain/logic/game/GameSettingsLogic";
+import { WrongAnswerPenalty } from "domain/enums/game/GameSettings";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GetPlayerOptions } from "domain/types/game/GetPlayerOptions";
@@ -72,7 +70,7 @@ export class Game {
     this._questionsCount = data.questionsCount;
     this._players = data.players;
     this._gameState = data.gameState;
-    this._settings = normalizeGameSettings(data.settings);
+    this._settings = GameSettingsLogic.normalize(data.settings);
   }
 
   // Getters
@@ -117,7 +115,7 @@ export class Game {
   }
 
   public set settings(settings: GameSettingsDTO) {
-    this._settings = normalizeGameSettings(settings);
+    this._settings = GameSettingsLogic.normalize(settings);
   }
 
   public get maxPlayers() {

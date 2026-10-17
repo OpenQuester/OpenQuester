@@ -4,10 +4,8 @@ import { Repository } from "typeorm";
 
 import { BUZZER_FALSE_START_LOCK_TIME } from "domain/constants/game";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  ButtonPressMode,
-  DEFAULT_GAME_SETTINGS
-} from "domain/types/dto/game/settings/GameSettingsDTO";
+import { ButtonPressMode } from "domain/enums/game/GameSettings";
+import { DEFAULT_GAME_SETTINGS } from "domain/constants/gameSettings";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BuzzerFalseStartEventPayload } from "domain/types/socket/events/game/BuzzerFalseStartEventPayload";
 import { QuestionAnswerEventPayload } from "domain/types/socket/events/game/QuestionAnswerEventPayload";

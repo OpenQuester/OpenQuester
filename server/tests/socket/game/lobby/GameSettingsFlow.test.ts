@@ -5,10 +5,7 @@ import { Repository } from "typeorm";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  ButtonPressMode,
-  WrongAnswerPenalty
-} from "domain/types/dto/game/settings/GameSettingsDTO";
+import { ButtonPressMode, WrongAnswerPenalty } from "domain/enums/game/GameSettings";
 import { QuestionAnswerEventPayload } from "domain/types/socket/events/game/QuestionAnswerEventPayload";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";

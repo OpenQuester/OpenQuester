@@ -2,22 +2,37 @@ import { describe, expect, it } from "@jest/globals";
 
 import { MINUTE_MS } from "domain/constants/time";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import {
-  DEFAULT_GAME_TIMERS,
-  normalizeGameSettings,
-  WrongAnswerPenalty
-} from "domain/types/dto/game/settings/GameSettingsDTO";
+import { DEFAULT_GAME_TIMERS } from "domain/constants/gameSettings";
+import { GameSettingsLogic } from "domain/logic/game/GameSettingsLogic";
+import { WrongAnswerPenalty } from "domain/enums/game/GameSettings";
+import { GameMapper } from "domain/mappers/GameMapper";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { GameRedisValidator } from "domain/validators/GameRedisValidator";
 import { buildGame } from "tests/integration/recovery/SingleInstanceRestartRecoveryFixtures";
 
 const NOW = Date.parse("2026-01-01T12:00:00.000Z");
 
 describe("game settings", () => {
   it("fills missing settings and timers with the defaults", () => {
-    const settings = normalizeGameSettings({ timers: { answerMs: 10_000 } });
+    const settings = GameSettingsLogic.normalize({ timers: { answerMs: 10_000 } });
     expect(settings.falseStart).toBe(true);
     expect(settings.timers).toEqual({ ...DEFAULT_GAME_TIMERS, answerMs: 10_000 });
+  });
+
+  it("persists normalized settings and rejects stored games without them", () => {
+    const game = buildGame("SETT", null);
+    game.settings = GameSettingsLogic.normalize({ timers: { answerMs: 10_000 } });
+
+    const stored = GameMapper.serializeGameToHash(game);
+    const validated = GameRedisValidator.validateRedisData({ ...stored });
+    expect(GameMapper.deserializeGameHash(validated).settings).toEqual(game.settings);
+
+    const missingSettings: Record<string, string> = { ...stored };
+    delete missingSettings.settings;
+    expect(() => GameRedisValidator.validateRedisData(missingSettings)).toThrow(
+      '"settings" is required'
+    );
   });
 
   it("makes a wrong answer to a buzzer question free when the penalty is off", () => {

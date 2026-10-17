@@ -5,7 +5,11 @@ import {
 } from "domain/constants/game";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
-import { AnswerPointDTO, PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import type { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import type {
+  AnswerContentSource,
+  AnswerRevealDetails
+} from "domain/types/question/ShowAnswerTypes";
 
 /**
  * Logic class for handling show answer phase.
@@ -17,21 +21,17 @@ export class ShowAnswerLogic {
    * SHOWING_ANSWER timer. The answer text stays visible as the headline.
    */
   public static buildAnswerPlan(
-    question: Pick<PackageQuestionDTO, "answerFiles"> | null
+    question: AnswerContentSource | null
   ): QuestionContentPlanDTO | null {
     if (!question?.answerFiles?.length) {
       return null;
     }
 
-    return QuestionContentPlanLogic.build(
-      { files: question.answerFiles },
-      null,
-      {
-        imageMs: SHOW_ANSWER_DURATION_TEXT,
-        audioMs: SHOW_ANSWER_DURATION_AUDIO,
-        videoMs: SHOW_ANSWER_DURATION_VIDEO
-      }
-    );
+    return QuestionContentPlanLogic.build({ files: question.answerFiles }, null, {
+      imageMs: SHOW_ANSWER_DURATION_TEXT,
+      audioMs: SHOW_ANSWER_DURATION_AUDIO,
+      videoMs: SHOW_ANSWER_DURATION_VIDEO
+    });
   }
 
   /**
@@ -55,13 +55,9 @@ export class ShowAnswerLogic {
   }
 
   /** Extra right answers and credits revealed together with the answer */
-  public static revealDetails(question: PackageQuestionDTO | null | undefined): {
-    rightAnswers: string[] | null;
-    authors: string[] | null;
-    sources: string[] | null;
-    answerPoint: AnswerPointDTO | null;
-    answerDeviation: number | null;
-  } {
+  public static revealDetails(
+    question: PackageQuestionDTO | null | undefined
+  ): AnswerRevealDetails {
     return {
       answerPoint: question?.answerPoint ?? null,
       answerDeviation: question?.answerDeviation ?? null,

@@ -1,5 +1,6 @@
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
+import type { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
@@ -14,9 +15,11 @@ import {
   TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import type { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
+import type { ShowingToShowingAnswerMutationData } from "domain/types/socket/transition/showing";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 /**
@@ -29,7 +32,10 @@ export class AllPlayReviewingToShowingAnswerHandler extends BaseTransitionHandle
 
   public canTransition(ctx: TransitionContext): boolean {
     const { game, trigger } = ctx;
-    if (getGamePhase(game) !== this.fromPhase) return false;
+    if (getGamePhase(game) !== this.fromPhase) {
+      return false;
+    }
+
     return (
       (trigger === TransitionTrigger.CONDITION_MET && AllPlayLogic.allReviewed(game)) ||
       trigger === TransitionTrigger.USER_ACTION
@@ -49,21 +55,9 @@ export class AllPlayReviewingToShowingAnswerHandler extends BaseTransitionHandle
       GameQuestionMapper.setQuestionPlayed(game, question.id!, questionData.theme.id!);
     }
 
-    game.setQuestionState(QuestionState.SHOWING_ANSWER);
-    game.gameState.currentQuestion = null;
-    game.gameState.questionContentPlan = null;
-    game.gameState.answeredPlayers = null;
-    game.gameState.skippedPlayers = null;
-    game.gameState.answeringPlayer = null;
-    game.gameState.answerShowData = {
-      answerFiles: question?.answerFiles ?? null,
-      answerText: question?.answerText ?? null,
-      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-      answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question),
-      ...ShowAnswerLogic.revealDetails(question)
-    };
+    this.prepareAnswerReveal(game, question);
 
-    return { data: { question } };
+    return { data: { question } satisfies ShowingToShowingAnswerMutationData };
   }
 
   protected async handleTimer(
@@ -71,9 +65,7 @@ export class AllPlayReviewingToShowingAnswerHandler extends BaseTransitionHandle
     mutationResult: MutationResult
   ): Promise<TimerResult> {
     const { game } = ctx;
-    const { question } = mutationResult.data as {
-      question: Parameters<typeof ShowAnswerLogic.calculateShowAnswerDuration>[0];
-    };
+    const { question } = mutationResult.data as ShowingToShowingAnswerMutationData;
     const duration = ShowAnswerLogic.calculateShowAnswerDuration(question);
     const timer = new GameStateTimer(duration);
     game.gameState.timer = timer.start();
@@ -105,5 +97,24 @@ export class AllPlayReviewingToShowingAnswerHandler extends BaseTransitionHandle
         room: ctx.game.id
       }
     ];
+  }
+
+  /** Replace the active question with the answer shown to every participant. */
+  private prepareAnswerReveal(game: Game, question: PackageQuestionDTO | null): void {
+    const { gameState } = game;
+
+    game.setQuestionState(QuestionState.SHOWING_ANSWER);
+    gameState.currentQuestion = null;
+    gameState.questionContentPlan = null;
+    gameState.answeredPlayers = null;
+    gameState.skippedPlayers = null;
+    gameState.answeringPlayer = null;
+    gameState.answerShowData = {
+      answerFiles: question?.answerFiles ?? null,
+      answerText: question?.answerText ?? null,
+      nextTurnPlayerId: gameState.currentTurnPlayerId ?? null,
+      answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question),
+      ...ShowAnswerLogic.revealDetails(question)
+    };
   }
 }

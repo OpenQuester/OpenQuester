@@ -4,6 +4,8 @@ import { DI_TOKENS } from "shared/di/tokens";
 import { RealtimeEvents } from "application/ports/realtime/RealtimeEvent";
 import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
+import { GameService } from "application/services/game/GameService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { type Game } from "domain/entities/game/Game";
 import { GameActionType } from "domain/enums/GameActionType";
@@ -55,17 +57,23 @@ export class SocketActionHooks {
     private readonly userNotificationRoomService: UserNotificationRoomService,
     private readonly packageStore: PackageStore,
     private readonly socketChatRepository: SocketChatRepository,
+    private readonly socketUserDataService: SocketUserDataService,
+    private readonly gameService: GameService,
     @inject(DI_TOKENS.RealtimeGateway) private readonly realtimeGateway: RealtimeGateway,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     this.hooks.set(GameActionType.JOIN, this.afterJoinGame.bind(this));
     this.hooks.set(GameActionType.LEAVE, this.afterLeaveGame.bind(this));
+    this.hooks.set(GameActionType.ADMIN_GAME_CLOSE, this.afterCloseGame.bind(this));
     this.hooks.set(GameActionType.QUESTION_PICK, this.afterQuestionPick.bind(this));
     this.hooks.set(
       GameActionType.SECRET_QUESTION_TRANSFER,
       this.afterSecretQuestionTransfer.bind(this)
     );
-    this.hooks.set(GameActionType.SECRET_QUESTION_PRICE, this.afterSecretQuestionPrice.bind(this));
+    this.hooks.set(
+      GameActionType.SECRET_QUESTION_PRICE_SELECT,
+      this.afterSecretQuestionPrice.bind(this)
+    );
   }
 
   /**
@@ -135,6 +143,29 @@ export class SocketActionHooks {
         error: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  private async afterCloseGame({ action, result }: AfterExecutionHookContext): Promise<void> {
+    if (!result.success) {
+      return;
+    }
+
+    await this.gameService.clearAllTimers(action.gameId);
+    const socketIds = await this.realtimeGateway.getRoomSocketIds(action.gameId);
+    await Promise.all(
+      socketIds.map(async (socketId) => {
+        await this.socketUserDataService.update(socketId, { gameId: JSON.stringify(null) });
+        this.realtimeGateway.updateSocketContext({ socketId, gameId: null });
+        this.realtimeGateway.leaveRoom(socketId, action.gameId);
+      })
+    );
+
+    this.logger.audit("Moderator closed a game", {
+      prefix: LogPrefix.ADMIN,
+      adminUserId: action.playerId,
+      gameId: action.gameId,
+      socketsRemoved: socketIds.length
+    });
   }
 
   private async afterJoinGame({ action, game, result }: AfterExecutionHookContext): Promise<void> {

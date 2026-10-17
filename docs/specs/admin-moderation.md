@@ -38,9 +38,16 @@ Guards on every admin action on another account (`AdminService.assertCanModerate
   (`{ gameId, reason: "moderator" }`), the game is deleted, and the lobby list receives the usual
   `games` delete event. The web client sends everyone home with "A moderator closed the game."
 
-Each of these is a moderation `GameActionType` (`ADMIN_*`) submitted through `GameActionExecutor`, so
-it queues behind in-flight player actions. They have no socket event. Players who left stay in the
-game as `disconnected` (seat and score kept); the panel shows them as "Left or offline".
+Kick, pause and unpause reuse the showman's queued `GameActionType`; close has its own
+`ADMIN_GAME_CLOSE` action. Admin commands retain the acting user's ID and use the internal system
+origin, with `manage_games` checked again when the queued handler executes. Socket payloads cannot
+grant moderator access. Players who left stay in the game as `disconnected` (seat and score kept);
+the panel shows them as "Left or offline".
+
+Closing owns its entire lifecycle inside the queued execution: the use case declares player-session
+statistics, game/package deletion and room/lobby notifications; the post-execution hook clears saved
+timers and socket sessions/runtime context, then removes sockets from the room after `game-closed`
+was sent. A queued request does not perform cleanup before it acquires the game lock.
 
 ## Packages
 

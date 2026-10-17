@@ -11,7 +11,7 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { BuzzerLogic } from "domain/logic/question/BuzzerLogic";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
-import { ButtonPressMode } from "domain/types/dto/game/settings/GameSettingsDTO";
+import { ButtonPressMode } from "domain/enums/game/GameSettings";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { buildGame } from "tests/integration/recovery/SingleInstanceRestartRecoveryFixtures";

@@ -32,8 +32,11 @@ async function advanceIfDone(
   playerId: number
 ): Promise<DataMutation[]> {
   const allPlay = game.gameState.allPlay;
-  if (!allPlay) return [];
+  if (!allPlay) {
+    return [];
+  }
 
+  // Advance bidding to preload, showing to review, or completed review to answer reveal.
   const transition = await router.tryTransition({
     game,
     trigger: TransitionTrigger.CONDITION_MET,
@@ -41,7 +44,9 @@ async function advanceIfDone(
     resources: await resources.getQuestionWithTheme(game, allPlay.questionId)
   });
 
-  if (!transition) return [];
+  if (!transition) {
+    return [];
+  }
 
   return [
     ...DataMutationConverter.mutationFromTimerMutations(transition.timerMutations),
@@ -51,16 +56,19 @@ async function advanceIfDone(
 
 function requirePlayer(ctx: ActionExecutionContext<unknown>): number {
   GameStateValidator.validateGameInProgress(ctx.game);
+
   if (ctx.currentPlayer?.role !== PlayerRole.PLAYER) {
     throw new ClientError(ClientResponse.ALL_PLAY_NOT_PARTICIPANT);
   }
+
   return ctx.currentPlayer.meta.id;
 }
 
 /** A player's hidden stake on a stake-for-everyone question */
-export class AllPlayStakeUseCase
-  implements GameActionHandler<AllPlayStakeInputData, AllPlaySubmittedEventPayload>
-{
+export class SubmitEveryoneStakeUseCase implements GameActionHandler<
+  AllPlayStakeInputData,
+  AllPlaySubmittedEventPayload
+> {
   constructor(
     private readonly router: PhaseTransitionRouter,
     private readonly resources: TransitionResourceService
@@ -75,6 +83,7 @@ export class AllPlayStakeUseCase
     AllPlayLogic.submitStake(ctx.game, playerId, ctx.action.payload.amount);
 
     const data: AllPlaySubmittedEventPayload = { playerId };
+
     return {
       success: true,
       data,
@@ -93,9 +102,10 @@ export class AllPlayStakeUseCase
 }
 
 /** A player's written answer to an "everyone answers" question */
-export class AllPlayAnswerUseCase
-  implements GameActionHandler<AllPlayAnswerInputData, AllPlaySubmittedEventPayload>
-{
+export class SubmitEveryoneAnswerUseCase implements GameActionHandler<
+  AllPlayAnswerInputData,
+  AllPlaySubmittedEventPayload
+> {
   constructor(
     private readonly router: PhaseTransitionRouter,
     private readonly resources: TransitionResourceService
@@ -110,6 +120,7 @@ export class AllPlayAnswerUseCase
     AllPlayLogic.submitAnswer(ctx.game, playerId, ctx.action.payload.answerText);
 
     const data: AllPlaySubmittedEventPayload = { playerId };
+
     return {
       success: true,
       data,
@@ -128,9 +139,10 @@ export class AllPlayAnswerUseCase
 }
 
 /** The showman's ruling on one written answer */
-export class AllPlayReviewUseCase
-  implements GameActionHandler<AllPlayReviewInputData, AllPlayReviewEventPayload>
-{
+export class ReviewEveryoneAnswerUseCase implements GameActionHandler<
+  AllPlayReviewInputData,
+  AllPlayReviewEventPayload
+> {
   constructor(
     private readonly router: PhaseTransitionRouter,
     private readonly resources: TransitionResourceService
@@ -143,6 +155,7 @@ export class AllPlayReviewUseCase
   ): Promise<ActionHandlerResult<AllPlayReviewEventPayload>> {
     const { game, currentPlayer } = ctx;
     GameStateValidator.validateGameInProgress(game);
+
     if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
       throw new ClientError(ClientResponse.ONLY_SHOWMAN_SEND_ANSWER_RESULT);
     }

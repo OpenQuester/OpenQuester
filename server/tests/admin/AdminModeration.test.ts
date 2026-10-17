@@ -1,20 +1,37 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from "@jest/globals";
 import { type Express } from "express";
+import { container } from "tsyringe";
 import { In, type Repository } from "typeorm";
 
 import { MODERATOR_DEFAULT_PERMISSIONS } from "domain/constants/staffRoles";
+import { SYSTEM_SOCKET_ID } from "domain/constants/game";
+import { gameKey, packageKey, timerKey } from "domain/constants/redisKeys";
+import { GameActionLockService } from "application/services/lock/GameActionLockService";
+import { RedisService } from "application/services/redis/RedisService";
+import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
+import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
+import { DI_TOKENS } from "shared/di/tokens";
+import { GameEvent, type GameEventDTO } from "domain/types/dto/game/GameEventDTO";
+import { GameActionType } from "domain/enums/GameActionType";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { Permissions } from "domain/enums/Permissions";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   type GameClosedBroadcastData,
   type PlayerKickBroadcastData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
+import { GameRepository } from "infrastructure/database/repositories/GameRepository";
+import { UserRepository } from "infrastructure/database/repositories/UserRepository";
 import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import {
+  finishTestCleanup,
+  NO_TEST_FAILURE,
+  releaseHeldGameLock
+} from "tests/socket/game/utils/QueueTestHelpers";
 
 describe("Admin panel moderation", () => {
   let suite: SocketGameTestSuite;
@@ -91,17 +108,25 @@ describe("Admin panel moderation", () => {
           .expect(HttpStatus.OK);
         expect(list.body.data.map((g: { id: string }) => g.id)).toContain(setup.gameId);
 
-        const details = await http
-          .get(`/v1/admin/api/games/${setup.gameId}`)
-          .set("Cookie", mod.cookie)
-          .expect(HttpStatus.OK);
-        expect(details.body.game.id).toBe(setup.gameId);
-        expect(details.body.isPaused).toBe(false);
-        const ids = details.body.players.map((p: { id: number }) => p.id);
-        expect(ids).toEqual(
-          expect.arrayContaining([setup.showmanUser.id, ...setup.playerUsers.map((u) => u.id)])
-        );
-        expect(details.body.players).toHaveLength(4);
+        const gameFetch = jest.spyOn(GameRepository.prototype, "getGameEntity");
+        try {
+          const details = await http
+            .get(`/v1/admin/api/games/${setup.gameId}`)
+            .set("Cookie", mod.cookie)
+            .expect(HttpStatus.OK);
+          expect(gameFetch).toHaveBeenCalledTimes(1);
+          expect(details.body.game).toEqual(
+            list.body.data.find((g: { id: string }) => g.id === setup.gameId)
+          );
+          expect(details.body.isPaused).toBe(false);
+          const ids = details.body.players.map((p: { id: number }) => p.id);
+          expect(ids).toEqual(
+            expect.arrayContaining([setup.showmanUser.id, ...setup.playerUsers.map((u) => u.id)])
+          );
+          expect(details.body.players).toHaveLength(4);
+        } finally {
+          gameFetch.mockRestore();
+        }
       }));
 
     it("kicks a player from a running game", () =>
@@ -241,6 +266,204 @@ describe("Admin panel moderation", () => {
 
         expect((await utils.getGameFromGameService(setup.gameId)).id).toBe(setup.gameId);
       }));
+
+    it("answers 404 when closing a missing game", () =>
+      suite.scenario(async () => {
+        const mod = await moderator();
+        await http
+          .delete("/v1/admin/api/games/MISS")
+          .set("Cookie", mod.cookie)
+          .expect(HttpStatus.NOT_FOUND);
+      }));
+
+    it("keeps close cleanup queued until the game lock is available", () =>
+      suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+        await utils.startGame(setup.showmanSocket);
+        await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+        const mod = await moderator();
+        const lockService = container.resolve(GameActionLockService);
+        const redis = container.resolve(RedisService);
+        const sessions = container.resolve(SocketUserDataService);
+        const gateway = container.resolve<RealtimeGateway>(DI_TOKENS.RealtimeGateway);
+        const everyone = [setup.showmanSocket, ...setup.playerSockets, ...setup.spectatorSockets];
+        const actors = everyone.map((socket) => scenario.actor(socket));
+        const savedTimerKey = timerKey(setup.gameId, "saved-close-regression");
+        await redis.set(savedTimerKey, "saved timer", 60_000);
+        const lock = await lockService.acquireLock(setup.gameId);
+        expect(lock.acquired).toBe(true);
+        let lockToken = lock.token;
+        let primaryFailure: unknown = NO_TEST_FAILURE;
+
+        try {
+          const mark = scenario.mark();
+          const closeProbe = scenario.createAcceptedActionProbe({
+            gameId: setup.gameId,
+            actionType: GameActionType.ADMIN_GAME_CLOSE,
+            socketId: SYSTEM_SOCKET_ID
+          });
+          const acceptedClose = closeProbe.waitForCount(1);
+          await http
+            .delete(`/v1/admin/api/games/${setup.gameId}`)
+            .set("Cookie", mod.cookie)
+            .expect(HttpStatus.NO_CONTENT);
+          await acceptedClose;
+          await scenario.assert.noInboundMany({
+            actors,
+            event: SocketIOGameEvents.GAME_CLOSED,
+            afterSequence: mark,
+            durationMs: 100
+          });
+          await scenario.assert.noInboundMany({
+            actors,
+            event: SocketIOEvents.GAMES,
+            afterSequence: mark,
+            durationMs: 100
+          });
+          expect(await redis.get(savedTimerKey)).toBe("saved timer");
+          expect(await redis.scan(gameKey(setup.gameId))).toEqual([gameKey(setup.gameId)]);
+          expect(await redis.scan(packageKey(setup.gameId))).toEqual([packageKey(setup.gameId)]);
+          expect((await gateway.getRoomSocketIds(setup.gameId)).sort()).toEqual(
+            everyone.map((s) => s.id).sort()
+          );
+          for (const socket of everyone) {
+            expect((await sessions.getSocketData(socket.id!))?.gameId).toBe(setup.gameId);
+          }
+
+          const closed = Promise.all(
+            everyone.map((socket) =>
+              scenario.waitForEvent<GameClosedBroadcastData>(socket, SocketIOGameEvents.GAME_CLOSED)
+            )
+          );
+          const lobbyDeleted = scenario.waitForEventMatching<GameEventDTO>(
+            setup.showmanSocket,
+            SocketIOEvents.GAMES,
+            (data) => data.event === GameEvent.DELETED && data.data.id === setup.gameId
+          );
+          const triggerProbe = scenario.createAcceptedActionProbe({
+            gameId: setup.gameId,
+            actionType: GameActionType.PAUSE,
+            socketId: setup.showmanSocket.id
+          });
+          const acceptedTrigger = triggerProbe.waitForCount(1);
+          lockToken = await releaseHeldGameLock(lockService, setup.gameId, lockToken);
+          scenario.actor(setup.showmanSocket).emit(SocketIOGameEvents.GAME_PAUSE, {});
+          const [notifications] = await Promise.all([closed, lobbyDeleted, acceptedTrigger]);
+          expect(notifications).toEqual(
+            everyone.map(() => ({ gameId: setup.gameId, reason: "moderator" }))
+          );
+          await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+          expect(closeProbe.records()).toHaveLength(1);
+          expect(triggerProbe.records()).toHaveLength(1);
+          expect(await redis.scan(gameKey(setup.gameId))).toEqual([]);
+          expect(await redis.scan(packageKey(setup.gameId))).toEqual([]);
+          expect(await redis.get(savedTimerKey)).toBeNull();
+          expect(await gateway.getRoomSocketIds(setup.gameId)).toEqual([]);
+          for (const socket of everyone) {
+            expect((await sessions.getSocketData(socket.id!))?.gameId).toBeNull();
+            scenario.assert.expectDirectedEventCount({
+              actor: scenario.actor(socket),
+              direction: "inbound",
+              event: SocketIOGameEvents.GAME_CLOSED,
+              afterSequence: mark,
+              expectedCount: 1
+            });
+          }
+          scenario.assert.expectDirectedEventCount({
+            actor: scenario.actor(setup.showmanSocket),
+            direction: "inbound",
+            event: SocketIOEvents.GAMES,
+            afterSequence: mark,
+            expectedCount: 1
+          });
+        } catch (error) {
+          primaryFailure = error;
+        } finally {
+          await finishTestCleanup(primaryFailure, [], async () => {
+            lockToken = await releaseHeldGameLock(lockService, setup.gameId, lockToken);
+          });
+        }
+      }));
+
+    it("keeps moderator privileges out of player socket payloads", () =>
+      suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        await utils.startGame(setup.showmanSocket);
+        const mod = await moderator();
+        const actor = scenario.actor(setup.playerSockets[0]);
+        const recipients = [setup.showmanSocket, ...setup.playerSockets].map((socket) =>
+          scenario.actor(socket)
+        );
+
+        const commands = [
+          {
+            type: GameActionType.PAUSE,
+            event: SocketIOGameEvents.GAME_PAUSE,
+            broadcast: SocketIOGameEvents.GAME_PAUSE,
+            error: "Only showman can pause the game"
+          },
+          {
+            type: GameActionType.UNPAUSE,
+            event: SocketIOGameEvents.GAME_UNPAUSE,
+            broadcast: SocketIOGameEvents.GAME_UNPAUSE,
+            error: "Only showman can unpause the game"
+          },
+          {
+            type: GameActionType.PLAYER_KICK,
+            event: SocketIOGameEvents.PLAYER_KICKED,
+            broadcast: SocketIOGameEvents.PLAYER_KICKED,
+            error: "Only showman can manage players"
+          }
+        ];
+
+        for (const command of commands) {
+          if (command.type === GameActionType.UNPAUSE) {
+            const paused = scenario.waitForEvent(
+              setup.playerSockets[0],
+              SocketIOGameEvents.GAME_PAUSE
+            );
+            await http
+              .post(`/v1/admin/api/games/${setup.gameId}/pause`)
+              .set("Cookie", mod.cookie)
+              .expect(HttpStatus.NO_CONTENT);
+            await paused;
+          }
+          await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+          const before = await utils.getGameFromGameService(setup.gameId);
+          const stateBefore = structuredClone(before.gameState);
+          const playersBefore = before.players.map((player) => player.toDTO());
+          const mark = scenario.mark();
+          const probe = scenario.createAcceptedActionProbe({
+            gameId: setup.gameId,
+            actionType: command.type,
+            socketId: actor.socketId
+          });
+          const accepted = probe.waitForCount(1);
+          const rejected = scenario.waitForEvent<{ message: string }>(
+            setup.playerSockets[0],
+            SocketIOEvents.ERROR
+          );
+          actor.emit(
+            command.event,
+            command.type === GameActionType.PLAYER_KICK
+              ? { playerId: setup.playerUsers[1].id }
+              : { moderator: true, socketId: "SYSTEM", adminUserId: mod.user.id }
+          );
+          const [error] = await Promise.all([rejected, accepted]);
+          expect(error.message).toBe(command.error);
+          await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+          expect(probe.records()).toHaveLength(1);
+          await scenario.assert.noInboundMany({
+            actors: recipients,
+            event: command.broadcast,
+            afterSequence: mark,
+            durationMs: 100
+          });
+          const after = await utils.getGameFromGameService(setup.gameId);
+          expect(after.gameState).toEqual(stateBefore);
+          expect(after.players.map((player) => player.toDTO())).toEqual(playersBefore);
+        }
+      }));
   });
 
   describe("staff roles", () => {
@@ -332,18 +555,36 @@ describe("Admin panel moderation", () => {
       suite.scenario(async () => {
         const mod = await moderator();
         const { user: target } = await signIn("rowdy");
+        const batchFetch = jest.spyOn(UserRepository.prototype, "findByIds");
+        try {
+          await http
+            .post(`/v1/admin/api/users/${target.id}/ban`)
+            .set("Cookie", mod.cookie)
+            .expect(HttpStatus.OK);
+          expect(batchFetch).toHaveBeenCalledTimes(1);
+          expect(batchFetch.mock.calls[0][0]).toEqual([mod.user.id, target.id]);
+          expect((await userRepo.findOneBy({ id: target.id }))!.is_banned).toBe(true);
 
-        await http
-          .post(`/v1/admin/api/users/${target.id}/ban`)
-          .set("Cookie", mod.cookie)
-          .expect(HttpStatus.OK);
-        expect((await userRepo.findOneBy({ id: target.id }))!.is_banned).toBe(true);
+          batchFetch.mockClear();
+          await http
+            .post(`/v1/admin/api/users/${target.id}/unban`)
+            .set("Cookie", mod.cookie)
+            .expect(HttpStatus.OK);
+          expect(batchFetch).toHaveBeenCalledTimes(1);
+          expect(batchFetch.mock.calls[0][0]).toEqual([mod.user.id, target.id]);
+          expect((await userRepo.findOneBy({ id: target.id }))!.is_banned).toBe(false);
+        } finally {
+          batchFetch.mockRestore();
+        }
+      }));
 
+    it("answers 404 when moderating a missing user", () =>
+      suite.scenario(async () => {
+        const mod = await moderator();
         await http
-          .post(`/v1/admin/api/users/${target.id}/unban`)
+          .post("/v1/admin/api/users/987654/ban")
           .set("Cookie", mod.cookie)
-          .expect(HttpStatus.OK);
-        expect((await userRepo.findOneBy({ id: target.id }))!.is_banned).toBe(false);
+          .expect(HttpStatus.NOT_FOUND);
       }));
 
     it("stops a moderator from banning or muting other staff", () =>
