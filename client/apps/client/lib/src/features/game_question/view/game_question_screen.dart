@@ -71,6 +71,11 @@ class _QuestionBottom extends WatchingWidget {
         ) ??
         false;
     final showingQuestion = gameData?.gameState.currentQuestion != null;
+    final eligible = gameData?.gameState.questionEligiblePlayers;
+    final notMyNoRiskQuestion =
+        gameData?.gameState.currentQuestion?.type == QuestionType.noRisk &&
+        !(eligible?.isEmpty ?? true) &&
+        !eligible!.contains(me?.meta.id);
     final choiceShowDelayMs = watchValue(
       (GameLobbyController e) => e.choiceShowDelayMs,
     );
@@ -81,7 +86,16 @@ class _QuestionBottom extends WatchingWidget {
     Widget child = const SizedBox();
 
     if (showingQuestion) {
-      if (!imShowman && answeringPlayer == null && !iAlreadyAnswered) {
+      if (!imShowman && answeringPlayer == null && notMyNoRiskQuestion) {
+        final picker = gameData?.players.getById(eligible.first);
+        child = Text(
+          LocaleKeys.question_only_picker_answers.tr(
+            args: [picker?.meta.username ?? ''],
+          ),
+          textAlign: TextAlign.center,
+          style: context.textTheme.bodyLarge,
+        ).center();
+      } else if (!imShowman && answeringPlayer == null && !iAlreadyAnswered) {
         child = const _AnswerButtons();
       } else if (answeringPlayer != null || imShowman) {
         child = const _AnsweringWidget();
@@ -432,6 +446,10 @@ class _AnsweringWidget extends WatchingWidget {
             ),
           ),
           if (gameData?.me.role == PlayerRole.showman) const _ShowmanControls(),
+          if (answeringPlayerId != null &&
+              answeringPlayerId == gameData?.me.meta.id &&
+              _giveUpQuestionTypes.contains(question?.type))
+            const _GiveUpButton(),
         ],
       ),
     );
@@ -548,6 +566,36 @@ class _SkipQuestionBtn extends StatelessWidget {
     return FilledButton.tonal(
       onPressed: getIt<GameLobbyController>().skipQuestion,
       child: Text(LocaleKeys.skip_question.tr()),
+    );
+  }
+}
+
+/// Question types answered by one player, who may give up instead
+const Set<QuestionType> _giveUpQuestionTypes = {
+  QuestionType.noRisk,
+  QuestionType.secret,
+  QuestionType.stake,
+};
+
+class _GiveUpButton extends StatelessWidget {
+  const _GiveUpButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 4,
+      children: [
+        OutlinedButton(
+          onPressed: getIt<GameLobbyController>().giveUp,
+          child: Text(LocaleKeys.question_give_up.tr()),
+        ),
+        Text(
+          LocaleKeys.question_give_up_hint.tr(),
+          style: context.textTheme.bodySmall,
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }

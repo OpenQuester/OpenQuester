@@ -134,7 +134,10 @@
     "hint": "Hint: {}",
     "skip_round": "Skip this round",
     "sure_skip_round": "Are you sure you want to skip this round?",
-    "waiting_for_all_players": "Waiting for all players to download media..."
+    "waiting_for_all_players": "Waiting for all players to download media...",
+    "only_picker_answers": "Only {} answers this question",
+    "give_up": "Give up",
+    "give_up_hint": "Counts as a wrong answer"
   },
   "delete_lobby": "Delete lobby",
   "delete_lobby_confirmation": "Do you want to delete the lobby?",

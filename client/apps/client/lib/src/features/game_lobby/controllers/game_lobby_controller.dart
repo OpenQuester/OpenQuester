@@ -306,23 +306,23 @@ class GameLobbyController {
 
     if (chatOperation.type != ChatOperationType.insert) return;
     final message = chatOperation.message;
-    final text = switch (message) {
-      TextMessage() => message.text,
-      SystemMessage() => message.text,
-      _ => null,
-    };
+    // Game events stay in the chat log without a popup; only people's
+    // messages pop up
+    if (message is SystemMessage ||
+        message?.authorId == SocketChatController.systemMessageId) {
+      return;
+    }
+    final text = message is TextMessage ? message.text : null;
     if ((text?.trim()).isEmptyOrNull) return;
 
     final author = gameData.value?.players.getById(
       int.tryParse(message?.authorId ?? ''),
     );
-    final isSystemMessage =
-        message?.authorId == SocketChatController.systemMessageId;
 
     await getIt<ToastController>().show(
       text?.trim(),
       title: author?.meta.username,
-      type: isSystemMessage ? ToastType.info : ToastType.chat,
+      type: ToastType.chat,
     );
   }
 
@@ -634,6 +634,8 @@ class GameLobbyController {
           questionContentPlan: questionData.contentPlan,
           buzzerOpensAtMs: questionData.buzzerOpensAtMs,
           buzzerLocks: null,
+          // A no-risk question is reserved for the player who picked it
+          questionEligiblePlayers: questionData.questionEligiblePlayers,
         );
     choiceShowDelayMs.value = _parseChoiceShowDelay(data['data']);
     choiceAnswers.value = _parseChoiceAnswers(data['data']);
@@ -951,6 +953,14 @@ class GameLobbyController {
     if (lockedUntil != null && lockedUntil.isAfter(DateTime.now())) return;
 
     socket?.emit(SocketIoGameSendEvents.questionAnswer.json!);
+  }
+
+  /// Gives up a no-risk, secret or stake question I'm answering: the server
+  /// rules it as a wrong answer
+  void giveUp() {
+    final state = gameData.value?.gameState;
+    if (state?.answeringPlayer != myId) return;
+    socket?.emit(SocketIoGameSendEvents.questionSkip.json!);
   }
 
   void passQuestion({required bool pass}) {
