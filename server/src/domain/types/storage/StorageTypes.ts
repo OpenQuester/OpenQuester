@@ -19,6 +19,55 @@ export interface StorageGroupLimits extends StorageLimits {
   group: StorageGroup;
 }
 
+export interface StoragePermission {
+  name: string;
+}
+
+export interface StorageUserFacts {
+  is_guest: boolean;
+  permissions: StoragePermission[];
+}
+
+/** One row per content-addressed filename, regardless of duplicate database rows. */
+export interface StoredFileSize {
+  filename: string;
+  size: number | null;
+}
+
+/** Database usage projection used before storage groups and overrides are applied. */
+export interface StorageUserUsageRecord {
+  id: number;
+  username: string;
+  usedBytes: number;
+  isGuest: boolean;
+  permissions: string[];
+}
+
+/** Minimal entity projection accepted by quota checks, before relations are loaded. */
+export interface StorageQuotaUser {
+  id?: number;
+  is_guest?: boolean;
+  permissions?: StoragePermission[];
+}
+
+/** The group limits after applying a user's personal quota override. */
+export interface EffectiveStorageLimits {
+  group: StorageGroup;
+  limits: StorageLimits;
+  overridden: boolean;
+}
+
+export interface StorageBucketUsage {
+  /** Each content-addressed file contributes its bytes only once. */
+  usedBytes: number;
+  fileCount: number;
+}
+
+export interface StorageBucketDTO extends StorageBucketUsage {
+  /** S3_BUCKET_QUOTA_BYTES, when set. */
+  quotaBytes: number | null;
+}
+
 /** What GET /v1/me/storage answers. */
 export interface MyStorageDTO {
   group: StorageGroup;
@@ -40,13 +89,7 @@ export interface StorageUserUsageDTO {
 }
 
 export interface AdminStorageDTO {
-  bucket: {
-    /** Distinct stored files the database knows the size of. */
-    usedBytes: number;
-    fileCount: number;
-    /** S3_BUCKET_QUOTA_BYTES, when set. */
-    quotaBytes: number | null;
-  };
+  bucket: StorageBucketDTO;
   groups: StorageGroupLimits[];
   topUsers: StorageUserUsageDTO[];
 }

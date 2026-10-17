@@ -2,6 +2,7 @@ import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
 import { PackageStorageService } from "application/services/package/PackageStorageService";
+import { type GuestCleanupBatch } from "domain/types/storage/GuestCleanupTypes";
 import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
@@ -47,8 +48,19 @@ export class StorageCleanupService {
     return unused.length;
   }
 
+  /** Removes one guest batch, then deletes only avatars with no remaining references. */
+  public async removeInactiveGuests(before: Date, limit: number): Promise<GuestCleanupBatch> {
+    const batch = await this.storageRepository.removeInactiveGuests(before, limit);
+    await this.removeIfUnused(batch.avatarFilenames);
+
+    return batch;
+  }
+
   private async remove(filenames: string[]): Promise<void> {
-    if (filenames.length === 0) return;
+    if (filenames.length === 0) {
+      return;
+    }
+
     await this.storageRepository.deleteFileRows(filenames);
     await this.packageStorageService.deleteFiles(filenames);
     this.logger.info("Deleted unused files", { prefix: LogPrefix.S3, count: filenames.length });

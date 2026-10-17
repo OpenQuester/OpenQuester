@@ -59,12 +59,14 @@ export class CronJobFactory {
 
   /** Removes guests nobody has used for GUEST_INACTIVE_DAYS, with their avatars. */
   public createGuestCleanupJob(): GuestCleanupJob {
+    const inactiveDays = this.env.GUEST_INACTIVE_DAYS ?? 30;
+    const cronExpression = this.env.CRON_GUEST_CLEANUP_EXPRESSION || "0 0 4 * * *";
+
     return new GuestCleanupJob(
       this.logger,
-      this.storageRepository,
       this.storageCleanupService,
-      this.env.GUEST_INACTIVE_DAYS,
-      this.env.CRON_GUEST_CLEANUP_EXPRESSION
+      inactiveDays,
+      cronExpression
     );
   }
 

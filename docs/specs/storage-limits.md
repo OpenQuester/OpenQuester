@@ -45,6 +45,9 @@ example "This package's media is 620 MB; the limit for one package is
 500 MB." Edits are charged to the package's author, and the package being
 replaced does not count against itself.
 
+On an upload, previously declared file sizes are confirmed before evaluating
+file and package limits, so that upload uses any newly measured storage sizes.
+
 Avatars (`PATCH /v1/me` with a new avatar) are checked against the picture
 limit and the total using the stored object's real size.
 `POST /v1/files/{filename}` needs a session (guests included).
@@ -61,8 +64,10 @@ sizes already known; their files are measured by the nightly job.
   are deleted, and every stored file's size is recorded from the listing.
 - Nightly (`GuestCleanupJob`, `CRON_GUEST_CLEANUP_EXPRESSION`, default 4 AM):
   guests not seen for `GUEST_INACTIVE_DAYS` (default 30) are deleted with
-  their avatar. A guest who appears in game statistics is marked deleted
-  instead, so other players' history stays intact. `user.last_seen_at` is
+  their avatar. Each batch is removed in a database transaction, followed by
+  one bulk cleanup of avatars that have no remaining references. A guest who
+  appears in game statistics or owns a package is marked deleted instead,
+  preserving scores, game history and package attribution. `user.last_seen_at` is
   written at most hourly by the auth middleware.
 
 ## API and UI

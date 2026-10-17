@@ -1,9 +1,16 @@
 import { inject, singleton } from "tsyringe";
+import { In } from "typeorm";
 
 import { DI_TOKENS } from "shared/di/tokens";
 import { StorageGroup } from "domain/types/storage/StorageTypes";
+import { type GuestCleanupBatch, type InactiveGuest } from "domain/types/storage/GuestCleanupTypes";
 import { Database } from "infrastructure/database/Database";
 import { StorageLimit } from "infrastructure/database/models/StorageLimit";
+import { FileUsage } from "infrastructure/database/models/FileUsage";
+import { User } from "infrastructure/database/models/User";
+import { Package } from "infrastructure/database/models/package/Package";
+import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
+import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 
 /** A stored file as quota counts it: one row per MD5. */
 export interface StoredFileSize {
@@ -241,44 +248,70 @@ export class StorageRepository {
   }
 
   public async touchLastSeen(userId: number): Promise<void> {
-    await this.ds.query(
-      `UPDATE "user" SET "last_seen_at" = now()
-       WHERE "id" = $1 AND ("last_seen_at" IS NULL OR "last_seen_at" < now() - interval '1 hour')`,
-      [userId]
-    );
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+    await this.ds.getRepository(User).createQueryBuilder()
+      .update()
+      .set({ last_seen_at: now })
+      .where("id = :userId", { userId })
+      .andWhere("(last_seen_at IS NULL OR last_seen_at < :oneHourAgo)", { oneHourAgo })
+      .execute();
   }
 
-  /** Guests not seen since `before`, with whether they appear in any game's statistics (kept for history). */
-  public async getInactiveGuests(
-    before: Date,
-    limit: number
-  ): Promise<{ id: number; avatarFilename: string | null; hasGames: boolean }[]> {
-    const rows: { id: number; avatar: string | null; has_games: boolean }[] = await this.ds.query(
-      `SELECT x."id", f."filename" AS "avatar",
-              (EXISTS (SELECT 1 FROM "game_statistics" g WHERE g."created_by" = x."id")
-               OR EXISTS (SELECT 1 FROM "player_game_stats" s WHERE s."user_id" = x."id")) AS "has_games"
-       FROM "user" x
-       LEFT JOIN "file" f ON f."id" = x."avatar"
-       WHERE x."is_guest" = true AND x."is_deleted" = false
-         AND COALESCE(x."last_seen_at", x."updated_at", x."created_at") < $1
-       ORDER BY x."id"
-       LIMIT $2`,
-      [before, limit]
-    );
-    return rows.map((r) => ({ id: r.id, avatarFilename: r.avatar, hasGames: r.has_games }));
-  }
+  /** Removes one batch atomically; retained accounts preserve scores, game history and authorship. */
+  public async removeInactiveGuests(before: Date, limit: number): Promise<GuestCleanupBatch> {
+    return this.ds.transaction(async (manager) => {
+      const users = manager.getRepository(User);
+      const hostedGames = manager.createQueryBuilder(GameStatistics, "game")
+        .select("1").where("game.created_by = guest.id").getQuery();
+      const playedGames = manager.createQueryBuilder(PlayerGameStats, "stats")
+        .select("1").where("stats.user_id = guest.id").getQuery();
+      const authoredPackages = manager.createQueryBuilder(Package, "package")
+        .select("1").where("package.author = guest.id").getQuery();
 
-  /** Removes a guest: deleted outright, or marked deleted when game statistics still point at them. */
-  public async removeGuest(id: number, keepRow: boolean): Promise<void> {
-    await this.ds.query(`DELETE FROM "file_usage" WHERE "user_id" = $1 AND "package_id" IS NULL`, [id]);
-    if (keepRow) {
-      await this.ds.query(
-        `UPDATE "user" SET "is_deleted" = true, "avatar" = NULL WHERE "id" = $1`,
-        [id]
-      );
-    } else {
-      await this.ds.query(`DELETE FROM "user" WHERE "id" = $1`, [id]);
-    }
+      const guests = await users.createQueryBuilder("guest")
+        .select("guest.id", "id")
+        .addSelect("avatar.filename", "avatarFilename")
+        .addSelect(`EXISTS (${hostedGames}) OR EXISTS (${playedGames}) OR EXISTS (${authoredPackages})`, "keepAccount")
+        .leftJoin("guest.avatar", "avatar")
+        .where("guest.is_guest = :isGuest AND guest.is_deleted = :isDeleted", {
+          isGuest: true,
+          isDeleted: false
+        })
+        .andWhere("COALESCE(guest.last_seen_at, guest.updated_at, guest.created_at) < :before", { before })
+        .orderBy("guest.id", "ASC")
+        .limit(limit)
+        .setLock("pessimistic_write", undefined, ["guest"])
+        .getRawMany<InactiveGuest>();
+
+      if (guests.length === 0) {
+        return { deletedCount: 0, retainedCount: 0, avatarFilenames: [] };
+      }
+
+      const guestIds = guests.map((guest) => guest.id);
+      const retainedIds = guests.filter((guest) => guest.keepAccount).map((guest) => guest.id);
+      const deletedIds = guests.filter((guest) => !guest.keepAccount).map((guest) => guest.id);
+
+      await manager.createQueryBuilder().delete().from(FileUsage)
+        .where("user_id IN (:...guestIds)", { guestIds })
+        .andWhere("package_id IS NULL")
+        .execute();
+
+      if (retainedIds.length > 0) {
+        await users.update({ id: In(retainedIds) }, { is_deleted: true, avatar: null });
+      }
+
+      if (deletedIds.length > 0) {
+        await users.delete({ id: In(deletedIds) });
+      }
+
+      return {
+        deletedCount: deletedIds.length,
+        retainedCount: retainedIds.length,
+        avatarFilenames: guests.flatMap((guest) => guest.avatarFilename ? [guest.avatarFilename] : [])
+      };
+    });
   }
 
   /** Guest flag and permission names, for working out a user's storage group. */

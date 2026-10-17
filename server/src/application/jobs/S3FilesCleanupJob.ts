@@ -92,9 +92,12 @@ export class S3FilesCleanupJob extends BaseCronJob {
         const existingSet = new Set(existingFilenames);
 
         const sizes = new Map<string, number>();
-        for (const file of filteredBatch)
-          if (existingSet.has(file.filename) && typeof file.size === "number")
+        for (const file of filteredBatch) {
+          if (existingSet.has(file.filename) && typeof file.size === "number") {
             sizes.set(file.filename, file.size);
+          }
+        }
+
         await this.storageRepository.setVerifiedSizes(sizes);
 
         // Find orphaned files in this batch
