@@ -7,7 +7,7 @@ import { collectMedia, loadDraft, loadMedia, putMedia } from "./drafts";
 import type { MediaFile } from "@/features/upload/types";
 
 describe("drafts made from an imported file", () => {
-  it("keep the import report until it is dismissed", async () => {
+  it("keep the original import report", async () => {
     const parsed: ParsedPackage = {
       format: "siq",
       content: {

@@ -36,7 +36,7 @@ export interface EditorState {
   publishedId?: number;
   /** A published package opened to look at: no edits, no autosave. */
   readOnly: boolean;
-  /** The import report of the file this draft came from, until dismissed. */
+  /** The original import report, retained for the publish check. */
   importWarnings: ImportWarning[];
   /** Why the last autosave failed (storage full, aborted write); null when saved. */
   saveError: string | null;
@@ -54,7 +54,6 @@ export interface EditorState {
   markSaved: (at: number) => void;
   markSaveFailed: (error: string) => void;
   retrySave: () => void;
-  dismissImportWarnings: () => void;
   setPublished: (id: number) => void;
 }
 
@@ -123,7 +122,6 @@ export function createEditorStore(init: {
     markSaved: (savedAt) => set({ savedAt, saveError: null }),
     markSaveFailed: (saveError) => set({ saveError }),
     retrySave: () => set({ saveRequest: get().saveRequest + 1 }),
-    dismissImportWarnings: () => set({ importWarnings: [] }),
     setPublished: (publishedId) => set({ publishedId }),
   }));
 }

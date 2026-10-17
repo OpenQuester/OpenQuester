@@ -169,7 +169,7 @@ export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
   };
 
   const importWarnings = useEditor((s) => s.importWarnings);
-  const dismissImportWarnings = useEditor((s) => s.dismissImportWarnings);
+  const [importReportHidden, setImportReportHidden] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const exportDraft = async () => {
     setExportError(null);
@@ -221,8 +221,11 @@ export function EditorShell({ header }: { header?: React.ReactNode } = {}) {
                 {exportError}
               </p>
             )}
-            {importWarnings.length > 0 && (
-              <ImportWarnings warnings={importWarnings} onDismiss={dismissImportWarnings} />
+            {importWarnings.length > 0 && !importReportHidden && (
+              <ImportWarnings
+                warnings={importWarnings}
+                onDismiss={() => setImportReportHidden(true)}
+              />
             )}
             <RoundChips onAdd={readOnly ? undefined : addRound} />
             {round ? (

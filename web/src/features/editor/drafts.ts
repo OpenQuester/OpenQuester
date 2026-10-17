@@ -15,7 +15,7 @@ export interface Draft {
   updatedAt: number;
   /** Set once uploaded, so the list can link to the published package. */
   publishedId?: number;
-  /** What the import of the original file changed or left out, until dismissed. */
+  /** What the import of the original file changed or left out. */
   importWarnings?: ImportWarning[];
 }
 

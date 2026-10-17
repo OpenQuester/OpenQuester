@@ -60,6 +60,8 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   store per open editor. Drafts and media live in IndexedDB (`drafts.ts`)
   until Publish, which reuses the upload flow. `validate.ts` follows
   `docs/specs/package-validation-spec.md`: critical issues block Publish.
+  Import compatibility warnings stay on the draft and appear in the publish
+  check. Hiding the editor report only hides that panel; it keeps the warnings.
   Drag and drop is native HTML5; every drag has a Move dialog equivalent for
   touch and keyboard.
   `/packages/$id/preview` opens a published package in the same editor with
