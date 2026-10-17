@@ -28,6 +28,14 @@ class GameQuestionController {
   bool _planPlaying = false;
   int _planRevision = 0;
 
+  /// Start of the screen file's step on the question timer while the
+  /// timeline plays, so its clip starts at the server's position
+  int? _screenStartMs;
+
+  /// Bumped by every question data change; an older media load sees it
+  /// changed and drops its player instead of showing it
+  int _loadRevision = 0;
+
   static final Dio _cacheDio = Dio(
     BaseOptions(receiveTimeout: const Duration(seconds: 10)),
   );
@@ -51,8 +59,14 @@ class GameQuestionController {
   }
 
   Future<void> _onQuestionChange() async {
+    final load = ++_loadRevision;
+    bool current() => load == _loadRevision;
+    // Owned by this load until it is shown; disposed if a newer one wins
+    VideoPlayerController? loaded;
+    File? loadedFile;
     try {
       await clearVideoControllers();
+      if (!current()) return;
 
       final file = questionData.value?.file?.file;
 
@@ -68,7 +82,6 @@ class GameQuestionController {
       // Wait for all players before playing
       waitingForPlayers.value = !ignoreWaitingForPlayers;
 
-      VideoPlayerController? controller;
       if (file.type != PackageFileType.image) {
         final extension = switch (file.type) {
           PackageFileType.video => 'webm',
@@ -79,6 +92,7 @@ class GameQuestionController {
         // Web: Preload media by caching it
         if (kIsWeb) {
           await _cacheFile(Uri.parse(file.link!));
+          if (!current()) return;
         }
 
         final (
@@ -89,23 +103,31 @@ class GameQuestionController {
           fileExtension: extension,
           cacheKey: file.md5,
         );
-        controller = videoController;
-        _tmpFile = tmpFile;
+        loaded = videoController;
+        loadedFile = tmpFile;
+        if (!current()) return;
 
         await videoController.setVolume(
           VideoPlayerUtils.toLogVolume(volume.value),
         );
         await videoController.initialize();
+        if (!current()) return;
 
         final waitMs = questionData.value?.file?.displayTime;
         if (waitMs != null) {
-          Future<void>.delayed(
-            Duration(milliseconds: waitMs),
-            () => mediaController.value?.pause(),
-          );
+          // Only this load's player, and only while it is still on screen
+          Future<void>.delayed(Duration(milliseconds: waitMs), () {
+            if (identical(mediaController.value, videoController)) {
+              return videoController.pause();
+            }
+          });
         }
       }
 
+      final controller = loaded;
+      if (loadedFile != null) _tmpFile = loadedFile;
+      loaded = null;
+      loadedFile = null;
       mediaController.value = controller;
       showMedia.value = true;
 
@@ -124,13 +146,49 @@ class GameQuestionController {
                 ],
         );
       } else {
-        await mediaController.value?.play();
+        // The timeline already runs (a later step, or a rejoin)
+        waitingForPlayers.value = false;
+        if (controller != null) await _playScreenMedia(controller);
       }
     } catch (e) {
-      error.value = getIt<GameLobbyController>().onError(e);
-      logger.e('GameQuestionController: Failed to load media: $e');
+      if (current()) {
+        error.value = getIt<GameLobbyController>().onError(e);
+        logger.e('GameQuestionController: Failed to load media: $e');
+      }
+    } finally {
+      if (loaded != null) unawaited(_disposeStale(loaded, loadedFile));
     }
     // TODO: Start slideshow timer
+  }
+
+  /// Starts a screen clip at the server timeline's position within its
+  /// step, so a rejoin or a slow load doesn't replay it from the start and
+  /// get cut off by the next step
+  Future<void> _playScreenMedia(VideoPlayerController controller) async {
+    final startMs = _screenStartMs;
+    if (_plan != null && startMs != null) {
+      final offsetMs = timerElapsedMs(_planTimer, paused: false) - startMs;
+      if (offsetMs > 0) {
+        await controller.seekTo(Duration(milliseconds: offsetMs));
+      }
+    }
+    if (identical(mediaController.value, controller)) await controller.play();
+  }
+
+  Future<void> _disposeStale(
+    VideoPlayerController controller,
+    File? file,
+  ) async {
+    try {
+      await controller.dispose();
+    } catch (e) {
+      logger.w(e);
+    }
+    try {
+      await file?.delete();
+    } catch (e) {
+      logger.w(e);
+    }
   }
 
   /// Plays the question's content timeline on the server's question timer:
@@ -180,6 +238,7 @@ class GameQuestionController {
     _planTimer = null;
     _planPlaying = false;
     _planRevision++;
+    _screenStartMs = null;
     final background = _background.values.toList();
     _background.clear();
     await Future.wait(background.map((media) => media.dispose()));
@@ -204,9 +263,13 @@ class GameQuestionController {
       text: position.showsText ? question.text : caption,
       file: file,
     );
+    _screenStartMs = position.screenStartMs;
+    ignoreWaitingForPlayers = true;
     if (next != questionData.value) {
-      ignoreWaitingForPlayers = true;
       questionData.value = next;
+    } else if (waitingForPlayers.value) {
+      // Loaded before the timeline started (a rejoin): play it from here
+      unawaited(onAllPlayersReady());
     }
 
     final nextAt = ContentPlanPosition.nextChangeAt(plan, elapsed);
@@ -349,7 +412,8 @@ class GameQuestionController {
     if (waitingForPlayers.value) {
       waitingForPlayers.value = false;
       showMedia.value = true;
-      await mediaController.value?.play();
+      final controller = mediaController.value;
+      if (controller != null) await _playScreenMedia(controller);
     }
   }
 }

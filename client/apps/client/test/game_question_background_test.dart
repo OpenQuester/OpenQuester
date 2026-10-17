@@ -502,4 +502,99 @@ void main() {
       expect(platform.playing, contains(replacementId));
     },
   );
+
+  group('screen clips', () {
+    final firstClip = _file(0, PackageFileType.audio, md5: 'first-clip');
+    final secondClip = _file(1, PackageFileType.audio, md5: 'second-clip');
+    final clipQuestion = PackageQuestion(
+      type: QuestionType.simple,
+      order: 0,
+      price: 100,
+      showAnswerDuration: null,
+      text: 'Name this tune',
+      questionFiles: [firstClip, secondClip],
+    );
+    final clipPlan = QuestionContentPlan(
+      totalMs: 8000,
+      steps: [
+        QuestionContentStep(
+          startMs: 0,
+          durationMs: 4000,
+          items: [_item(0, 4000)],
+        ),
+        QuestionContentStep(
+          startMs: 4000,
+          durationMs: 4000,
+          items: [_item(1, 4000)],
+        ),
+      ],
+    );
+
+    backgroundTest(
+      'a rejoin starts the clip at the timeline position',
+      () async {
+        controller.playPlan(
+          question: clipQuestion,
+          plan: clipPlan,
+          timer: _timer(5500),
+        );
+        await flush();
+
+        final id = platform.playerFor(secondClip.file.md5);
+        expect(platform.positions[id], const Duration(milliseconds: 1500));
+        expect(platform.playing, contains(id));
+      },
+    );
+
+    backgroundTest(
+      'a clip loaded before the timeline started plays from its position',
+      () async {
+        controller.questionData.value = GameQuestionData(
+          text: clipQuestion.text,
+          file: firstClip,
+        );
+        await flush();
+        final id = platform.playerFor(firstClip.file.md5);
+        expect(controller.waitingForPlayers.value, isTrue);
+        expect(platform.played, isEmpty);
+
+        controller.playPlan(
+          question: clipQuestion,
+          plan: clipPlan,
+          timer: _timer(1500),
+        );
+        await flush();
+
+        expect(platform.playerFor(firstClip.file.md5), id);
+        expect(platform.positions[id], const Duration(milliseconds: 1500));
+        expect(platform.playing, contains(id));
+        expect(controller.waitingForPlayers.value, isFalse);
+      },
+    );
+
+    backgroundTest('a slow old load cannot replace a newer step', () async {
+      platform.initializeImmediately = false;
+      controller.playPlan(
+        question: clipQuestion,
+        plan: clipPlan,
+        timer: _timer(0),
+      );
+      await flush();
+      final oldId = platform.playerFor(firstClip.file.md5);
+
+      controller.resumePlan(_timer(4000));
+      await flush();
+      final newId = platform.playerFor(secondClip.file.md5);
+      platform.completeInitialization(newId);
+      await flush();
+      platform.completeInitialization(oldId);
+      await flush();
+
+      expect(controller.questionData.value?.file, secondClip);
+      expect(platform.played, isNot(contains(oldId)));
+      expect(platform.disposed, contains(oldId));
+      expect(platform.playing, contains(newId));
+      expect(controller.mediaController.value?.playerId, newId);
+    });
+  });
 }
