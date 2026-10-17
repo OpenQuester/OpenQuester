@@ -20,6 +20,7 @@ import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUti
 import { INSTANT_BUZZER_SETTINGS } from "tests/socket/game/utils/SocketGameTestLobbyUtils";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
+import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 
 describe("Choice Question Flow Tests", () => {
   let suite: SocketGameTestSuite;
@@ -35,6 +36,7 @@ describe("Choice Question Flow Tests", () => {
   });
 
   afterEach(async () => {
+    utils.packageTransform = null;
     await suite?.reset();
   });
 
@@ -297,16 +299,86 @@ describe("Choice Question Flow Tests", () => {
       await suite.scenario(async (scenario) => {
         const { showmanSocket, playerSocket, gameId } = await buzzOnChoice("Something else");
 
-        await scenario.emitAndWaitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.ANSWER_SUBMITTED,
-          () =>
-            scenario
-              .actor(playerSocket)
-              .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "Option A" })
+        await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_SUBMITTED, () =>
+          scenario
+            .actor(playerSocket)
+            .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "Option A" })
         );
         await scenario.waitForNoEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT, 500);
         expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.ANSWERING);
+      });
+    });
+  });
+
+  describe("Automatic special-question values", () => {
+    it.each(
+      [PackageQuestionType.NO_RISK, PackageQuestionType.STAKE].flatMap((type) =>
+        [AnswerType.NUMBER, AnswerType.POINT].flatMap((answerType) =>
+          [true, false].map((correct) => ({ type, answerType, correct }))
+        )
+      )
+    )("uses the effective value for $type/$answerType (correct=$correct)", async (testCase) => {
+      await suite.scenario(async (scenario) => {
+        const { type, answerType, correct } = testCase;
+        utils.packageTransform = (pkg) => {
+          const question = pkg.rounds[0].themes
+            .flatMap(({ questions }) => questions)
+            .find((q) => q.type === type)!;
+          question.answerType = answerType;
+          if (answerType === AnswerType.NUMBER) question.answerNumber = 42;
+          else question.answerPoint = { x: 0.5, y: 0.5 };
+        };
+        const { showmanSocket, playerSockets, playerUsers, gameId } =
+          await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        await utils.startGame(showmanSocket);
+        const isStake = type === PackageQuestionType.STAKE;
+        if (isStake) {
+          for (const player of playerUsers) await utils.setPlayerScore(gameId, player.id, 1000);
+          await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
+        }
+        const question = await utils.findQuestionByType(type, gameId);
+        await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+        if (isStake) {
+          await scenario.emitAndWaitForEvent(
+            showmanSocket,
+            SocketIOGameEvents.STAKE_BID_SUBMIT,
+            () =>
+              scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+                bidType: StakeBidType.NORMAL,
+                bidAmount: 300
+              })
+          );
+          await scenario.emitAndWaitForEvent(
+            showmanSocket,
+            SocketIOGameEvents.STAKE_QUESTION_WINNER,
+            () =>
+              scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+                bidType: StakeBidType.PASS,
+                bidAmount: null
+              })
+          );
+        } else {
+          await utils.answerQuestion(playerSockets[0], showmanSocket);
+        }
+        const answerText =
+          answerType === AnswerType.NUMBER ? (correct ? "42" : "7") : correct ? "0.5,0.5" : "0,0";
+        const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () =>
+            scenario
+              .actor(playerSockets[0])
+              .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText })
+        );
+        const change = correct ? (isStake ? 300 : 800) : isStake ? -300 : 0;
+        expect(result.answerResult).toMatchObject({
+          answerType: correct ? AnswerResultType.CORRECT : AnswerResultType.WRONG,
+          result: change,
+          score: (isStake ? 1000 : 0) + change
+        });
+        expect((await utils.getGameState(gameId))!.questionState).toBe(
+          QuestionState.SHOWING_ANSWER
+        );
       });
     });
   });
