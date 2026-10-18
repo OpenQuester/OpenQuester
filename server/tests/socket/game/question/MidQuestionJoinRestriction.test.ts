@@ -154,6 +154,62 @@ describe("Mid-Question Join Restriction", () => {
       });
     });
 
+    it("should send full question data to showman who rejoins a paused game", async () => {
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId, showmanUser } = setup;
+
+        await utils.startGame(showmanSocket);
+
+        const initialQuestionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+        const initialAnswerText = ((await initialQuestionDataPromise).data as PackageQuestionDTO)
+          .answerText;
+
+        expect(initialAnswerText).toBeDefined();
+
+        // A pause (or restart recovery, which pauses every game) clears the active timer
+        await utils.pauseGame(showmanSocket);
+
+        const disconnectProbe = utils.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.DISCONNECT,
+          socketId: showmanSocket.id!
+        });
+        try {
+          scenario.actor(showmanSocket).disconnect();
+          await disconnectProbe.waitForCount(1);
+          await utils.waitForActionsComplete(gameId);
+        } finally {
+          disconnectProbe.dispose();
+        }
+
+        const reconnected = await utils.createSocketForExistingUser(app, showmanUser.id);
+        const rejoinQuestionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          reconnected.socket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+
+        const rejoinData = await utils.joinSpecificGameWithData(
+          reconnected.socket,
+          gameId,
+          PlayerRole.SHOWMAN
+        );
+        const rejoinQuestionData = await rejoinQuestionDataPromise;
+
+        expect(rejoinData.gameState.isPaused).toBe(true);
+        expect(rejoinData.gameState.timer).toBeNull();
+        expect((rejoinQuestionData.data as PackageQuestionDTO).answerText).toBe(initialAnswerText);
+        expect(rejoinQuestionData.timer).toEqual(
+          expect.objectContaining({ durationMs: expect.any(Number) })
+        );
+      });
+    });
+
     it("should include answer reveal data when a player joins during SHOWING_ANSWER state", async () => {
       await suite.scenario(async (scenario) => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
