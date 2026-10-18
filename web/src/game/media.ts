@@ -1,3 +1,5 @@
+import { mapUrl } from "@/lib/urlMappings";
+
 import type { Question, QuestionFile } from "./protocol";
 
 /**
@@ -40,7 +42,8 @@ export async function preloadQuestionMedia(
 }
 
 function preloadFile(file: QuestionFile, durations: MediaDuration[]): Promise<boolean> {
-  const url = file.file.link!;
+  // Off-document elements: the Discord Activity's src patch doesn't reach them
+  const url = mapUrl(file.file.link!);
   return new Promise<boolean>((resolve) => {
     if (file.file.type === "image") {
       // Decoded, not just downloaded: the picture paints the moment it shows.

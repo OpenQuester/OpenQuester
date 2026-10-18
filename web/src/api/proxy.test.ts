@@ -146,4 +146,41 @@ describe("Pages proxy origin boundary", () => {
     expect(response).toBe(upgrade);
     expect(upstreamFetch).toHaveBeenCalledOnce();
   });
+
+  describe("Discord Activity", () => {
+    const activity = "https://123456789.discordsays.com";
+    const activityEnv = { ...env, DISCORD_CLIENT_ID: "123456789" };
+
+    it("forwards requests from the configured Activity origin", async () => {
+      const response = await proxy({
+        env: activityEnv,
+        request: new Request(`${site}/v1/auth/discord/activity`, {
+          method: "POST",
+          headers: { Origin: activity, Cookie: "session=activity" },
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      const forwarded = upstreamFetch.mock.calls[0]?.[0] as Request;
+      expect(forwarded.headers.get("Origin")).toBeNull();
+      expect(forwarded.headers.get("Cookie")).toBe("session=activity");
+    });
+
+    it.each([
+      ["another application's Activity", activityEnv, "https://987654321.discordsays.com"],
+      ["an Activity when none is configured", env, activity],
+      ["a malformed client id", { ...env, DISCORD_CLIENT_ID: "1.evil.example/" }, activity],
+    ])("rejects %s", async (_, handlerEnv, origin) => {
+      const response = await proxy({
+        env: handlerEnv,
+        request: new Request(`${site}/v1/auth/socket`, {
+          method: "POST",
+          headers: { Origin: origin },
+        }),
+      });
+
+      expect(response.status).toBe(403);
+      expect(upstreamFetch).not.toHaveBeenCalled();
+    });
+  });
 });

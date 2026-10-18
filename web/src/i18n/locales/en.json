@@ -1459,5 +1459,20 @@
     "help_other": "{{count}} questions are still on the board. They won't be played.",
     "helpEmpty": "The next round starts right away.",
     "confirm": "Skip round"
+  },
+  "discordActivity": {
+    "connecting": "Connecting to Discord…",
+    "findingGame": "Looking for this call's game…",
+    "retry": "Try again",
+    "pickTitle": "Pick a package for this call",
+    "pickHint": "Whoever picks first hosts the game. Everyone else in the call joins it automatically.",
+    "search": "Search packages",
+    "noPackages": "No packages found.",
+    "gameReady": "{{host}} is hosting this call's game.",
+    "joinGame": "Join the game",
+    "errors": {
+      "not_configured": "This server isn't set up to run as a Discord Activity.",
+      "auth_failed": "Couldn't sign in with Discord."
+    }
   }
 }
