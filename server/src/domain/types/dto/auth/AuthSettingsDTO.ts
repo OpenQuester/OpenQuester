@@ -1,3 +1,4 @@
+import { type DiscordActivitySettingsDTO } from "domain/types/dto/auth/DiscordActivitySettingsDTO";
 import { type EOauthProvider } from "domain/types/dto/auth/Oauth2LoginDTO";
 
 /** One sign-in provider the server has set up */
@@ -11,4 +12,6 @@ export interface OauthProviderSettingsDTO {
 export interface AuthSettingsDTO {
   /** Providers that are set up; one that isn't is left out */
   oauthProviders: OauthProviderSettingsDTO[];
+  /** Set when the web app may run as a Discord Activity */
+  discordActivity: DiscordActivitySettingsDTO | null;
 }

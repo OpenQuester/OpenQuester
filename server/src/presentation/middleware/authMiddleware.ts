@@ -38,6 +38,7 @@ const isPublicEndpoint = (env: Environment, requestUrl: string, method: string):
     { url: "v1/auth/logout", method: "GET" },
     { url: "v1/auth/settings", method: "GET" },
     { url: "v1/auth/oauth2", method: "POST" },
+    { url: "v1/auth/discord/activity", method: "POST" },
     { url: "v1/auth/guest", method: "POST" }
   ];
 

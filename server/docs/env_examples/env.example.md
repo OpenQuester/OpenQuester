@@ -17,6 +17,9 @@ ADMIN_EMAILS=
 # Public Discord application id, served to clients in the provider list of
 # GET /v1/auth/settings. Empty turns Discord sign-in off
 DISCORD_CLIENT_ID=
+# Server-only Discord application secret. With DISCORD_CLIENT_ID it turns on the
+# Discord Activity (POST /v1/auth/discord/activity exchanges the Activity's code)
+DISCORD_CLIENT_SECRET=
 
 # Domain (full) to which cookie will be assigned
 API_DOMAIN=

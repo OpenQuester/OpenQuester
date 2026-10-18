@@ -18,6 +18,9 @@ export enum ClientResponse {
   OAUTH_PROVIDER_NOT_SUPPORTED = "oauth_provider_not_supported",
   SESSION_SAVING_ERROR = "session_saving_error",
   SOCKET_LOGGED_IN = "socket_logged_in",
+  DISCORD_ACTIVITY_DISABLED = "discord_activity_disabled",
+  DISCORD_CODE_EXCHANGE_FAILED = "discord_code_exchange_failed",
+  DISCORD_ACTIVITY_GAME_BUSY = "discord_activity_game_busy",
 
   // Validation
   VALIDATION_ERROR = "validation_error",

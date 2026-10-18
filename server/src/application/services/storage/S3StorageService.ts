@@ -73,6 +73,11 @@ export class S3StorageService {
     });
   }
 
+  /** Scheme, host and port that public file links point at */
+  public getPublicOrigin(): string {
+    return this.fileUrlBuilder.getPublicOrigin();
+  }
+
   public getUrl(filename: string) {
     return this.fileUrlBuilder.getUrl(filename);
   }
