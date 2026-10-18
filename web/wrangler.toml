@@ -7,6 +7,8 @@ compatibility_date = "2026-09-01"
 # Previews talk to the dev server.
 [vars]
 API_ORIGIN = "https://dev-api.openquester.app"
+# Discord application id: lets the Discord Activity's discordsays.com proxy in.
+# DISCORD_CLIENT_ID = ""
 
 [env.production.vars]
 API_ORIGIN = "https://api.openquester.app"
