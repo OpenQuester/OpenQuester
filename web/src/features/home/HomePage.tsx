@@ -186,7 +186,7 @@ export function HomePage() {
   );
 }
 
-function GameCard({ game }: { game: GameListItem }) {
+export function GameCard({ game }: { game: GameListItem }) {
   const { t } = useTranslation();
   const status: GameStatus = gameStatus(game);
   const full = playerCount(game) >= game.maxPlayers;

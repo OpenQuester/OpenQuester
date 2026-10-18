@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api, unwrap } from "@/api/client";
@@ -9,6 +9,8 @@ import { authSettingsQuery } from "@/features/auth/discord";
 import { displayName, meKey } from "@/features/auth/useMe";
 import { DEFAULT_GAME_SETTINGS } from "@/features/create-game/GameRules";
 import { setJoinIntent } from "@/features/game/joinIntent";
+import { GameCard } from "@/features/home/HomePage";
+import { gameStatus, parseGameCode, useGames } from "@/features/home/useGames";
 import { NO_FILTERS, usePackages, type PackageCard } from "@/features/packages/usePackages";
 import type { PlayerRole } from "@/game/protocol";
 import { Button } from "@/ui/Button";
@@ -171,31 +173,101 @@ function InstanceLobby({ session }: { session: ActivitySession }) {
   if (instance.isLoading) return <PageLoader label={t("discordActivity.findingGame")} />;
 
   const game = instance.data?.game;
-  if (game) {
-    return (
-      <ActivityShell>
-        <h1 className="m-0 font-display text-3xl font-extrabold">{game.title}</h1>
-        <p className="text-muted">
-          {t("discordActivity.gameReady", { host: game.createdBy.username })}
-        </p>
-        <Button variant="accent" size="lg" onClick={() => join(instance.data!)}>
-          {t("discordActivity.joinGame")}
-        </Button>
-      </ActivityShell>
-    );
-  }
+  const member = game?.players.some((p) => p.id === session.user.id) ?? false;
 
   return (
     <ActivityShell>
-      <h1 className="m-0 font-display text-3xl font-extrabold">{t("discordActivity.pickTitle")}</h1>
-      <p className="text-muted">{t("discordActivity.pickHint")}</p>
-      {createError && (
+      {game ? (
+        <section className="flex flex-col gap-4" aria-labelledby="call-game">
+          <h1 id="call-game" className="m-0 font-display text-3xl font-extrabold">
+            {game.title}
+          </h1>
+          <p className="text-muted">
+            {t("discordActivity.gameReady", { host: game.createdBy.username })}
+          </p>
+          <Button variant="accent" size="lg" onClick={() => join(instance.data!)}>
+            {member ? t("discordActivity.rejoinGame") : t("discordActivity.joinGame")}
+          </Button>
+        </section>
+      ) : (
+        <section className="flex flex-col gap-4" aria-labelledby="pick-title">
+          <h1 id="pick-title" className="m-0 font-display text-3xl font-extrabold">
+            {t("discordActivity.pickTitle")}
+          </h1>
+          <p className="text-muted">{t("discordActivity.pickHint")}</p>
+          {createError && (
+            <p role="alert" className="text-danger">
+              {createError}
+            </p>
+          )}
+          <PackagePicker busy={creating} onPick={(pkg) => void host(pkg)} />
+        </section>
+      )}
+      <OtherGames exclude={game?.id ?? null} />
+    </ActivityShell>
+  );
+}
+
+/**
+ * Any other game, by code or from the open list. These are ordinary games:
+ * the game page asks for a password or a role like it does on the website.
+ */
+function OtherGames({ exclude }: { exclude: string | null }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const games = useGames();
+  const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const open = (games.data ?? []).filter((g) => g.id !== exclude && gameStatus(g) !== "finished");
+
+  function onJoin(e: FormEvent) {
+    e.preventDefault();
+    const parsed = parseGameCode(code);
+    if (!parsed) {
+      setCodeError(t("home.codeInvalid"));
+      return;
+    }
+    void navigate({ to: "/games/$gameId", params: { gameId: parsed } });
+  }
+
+  return (
+    <section
+      className="mt-6 flex flex-col gap-3 border-t border-line pt-6"
+      aria-labelledby="other-games"
+    >
+      <h2 id="other-games" className="m-0 font-display text-xl font-bold">
+        {t("discordActivity.otherGames")}
+      </h2>
+      <form onSubmit={onJoin} className="flex gap-2" noValidate>
+        <TextInput
+          aria-label={t("discordActivity.gameCode")}
+          placeholder={t("discordActivity.gameCode")}
+          value={code}
+          onChange={(e) => {
+            setCode(e.target.value);
+            setCodeError(null);
+          }}
+          className="min-w-0 flex-1"
+        />
+        <Button type="submit" variant="primary">
+          {t("discordActivity.joinByCode")}
+        </Button>
+      </form>
+      {codeError && (
         <p role="alert" className="text-danger">
-          {createError}
+          {codeError}
         </p>
       )}
-      <PackagePicker busy={creating} onPick={(pkg) => void host(pkg)} />
-    </ActivityShell>
+      {games.isLoading && <Spinner label={t("common.loading")} />}
+      {games.isSuccess && open.length === 0 && (
+        <p className="text-muted">{t("discordActivity.noOtherGames")}</p>
+      )}
+      <ul className="m-0 flex list-none flex-col gap-3 p-0">
+        {open.map((g) => (
+          <GameCard key={g.id} game={g} />
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -1481,6 +1481,11 @@
       "authorize": "Waiting for Discord permission…",
       "sign_in": "Signing in to OpenQuester…",
       "authenticate": "Finishing Discord sign-in…"
-    }
+    },
+    "rejoinGame": "Back to the game",
+    "otherGames": "Other games",
+    "gameCode": "Game code or link",
+    "joinByCode": "Join",
+    "noOtherGames": "No other open games right now."
   }
 }

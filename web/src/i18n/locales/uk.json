@@ -1541,6 +1541,11 @@
       "authorize": "Чекаємо на дозвіл Discord…",
       "sign_in": "Вхід до OpenQuester…",
       "authenticate": "Завершуємо вхід через Discord…"
-    }
+    },
+    "rejoinGame": "Повернутися до гри",
+    "otherGames": "Інші ігри",
+    "gameCode": "Код або посилання на гру",
+    "joinByCode": "Приєднатися",
+    "noOtherGames": "Зараз немає інших відкритих ігор."
   }
 }
