@@ -58,6 +58,9 @@ Use the same application as "Log in with Discord" so `discord_id` matches.
 
 1. Installation → Installation Contexts: enable User Install and Guild Install.
 2. OAuth2 → Redirects: add `https://127.0.0.1` (placeholder; the SDK handles it).
+   It must be the **first** redirect: the Activity's `authorize` uses the first
+   one, and a custom scheme there (the Flutter app's `openquester://`) fails with
+   `Redirect URI 'openquester://' is not supported by client`.
 3. Activities → URL Mappings:
    - `/` → the web app host (Pages, or the API host when it serves `WEB_APP_DIR`).
      That host already forwards `/v1` and `/socket.io` to the API.
@@ -91,8 +94,8 @@ the tunnel host, and launch from a voice channel. Vite proxies `/v1` and
 - `handshake` hangs: `DISCORD_CLIENT_ID` on the server isn't the Activity's
   application id, or the page lost `frame_id` / `instance_id` before the SDK
   started.
-- `authorize` fails: the user closed the consent dialog, or OAuth2 has no
-  redirect (`https://127.0.0.1`).
+- `authorize` fails: the user closed the consent dialog, or the first OAuth2
+  redirect isn't `https://127.0.0.1`.
 - `sign_in` fails: wrong `DISCORD_CLIENT_SECRET`, or the request never reached
   the API (check the `/` mapping and, on Pages, the `DISCORD_CLIENT_ID` variable).
 
