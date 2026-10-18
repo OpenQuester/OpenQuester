@@ -7,9 +7,9 @@ import { api, unwrap } from "@/api/client";
 import type { GameListItem, User } from "@/api/types";
 import { authSettingsQuery } from "@/features/auth/discord";
 import { displayName, meKey } from "@/features/auth/useMe";
-import { DEFAULT_GAME_SETTINGS } from "@/features/create-game/GameRules";
+import { DEFAULT_GAME_SETTINGS } from "@/features/create-game/gameSettings";
 import { setJoinIntent } from "@/features/game/joinIntent";
-import { GameCard } from "@/features/home/HomePage";
+import { GameCard } from "@/features/home/GameCard";
 import { gameStatus, parseGameCode, useGames } from "@/features/home/useGames";
 import { NO_FILTERS, usePackages, type PackageCard } from "@/features/packages/usePackages";
 import type { PlayerRole } from "@/game/protocol";
@@ -17,6 +17,7 @@ import { Button } from "@/ui/Button";
 import { TextInput } from "@/ui/Field";
 import { PageLoader, Spinner } from "@/ui/Spinner";
 
+import { reportPresence } from "./presence";
 import { ActivityError, startActivity, type ActivitySession, type ActivityStep } from "./activity";
 
 /** How often people in the call look for a game someone else started. */
@@ -114,6 +115,14 @@ function InstanceLobby({ session }: { session: ActivitySession }) {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const joining = useRef(false);
+
+  // Between games: the status says they are choosing what to play
+  useEffect(() => {
+    reportPresence({
+      details: t("discordActivity.presence.lobbyDetails"),
+      state: t("discordActivity.presence.choosing"),
+    });
+  }, [t]);
 
   const instance = useQuery({
     queryKey: instanceGameKey(session.instanceId),

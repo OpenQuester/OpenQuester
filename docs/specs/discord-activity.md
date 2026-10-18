@@ -43,6 +43,14 @@ signs in separately.
 7. Socket.IO is WebSocket-only (`game/connection.ts`), which Discord's proxy
    supports.
 
+8. Rich presence: the Activity asks for `rpc.activities.write` too and sets
+   each player's Discord status (`features/discord/presence.ts`): the game's
+   title, the round (or lobby, paused, game over), seats as a party and the
+   time since the game started; between games it says they are choosing one.
+   Updates are folded together for 2 s because Discord rate-limits them. The
+   website can't set Discord status: a browser page has no way to reach the
+   Discord app (that needs the desktop client's local RPC, see #128).
+
 ## Server pieces
 
 - `AuthRestApiController`: `POST /v1/auth/discord/activity`, settings field.
