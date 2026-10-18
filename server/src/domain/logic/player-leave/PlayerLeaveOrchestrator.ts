@@ -73,6 +73,7 @@ export class PlayerLeaveOrchestrator {
     const strategyInput: PlayerLeaveStrategyInput = {
       game,
       userId,
+      keepsSeat: options.reason === PlayerLeaveReason.DISCONNECT,
       stakeBidding: options.stakeBidding,
       transitionResources: options.transitionResources,
     };
