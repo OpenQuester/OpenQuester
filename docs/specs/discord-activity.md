@@ -74,9 +74,13 @@ Use the same application as "Log in with Discord" so `discord_id` matches.
 5. Activities → Settings: Enable Activities.
 6. Server: set `DISCORD_CLIENT_SECRET`. Pages: set the `DISCORD_CLIENT_ID` variable.
 
-If the Activity page says the app "has no commands registered to launch
-them", the default entry point command wasn't created (it is made when
-Activities are first enabled). Register it once with the bot token
+The server registers the Activity's "Launch" entry point command at startup
+when the application has none (`DiscordEntryPointService`, using a
+client-credentials token with `applications.commands.update`; it logs a
+warning and carries on when Discord refuses). Discord normally makes that
+command when Activities are first enabled, but an app can end up without one,
+and the portal then says it "has no commands registered to launch them".
+To register it by hand instead, use the bot token
 (Developer Portal → Bot → Reset Token):
 
 ```bash

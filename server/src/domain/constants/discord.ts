@@ -1,8 +1,34 @@
+import {
+  type DiscordCommandInput,
+  DiscordCommandType,
+  DiscordEntryPointHandler
+} from "domain/types/discord/DiscordCommand";
+
 export const getDiscordCDNLink = (discordUserId: string, filename: string) => {
   return `https://cdn.discordapp.com/avatars/${discordUserId}/${filename}`;
 };
 
 export const DISCORD_API_URL = "https://discord.com/api";
+
+/** Discord calls made at startup give up after this long */
+export const DISCORD_STARTUP_REQUEST_TIMEOUT_MS = 5000;
+
+/** Client-credentials scope that may create the application's own commands */
+export const DISCORD_COMMANDS_UPDATE_SCOPE = "applications.commands.update";
+
+/**
+ * The "Launch" command Discord shows in the app launcher. Discord makes it
+ * when Activities are first enabled, but not always; the server adds it when
+ * it is missing.
+ */
+export const DISCORD_ACTIVITY_ENTRY_POINT: DiscordCommandInput = {
+  name: "launch",
+  description: "Play OpenQuester in this voice channel",
+  type: DiscordCommandType.PRIMARY_ENTRY_POINT,
+  handler: DiscordEntryPointHandler.DISCORD_LAUNCH_ACTIVITY,
+  integration_types: [0, 1],
+  contexts: [0, 1, 2]
+};
 
 /** Discord serves an Activity from `https://{clientId}.discordsays.com` */
 export const getDiscordActivityOrigin = (clientId: string): string => {

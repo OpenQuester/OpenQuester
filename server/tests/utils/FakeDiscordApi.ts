@@ -19,14 +19,17 @@ export interface FakeDiscordAccount {
 export class FakeDiscordApi {
   private constructor(
     private readonly server: Server,
-    public readonly url: string
+    public readonly url: string,
+    /** The application's commands, as Discord would store them */
+    public readonly commands: Record<string, unknown>[]
   ) {
     //
   }
 
   public static async start(account: FakeDiscordAccount): Promise<FakeDiscordApi> {
+    const commands: Record<string, unknown>[] = [];
     const server = createServer((req, res) => {
-      void FakeDiscordApi.handle(account, req, res);
+      void FakeDiscordApi.handle(account, commands, req, res);
     });
 
     server.listen(0, "127.0.0.1");
@@ -34,7 +37,7 @@ export class FakeDiscordApi {
 
     const { port } = server.address() as AddressInfo;
 
-    return new FakeDiscordApi(server, `http://127.0.0.1:${port}`);
+    return new FakeDiscordApi(server, `http://127.0.0.1:${port}`, commands);
   }
 
   public async stop(): Promise<void> {
@@ -44,6 +47,7 @@ export class FakeDiscordApi {
 
   private static async handle(
     account: FakeDiscordAccount,
+    commands: Record<string, unknown>[],
     req: IncomingMessage,
     res: ServerResponse
   ): Promise<void> {
@@ -53,8 +57,23 @@ export class FakeDiscordApi {
       res.end(JSON.stringify(data));
     };
 
+    const appToken = `app-token-${account.clientId}`;
+    const commandsPath = `/applications/${account.clientId}/commands`;
+
     if (req.method === "POST" && req.url === "/oauth2/token") {
       const form = new URLSearchParams(body);
+
+      if (form.get("grant_type") === "client_credentials") {
+        const allowed =
+          form.get("client_id") === account.clientId &&
+          form.get("client_secret") === account.clientSecret &&
+          form.get("scope") === "applications.commands.update";
+
+        return allowed
+          ? reply(200, { access_token: appToken, token_type: "Bearer", scope: form.get("scope") })
+          : reply(401, { error: "invalid_client" });
+      }
+
       const valid =
         form.get("client_id") === account.clientId &&
         form.get("client_secret") === account.clientSecret &&
@@ -75,6 +94,19 @@ export class FakeDiscordApi {
       return req.headers.authorization === `Bearer ${account.accessToken}`
         ? reply(200, account.user)
         : reply(401, { message: "401: Unauthorized", code: 0 });
+    }
+
+    if (req.url === commandsPath && req.headers.authorization === `Bearer ${appToken}`) {
+      if (req.method === "GET") {
+        return reply(200, commands);
+      }
+
+      if (req.method === "POST") {
+        const command = { id: String(commands.length + 1), ...JSON.parse(body) };
+        commands.push(command);
+
+        return reply(201, command);
+      }
     }
 
     reply(404, { message: "404: Not Found" });

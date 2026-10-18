@@ -1,6 +1,9 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Repository } from "typeorm";
 
+import { container } from "tsyringe";
+
+import { DiscordEntryPointService } from "application/services/discord/DiscordEntryPointService";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { User } from "infrastructure/database/models/User";
 import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
@@ -117,6 +120,20 @@ describe("Discord Activity", () => {
       maxPlayers: 4
     };
   }
+
+  describe("launch command", () => {
+    it("registers the Activity's entry point command once at startup", async () => {
+      expect(discord.commands).toEqual([
+        expect.objectContaining({ name: "launch", type: 4, handler: 2 })
+      ]);
+
+      // A later start finds it and leaves it alone
+      const again = await container.resolve(DiscordEntryPointService).ensureEntryPointCommand();
+
+      expect(again).toBe("exists");
+      expect(discord.commands).toHaveLength(1);
+    });
+  });
 
   describe("settings", () => {
     it("tells the web app which media host to route through Discord's proxy", async () => {
