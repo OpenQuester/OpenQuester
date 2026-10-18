@@ -6,6 +6,7 @@ import type { QuestionFile } from "@/game/protocol";
 import { cn } from "@/lib/cn";
 import { Spinner } from "@/ui/Spinner";
 import { ReplayIcon, VolumeIcon } from "@/ui/icons";
+import { mapUrl } from "@/lib/urlMappings";
 
 /**
  * Every file of a question at once, in order. Used by the showman's preview
@@ -40,7 +41,10 @@ export function MediaItem({
   positionMs?: () => number;
 }) {
   const { t } = useTranslation();
-  const src = file.file.link!;
+  // Inside a Discord Activity the file comes through Discord's proxy. Setting
+  // that URL up front matters: swapping src after the element started loading
+  // aborts play() and audio/video would stay paused.
+  const src = mapUrl(file.file.link!);
   const type = file.file.type;
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -161,7 +165,15 @@ function Playback({
       else el.addEventListener("loadedmetadata", seek, { once: true });
     }
     el.play().catch((err: unknown) => {
-      if ((err as DOMException)?.name !== "NotAllowedError") return;
+      const name = (err as DOMException)?.name;
+      if (name === "AbortError") {
+        // A new load (src changed) interrupted play(): start once it can play.
+        el.addEventListener("canplay", () => void el.play().catch(() => undefined), {
+          once: true,
+        });
+        return;
+      }
+      if (name !== "NotAllowedError") return;
       el.muted = true;
       setBlocked(true);
       void el.play().catch(() => undefined);

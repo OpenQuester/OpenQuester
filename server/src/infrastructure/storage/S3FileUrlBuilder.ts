@@ -29,4 +29,13 @@ export class S3FileUrlBuilder implements IFileUrlBuilder {
       : this.s3Context.endpoint;
     return `${endpoint}/${this.s3Context.bucket}/${filePath}`;
   }
+
+  /** Scheme, host and port that public file links point at */
+  public getPublicOrigin(): string {
+    const base = this.s3Context.useSubDomainBucketFormat
+      ? this.s3Context.urlPrefix
+      : this.s3Context.endpoint;
+
+    return new URL(base).origin;
+  }
 }

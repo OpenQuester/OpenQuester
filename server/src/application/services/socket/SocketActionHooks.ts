@@ -204,7 +204,7 @@ export class SocketActionHooks {
     game: Game
   ): Promise<void> {
     const currentQuestion = game.gameState.currentQuestion;
-    const timer = game.gameState.timer;
+    const timer = await this.getQuestionTimer(game);
 
     if (!currentQuestion?.id || !timer) {
       return;
@@ -236,6 +236,21 @@ export class SocketActionHooks {
         buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
       } satisfies GameQuestionDataEventPayload)
     );
+  }
+
+  /**
+   * The running timer, or the one saved when the game was paused (by the
+   * showman, or by restart recovery): a paused game has no active timer, but
+   * a showman who rejoins it still needs the full question with its answer.
+   */
+  private async getQuestionTimer(game: Game): Promise<GameStateTimerDTO | null> {
+    const { timer, isPaused, questionState } = game.gameState;
+
+    if (timer || !isPaused || !questionState) {
+      return timer ?? null;
+    }
+
+    return this.gameService.getTimer(game.id, questionState);
   }
 
   private async afterLeaveGame({ action, game, result }: AfterExecutionHookContext): Promise<void> {

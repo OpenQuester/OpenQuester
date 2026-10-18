@@ -49,7 +49,12 @@ export function JoinPanel({
   // Players may also join a game in progress; the server refuses only in the
   // final round and names the reason.
   const canPlay = !full && status !== "finished";
-  const needsPassword = game.isPrivate;
+  // The server skips the password for the host and for anyone who already has
+  // a place in the game (a seat kept after leaving), so don't ask them for it.
+  const myId = me.data?.id;
+  const known =
+    myId != null && (game.createdBy.id === myId || game.players.some((p) => p.id === myId));
+  const needsPassword = game.isPrivate && !known;
 
   async function go(role: JoinOptions["role"], e?: FormEvent) {
     e?.preventDefault();

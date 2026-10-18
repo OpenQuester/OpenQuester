@@ -26,6 +26,7 @@ import { ContentStage } from "./ContentStage";
 import { PointPicker, pointAnswer, type Spot } from "./PointPicker";
 import { QuestionMedia } from "./QuestionMedia";
 import { useBuzzer } from "./useBuzzer";
+import { mapUrl } from "@/lib/urlMappings";
 
 /** Question content, the reveal, and (for the showman) the private answer panel. */
 export function QuestionStage() {
@@ -327,7 +328,11 @@ function ChoiceOptions() {
               </kbd>
               <span className="[overflow-wrap:anywhere]">{text}</span>
               {a.file?.link && (
-                <img src={a.file.link} alt="" className="ml-auto h-12 w-12 rounded object-cover" />
+                <img
+                  src={mapUrl(a.file.link!)}
+                  alt=""
+                  className="ml-auto h-12 w-12 rounded object-cover"
+                />
               )}
             </button>
           </li>

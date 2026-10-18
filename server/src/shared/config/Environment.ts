@@ -4,6 +4,7 @@ import type Redis from "ioredis";
 import path from "path";
 import { type LoggerOptions } from "typeorm";
 
+import { DISCORD_API_URL } from "domain/constants/discord";
 import { CRON_EXP_2_AM_DAILY, CRON_EXP_3_AM_DAILY } from "domain/constants/cron";
 import { DEFAULT_API_PORT } from "domain/constants/server";
 import { SESSION_SECRET_REDIS_NSP } from "domain/constants/session";
@@ -66,6 +67,10 @@ export class Environment {
   public ADMIN_EMAILS!: string[];
   /** Public Discord application id; empty turns Discord sign-in off */
   public DISCORD_CLIENT_ID!: string;
+  /** Server-only Discord secret; with the client id it turns the Discord Activity on */
+  public DISCORD_CLIENT_SECRET!: string;
+  /** Discord REST API base URL; tests point it at a local fake */
+  public DISCORD_API_URL!: string;
   public INFLUX_URL!: string;
   public LOG_LEVEL!: LogLevel;
   public CRON_S3_CLEANUP_EXPRESSION!: string;
@@ -94,6 +99,11 @@ export class Environment {
 
   public get ENV(): string {
     return this._type;
+  }
+
+  /** The Discord Activity needs the client id and the secret for its code exchange */
+  public get DISCORD_ACTIVITY_ENABLED(): boolean {
+    return this.DISCORD_CLIENT_ID.length > 0 && this.DISCORD_CLIENT_SECRET.length > 0;
   }
 
   public load(force: boolean = false): void {
@@ -235,6 +245,13 @@ export class Environment {
     this.DISCORD_CLIENT_ID = (
       (this.getEnvVar("DISCORD_CLIENT_ID", "string", "", true) as string | undefined) ?? ""
     ).trim();
+    this.DISCORD_CLIENT_SECRET = (
+      (this.getEnvVar("DISCORD_CLIENT_SECRET", "string", "", true) as string | undefined) ?? ""
+    ).trim();
+    this.DISCORD_API_URL = (
+      (this.getEnvVar("DISCORD_API_URL", "string", DISCORD_API_URL, true) as string | undefined) ??
+      DISCORD_API_URL
+    ).replace(/\/+$/, "");
     const adminEmails = this.getEnvVar("ADMIN_EMAILS", "string", "", true) as string | undefined;
     this.ADMIN_EMAILS = [
       ...new Set(

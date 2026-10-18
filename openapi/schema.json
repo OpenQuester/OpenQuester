@@ -1067,6 +1067,65 @@
         }
       }
     },
+    "/v1/auth/discord/activity": {
+      "post": {
+        "summary": "Sign in inside the Discord Activity",
+        "description": "Exchanges the code from the Embedded App SDK's `authorize` command with the server's client secret, signs the Discord user in like `/v1/auth/oauth2` does, and returns the Discord access token for the SDK's `authenticate` command. The session cookie is host-only, `SameSite=None; Secure; Partitioned`, so it survives inside Discord's iframe. No session needed.",
+        "tags": ["Auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InputDiscordActivityLogin"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseDiscordActivityLogin"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Discord refused the code (`discord_code_exchange_failed`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The Activity isn't set up on this server (`discord_activity_disabled`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/guest": {
       "post": {
         "summary": "Login as guest user",
@@ -3026,6 +3085,118 @@
           }
         }
       }
+    },
+    "/v1/discord/activity/instances/{instanceId}/game": {
+      "get": {
+        "summary": "Get the lobby of a Discord Activity call",
+        "description": "Returns the game everyone in this Activity instance plays, with its password, or `game: null` when nobody has picked a package yet (or the last game finished).",
+        "tags": ["Discord Activity"],
+        "parameters": [
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "description": "The Activity's `instanceId` from the Embedded App SDK. Everyone in one voice channel call shares it.",
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The call's lobby",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseDiscordActivityGame"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Get or create the lobby of a Discord Activity call",
+        "description": "Creates the call's game when it has none (`created: true`, the caller hosts it) or returns the existing one (`created: false`). The game is always private; `isPrivate` in the body is ignored.",
+        "tags": ["Discord Activity"],
+        "parameters": [
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "description": "The Activity's `instanceId` from the Embedded App SDK. Everyone in one voice channel call shares it.",
+            "schema": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameCreateData"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The call's lobby",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseDiscordActivityGame"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Someone else in the call is creating the game right now (`discord_activity_game_busy`), or the package isn't fully uploaded (`package_upload_unfinished`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3100,9 +3271,20 @@
             "items": {
               "$ref": "#/components/schemas/OauthProviderSettings"
             }
+          },
+          "discordActivity": {
+            "description": "Set when the web app may run as a Discord Activity; null otherwise.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DiscordActivitySettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": ["oauthProviders"]
+        "required": ["oauthProviders", "discordActivity"]
       },
       "OauthProviderSettings": {
         "type": "object",
@@ -8704,6 +8886,82 @@
           }
         },
         "required": ["buzzerOpensAtMs"]
+      },
+      "DiscordActivitySettings": {
+        "type": "object",
+        "properties": {
+          "urlMappings": {
+            "type": "array",
+            "description": "Hosts outside the app the Activity loads from (package media). Each needs the same URL mapping in the Discord Developer Portal.",
+            "items": {
+              "$ref": "#/components/schemas/DiscordUrlMapping"
+            }
+          }
+        },
+        "required": ["urlMappings"]
+      },
+      "DiscordUrlMapping": {
+        "type": "object",
+        "properties": {
+          "prefix": {
+            "type": "string",
+            "example": "/media"
+          },
+          "target": {
+            "type": "string",
+            "description": "Host (and optional path) without the scheme",
+            "example": "s3.openquester.app"
+          }
+        },
+        "required": ["prefix", "target"]
+      },
+      "InputDiscordActivityLogin": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "Code from the SDK's `authorize` command"
+          }
+        },
+        "required": ["code"]
+      },
+      "ResponseDiscordActivityLogin": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/ResponseUser"
+          },
+          "accessToken": {
+            "type": "string",
+            "description": "Discord access token for the SDK's `authenticate` command"
+          }
+        },
+        "required": ["user", "accessToken"]
+      },
+      "ResponseDiscordActivityGame": {
+        "type": "object",
+        "properties": {
+          "game": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GameListItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "password": {
+            "type": ["string", "null"],
+            "description": "The private lobby's password, for everyone in the call"
+          },
+          "created": {
+            "type": "boolean",
+            "description": "True when this request made the game, so the caller hosts it"
+          }
+        },
+        "required": ["game", "password", "created"]
       }
     }
   }

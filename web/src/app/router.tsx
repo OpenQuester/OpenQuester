@@ -5,10 +5,12 @@ import {
   lazyRouteComponent,
   Link,
   Outlet,
+  redirect,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
 import { LoginPage } from "@/features/auth/LoginPage";
+import { ACTIVITY_PATH, isDiscordActivity, routeDiscordLaunch } from "@/features/discord/launch";
 import { HomePage } from "@/features/home/HomePage";
 
 import { AppShell, PageContainer } from "./AppShell";
@@ -38,6 +40,10 @@ const homeRoute = createRoute({
   getParentRoute: () => shell,
   path: "/",
   component: HomePage,
+  // Inside Discord "home" is the call's lobby, not the website
+  beforeLoad: () => {
+    if (isDiscordActivity()) throw redirect({ to: ACTIVITY_PATH });
+  },
   validateSearch: (s: Record<string, unknown>): { notice?: string } => ({ notice: str(s.notice) }),
 });
 const loginRoute = createRoute({
@@ -152,6 +158,13 @@ const gameRoute = createRoute({
   component: lazyRouteComponent(() => import("@/features/game/GamePage"), "GamePage"),
 });
 
+/** Discord Activity entry: no site chrome, the call's lobby. */
+const activityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: ACTIVITY_PATH,
+  component: lazyRouteComponent(() => import("@/features/discord/ActivityPage"), "ActivityPage"),
+});
+
 const routeTree = rootRoute.addChildren([
   shell.addChildren([
     homeRoute,
@@ -170,7 +183,11 @@ const routeTree = rootRoute.addChildren([
   editorRoute,
   previewRoute,
   gameRoute,
+  activityRoute,
 ]);
+
+// Before the router reads the URL: a Discord launch opens the Activity screen
+routeDiscordLaunch();
 
 export const router = createRouter({
   routeTree,
