@@ -68,7 +68,8 @@
     "set_your_username": "Set your username",
     "username_validation": "Username must be from 1 to 50 characters. Dots, underscores and double spaces not allowed.",
     "login_description": "Log in to your account to be able to create games, play with friends",
-    "login_description_guest": "You can also play as a guest, but you will not be able to upload packages."
+    "login_description_guest": "You can also play as a guest, but you will not be able to upload packages.",
+    "discord_unavailable": "Discord sign-in is not available on this server"
   },
   "username": "Username",
   "start_game": "Start game",

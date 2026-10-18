@@ -129,6 +129,17 @@ class _DiscordLoginBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Shown only when the server has Discord sign-in set up
+    return ValueListenableBuilder(
+      valueListenable: getIt<AuthController>().discordClientId,
+      builder: (context, clientId, _) {
+        if (clientId == null) return const SizedBox.shrink();
+        return _button(context);
+      },
+    );
+  }
+
+  Widget _button(BuildContext context) {
     return LoadingButtonBuilder(
       onPressed: () {
         onBeforeLogin?.call();

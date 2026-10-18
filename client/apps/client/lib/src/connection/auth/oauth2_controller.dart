@@ -12,7 +12,8 @@ import 'package:universal_web/web.dart' as web;
 
 @singleton
 class Oauth2Controller {
-  Future<AccessTokenResponse> auth() async {
+  /// Discord sign-in with the application id from the server's settings
+  Future<AccessTokenResponse> auth({required String clientId}) async {
     final redirectUri = _getRedirectUrls();
     final client = OAuth2Client(
       authorizeUrl: 'https://discord.com/oauth2/authorize',
@@ -23,7 +24,7 @@ class Oauth2Controller {
     );
     try {
       final result = await client.getTokenWithAuthCodeFlow(
-        clientId: Env.discordAuthClientId,
+        clientId: clientId,
         scopes: ['identify', 'email'],
         webAuthClient: isDesktopPlatform ? IoWebAuth() : null,
       );
