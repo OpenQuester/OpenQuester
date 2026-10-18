@@ -5,6 +5,7 @@ import type { QuestionFile } from "@/game/protocol";
 import { cn } from "@/lib/cn";
 import { Spinner } from "@/ui/Spinner";
 import { QuestionMediaPlayback } from "./QuestionMediaPlayback";
+import { mapUrl } from "@/lib/urlMappings";
 
 export function QuestionMediaItem({
   file,
@@ -17,7 +18,10 @@ export function QuestionMediaItem({
   positionMs?: () => number;
 }) {
   const { t } = useTranslation();
-  const src = file.file.link!;
+  // Inside a Discord Activity the file comes through Discord's proxy. Setting
+  // that URL up front matters: swapping src after the element started loading
+  // aborts play() and audio/video would stay paused.
+  const src = mapUrl(file.file.link!);
   const type = file.file.type;
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);

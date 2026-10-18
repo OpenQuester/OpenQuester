@@ -5,6 +5,7 @@ import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/cn";
+import { mapUrl } from "@/lib/urlMappings";
 
 export interface Spot {
   x: number;
@@ -139,7 +140,7 @@ export function PointPicker({
       data-testid="point-picker"
     >
       <img
-        src={src}
+        src={mapUrl(src)}
         alt={t("point.picture")}
         className={cn(
           "block max-h-[60vh] max-w-full rounded-lg",

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { cn } from "@/lib/cn";
 
 import { initials } from "@/game/selectors";
+import { mapUrl } from "@/lib/urlMappings";
 
 export function Avatar({
   name,
@@ -32,7 +33,7 @@ export function Avatar({
     >
       {showImage ? (
         <img
-          src={src}
+          src={mapUrl(src!)}
           alt=""
           className="h-full w-full object-cover"
           onError={() => setFailed(src)}

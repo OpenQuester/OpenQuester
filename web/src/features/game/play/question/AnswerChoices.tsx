@@ -4,6 +4,7 @@ import { useAnswerChoices } from "./useAnswerChoices";
 import { useState, type CSSProperties } from "react";
 import { Dialog } from "@/ui/Dialog";
 import { ChoiceOption } from "./ChoiceOption";
+import { mapUrl } from "@/lib/urlMappings";
 
 export function AnswerChoices() {
   const { t } = useTranslation();
@@ -35,7 +36,7 @@ export function AnswerChoices() {
               key={a.id ?? a.order}
               index={i}
               text={text}
-              image={a.file?.link ?? undefined}
+              image={a.file?.link ? mapUrl(a.file.link) : undefined}
               disabled={!answering || locked || isRejected}
               onPick={() => pick(a, i)}
               onPreview={() => setExpanded(i)}
@@ -70,7 +71,7 @@ export function AnswerChoices() {
           <div className="flex min-h-0 flex-1 items-center justify-center p-3">
             {detail.file?.link && (
               <img
-                src={detail.file.link}
+                src={mapUrl(detail.file.link)}
                 alt={detail.text ?? ""}
                 className="max-h-[65dvh] max-w-full object-contain"
               />
