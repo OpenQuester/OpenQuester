@@ -34,6 +34,7 @@ import {
   activityUrlMappings,
   resetActivityForTests,
   startActivity,
+  STEP_TIMEOUT_MS,
 } from "./activity";
 
 const user = { id: 5, username: "pilot" };
@@ -67,7 +68,7 @@ describe("startActivity", () => {
     const session = await startActivity(settings);
 
     expect(session).toEqual({ instanceId: "i-123-gc-456", user });
-    expect(sdk.constructed).toHaveBeenCalledWith("123", { disableConsoleLogOverride: true });
+    expect(sdk.constructed).toHaveBeenCalledWith("123", undefined);
     expect(sdk.authorize).toHaveBeenCalledWith(
       expect.objectContaining({ client_id: "123", response_type: "code", scope: ["identify"] }),
     );
@@ -96,11 +97,33 @@ describe("startActivity", () => {
     expect(sdk.authorize).toHaveBeenCalledOnce();
   });
 
-  it("can be retried after Discord refuses", async () => {
+  it("names the step that failed and can be retried", async () => {
     sdk.authorize.mockRejectedValueOnce(new Error("closed"));
 
-    await expect(startActivity(settings)).rejects.toEqual(new ActivityError("auth_failed"));
+    const error = await startActivity(settings).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: "auth_failed", step: "authorize", detail: "closed" });
     await expect(startActivity(settings)).resolves.toMatchObject({ user });
+  });
+
+  it("reports each step and gives up on a handshake that never comes", async () => {
+    vi.useFakeTimers();
+    sdk.ready.mockReturnValueOnce(new Promise(() => {}));
+    const steps: string[] = [];
+
+    const result = startActivity(settings, (s) => steps.push(s)).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(STEP_TIMEOUT_MS.handshake);
+
+    expect(await result).toMatchObject({ code: "timeout", step: "handshake" });
+    expect(steps).toEqual(["handshake"]);
+    vi.useRealTimers();
+  });
+
+  it("walks through every step on success", async () => {
+    const steps: string[] = [];
+
+    await startActivity(settings, (s) => steps.push(s));
+
+    expect(steps).toEqual(["handshake", "authorize", "sign_in", "authenticate"]);
   });
 
   it("refuses to start when the server has no Activity set up", async () => {
