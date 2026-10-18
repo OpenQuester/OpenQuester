@@ -180,6 +180,7 @@ describe("Discord Activity", () => {
       const res = await activityLogin("stolen-code");
 
       expect(res.status).toBe(401);
+      expect(res.body.error).toBe("Discord did not accept the sign-in code (invalid_grant)");
       expect(res.headers["set-cookie"]).toBeUndefined();
     });
 
