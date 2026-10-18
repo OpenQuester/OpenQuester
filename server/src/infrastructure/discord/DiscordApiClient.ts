@@ -7,6 +7,11 @@ import { type DiscordToken } from "domain/types/discord/DiscordToken";
 import { type Environment } from "shared/config/Environment";
 import { DI_TOKENS } from "shared/di/tokens";
 
+/** Token endpoint answer: a token, or an OAuth2 error */
+interface DiscordTokenResponse extends Partial<DiscordToken> {
+  error?: string;
+}
+
 /**
  * Calls Discord's REST API. The base URL comes from DISCORD_API_URL so tests
  * can answer for Discord.
@@ -33,21 +38,21 @@ export class DiscordApiClient {
       })
     });
 
-    if (!response.ok) {
-      throw new ClientError(ClientResponse.DISCORD_CODE_EXCHANGE_FAILED, HttpStatus.UNAUTHORIZED);
-    }
+    const body = (await response.json().catch(() => ({}))) as DiscordTokenResponse;
 
-    const token = (await response.json()) as Partial<DiscordToken>;
-
-    if (typeof token.access_token !== "string" || token.access_token.length < 1) {
-      throw new ClientError(ClientResponse.DISCORD_CODE_EXCHANGE_FAILED, HttpStatus.UNAUTHORIZED);
+    // Discord's OAuth2 error says what to fix: `invalid_client` is a wrong
+    // client id or secret, `invalid_grant` a used, expired or foreign code
+    if (!response.ok || typeof body.access_token !== "string" || body.access_token.length < 1) {
+      throw new ClientError(ClientResponse.DISCORD_CODE_EXCHANGE_FAILED, HttpStatus.UNAUTHORIZED, {
+        reason: body.error ?? `HTTP ${response.status}`
+      });
     }
 
     return {
-      access_token: token.access_token,
-      token_type: token.token_type ?? "Bearer",
-      expires_in: token.expires_in ?? 0,
-      scope: token.scope ?? ""
+      access_token: body.access_token,
+      token_type: body.token_type ?? "Bearer",
+      expires_in: body.expires_in ?? 0,
+      scope: body.scope ?? ""
     };
   }
 
