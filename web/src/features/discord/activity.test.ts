@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthSettings } from "@/api/types";
 import { mapUrl, setUrlMappings } from "@/lib/urlMappings";
 
+import { PRESENCE_DEBOUNCE_MS, reportPresence, resetPresenceForTests } from "./presence";
+
 vi.mock("@/api/config", () => ({ API_URL: "http://api.test" }));
 
 const sdk = vi.hoisted(() => ({
@@ -10,13 +12,18 @@ const sdk = vi.hoisted(() => ({
   ready: vi.fn(),
   authorize: vi.fn(),
   authenticate: vi.fn(),
+  setActivity: vi.fn(),
   patchUrlMappings: vi.fn(),
 }));
 
 vi.mock("@discord/embedded-app-sdk", () => ({
   DiscordSDK: class {
     readonly instanceId = "i-123-gc-456";
-    readonly commands = { authorize: sdk.authorize, authenticate: sdk.authenticate };
+    readonly commands = {
+      authorize: sdk.authorize,
+      authenticate: sdk.authenticate,
+      setActivity: sdk.setActivity,
+    };
     constructor(clientId: string, options: unknown) {
       sdk.constructed(clientId, options);
     }
@@ -70,7 +77,11 @@ describe("startActivity", () => {
     expect(session).toEqual({ instanceId: "i-123-gc-456", user });
     expect(sdk.constructed).toHaveBeenCalledWith("123", undefined);
     expect(sdk.authorize).toHaveBeenCalledWith(
-      expect.objectContaining({ client_id: "123", response_type: "code", scope: ["identify"] }),
+      expect.objectContaining({
+        client_id: "123",
+        response_type: "code",
+        scope: ["identify", "rpc.activities.write"],
+      }),
     );
     const request = fetchMock.mock.calls[0]?.[0] as Request;
     expect(request.url).toBe("http://api.test/v1/auth/discord/activity");
@@ -148,5 +159,33 @@ describe("activityUrlMappings", () => {
         "https://example.com/oq/",
       ),
     ).toEqual([{ prefix: "/api", target: "example.com/oq" }]);
+  });
+});
+
+describe("Activity presence", () => {
+  it("puts the game in the player's Discord status once signed in", async () => {
+    vi.useFakeTimers();
+    sdk.setActivity.mockResolvedValue({});
+    await startActivity(settings);
+
+    reportPresence({
+      details: "Movie night",
+      state: "Round 2",
+      party: { id: "ABCD", size: [3, 8] },
+      startedAt: 1_000,
+    });
+    await vi.advanceTimersByTimeAsync(PRESENCE_DEBOUNCE_MS);
+
+    expect(sdk.setActivity).toHaveBeenCalledWith({
+      activity: {
+        type: 0,
+        details: "Movie night",
+        state: "Round 2",
+        party: { id: "ABCD", size: [3, 8] },
+        timestamps: { start: 1_000 },
+      },
+    });
+    vi.useRealTimers();
+    resetPresenceForTests();
   });
 });

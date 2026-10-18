@@ -6,6 +6,8 @@ import type { AuthSettings, User } from "@/api/types";
 import { oauthClientId } from "@/features/auth/discord";
 import { setUrlMappings, type UrlMapping } from "@/lib/urlMappings";
 
+import { setPresenceSink } from "./presence";
+
 /** Developer Portal prefix for an API on another host than the app (VITE_API_URL). */
 export const API_PREFIX = "/api";
 
@@ -128,7 +130,8 @@ async function connect(
       response_type: "code",
       state: "",
       prompt: "none",
-      scope: ["identify"],
+      // rpc.activities.write: the game shows in the player's Discord status
+      scope: ["identify", "rpc.activities.write"],
     }),
   );
 
@@ -137,6 +140,18 @@ async function connect(
   );
   await step("authenticate", onStep, () =>
     sdk.commands.authenticate({ access_token: login.accessToken }),
+  );
+
+  setPresenceSink((presence) =>
+    sdk.commands.setActivity({
+      activity: {
+        type: 0,
+        details: presence.details,
+        state: presence.state,
+        ...(presence.party ? { party: presence.party } : {}),
+        ...(presence.startedAt ? { timestamps: { start: presence.startedAt } } : {}),
+      },
+    }),
   );
 
   return { instanceId: sdk.instanceId, user: login.user };

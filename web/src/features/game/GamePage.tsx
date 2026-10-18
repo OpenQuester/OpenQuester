@@ -12,6 +12,8 @@ import { Button } from "@/ui/Button";
 import { PageLoader } from "@/ui/Spinner";
 
 import { GameContext } from "./GameContext";
+import { useGamePresence } from "@/features/discord/presence";
+
 import { takeJoinIntent } from "./joinIntent";
 import { JoinPanel } from "./JoinPanel";
 import { LobbyScreen } from "./lobby/LobbyScreen";
@@ -25,6 +27,9 @@ export function GamePage() {
   const { t } = useTranslation();
   const me = useMe();
   const preview = useGamePreview(gameId);
+  const liveSession = useGameStore((s) => (s.session?.gameId === gameId ? s.session : null));
+  // Inside the Discord Activity, everyone's Discord status shows this game
+  useGamePresence(liveSession, preview.data ?? null);
   const [intent] = useState(() => takeJoinIntent(gameId));
   const [chosen, setChosen] = useState<JoinOptions | null>(intent ?? null);
   const [autoRejoin, setAutoRejoin] = useState(true);

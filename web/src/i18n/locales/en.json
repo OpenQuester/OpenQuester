@@ -1487,6 +1487,14 @@
     "otherGames": "Other games",
     "gameCode": "Game code or link",
     "joinByCode": "Join",
-    "noOtherGames": "No other open games right now."
+    "noOtherGames": "No other open games right now.",
+    "presence": {
+      "lobby": "In the lobby",
+      "paused": "Paused",
+      "round": "{{round}}",
+      "finished": "Game over",
+      "lobbyDetails": "OpenQuester quiz",
+      "choosing": "Choosing a game"
+    }
   }
 }

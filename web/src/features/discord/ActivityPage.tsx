@@ -17,6 +17,7 @@ import { Button } from "@/ui/Button";
 import { TextInput } from "@/ui/Field";
 import { PageLoader, Spinner } from "@/ui/Spinner";
 
+import { reportPresence } from "./presence";
 import { ActivityError, startActivity, type ActivitySession, type ActivityStep } from "./activity";
 
 /** How often people in the call look for a game someone else started. */
@@ -114,6 +115,14 @@ function InstanceLobby({ session }: { session: ActivitySession }) {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const joining = useRef(false);
+
+  // Between games: the status says they are choosing what to play
+  useEffect(() => {
+    reportPresence({
+      details: t("discordActivity.presence.lobbyDetails"),
+      state: t("discordActivity.presence.choosing"),
+    });
+  }, [t]);
 
   const instance = useQuery({
     queryKey: instanceGameKey(session.instanceId),

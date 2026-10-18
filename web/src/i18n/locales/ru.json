@@ -1547,6 +1547,14 @@
     "otherGames": "Другие игры",
     "gameCode": "Код или ссылка на игру",
     "joinByCode": "Присоединиться",
-    "noOtherGames": "Сейчас нет других открытых игр."
+    "noOtherGames": "Сейчас нет других открытых игр.",
+    "presence": {
+      "lobby": "В лобби",
+      "paused": "Пауза",
+      "round": "{{round}}",
+      "finished": "Игра окончена",
+      "lobbyDetails": "Викторина OpenQuester",
+      "choosing": "Выбирает игру"
+    }
   }
 }
