@@ -24,7 +24,13 @@ class AuthController extends ChangeNotifier {
   Future<void> loadSettings() async {
     try {
       final settings = await Api.I.api.auth.getV1AuthSettings();
-      final clientId = settings.discordClientId?.trim();
+      // Providers this build doesn't know arrive as $unknown and are skipped
+      final clientId = settings.oauthProviders
+          .firstWhereOrNull(
+            (p) => p.provider == OauthProviderSettingsProvider.discord,
+          )
+          ?.clientId
+          .trim();
       discordClientId.value = (clientId?.isEmpty ?? true) ? null : clientId;
     } catch (e, s) {
       logger.w(e, stackTrace: s);

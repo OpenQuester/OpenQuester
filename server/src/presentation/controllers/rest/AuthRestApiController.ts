@@ -15,7 +15,10 @@ import { ServerResponse } from "domain/enums/ServerResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { type DiscordProfile } from "domain/types/discord/DiscordProfile";
-import { type AuthSettingsDTO } from "domain/types/dto/auth/AuthSettingsDTO";
+import {
+  type AuthSettingsDTO,
+  type OauthProviderSettingsDTO
+} from "domain/types/dto/auth/AuthSettingsDTO";
 import { type DiscordProfileDTO } from "domain/types/dto/auth/DiscordProfileDTO";
 import { type GuestLoginDTO } from "domain/types/dto/auth/GuestLoginDTO";
 import { EOauthProvider, type Oauth2LoginDTO } from "domain/types/dto/auth/Oauth2LoginDTO";
@@ -59,9 +62,16 @@ export class AuthRestApiController {
 
   /** Sign-in settings the clients need, so they don't have to be built in */
   private getSettings = async (_req: Request, res: Response) => {
-    const settings: AuthSettingsDTO = {
-      discordClientId: this.env.DISCORD_CLIENT_ID || null
+    // A new provider adds its client id here; unset ones are left out
+    const clientIds: Record<EOauthProvider, string> = {
+      [EOauthProvider.DISCORD]: this.env.DISCORD_CLIENT_ID
     };
+
+    const oauthProviders: OauthProviderSettingsDTO[] = Object.entries(clientIds)
+      .filter(([, clientId]) => clientId.length > 0)
+      .map(([provider, clientId]) => ({ provider: provider as EOauthProvider, clientId }));
+
+    const settings: AuthSettingsDTO = { oauthProviders };
 
     res.status(HttpStatus.OK).json(settings);
   };

@@ -155,7 +155,9 @@ The Pages proxy rejects any supplied `Origin` that differs from its request URL
 before forwarding cookies; matching preview origins and originless native
 requests remain supported.
 Set `VITE_API_URL` only to talk to an API on another origin directly.
-Discord sign-in is configured on the server, not in the build: the app reads
-`GET /v1/auth/settings` and shows Discord sign-in when the server's
-`DISCORD_CLIENT_ID` is set. Its redirect URL `<origin>/auth/discord` must be
+Sign-in providers are configured on the server, not in the build: the app reads
+`GET /v1/auth/settings` (`oauthProviders`, a list of `{ provider, clientId }`)
+and shows Discord sign-in when the server's `DISCORD_CLIENT_ID` is set. A new
+provider is added to `EOauthProvider`, given its own env var and listed in
+`AuthRestApiController.getSettings`; clients skip providers they don't know. Its redirect URL `<origin>/auth/discord` must be
 registered in the Discord app.

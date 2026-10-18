@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { PageContainer } from "@/app/AppShell";
 import { Spinner } from "@/ui/Spinner";
 
-import { authSettingsQuery, finishDiscordLogin } from "./discord";
+import { authSettingsQuery, finishDiscordLogin, oauthClientId } from "./discord";
 import { meKey } from "./useMe";
 
 export function DiscordCallbackPage() {
@@ -21,7 +21,8 @@ export function DiscordCallbackPage() {
     if (started.current || !code) return;
     started.current = true;
     qc.fetchQuery(authSettingsQuery)
-      .then(({ discordClientId }) => {
+      .then((settings) => {
+        const discordClientId = oauthClientId(settings, "discord");
         if (!discordClientId) throw new Error("discord_disabled");
         return finishDiscordLogin(discordClientId, code);
       })

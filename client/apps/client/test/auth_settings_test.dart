@@ -30,23 +30,37 @@ void main() {
 
   tearDown(() async => getIt.reset());
 
-  test('reads the Discord application id from the server', () async {
+  test(
+    'reads the Discord id from the provider list, skipping unknown ones',
+    () async {
+      when(
+        authClient.getV1AuthSettings,
+      ).thenAnswer(
+        (_) async => const ResponseAuthSettings(
+          oauthProviders: [
+            OauthProviderSettings(
+              provider: OauthProviderSettingsProvider.$unknown,
+              clientId: 'other',
+            ),
+            OauthProviderSettings(
+              provider: OauthProviderSettingsProvider.discord,
+              clientId: '42',
+            ),
+          ],
+        ),
+      );
+
+      await controller.loadSettings();
+
+      expect(controller.discordClientId.value, '42');
+    },
+  );
+
+  test('keeps Discord sign-in off when the server has not set it up', () async {
     when(
       authClient.getV1AuthSettings,
     ).thenAnswer(
-      (_) async => const ResponseAuthSettings(discordClientId: '42'),
-    );
-
-    await controller.loadSettings();
-
-    expect(controller.discordClientId.value, '42');
-  });
-
-  test('keeps Discord sign-in off when the server has no id', () async {
-    when(
-      authClient.getV1AuthSettings,
-    ).thenAnswer(
-      (_) async => const ResponseAuthSettings(discordClientId: null),
+      (_) async => const ResponseAuthSettings(oauthProviders: []),
     );
 
     await controller.loadSettings();
@@ -57,7 +71,9 @@ void main() {
   test('Discord sign-in stops before opening Discord without an id', () async {
     when(
       authClient.getV1AuthSettings,
-    ).thenAnswer((_) async => const ResponseAuthSettings(discordClientId: ''));
+    ).thenAnswer(
+      (_) async => const ResponseAuthSettings(oauthProviders: []),
+    );
 
     await expectLater(
       Oauth2AuthType().loginUser(username: null),

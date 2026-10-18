@@ -32,6 +32,8 @@ describe("Auth settings", () => {
     const res = await http.get("/v1/auth/settings");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ discordClientId: "123456789" });
+    expect(res.body).toEqual({
+      oauthProviders: [{ provider: "discord", clientId: "123456789" }]
+    });
   });
 });

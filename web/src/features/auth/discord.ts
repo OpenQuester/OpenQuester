@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { api, unwrap } from "@/api/client";
-import type { AuthSettings } from "@/api/types";
+import type { AuthSettings, OauthProvider } from "@/api/types";
 import { safeStorage } from "@/lib/storage";
 
 const VERIFIER_KEY = "oq.discord.verifier";
@@ -14,10 +14,18 @@ export const authSettingsQuery = {
   staleTime: Infinity,
 };
 
+/** A provider's client id from the settings, or null when the server hasn't set it up. */
+export function oauthClientId(
+  settings: AuthSettings | undefined,
+  provider: OauthProvider,
+): string | null {
+  return settings?.oauthProviders.find((p) => p.provider === provider)?.clientId || null;
+}
+
 /** The Discord application id, or null while loading or when Discord sign-in is off. */
 export function useDiscordClientId(): string | null {
   const { data } = useQuery(authSettingsQuery);
-  return data?.discordClientId || null;
+  return oauthClientId(data, "discord");
 }
 
 function redirectUri(): string {

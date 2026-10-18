@@ -15,9 +15,9 @@ const fetchMock = vi.hoisted(() => {
 
 import { useDiscordClientId } from "./discord";
 
-function settings(discordClientId: string | null) {
+function settings(oauthProviders: { provider: string; clientId: string }[]) {
   fetchMock.mockResolvedValue(
-    new Response(JSON.stringify({ discordClientId }), {
+    new Response(JSON.stringify({ oauthProviders }), {
       status: 200,
       headers: { "content-type": "application/json" },
     }),
@@ -36,7 +36,11 @@ describe("useDiscordClientId", () => {
   afterEach(() => fetchMock.mockReset());
 
   it("reads the Discord application id from the server", async () => {
-    settings("123456789");
+    // A provider this build doesn't know yet is ignored
+    settings([
+      { provider: "google", clientId: "other" },
+      { provider: "discord", clientId: "123456789" },
+    ]);
     const { result } = render();
 
     await waitFor(() => expect(result.current).toBe("123456789"));
@@ -44,8 +48,8 @@ describe("useDiscordClientId", () => {
     expect(new URL(request.url).pathname).toBe("/v1/auth/settings");
   });
 
-  it("keeps Discord sign-in off when the server has no id", async () => {
-    settings(null);
+  it("keeps Discord sign-in off when the server hasn't set it up", async () => {
+    settings([]);
     const { result } = render();
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());

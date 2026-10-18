@@ -3094,12 +3094,32 @@
       "ResponseAuthSettings": {
         "type": "object",
         "properties": {
-          "discordClientId": {
-            "type": ["string", "null"],
-            "description": "Discord application id for Discord sign-in, or null when it is off"
+          "oauthProviders": {
+            "type": "array",
+            "description": "Sign-in providers the server has set up. A provider that isn't set up is left out; clients ignore providers they don't know.",
+            "items": {
+              "$ref": "#/components/schemas/OauthProviderSettings"
+            }
           }
         },
-        "required": ["discordClientId"]
+        "required": ["oauthProviders"]
+      },
+      "OauthProviderSettings": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Same value as oauthProvider in POST /v1/auth/oauth2",
+            "examples": ["discord"],
+            "enum": ["discord"]
+          },
+          "clientId": {
+            "type": "string",
+            "description": "Public application id the client starts this provider's sign-in with",
+            "examples": ["1234567890"]
+          }
+        },
+        "required": ["provider", "clientId"]
       },
       "ResponseUser": {
         "type": "object",

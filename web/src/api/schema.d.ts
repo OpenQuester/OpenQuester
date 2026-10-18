@@ -2960,8 +2960,21 @@ export interface components {
             sourceHash?: string | null;
         };
         ResponseAuthSettings: {
-            /** @description Discord application id for Discord sign-in, or null when it is off */
-            discordClientId: string | null;
+            /** @description Sign-in providers the server has set up. A provider that isn't set up is left out; clients ignore providers they don't know. */
+            oauthProviders: components["schemas"]["OauthProviderSettings"][];
+        };
+        OauthProviderSettings: {
+            /**
+             * @description Same value as oauthProvider in POST /v1/auth/oauth2
+             * @example discord
+             * @enum {string}
+             */
+            provider: "discord";
+            /**
+             * @description Public application id the client starts this provider's sign-in with
+             * @example 1234567890
+             */
+            clientId: string;
         };
         ResponseUser: {
             /** @example 1 */
