@@ -77,6 +77,25 @@ Run the server and `npm run dev` in `web/`, tunnel the dev server
 the tunnel host, and launch from a voice channel. Vite proxies `/v1` and
 `/socket.io` to the server.
 
+## Debugging
+
+- The loading screen names the startup step; a step that hangs fails with the
+  step's name (`handshake` 15 s, `authorize` 120 s, `sign_in` 20 s,
+  `authenticate` 15 s) and the error detail below it.
+- Console lines start with `[OpenQuester Activity]` and include the client id
+  and launch query. The SDK forwards the page's console to Discord's console.
+- Easiest console: run Discord in a browser (discord.com/app), launch the
+  Activity, open DevTools and pick the `discordsays.com` frame in the console's
+  context menu. The desktop app needs Developer Mode plus DevTools enabled in
+  its `settings.json`.
+- `handshake` hangs: `DISCORD_CLIENT_ID` on the server isn't the Activity's
+  application id, or the page lost `frame_id` / `instance_id` before the SDK
+  started.
+- `authorize` fails: the user closed the consent dialog, or OAuth2 has no
+  redirect (`https://127.0.0.1`).
+- `sign_in` fails: wrong `DISCORD_CLIENT_SECRET`, or the request never reached
+  the API (check the `/` mapping and, on Pages, the `DISCORD_CLIENT_ID` variable).
+
 ## Not done yet
 
 - Small-screen / picture-in-picture layout of the game screen.

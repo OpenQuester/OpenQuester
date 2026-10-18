@@ -1472,7 +1472,15 @@
     "joinGame": "Join the game",
     "errors": {
       "not_configured": "This server isn't set up to run as a Discord Activity.",
-      "auth_failed": "Couldn't sign in with Discord."
+      "auth_failed": "Couldn't sign in with Discord at this step: {{step}}",
+      "timeout": "Discord didn't answer at this step: {{step}}",
+      "settings": "Couldn't reach the OpenQuester server."
+    },
+    "steps": {
+      "handshake": "Connecting to Discord…",
+      "authorize": "Waiting for Discord permission…",
+      "sign_in": "Signing in to OpenQuester…",
+      "authenticate": "Finishing Discord sign-in…"
     }
   }
 }

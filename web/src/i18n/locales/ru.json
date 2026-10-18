@@ -1532,7 +1532,15 @@
     "joinGame": "Присоединиться к игре",
     "errors": {
       "not_configured": "Этот сервер не настроен для работы как Discord Activity.",
-      "auth_failed": "Не удалось войти через Discord."
+      "auth_failed": "Не удалось войти через Discord на шаге: {{step}}",
+      "timeout": "Discord не ответил на шаге: {{step}}",
+      "settings": "Не удалось связаться с сервером OpenQuester."
+    },
+    "steps": {
+      "handshake": "Подключение к Discord…",
+      "authorize": "Ждём разрешения Discord…",
+      "sign_in": "Вход в OpenQuester…",
+      "authenticate": "Завершаем вход через Discord…"
     }
   }
 }

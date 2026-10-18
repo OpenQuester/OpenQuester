@@ -15,7 +15,7 @@ import { Button } from "@/ui/Button";
 import { TextInput } from "@/ui/Field";
 import { PageLoader, Spinner } from "@/ui/Spinner";
 
-import { ActivityError, startActivity, type ActivitySession } from "./activity";
+import { ActivityError, startActivity, type ActivitySession, type ActivityStep } from "./activity";
 
 /** How often people in the call look for a game someone else started. */
 export const INSTANCE_POLL_MS = 3000;
@@ -41,13 +41,16 @@ export function ActivityPage() {
   const qc = useQueryClient();
   const settings = useQuery(authSettingsQuery);
   const [session, setSession] = useState<ActivitySession | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ActivityError | null>(null);
+  const [step, setStep] = useState<ActivityStep | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!settings.data) return;
     let cancelled = false;
-    startActivity(settings.data).then(
+    startActivity(settings.data, (s) => {
+      if (!cancelled) setStep(s);
+    }).then(
       (s) => {
         if (cancelled) return;
         qc.setQueryData<User | null>(meKey, s.user);
@@ -55,23 +58,27 @@ export function ActivityPage() {
       },
       (err: unknown) => {
         if (cancelled) return;
-        setError(
-          err instanceof ActivityError
-            ? t(`discordActivity.errors.${err.code}`)
-            : t("discordActivity.errors.auth_failed"),
-        );
+        setError(err instanceof ActivityError ? err : new ActivityError("auth_failed"));
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [settings.data, attempt, qc, t]);
+  }, [settings.data, attempt, qc]);
 
   if (settings.isError || error) {
     return (
       <ActivityShell>
         <p role="alert" className="text-danger">
-          {error ?? t("discordActivity.errors.auth_failed")}
+          {settings.isError
+            ? t("discordActivity.errors.settings")
+            : t(`discordActivity.errors.${error!.code}`, {
+                step: error!.step ? t(`discordActivity.steps.${error!.step}`) : "",
+              })}
+        </p>
+        {/* For whoever debugs the setup: what failed, as the browser saw it */}
+        <p className="font-mono text-sm text-muted">
+          {settings.isError ? String(settings.error) : (error!.detail ?? error!.message)}
         </p>
         <Button
           variant="primary"
@@ -87,7 +94,13 @@ export function ActivityPage() {
     );
   }
 
-  if (!session) return <PageLoader label={t("discordActivity.connecting")} />;
+  if (!session) {
+    return (
+      <PageLoader
+        label={step ? t(`discordActivity.steps.${step}`) : t("discordActivity.connecting")}
+      />
+    );
+  }
 
   return <InstanceLobby session={session} />;
 }
