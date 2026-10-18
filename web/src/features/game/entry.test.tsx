@@ -171,7 +171,8 @@ it.each(["player", "showman", "spectator"] as const)(
       password: null,
     });
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(screen.getByLabelText("Game password")).not.toBeVisible();
+    // A seated player is never asked for the password.
+    expect(screen.queryByLabelText("Game password")).toBeNull();
   },
 );
 
