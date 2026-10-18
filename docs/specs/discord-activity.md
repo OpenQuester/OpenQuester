@@ -37,6 +37,9 @@ signs in separately.
    A Redis lock makes concurrent launches share one game; a loser gets 409
    `discord_activity_game_busy` and picks up the game on its next poll. A
    finished or deleted game frees the call for a new one.
+   The lobby screen also lists other open games and takes a game code or link,
+   so people can go back into the call's game after leaving it, or join any
+   other game (those ask for a password or role like on the website).
 7. Socket.IO is WebSocket-only (`game/connection.ts`), which Discord's proxy
    supports.
 

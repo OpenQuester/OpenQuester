@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type * as Router from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { takeJoinIntent } from "@/features/game/joinIntent";
@@ -18,6 +19,19 @@ const { navigate, startActivity } = vi.hoisted(() => ({
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof Router>()),
   useNavigate: () => navigate,
+  Link: ({
+    children,
+    params,
+    "aria-label": label,
+  }: {
+    children: ReactNode;
+    params: { gameId: string };
+    "aria-label"?: string;
+  }) => (
+    <a href={`/games/${params.gameId}`} aria-label={label}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("./activity", async (importOriginal) => ({
@@ -49,6 +63,7 @@ function game(overrides: Partial<NonNullable<ActivityGame["game"]>> = {}) {
 }
 
 let instance: ActivityGame = { game: null, password: null, created: false };
+let games: unknown[] = [];
 let created: ActivityGame = { game: game(), password: "pw", created: true };
 
 function json(body: unknown) {
@@ -65,6 +80,7 @@ beforeEach(() => {
     const { pathname } = new URL(request.url);
     if (pathname === "/v1/auth/settings")
       return json({ oauthProviders: [], discordActivity: null });
+    if (pathname === "/v1/games") return json({ data: games });
     if (pathname === "/v1/packages") {
       return json({
         data: [{ id: 3, title: "Movies", author: { id: 1, username: "Author" } }],
@@ -84,6 +100,7 @@ afterEach(() => {
   vi.clearAllMocks();
   resetActivityLobbyForTests();
   instance = { game: null, password: null, created: false };
+  games = [];
   created = { game: game(), password: "pw", created: true };
 });
 
@@ -144,6 +161,73 @@ describe("ActivityPage", () => {
 
     expect(await screen.findByRole("button", { name: /Movies/ })).toBeInTheDocument();
     expect(startActivity).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("ActivityPage after leaving the call's game", () => {
+  function listed(id: string, title: string, finishedAt: string | null = null) {
+    return game({
+      id,
+      title,
+      finishedAt,
+      startedAt: null,
+      createdAt: new Date().toISOString(),
+      package: { title: "Pack" },
+      isPrivate: false,
+    } as never);
+  }
+
+  async function renderLobbyCard() {
+    // Coming back: the first visit already went into the game
+    instance = {
+      game: game({
+        players: [{ id: me.id, role: "player", slot: 0, status: "disconnected" }] as never,
+      }),
+      password: "pw",
+      created: false,
+    };
+    games = [
+      listed("ABCD", "Call game"),
+      listed("WXYZ", "Open game"),
+      listed("DONE", "Old game", "2026-10-18T00:00:00Z"),
+    ];
+    renderPage();
+    await waitFor(() => expect(navigate).toHaveBeenCalledOnce());
+    navigate.mockClear();
+  }
+
+  it("offers to go back into the call's game", async () => {
+    await renderLobbyCard();
+    cleanup();
+    renderPage();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole("button", { name: "Back to the game" }));
+
+    expect(navigate).toHaveBeenCalledWith({
+      to: "/games/$gameId",
+      params: { gameId: "ABCD" },
+      replace: true,
+    });
+  });
+
+  it("lists other open games and joins one by code", async () => {
+    await renderLobbyCard();
+    cleanup();
+    renderPage();
+    const user = userEvent.setup();
+
+    expect(await screen.findByRole("link", { name: /Open game/ })).toHaveAttribute(
+      "href",
+      "/games/WXYZ",
+    );
+    expect(screen.queryByRole("link", { name: /Call game/ })).toBeNull();
+    expect(screen.queryByText("Old game")).toBeNull();
+
+    await user.type(screen.getByLabelText("Game code or link"), "https://x.test/games/qwer");
+    await user.click(screen.getByRole("button", { name: "Join" }));
+
+    expect(navigate).toHaveBeenCalledWith({ to: "/games/$gameId", params: { gameId: "QWER" } });
   });
 });
 
