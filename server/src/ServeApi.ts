@@ -47,6 +47,7 @@ import { MiddlewareController } from "presentation/controllers/middleware/Middle
 import { AdminRestApiController } from "presentation/controllers/rest/AdminRestApiController";
 import { DiscordActivityService } from "application/services/discord/DiscordActivityService";
 import { DiscordAuthService } from "application/services/discord/DiscordAuthService";
+import { DiscordEntryPointService } from "application/services/discord/DiscordEntryPointService";
 import { DiscordActivityRestApiController } from "presentation/controllers/rest/DiscordActivityRestApiController";
 import { AuthRestApiController } from "presentation/controllers/rest/AuthRestApiController";
 import { DevelopmentRestApiController } from "presentation/controllers/rest/DevelopmentRestApiController";
@@ -175,6 +176,8 @@ export class ServeApi {
       await this._initializeRedisSubscriptions();
       this._assertStartupCanContinue("cron initialization");
       await this._initializeCronScheduler();
+      this._assertStartupCanContinue("Discord entry point check");
+      await container.resolve(DiscordEntryPointService).ensureEntryPointCommand();
       this._assertStartupCanContinue("metrics start");
       this._startMetrics();
 
