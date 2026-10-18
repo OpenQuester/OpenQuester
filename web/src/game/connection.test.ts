@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GameConnection } from "./connection";
+import { BUZZ_PENDING_TIMEOUT_MS, GameConnection } from "./connection";
 import { ALICE, BOB, player, question, round, snapshot, timer } from "./fixtures";
 import type { FileType, QuestionFile } from "./protocol";
 import { useGameStore } from "./store";
@@ -310,5 +310,35 @@ describe("spectator seat selection", () => {
       playerId: ALICE,
       newRole: "player",
     });
+  });
+});
+
+describe("buzz lock during the random draw", () => {
+  beforeEach(() => {
+    listeners.get("game-data")?.(
+      snapshot({ questionState: "showing", currentQuestion: question(100) }),
+    );
+  });
+
+  it("stays locked past the normal wait until the draw names who answers", async () => {
+    connection.emit("question-answer");
+
+    // The server sends nothing for a press that joined the draw
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(useGameStore.getState().pending?.action).toBe("question-answer");
+
+    listeners.get("question-answer")?.({
+      userId: BOB,
+      timer: { durationMs: 20_500, elapsedMs: 0 },
+    });
+    expect(useGameStore.getState().pending).toBeNull();
+  });
+
+  it("unlocks after the safety timeout when no result ever comes", async () => {
+    connection.emit("question-answer");
+
+    await vi.advanceTimersByTimeAsync(BUZZ_PENDING_TIMEOUT_MS);
+
+    expect(useGameStore.getState().pending).toBeNull();
   });
 });
