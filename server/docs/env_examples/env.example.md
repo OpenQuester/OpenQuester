@@ -14,6 +14,9 @@ SOCKET_IO_ADMIN_UI_USERNAME=
 SOCKET_IO_ADMIN_UI_PASSWORD=
 # Comma-separated list of admin emails that should receive all permissions on startup
 ADMIN_EMAILS=
+# Public Discord application id, served to clients at GET /v1/auth/settings.
+# Empty turns Discord sign-in off
+DISCORD_CLIENT_ID=
 
 # Domain (full) to which cookie will be assigned
 API_DOMAIN=

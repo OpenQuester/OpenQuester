@@ -144,8 +144,7 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
 The server's Docker image (`docker/Dockerfile`) also builds `web/` and serves it
 for every non-API path (`WebAppController`, `WEB_APP_DIR`), so one container on one
 port answers both the app and `/v1` + `/socket.io`. Point another Traefik host at
-it (e.g. `Host(\`dev.openquester.app\`)`) to use the app there. The Docker build
-takes `VITE_DISCORD_CLIENT_ID`from the repo variable`WEB_DISCORD_CLIENT_ID`.
+it (e.g. `Host(\`dev.openquester.app\`)`) to use the app there.
 
 `.github/workflows/web.yml` builds, runs unit and e2e tests, then deploys
 `dist/` with `functions/` to the Cloudflare Pages project `openquester-web`.
@@ -156,6 +155,7 @@ The Pages proxy rejects any supplied `Origin` that differs from its request URL
 before forwarding cookies; matching preview origins and originless native
 requests remain supported.
 Set `VITE_API_URL` only to talk to an API on another origin directly.
-`VITE_DISCORD_CLIENT_ID` enables Discord sign-in. CI takes it from the repo variable
-`WEB_DISCORD_CLIENT_ID`, else `DISCORD_AUTH_CLIENT_ID` in the Flutter `ENV_FILE_CONTENT`. Its redirect URL
-`<origin>/auth/discord` must be registered in the Discord app.
+Discord sign-in is configured on the server, not in the build: the app reads
+`GET /v1/auth/settings` and shows Discord sign-in when the server's
+`DISCORD_CLIENT_ID` is set. Its redirect URL `<origin>/auth/discord` must be
+registered in the Discord app.

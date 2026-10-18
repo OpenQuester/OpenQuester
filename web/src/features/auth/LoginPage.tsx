@@ -7,7 +7,7 @@ import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
 import { FieldError, Label, TextInput } from "@/ui/Field";
 
-import { discordEnabled, startDiscordLogin } from "./discord";
+import { startDiscordLogin, useDiscordClientId } from "./discord";
 import { useGuestLogin } from "./useMe";
 
 export function LoginPage() {
@@ -15,6 +15,7 @@ export function LoginPage() {
   const { redirect } = useSearch({ from: "/shell/login" });
   const navigate = useNavigate();
   const guest = useGuestLogin();
+  const discordClientId = useDiscordClientId();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const target =
@@ -68,10 +69,14 @@ export function LoginPage() {
             </Button>
           </form>
         </Card>
-        {discordEnabled && (
+        {discordClientId && (
           <Card tone="raised" className="flex flex-col gap-3">
             <p className="m-0 text-soft">{t("login.discordHelp")}</p>
-            <Button variant="primary" size="lg" onClick={() => void startDiscordLogin(target)}>
+            <Button
+              variant="primary"
+              size="lg"
+              onClick={() => void startDiscordLogin(discordClientId, target)}
+            >
               {t("login.discord")}
             </Button>
           </Card>

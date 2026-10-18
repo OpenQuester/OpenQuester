@@ -81,7 +81,5 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64
-          build-args: |
-            VITE_DISCORD_CLIENT_ID=${{ vars.WEB_DISCORD_CLIENT_ID }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

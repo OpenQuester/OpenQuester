@@ -284,6 +284,7 @@ export class ServeApi {
       deps.fileService,
       deps.storage,
       deps.socketUserDataService,
+      this._context.env,
       this._context.logger
     );
     new PackageRestApiController(deps.app, deps.packageService, this._context.logger);

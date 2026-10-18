@@ -3,6 +3,7 @@ import type { components } from "./schema";
 type S = components["schemas"];
 
 export type User = S["ResponseUser"];
+export type AuthSettings = S["ResponseAuthSettings"];
 export type GameListItem = S["GameListItem"];
 export type PaginatedGames = S["PaginatedGames"];
 export type PackageListItem = S["PackageListItem"];

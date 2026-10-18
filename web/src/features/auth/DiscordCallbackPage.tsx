@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { PageContainer } from "@/app/AppShell";
 import { Spinner } from "@/ui/Spinner";
 
-import { finishDiscordLogin } from "./discord";
+import { authSettingsQuery, finishDiscordLogin } from "./discord";
 import { meKey } from "./useMe";
 
 export function DiscordCallbackPage() {
@@ -20,7 +20,11 @@ export function DiscordCallbackPage() {
   useEffect(() => {
     if (started.current || !code) return;
     started.current = true;
-    finishDiscordLogin(code)
+    qc.fetchQuery(authSettingsQuery)
+      .then(({ discordClientId }) => {
+        if (!discordClientId) throw new Error("discord_disabled");
+        return finishDiscordLogin(discordClientId, code);
+      })
       .then(async (to) => {
         await qc.invalidateQueries({ queryKey: meKey });
         await navigate({ to, replace: true });

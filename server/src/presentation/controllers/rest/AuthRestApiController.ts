@@ -15,12 +15,14 @@ import { ServerResponse } from "domain/enums/ServerResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { type DiscordProfile } from "domain/types/discord/DiscordProfile";
+import { type AuthSettingsDTO } from "domain/types/dto/auth/AuthSettingsDTO";
 import { type DiscordProfileDTO } from "domain/types/dto/auth/DiscordProfileDTO";
 import { type GuestLoginDTO } from "domain/types/dto/auth/GuestLoginDTO";
 import { EOauthProvider, type Oauth2LoginDTO } from "domain/types/dto/auth/Oauth2LoginDTO";
 import { type SocketAuthDTO } from "domain/types/dto/auth/SocketAuthDTO";
 import { type UserDTO } from "domain/types/dto/user/UserDTO";
 import { asUserId } from "domain/types/ids";
+import { type Environment } from "shared/config/Environment";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { type PerformanceLog } from "shared/logging/LoggerTypes";
@@ -41,17 +43,28 @@ export class AuthRestApiController {
     private readonly fileService: FileService,
     private readonly storage: S3StorageService,
     private readonly socketUserDataService: SocketUserDataService,
+    private readonly env: Environment,
     private readonly logger: ILogger
   ) {
     const router = Router();
 
     this.app.use("/v1/auth", router);
 
+    router.get("/settings", asyncHandler(this.getSettings));
     router.get("/logout", asyncHandler(this.logout));
     router.post("/socket", asyncHandler(this.socketAuth));
     router.post("/oauth2", asyncHandler(this.handleOauthLogin));
     router.post("/guest", asyncHandler(this.handleGuestLogin));
   }
+
+  /** Sign-in settings the clients need, so they don't have to be built in */
+  private getSettings = async (_req: Request, res: Response) => {
+    const settings: AuthSettingsDTO = {
+      discordClientId: this.env.DISCORD_CLIENT_ID || null
+    };
+
+    res.status(HttpStatus.OK).json(settings);
+  };
 
   private socketAuth = async (req: Request, res: Response) => {
     const authDTO = new RequestDataValidator<SocketAuthDTO>(req.body, socketAuthScheme).validate();

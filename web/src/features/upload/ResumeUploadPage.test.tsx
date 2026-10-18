@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import type * as Upload from "./upload";
 
-vi.mock("@/api/config", () => ({ API_URL: "http://api.test", DISCORD_CLIENT_ID: "" }));
+vi.mock("@/api/config", () => ({ API_URL: "http://api.test" }));
 const fetchMock = vi.hoisted(() => {
   const mock = vi.fn<typeof fetch>();
   globalThis.fetch = mock;

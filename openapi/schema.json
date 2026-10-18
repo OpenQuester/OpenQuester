@@ -1105,6 +1105,25 @@
         }
       }
     },
+    "/v1/auth/settings": {
+      "get": {
+        "summary": "Public sign-in settings",
+        "description": "Settings clients need for sign-in, read at runtime instead of built in. No session needed.",
+        "tags": ["Auth"],
+        "responses": {
+          "200": {
+            "description": "Sign-in settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseAuthSettings"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/logout": {
       "get": {
         "summary": "Logout user",
@@ -3071,6 +3090,16 @@
           }
         },
         "required": ["content"]
+      },
+      "ResponseAuthSettings": {
+        "type": "object",
+        "properties": {
+          "discordClientId": {
+            "type": ["string", "null"],
+            "description": "Discord application id for Discord sign-in, or null when it is off"
+          }
+        },
+        "required": ["discordClientId"]
       },
       "ResponseUser": {
         "type": "object",

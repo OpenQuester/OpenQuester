@@ -4,8 +4,6 @@
  */
 export const API_URL: string = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
-export const DISCORD_CLIENT_ID: string = import.meta.env.VITE_DISCORD_CLIENT_ID ?? "";
-
 export function apiUrl(path: string): string {
   return `${API_URL}${path}`;
 }

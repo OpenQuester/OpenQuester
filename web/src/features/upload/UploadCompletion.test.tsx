@@ -13,7 +13,7 @@ import type { MediaFile, ParsedPackage } from "./types";
 import type * as Upload from "./upload";
 import { UploadPackagePage } from "./UploadPackagePage";
 
-vi.mock("@/api/config", () => ({ API_URL: "http://api.test", DISCORD_CLIENT_ID: "" }));
+vi.mock("@/api/config", () => ({ API_URL: "http://api.test" }));
 const { fetchMock, readFile } = vi.hoisted(() => {
   const fetchMock = vi.fn<typeof fetch>();
   globalThis.fetch = fetchMock;

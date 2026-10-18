@@ -6,7 +6,7 @@ import type { TFunction } from "i18next";
 
 import { PageContainer } from "@/app/AppShell";
 import { ApiError } from "@/api/client";
-import { discordEnabled, startDiscordLogin } from "@/features/auth/discord";
+import { startDiscordLogin, useDiscordClientId } from "@/features/auth/discord";
 import { useMe } from "@/features/auth/useMe";
 import { cn } from "@/lib/cn";
 import { formatBytes, timeAgo } from "@/lib/format";
@@ -57,6 +57,7 @@ type Step =
 export function UploadPackagePage() {
   const { t } = useTranslation();
   const me = useMe();
+  const discordClientId = useDiscordClientId();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>({ kind: "pick" });
@@ -196,12 +197,12 @@ export function UploadPackagePage() {
             <div className="flex flex-col gap-4">
               <p className="m-0 font-semibold">{t("upload.guestTitle")}</p>
               <p className="m-0 text-soft">{t("upload.guestHelp")}</p>
-              {discordEnabled ? (
+              {discordClientId ? (
                 <Button
                   variant="primary"
                   size="lg"
                   className="sm:self-start"
-                  onClick={() => void startDiscordLogin("/packages/upload")}
+                  onClick={() => void startDiscordLogin(discordClientId, "/packages/upload")}
                 >
                   {t("login.discord")}
                 </Button>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ApiError } from "@/api/client";
-import { discordEnabled, startDiscordLogin } from "@/features/auth/discord";
+import { startDiscordLogin, useDiscordClientId } from "@/features/auth/discord";
 import { useMe } from "@/features/auth/useMe";
 import { useSettings } from "@/features/settings/settingsStore";
 import { CompressToggle } from "@/features/upload/UploadPackagePage";
@@ -78,6 +78,7 @@ function PublishBody({
 }) {
   const { t } = useTranslation();
   const me = useMe();
+  const discordClientId = useDiscordClientId();
   const qc = useQueryClient();
   const pkg = useEditor((s) => s.pkg);
   const media = useEditor((s) => s.media);
@@ -295,11 +296,11 @@ function PublishBody({
             <p className="m-0 text-sm text-muted">
               {me.data?.isGuest ? t("upload.guestHelp") : t("upload.signInFirst")}
             </p>
-            {discordEnabled && (
+            {discordClientId && (
               <Button
                 size="sm"
                 className="self-start"
-                onClick={() => void startDiscordLogin(window.location.pathname)}
+                onClick={() => void startDiscordLogin(discordClientId, window.location.pathname)}
               >
                 {t("login.discord")}
               </Button>

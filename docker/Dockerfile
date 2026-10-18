@@ -29,10 +29,7 @@ RUN npm ci
 
 COPY web .
 
-# Public Discord application id; empty builds the app without Discord sign-in
-ARG VITE_DISCORD_CLIENT_ID=""
-ENV VITE_DISCORD_CLIENT_ID=$VITE_DISCORD_CLIENT_ID
-
+# Sign-in settings come from the API at runtime (GET /v1/auth/settings)
 RUN npm run build
 
 # Production stage

@@ -928,6 +928,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public sign-in settings
+         * @description Settings clients need for sign-in, read at runtime instead of built in. No session needed.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Sign-in settings */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResponseAuthSettings"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/logout": {
         parameters: {
             query?: never;
@@ -2919,6 +2958,10 @@ export interface components {
             };
             /** @description Fingerprint of the imported package file's content (hex). Stored so a later upload of the same file can find this package with `GET /v1/packages?sourceHash=`. On PUT, omit to keep the stored value; null clears it. */
             sourceHash?: string | null;
+        };
+        ResponseAuthSettings: {
+            /** @description Discord application id for Discord sign-in, or null when it is off */
+            discordClientId: string | null;
         };
         ResponseUser: {
             /** @example 1 */
