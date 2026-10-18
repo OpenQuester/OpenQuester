@@ -1,15 +1,21 @@
-import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 
-import { createHttpTestClient } from "tests/e2e/harness/HttpTestClient";
+import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 
 describe("Auth settings", () => {
-  let harness: ServerTestHarness | undefined;
+  let harness: ServerTestHarness;
+  let http: HttpTestClient;
   const previousClientId = process.env.DISCORD_CLIENT_ID;
 
   beforeAll(async () => {
     process.env.DISCORD_CLIENT_ID = " 123456789 ";
     harness = await ServerTestHarness.start({ apiPort: 0 });
+    http = createHttpTestClient(harness.serverUrl);
+  });
+
+  afterEach(async () => {
+    await harness.resetState();
   });
 
   afterAll(async () => {
@@ -23,7 +29,7 @@ describe("Auth settings", () => {
   });
 
   it("serves the Discord application id to visitors without a session", async () => {
-    const res = await createHttpTestClient(harness!.serverUrl).get("/v1/auth/settings");
+    const res = await http.get("/v1/auth/settings");
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ discordClientId: "123456789" });
