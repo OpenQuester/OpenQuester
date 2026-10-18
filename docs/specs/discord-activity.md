@@ -74,6 +74,20 @@ Use the same application as "Log in with Discord" so `discord_id` matches.
 5. Activities → Settings: Enable Activities.
 6. Server: set `DISCORD_CLIENT_SECRET`. Pages: set the `DISCORD_CLIENT_ID` variable.
 
+If the Activity page says the app "has no commands registered to launch
+them", the default entry point command wasn't created (it is made when
+Activities are first enabled). Register it once with the bot token
+(Developer Portal → Bot → Reset Token):
+
+```bash
+curl -X POST "https://discord.com/api/v10/applications/$DISCORD_CLIENT_ID/commands" \
+  -H "Authorization: Bot $DISCORD_BOT_TOKEN" -H "Content-Type: application/json" \
+  -d '{"name":"launch","description":"Play OpenQuester in this voice channel","type":4,"handler":2,"integration_types":[0,1],"contexts":[0,1,2]}'
+```
+
+`type: 4` is a primary entry point command and `handler: 2` lets Discord
+launch the Activity itself, so no bot code is needed.
+
 Until the app is distributed, only members of its developer team can launch it.
 
 ## Local development
