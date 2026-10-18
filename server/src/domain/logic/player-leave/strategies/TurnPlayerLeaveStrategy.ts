@@ -23,8 +23,16 @@ export class TurnPlayerLeaveStrategy implements IPlayerLeaveStrategy {
   constructor(private readonly phaseTransitionRouter: PhaseTransitionRouter) {}
 
   public canHandle(input: PlayerLeaveStrategyInput): boolean {
-    const { game, userId } = input;
-    return TurnPlayerLeaveLogic.validate(game, userId).isEligible;
+    const { game, userId, keepsSeat } = input;
+    const validation = TurnPlayerLeaveLogic.validate(game, userId);
+
+    // A dropped connection (or a server restart) keeps the pick turn for the
+    // rejoin; the showman can still hand it to someone else meanwhile
+    if (keepsSeat && validation.scenarioType === TurnPlayerScenarioType.REGULAR_ROUND) {
+      return false;
+    }
+
+    return validation.isEligible;
   }
 
   public async execute(input: PlayerLeaveStrategyInput): Promise<PlayerLeaveStrategyResult> {
