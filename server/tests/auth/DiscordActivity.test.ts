@@ -1,6 +1,4 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { type AddressInfo } from "node:net";
 import { type Repository } from "typeorm";
 
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
@@ -8,6 +6,7 @@ import { User } from "infrastructure/database/models/User";
 import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { PackageUtils } from "tests/utils/PackageUtils";
+import { FakeDiscordApi } from "tests/utils/FakeDiscordApi";
 import { deleteAll } from "tests/utils/TypeOrmTestUtils";
 
 const CLIENT_ID = "123456789";
@@ -19,55 +18,9 @@ const ACTIVITY_ORIGIN = `https://${CLIENT_ID}.discordsays.com`;
 
 const ENV_KEYS = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_API_URL"] as const;
 
-interface FakeDiscord {
-  server: Server;
-  url: string;
-}
-
-/** Answers Discord's token exchange and `/users/@me` like discord.com does */
-async function startFakeDiscord(): Promise<FakeDiscord> {
-  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    let body = "";
-
-    req.on("data", (chunk) => (body += chunk));
-    req.on("end", () => {
-      const reply = (status: number, data: unknown) => {
-        res.writeHead(status, { "content-type": "application/json" });
-        res.end(JSON.stringify(data));
-      };
-
-      if (req.method === "POST" && req.url === "/oauth2/token") {
-        const form = new URLSearchParams(body);
-        const valid =
-          form.get("client_id") === CLIENT_ID &&
-          form.get("client_secret") === CLIENT_SECRET &&
-          form.get("grant_type") === "authorization_code" &&
-          form.get("code") === GOOD_CODE;
-
-        return valid
-          ? reply(200, {
-              access_token: ACCESS_TOKEN,
-              token_type: "Bearer",
-              expires_in: 604800,
-              scope: "identify"
-            })
-          : reply(400, { error: "invalid_grant" });
-      }
-
-      if (req.method === "GET" && req.url === "/users/@me") {
-        return req.headers.authorization === `Bearer ${ACCESS_TOKEN}`
-          ? reply(200, DISCORD_USER)
-          : reply(401, { message: "401: Unauthorized", code: 0 });
-      }
-
-      reply(404, { message: "404: Not Found" });
-    });
-  });
-
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const { port } = server.address() as AddressInfo;
-
-  return { server, url: `http://127.0.0.1:${port}` };
+interface LoggedInUser {
+  user: User;
+  cookie: string;
 }
 
 function sessionCookie(setCookie: string[] | string | undefined): string {
@@ -84,13 +37,19 @@ function sessionCookie(setCookie: string[] | string | undefined): string {
 describe("Discord Activity", () => {
   let harness: ServerTestHarness;
   let http: HttpTestClient;
-  let discord: FakeDiscord;
+  let discord: FakeDiscordApi;
   let userRepo: Repository<User>;
   const previousEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]]));
   const packageUtils = new PackageUtils();
 
   beforeAll(async () => {
-    discord = await startFakeDiscord();
+    discord = await FakeDiscordApi.start({
+      clientId: CLIENT_ID,
+      clientSecret: CLIENT_SECRET,
+      code: GOOD_CODE,
+      accessToken: ACCESS_TOKEN,
+      user: DISCORD_USER
+    });
     process.env.DISCORD_CLIENT_ID = CLIENT_ID;
     process.env.DISCORD_CLIENT_SECRET = CLIENT_SECRET;
     process.env.DISCORD_API_URL = discord.url;
@@ -107,7 +66,7 @@ describe("Discord Activity", () => {
 
   afterAll(async () => {
     await harness?.stop();
-    await new Promise<void>((resolve) => discord?.server.close(() => resolve()));
+    await discord?.stop();
 
     for (const key of ENV_KEYS) {
       if (previousEnv[key] === undefined) {
@@ -127,7 +86,7 @@ describe("Discord Activity", () => {
       .send({ code });
   }
 
-  async function loginAs(username: string): Promise<{ user: User; cookie: string }> {
+  async function loginAs(username: string): Promise<LoggedInUser> {
     const user = await userRepo.save(userRepo.create({ username, is_deleted: false }));
     const res = await http.post("/v1/test/login").send({ userId: user.id });
 

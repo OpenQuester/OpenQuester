@@ -63,8 +63,10 @@ Use the same application as "Log in with Discord" so `discord_id` matches.
      That host already forwards `/v1` and `/socket.io` to the API.
    - `/media` → the S3/CDN host from `GET /v1/auth/settings` (`discordActivity.urlMappings`).
    - `/api` → the API host, only if the build sets an absolute `VITE_API_URL`.
-4. Activities → Settings: Enable Activities.
-5. Server: set `DISCORD_CLIENT_SECRET`. Pages: set the `DISCORD_CLIENT_ID` variable.
+4. Activities → Art Assets: upload `assets/discord-activity/cover.png`
+   (and `icon.png` as the app icon if needed).
+5. Activities → Settings: Enable Activities.
+6. Server: set `DISCORD_CLIENT_SECRET`. Pages: set the `DISCORD_CLIENT_ID` variable.
 
 Until the app is distributed, only members of its developer team can launch it.
 
