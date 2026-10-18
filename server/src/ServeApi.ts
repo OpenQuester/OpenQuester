@@ -45,6 +45,9 @@ import { SocketIOInitializer } from "presentation/controllers/io/SocketIOInitial
 import { SocketActionDispatcher } from "presentation/controllers/io/SocketActionDispatcher";
 import { MiddlewareController } from "presentation/controllers/middleware/MiddlewareController";
 import { AdminRestApiController } from "presentation/controllers/rest/AdminRestApiController";
+import { DiscordActivityService } from "application/services/discord/DiscordActivityService";
+import { DiscordAuthService } from "application/services/discord/DiscordAuthService";
+import { DiscordActivityRestApiController } from "presentation/controllers/rest/DiscordActivityRestApiController";
 import { AuthRestApiController } from "presentation/controllers/rest/AuthRestApiController";
 import { DevelopmentRestApiController } from "presentation/controllers/rest/DevelopmentRestApiController";
 import { FileRestApiController } from "presentation/controllers/rest/FileRestApiController";
@@ -284,8 +287,14 @@ export class ServeApi {
       deps.fileService,
       deps.storage,
       deps.socketUserDataService,
+      container.resolve(DiscordAuthService),
       this._context.env,
       this._context.logger
+    );
+    new DiscordActivityRestApiController(
+      deps.app,
+      container.resolve(DiscordActivityService),
+      deps.userService
     );
     new PackageRestApiController(deps.app, deps.packageService, this._context.logger);
     new FileRestApiController(deps.app, deps.fileStorageService);

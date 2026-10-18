@@ -1,12 +1,11 @@
 import { type Express, type Request, type Response, Router } from "express";
 import Joi from "joi";
-import https, { type RequestOptions } from "node:https";
 import { type Namespace } from "socket.io";
 
 import { FileService } from "application/services/file/FileService";
 import { TranslateService as ts } from "domain/utils/TranslateService";
 import { UserService } from "application/services/user/UserService";
-import { getDiscordCDNLink } from "domain/constants/discord";
+import { DISCORD_ACTIVITY_MEDIA_PREFIX, getDiscordCDNLink } from "domain/constants/discord";
 import { USER_RELATIONS, USER_SELECT_FIELDS } from "domain/constants/user";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { FileSource } from "domain/enums/file/FileSource";
@@ -19,7 +18,12 @@ import {
   type AuthSettingsDTO,
   type OauthProviderSettingsDTO
 } from "domain/types/dto/auth/AuthSettingsDTO";
+import { type DiscordActivitySettingsDTO } from "domain/types/dto/auth/DiscordActivitySettingsDTO";
 import { type DiscordProfileDTO } from "domain/types/dto/auth/DiscordProfileDTO";
+import {
+  type DiscordActivityLoginDTO,
+  type DiscordActivityLoginInputDTO
+} from "domain/types/dto/discord/DiscordActivityLoginDTO";
 import { type GuestLoginDTO } from "domain/types/dto/auth/GuestLoginDTO";
 import { EOauthProvider, type Oauth2LoginDTO } from "domain/types/dto/auth/Oauth2LoginDTO";
 import { type SocketAuthDTO } from "domain/types/dto/auth/SocketAuthDTO";
@@ -33,6 +37,8 @@ import { SOCKET_RUNTIME_CONTEXT_UPDATE_EVENT } from "domain/constants/socket";
 import { RedisService } from "application/services/redis/RedisService";
 import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
 import { S3StorageService } from "application/services/storage/S3StorageService";
+import { DiscordAuthService } from "application/services/discord/DiscordAuthService";
+import { discordActivityLoginScheme } from "presentation/schemes/discord/discordSchemes";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { guestLoginScheme, socketAuthScheme } from "presentation/schemes/auth/authSchemes";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
@@ -46,6 +52,7 @@ export class AuthRestApiController {
     private readonly fileService: FileService,
     private readonly storage: S3StorageService,
     private readonly socketUserDataService: SocketUserDataService,
+    private readonly discordAuthService: DiscordAuthService,
     private readonly env: Environment,
     private readonly logger: ILogger
   ) {
@@ -57,6 +64,7 @@ export class AuthRestApiController {
     router.get("/logout", asyncHandler(this.logout));
     router.post("/socket", asyncHandler(this.socketAuth));
     router.post("/oauth2", asyncHandler(this.handleOauthLogin));
+    router.post("/discord/activity", asyncHandler(this.handleDiscordActivityLogin));
     router.post("/guest", asyncHandler(this.handleGuestLogin));
   }
 
@@ -71,7 +79,10 @@ export class AuthRestApiController {
       .filter(([, clientId]) => clientId.length > 0)
       .map(([provider, clientId]) => ({ provider: provider as EOauthProvider, clientId }));
 
-    const settings: AuthSettingsDTO = { oauthProviders };
+    const settings: AuthSettingsDTO = {
+      oauthProviders,
+      discordActivity: this._getDiscordActivitySettings()
+    };
 
     res.status(HttpStatus.OK).json(settings);
   };
@@ -166,6 +177,41 @@ export class AuthRestApiController {
   };
 
   /**
+   * Signs in from inside the Discord Activity. The SDK's `authorize` gives a
+   * code; the server swaps it with the client secret, signs the Discord user in
+   * like the website does, and hands back the access token for `authenticate`.
+   */
+  private handleDiscordActivityLogin = async (req: Request, res: Response) => {
+    const log = this.logger.performance(`Discord Activity login`, {
+      prefix: LogPrefix.AUTH
+    });
+
+    const { code } = new RequestDataValidator<DiscordActivityLoginInputDTO>(
+      req.body,
+      discordActivityLoginScheme()
+    ).validate();
+
+    const token = await this.discordAuthService.exchangeActivityCode(code);
+
+    const userData = await this.getDiscordUser({
+      oauthProvider: EOauthProvider.DISCORD,
+      tokenSchema: token.token_type,
+      token: token.access_token
+    });
+
+    this._useDiscordActivityCookie(req);
+
+    const body: DiscordActivityLoginDTO = { user: userData, accessToken: token.access_token };
+
+    this.saveUserSession(req, res, userData, {
+      successMessage: "User logged in via Discord Activity",
+      auditData: { provider: EOauthProvider.DISCORD },
+      performanceLog: log,
+      responseBody: body
+    });
+  };
+
+  /**
    * Handle user logout
    */
   private logout = async (req: Request, res: Response) => {
@@ -206,30 +252,9 @@ export class AuthRestApiController {
   };
 
   private async getDiscordUser(authData: Oauth2LoginDTO): Promise<UserDTO> {
-    const discordUser = await new Promise<string>((resolve, reject) => {
-      const options: RequestOptions = {
-        hostname: "discord.com",
-        path: "/api/users/@me",
-        method: "GET",
-        headers: {
-          authorization: authData.tokenSchema
-            ? `${authData.tokenSchema} ${authData.token}`
-            : authData.token
-        }
-      };
-
-      const request = https.request(options, (response) => {
-        let data = "";
-
-        response.on("data", (chunk) => {
-          return (data += chunk);
-        });
-        response.on("end", () => resolve(data));
-      });
-
-      request.on("error", reject);
-      request.end();
-    });
+    const discordUser = await this.discordAuthService.getCurrentUser(
+      authData.tokenSchema ? `${authData.tokenSchema} ${authData.token}` : authData.token
+    );
 
     // Parse Discord response
     let profileData: DiscordProfile;
@@ -335,6 +360,8 @@ export class AuthRestApiController {
       successMessage: string;
       auditData: Record<string, any>;
       performanceLog?: PerformanceLog;
+      /** Sent instead of the user, e.g. when the client needs more than the profile */
+      responseBody?: unknown;
     }
   ): void {
     const clientIp = req.ip || req.socket.remoteAddress;
@@ -364,7 +391,31 @@ export class AuthRestApiController {
         loginTime: new Date()
       });
 
-      res.status(HttpStatus.OK).json(userData);
+      res.status(HttpStatus.OK).json(options.responseBody ?? userData);
     });
+  }
+
+  /** Null when the Activity isn't set up, so the web app stays a website */
+  private _getDiscordActivitySettings(): DiscordActivitySettingsDTO | null {
+    if (!this.env.DISCORD_ACTIVITY_ENABLED) {
+      return null;
+    }
+
+    const mediaHost = new URL(this.storage.getPublicOrigin()).host;
+
+    return { urlMappings: [{ prefix: DISCORD_ACTIVITY_MEDIA_PREFIX, target: mediaHost }] };
+  }
+
+  /**
+   * The Activity runs in an iframe on `{clientId}.discordsays.com` inside
+   * discord.com, where only a partitioned, host-only, SameSite=None cookie is
+   * kept. The flag stops the per-request cookie domain from coming back.
+   */
+  private _useDiscordActivityCookie(req: Request): void {
+    req.session.discordActivity = true;
+    req.session.cookie.domain = undefined;
+    req.session.cookie.secure = true;
+    req.session.cookie.sameSite = "none";
+    req.session.cookie.partitioned = true;
   }
 }
