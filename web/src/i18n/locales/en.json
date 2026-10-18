@@ -649,7 +649,8 @@
       "nextWindow": "Everyone who presses within a split second of the first has an equal chance. Right: +{{points}}. {{wrong}}.",
       "showmanWait": "The question is playing — the buzzer opens after it",
       "openBuzzer": "Open buzzer now",
-      "showmanNextEarly": "The buzzer opens when the question finishes. Open it now to let players buzz early."
+      "showmanNextEarly": "The buzzer opens when the question finishes. Open it now to let players buzz early.",
+      "inDraw": "In the draw…"
     },
     "answering": {
       "judge": "{{name}} is answering — judge it",

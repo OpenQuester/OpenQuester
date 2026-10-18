@@ -343,7 +343,9 @@ function useDockModel(session: GameSession, myId: number): DockModel {
                 data-early={early || undefined}
               >
                 {sending("question-answer")
-                  ? t("dock.sending")
+                  ? session.settings?.buttonPressMode === "random_within_window"
+                    ? t("dock.showing.inDraw")
+                    : t("dock.sending")
                   : early
                     ? t("dock.showing.waitButton")
                     : t("dock.showing.buzz")}
