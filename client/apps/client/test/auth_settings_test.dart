@@ -47,6 +47,7 @@ void main() {
               clientId: '42',
             ),
           ],
+          discordActivity: null,
         ),
       );
 
@@ -60,7 +61,10 @@ void main() {
     when(
       authClient.getV1AuthSettings,
     ).thenAnswer(
-      (_) async => const ResponseAuthSettings(oauthProviders: []),
+      (_) async => const ResponseAuthSettings(
+        oauthProviders: [],
+        discordActivity: null,
+      ),
     );
 
     await controller.loadSettings();
@@ -72,7 +76,10 @@ void main() {
     when(
       authClient.getV1AuthSettings,
     ).thenAnswer(
-      (_) async => const ResponseAuthSettings(oauthProviders: []),
+      (_) async => const ResponseAuthSettings(
+        oauthProviders: [],
+        discordActivity: null,
+      ),
     );
 
     await expectLater(
