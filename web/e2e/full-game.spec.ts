@@ -165,6 +165,13 @@ test.describe("full game", () => {
     await expect(alice.page.getByTestId("buzz")).not.toHaveAttribute("data-early", /.*/, {
       timeout: 20_000,
     });
+    // Closing chat restores its trigger's focus: Space activates that button.
+    await expect(alice.page.getByRole("button", { name: "Chat", exact: true })).toBeFocused();
+    await alice.page.keyboard.press("Space");
+    await expect(alice.page.getByRole("dialog")).toBeVisible();
+    await alice.page.keyboard.press("Escape");
+    // The global buzzer shortcut applies when focus is outside interactive controls.
+    await alice.page.getByTestId("question-text").click();
     await alice.page.keyboard.press("Space");
     await expectPhase([host.page], "Answering");
     await host.page.keyboard.press("w");

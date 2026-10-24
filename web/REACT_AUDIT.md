@@ -3,6 +3,27 @@
 Status: audit and React fixes complete; remaining integration/dependency limitations are documented below.
 Audit date: 2026-10-24. Scope: the React client in `web/` and its related documentation.
 
+## CI follow-up (2026-10-24)
+
+The failed Web run `40125796965` at `4e562d203` had two test synchronization
+problems. The full-game scenario pressed Space while focus had returned to the
+Chat button, reopening the dialog instead of buzzing. It now asserts that native
+button behavior, then focuses noninteractive question text before testing the
+global buzzer shortcut. The media scenario observed Save's previous enabled
+render before the rotated preview started encoding. It now waits for the encoded
+320 × 480 preview before pressing Ctrl+Enter; publish/resume byte equality remains
+required. Neither change alters product behavior, retries, skips or game timeouts.
+
+Focused verification: the full game and media publish/resume on desktop, tablet
+and phone passed (4 tests, 2 existing device skips). Typecheck, lint, changed-file
+formatting and the native playback-pause regression passed. The Codex review
+thread is resolved; its fix remains in `4e562d203`.
+
+The earlier full-game timeout was incorrectly grouped with B1 based on its error
+text. CI traces and the local reproduction identify a focus issue in this
+scenario. B1's separate instrumented server observation remains historical
+evidence with an unconfirmed cause; these test fixes do not claim to resolve it.
+
 ## Follow-up after merging main (2026-10-24)
 
 PR #446 was squash-merged into `main` at `ecd145c8e`. Its complete tree is
@@ -26,8 +47,8 @@ Fresh checks: 309 unit tests, 22 native browser tests, production build/typechec
 lint, formatting and API-type verification passed. React Doctor 0.9.18 still
 reports 0 errors / 62 warnings / score 74 with no new rule/file diagnostics.
 Full E2E: **123 passed, 1 failed, 14 existing skips** in 13.7 minutes. The only
-failure is the existing full-game `Ready to buzz` → `Answering` timeout (B1);
-there were no new failure signatures. The test API, previews and isolated
+failure was a full-game `Ready to buzz` → `Answering` timeout; the CI follow-up
+above corrects its initial attribution to B1. The test API, previews and isolated
 `oq-web-e2e` containers were stopped; their ports have no listeners.
 Evidence: `C:/Users/diazo/AppData/Local/Temp/oq-pr476-sync-20261024-220725`.
 

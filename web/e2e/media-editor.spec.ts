@@ -73,6 +73,10 @@ test("accepted image survives publish interruption and resumes with the reviewed
   await form.getByRole("button", { name: "Edit", exact: true }).click();
   const editor = page.getByTestId("media-editor");
   await editor.getByRole("button", { name: "Rotate right", exact: true }).click();
+  // Wait for the rotated, encoded preview; Save can still reflect the previous render.
+  await expect(editor.getByRole("status")).toHaveText(/320 × 480 · \d+ KB/, {
+    timeout: 30000,
+  });
   await expect(editor.getByTestId("media-save")).toBeEnabled({ timeout: 30000 });
   // This shortcut must save only media, leaving the parent question open.
   await editor.getByTestId("media-save").press("Control+Enter");
