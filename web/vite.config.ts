@@ -18,6 +18,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
+    // Worker-only imports must be discovered before editing: late optimization reloads lose form state.
+    optimizeDeps: { include: ["@jsquash/avif/encode", "mediabunny"] },
     server: { port: 5173, proxy },
     preview: { port: 4173, proxy },
     build: { sourcemap: true, target: "es2022" },

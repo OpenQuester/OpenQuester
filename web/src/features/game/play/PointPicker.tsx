@@ -1,3 +1,4 @@
+import { questionStyles } from "./question/questionStyles";
 import { useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -41,8 +42,6 @@ export function PointPicker({
 }) {
   const { t } = useTranslation();
   const [hover, setHover] = useState<Spot | null>(null);
-  // Height ÷ width, so the radius (a share of the width) draws as a circle.
-  const [ratio, setRatio] = useState(1);
   const spotOf = (e: MouseEvent<HTMLDivElement>): Spot => {
     const r = e.currentTarget.getBoundingClientRect();
     return {
@@ -78,12 +77,7 @@ export function PointPicker({
 
   return (
     <div
-      className={cn(
-        "relative inline-block max-w-full overflow-hidden rounded-lg",
-        onPick &&
-          "cursor-crosshair focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
-        className,
-      )}
+      className={cn(questionStyles.picture, onPick && questionStyles.pointPicker, className)}
       onClick={onPick ? (e) => onPick(spotOf(e)) : undefined}
       onMouseMove={onPick ? (e) => setHover(spotOf(e)) : undefined}
       onMouseLeave={() => setHover(null)}
@@ -99,33 +93,21 @@ export function PointPicker({
       }
       data-testid="point-picker"
     >
-      <img
-        src={src}
-        alt={t("point.picture")}
-        className="block max-h-[60vh] max-w-full"
-        onLoad={(e) => {
-          const img = e.currentTarget;
-          if (img.naturalWidth) setRatio(img.naturalHeight / img.naturalWidth);
-        }}
-      />
+      <img src={src} alt={t("point.picture")} className="block max-h-[60vh] max-w-full" />
       {target && (
         <span
-          className="pointer-events-none absolute rounded-full border-4 border-success bg-success/20"
+          className={questionStyles.correctPoint}
           style={{
-            left: `${(target.x - r) * 100}%`,
-            top: `${(target.y - r / ratio) * 100}%`,
+            left: `${target.x * 100}%`,
+            top: `${target.y * 100}%`,
             width: `${r * 200}%`,
-            height: `${(r * 200) / ratio}%`,
           }}
           data-testid="point-target"
         />
       )}
       {(picked ?? hover) && (
         <span
-          className={cn(
-            "pointer-events-none absolute h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow",
-            picked ? "bg-accent" : "bg-accent/50",
-          )}
+          className={cn(questionStyles.chosenPoint, picked ? "bg-accent" : "bg-accent/50")}
           style={{ left: `${(picked ?? hover)!.x * 100}%`, top: `${(picked ?? hover)!.y * 100}%` }}
         />
       )}

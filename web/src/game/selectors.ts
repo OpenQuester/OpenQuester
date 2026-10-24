@@ -199,10 +199,6 @@ export function canPick(
   return OK;
 }
 
-export function isMyTurn(session: GameSession, myId: number): boolean {
-  return session.state.currentTurnPlayerId === myId;
-}
-
 /** Score delta the showman awards for the current question. */
 export function questionValue(session: GameSession): number {
   const q = session.state.currentQuestion;

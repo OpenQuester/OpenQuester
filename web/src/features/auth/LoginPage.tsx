@@ -1,49 +1,19 @@
-import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-
-import { PageContainer } from "@/app/AppShell";
+import { PageContainer, PageTitle } from "@/ui/Page";
 import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
 import { FieldError, Label, TextInput } from "@/ui/Field";
-
-import { startDiscordLogin, useDiscordClientId } from "./discord";
-import { useGuestLogin } from "./useMe";
+import { startDiscordLogin } from "./discord";
+import { useLoginForm } from "./useLoginForm";
 
 export function LoginPage() {
   const { t } = useTranslation();
-  const { redirect } = useSearch({ from: "/shell/login" });
-  const navigate = useNavigate();
-  const guest = useGuestLogin();
-  const discordClientId = useDiscordClientId();
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const target =
-    redirect && redirect.startsWith("/") && !redirect.startsWith("/login") ? redirect : "/";
-
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    const trimmed = name.trim().replace(/\s+/g, " ");
-    if (!trimmed) {
-      setError(t("login.nameRequired"));
-      return;
-    }
-    setError(null);
-    try {
-      await guest.mutateAsync(trimmed);
-      await navigate({ to: target });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
+  const { name, setName, error, guest, discordClientId, target, onSubmit } = useLoginForm();
   return (
     <PageContainer width={560}>
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-2">
-          <h1 className="m-0 font-display text-4xl font-extrabold tracking-tight">
-            {t("login.title")}
-          </h1>
+          <PageTitle>{t("login.title")}</PageTitle>
           <p className="m-0 text-muted">{t("login.subtitle")}</p>
         </div>
         <Card>

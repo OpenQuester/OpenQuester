@@ -1,3 +1,5 @@
+import { layoutStyles } from "@/ui/layoutStyles";
+import type { AllPlayEntry, AllPlayMode } from "@/game/protocol";
 import { cn } from "@/lib/cn";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +8,8 @@ import { formatScore, formatSigned } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
 
 import { useGame, useSession } from "../GameContext";
+import { AnswerReviewActions, ReviewedCorrectAnswer } from "./stages/AnswerReview";
+import { stageStyles } from "./stages/stageStyles";
 
 /** Theme and price of the "everyone answers" question, with its rule. */
 function AllPlayHeader() {
@@ -40,12 +44,10 @@ export function AllPlayStakeStage() {
   const { myId } = useGame();
   const entries = session.state.allPlay?.entries ?? [];
   return (
-    <section className="mx-auto flex w-full max-w-[880px] flex-col gap-4 oq-pop">
+    <section className={stageStyles.promptLayout}>
       <AllPlayHeader />
-      <p className="m-0 font-display text-[clamp(24px,3.4vw,36px)] font-semibold leading-tight">
-        {t("allPlay.stakePrompt")}
-      </p>
-      <ul className="m-0 flex list-none flex-wrap gap-2 p-0" aria-label={t("allPlay.players")}>
+      <p className={stageStyles.promptText}>{t("allPlay.stakePrompt")}</p>
+      <ul className={stageStyles.submittedPlayers} aria-label={t("allPlay.players")}>
         {entries.map((e) => {
           const p = findPlayer(session, e.playerId);
           const done = e.stake != null;
@@ -67,107 +69,80 @@ export function AllPlayStakeStage() {
 export function AllPlayReviewStage() {
   const { t } = useTranslation();
   const session = useSession();
-  const { connection, myId } = useGame();
+  const { myId } = useGame();
   const s = session.state;
   const data = s.allPlay;
   const isShowman = myRole(session, myId) === "showman";
   const q = s.currentQuestion;
   if (!data) return null;
   return (
-    <section className="mx-auto flex w-full max-w-[1000px] flex-wrap items-start gap-6 oq-pop">
-      <div className="flex min-w-[260px] flex-[1_1_320px] flex-col gap-3">
+    <section className={stageStyles.reviewLayout}>
+      <div className={stageStyles.questionColumn}>
         <AllPlayHeader />
-        <p className="m-0 font-display text-[clamp(22px,3vw,32px)] font-semibold leading-tight [overflow-wrap:anywhere]">
-          {q?.text}
-        </p>
-        {isShowman && q?.answerText && (
-          <div className="flex flex-col gap-1 rounded-md border border-success-line bg-success-surface p-4">
-            <span className="text-sm text-muted">{t("reveal.answer")}</span>
-            <span className="text-xl font-semibold text-success">{q.answerText}</span>
-          </div>
-        )}
+        <p className={stageStyles.reviewQuestion}>{q?.text}</p>
+        {isShowman && q?.answerText && <ReviewedCorrectAnswer answer={q.answerText} />}
       </div>
-      <ul
-        className="m-0 flex flex-[1_1_360px] list-none flex-col gap-2 p-0"
-        aria-label={t("final.answers")}
-      >
-        {data.entries.map((e) => {
-          const p = findPlayer(session, e.playerId);
-          const { win, lose } = allPlayStakes(session, e);
-          const pending = e.isCorrect == null;
-          return (
-            <li
-              key={e.playerId}
-              className={cn(
-                "flex flex-wrap items-center gap-3 rounded-md border px-4 py-3",
-                pending ? "border-accent-line bg-accent-surface" : "border-line",
-              )}
-              data-testid="all-play-answer"
-            >
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-sm text-muted">
-                  {p?.meta.username}
-                  {data.mode === "stake" && (
-                    <>
-                      {" "}
-                      · {t("final.bid")} <b className="font-mono text-text">{formatScore(win)}</b>
-                    </>
-                  )}
-                </span>
-                <span className="text-lg [overflow-wrap:anywhere]">
-                  {e.answer ? `“${e.answer}”` : t("final.noAnswer")}
-                </span>
-              </div>
-              {pending ? (
-                isShowman ? (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="min-h-11 rounded-[12px] border border-success-line bg-success-surface px-4 font-semibold text-success"
-                      onClick={() =>
-                        connection.emit("all-play-review", {
-                          playerId: e.playerId,
-                          isCorrect: true,
-                        })
-                      }
-                      data-testid="all-play-correct"
-                    >
-                      {t("judge.correct")} {formatSigned(win)}
-                    </button>
-                    <button
-                      type="button"
-                      className="min-h-11 rounded-[12px] border border-danger/40 bg-danger-surface px-4 font-semibold text-danger"
-                      onClick={() =>
-                        connection.emit("all-play-review", {
-                          playerId: e.playerId,
-                          isCorrect: false,
-                        })
-                      }
-                      data-testid="all-play-wrong"
-                    >
-                      {t("judge.wrong")} {lose === 0 ? "±0" : formatSigned(lose)}
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-sm font-semibold text-accent-strong">
-                    {t("final.judging")}
-                  </span>
-                )
-              ) : (
-                <span
-                  className={cn(
-                    "text-sm font-semibold",
-                    e.isCorrect ? "text-success" : "text-danger",
-                  )}
-                >
-                  {e.isCorrect ? t("judge.correct") : t("judge.wrong")} ·{" "}
-                  {formatSigned(e.scoreChange ?? 0)}
-                </span>
-              )}
-            </li>
-          );
-        })}
+      <ul className={stageStyles.answerList} aria-label={t("final.answers")}>
+        {data.entries.map((e) => (
+          <AllPlayReviewAnswer key={e.playerId} entry={e} mode={data.mode} />
+        ))}
       </ul>
     </section>
+  );
+}
+
+function AllPlayReviewAnswer({ entry, mode }: { entry: AllPlayEntry; mode: AllPlayMode }) {
+  const { t } = useTranslation();
+  const session = useSession();
+  const { connection, myId } = useGame();
+  const isShowman = myRole(session, myId) === "showman";
+
+  const p = findPlayer(session, entry.playerId);
+  const { win, lose } = allPlayStakes(session, entry);
+  const pending = entry.isCorrect == null;
+  return (
+    <li
+      className={cn(
+        stageStyles.answerRow,
+        pending ? "border-accent-line bg-accent-surface" : "border-line",
+      )}
+      data-testid="all-play-answer"
+    >
+      <div className={layoutStyles.summaryColumn}>
+        <span className="text-sm text-muted">
+          {p?.meta.username}
+          {mode === "stake" && (
+            <>
+              {" "}
+              · {t("final.bid")} <b className="font-mono text-text">{formatScore(win)}</b>
+            </>
+          )}
+        </span>
+        <span className="text-lg [overflow-wrap:anywhere]">
+          {entry.answer ? `“${entry.answer}”` : t("final.noAnswer")}
+        </span>
+      </div>
+      {pending ? (
+        isShowman ? (
+          <AnswerReviewActions
+            correct={formatSigned(win)}
+            wrong={lose === 0 ? "±0" : formatSigned(lose)}
+            onReview={(isCorrect) =>
+              connection.emit("all-play-review", { playerId: entry.playerId, isCorrect })
+            }
+            testIdPrefix="all-play"
+          />
+        ) : (
+          <span className="text-sm font-semibold text-accent-strong">{t("final.judging")}</span>
+        )
+      ) : (
+        <span
+          className={cn("text-sm font-semibold", entry.isCorrect ? "text-success" : "text-danger")}
+        >
+          {entry.isCorrect ? t("judge.correct") : t("judge.wrong")} ·{" "}
+          {formatSigned(entry.scoreChange ?? 0)}
+        </span>
+      )}
+    </li>
   );
 }

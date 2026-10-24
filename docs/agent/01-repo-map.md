@@ -33,7 +33,21 @@ This map helps agents pick the right files before editing. It is not a replaceme
 | Run/debug backend tests | `.agents/skills/backend-test-runner/SKILL.md`, `server/scripts/test/runPipelineTests.mjs` |
 | Change admin diagnostics | `server/src/application/services/admin/*`, `server/src/presentation/controllers/rest/AdminRestApiController.ts` |
 
-## Frontend map
+## React browser map
+
+Start with `web/AGENTS.md`; it owns React structure, lifecycle invariants, styles,
+and commands. Use `docs/agent/03-verification-matrix.md` for validation.
+
+| Need | Inspect first |
+|---|---|
+| App routes and layout | `web/src/app/` |
+| Gameplay, lobby, connection | `web/src/features/game/`, `web/src/game/`, game-state and buzzer specs |
+| Package editor and media | `web/src/features/package-editor/`, `docs/specs/media-editor.md` |
+| Import/upload | `web/src/features/upload/`, SIQ compatibility and upload-state specs |
+| Shared UI, theme and strings | `web/src/ui/`, `web/src/theme/`, `web/src/i18n/` |
+| Admin/storage/stats | corresponding `web/src/features/` folders and feature specs |
+
+## Flutter map
 
 | Need | Inspect first |
 |---|---|

@@ -1,20 +1,14 @@
+import { gameMenuStyles } from "./menu/gameMenuStyles";
 import { useTranslation } from "react-i18next";
 
-import { Toggle } from "@/features/settings/SettingsPage";
+import { GamePreferences } from "./menu/GamePreferences";
+import { ShortcutGuide } from "./menu/ShortcutGuide";
 import { useSettings } from "@/features/settings/settingsStore";
 import { myRole, phaseOf } from "@/game/selectors";
 import { Button } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
 
 import { useGame, useSession } from "../GameContext";
-
-const KEYS = [
-  ["menu.keys.buzz", "keys.space"],
-  ["menu.keys.option", "1 – 4"],
-  ["menu.keys.judge", "C / W"],
-  ["menu.keys.chat", "T"],
-  ["menu.keys.menu", "?"],
-] as const;
 
 export function GameMenu({
   open,
@@ -53,44 +47,10 @@ export function GameMenu({
           </Button>
         )}
         <div className="grid gap-6 sm:grid-cols-2">
-          <section className="flex flex-col gap-2">
-            <h3 className="m-0 text-base font-semibold">{t("menu.shortcuts")}</h3>
-            {KEYS.map(([what, key]) => (
-              <div key={what} className="flex items-center justify-between gap-3 text-[15px]">
-                <span className="min-w-0">{t(what)}</span>
-                <kbd className="shrink-0 whitespace-nowrap rounded-sm border border-line-strong bg-surface-2 px-2 py-1">
-                  {key.startsWith("keys.") ? t(key) : key}
-                </kbd>
-              </div>
-            ))}
-          </section>
-          <section className="flex flex-col gap-1">
-            <h3 className="m-0 text-base font-semibold">{t("menu.feel")}</h3>
-            <Toggle
-              label={t("settings.sound")}
-              checked={settings.sound}
-              onChange={(v) => settings.update({ sound: v })}
-            />
-            <Toggle
-              label={t("settings.reduceMotion")}
-              checked={settings.reduceMotion}
-              onChange={(v) => settings.update({ reduceMotion: v })}
-            />
-            <label htmlFor="menu-vol" className="mt-1 text-[15px]">
-              {t("settings.volume")}
-            </label>
-            <input
-              id="menu-vol"
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(settings.volume * 100)}
-              onChange={(e) => settings.update({ volume: Number(e.target.value) / 100 })}
-              className="accent-[var(--oq-accent)]"
-            />
-          </section>
+          <ShortcutGuide />
+          <GamePreferences settings={settings} />
         </div>
-        <div className="flex flex-wrap gap-2 border-t border-line pt-4">
+        <div className={gameMenuStyles.actions}>
           {role === "player" && phase !== "finished" && (
             <Button
               onClick={() => {

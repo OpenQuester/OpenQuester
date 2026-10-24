@@ -2,11 +2,14 @@
 import encodeAvif from "@jsquash/avif/encode";
 
 import { MAX_HEIGHT, MAX_WIDTH } from "./limits";
+import type { ImageEdits } from "@/features/package-editor/media-editor/mediaEdits";
+import { renderImage } from "@/features/package-editor/media-editor/renderImage";
 
 export interface ImageJob {
   id: number;
   bytes: Uint8Array;
   mime: string;
+  edits?: ImageEdits;
 }
 
 export type ImageResult =
@@ -26,18 +29,23 @@ self.onmessage = async ({ data }: MessageEvent<ImageJob>) => {
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext("2d")!;
     ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(bitmap, 0, 0, width, height);
+    if (data.edits) renderImage(canvas, bitmap, data.edits);
+    else ctx.drawImage(bitmap, 0, 0, width, height);
     bitmap.close();
 
     let result: ImageResult;
     try {
-      const pixels = ctx.getImageData(0, 0, width, height);
+      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
       // Quality 50 at 4:2:0 is close to the Flutter encoder's crf 40.
-      const avif = await encodeAvif(pixels, { quality: 50, speed: 6, subsample: 1 });
+      const quality = data.edits ? { small: 25, balanced: 50, high: 75 }[data.edits.quality] : 50;
+      const avif = await encodeAvif(pixels, { quality, speed: 6, subsample: 1 });
       result = { id: data.id, ok: true, bytes: new Uint8Array(avif), ext: "avif" };
     } catch {
       // No WebAssembly (or out of memory): WebP from the canvas is the next best.
-      const webp = await canvas.convertToBlob({ type: "image/webp", quality: 0.8 });
+      const quality = data.edits
+        ? { small: 0.55, balanced: 0.8, high: 0.95 }[data.edits.quality]
+        : 0.8;
+      const webp = await canvas.convertToBlob({ type: "image/webp", quality });
       if (webp.type !== "image/webp") throw new Error("no encoder");
       result = {
         id: data.id,

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/cn";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
 export type ButtonVariant = "accent" | "primary" | "secondary" | "ghost" | "danger" | "success";
 export type ButtonSize = "sm" | "md" | "lg" | "xl";
@@ -21,6 +21,7 @@ const sizes: Record<ButtonSize, string> = {
 };
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  ref?: Ref<HTMLButtonElement>;
   variant?: ButtonVariant;
   size?: ButtonSize;
   /** Rendered as a non-interactive button that still explains itself. */

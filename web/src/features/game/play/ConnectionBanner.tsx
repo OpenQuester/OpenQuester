@@ -1,3 +1,4 @@
+import { gameScreenStyles } from "./screen/gameScreenStyles";
 import { useTranslation } from "react-i18next";
 
 import { findPlayer, showman } from "@/game/selectors";
@@ -12,11 +13,8 @@ export function ConnectionBanner({ showPause = false }: { showPause?: boolean })
   if (connection === "reconnecting" || connection === "connecting") {
     if (!session) return null;
     return (
-      <div
-        role="alert"
-        className="border-b border-danger/40 bg-danger-surface text-on-danger-surface"
-      >
-        <div className="mx-auto flex max-w-[1320px] flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 sm:px-6">
+      <div role="alert" className={gameScreenStyles.offlineBanner}>
+        <div className={gameScreenStyles.connectionNotice}>
           <strong>{t("banner.reconnecting")}</strong>
           <span>{t("banner.reconnectingHelp")}</span>
         </div>
@@ -26,12 +24,8 @@ export function ConnectionBanner({ showPause = false }: { showPause?: boolean })
   if (showPause && session?.state.isPaused) {
     const host = showman(session);
     return (
-      <div
-        role="status"
-        className="border-b border-warning/30 bg-warning-surface text-on-warning-surface"
-        data-testid="paused-banner"
-      >
-        <div className="mx-auto flex max-w-[1320px] flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 sm:px-6">
+      <div role="status" className={gameScreenStyles.retryBanner} data-testid="paused-banner">
+        <div className={gameScreenStyles.connectionNotice}>
           <strong>
             {t("banner.paused", {
               name: host ? findPlayer(session, host.meta.id)?.meta.username : t("roles.showman"),

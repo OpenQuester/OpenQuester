@@ -88,6 +88,10 @@ export interface MediaFile {
   /** Name inside the archive, used for the upload content type. */
   name: string;
   bytes: Uint8Array;
+  /** Local draft metadata: preserve the encoding explicitly accepted in the media editor. */
+  preserveEncoding?: boolean;
+  /** Original display name; never used as a storage key. */
+  displayName?: string;
   /**
    * Set for a file already in storage (opened from a published package): it
    * may have no bytes, is shown from this address and is never uploaded again.
@@ -104,6 +108,8 @@ export interface ImportWarning {
     | "noAnswer"
     | "choiceAsSimple"
     | "unknownType"
+    | "finalAsSimple"
+    | "extraFinalQuestions"
     | "hashMismatch";
   /** Round › theme › price, or empty for package-level warnings. */
   where: string;

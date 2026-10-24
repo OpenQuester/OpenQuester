@@ -4,7 +4,7 @@ import type { components } from "@/api/schema";
 import { md5Base64, md5Hex, mimeFor, readZip } from "./archive";
 import { parseOq } from "./oq";
 import { parseSiq } from "./siq";
-import type { OptimizeProgress } from "./optimize";
+import type { OptimizeProgress } from "./optimize/index";
 import { clearStash, loadStash, stashFiles, unstashFile } from "./stash";
 import type { MediaFile, ParsedPackage } from "./types";
 
@@ -121,9 +121,10 @@ export async function uploadPackage(
   sourceHash?: string | null,
 ): Promise<UploadResult> {
   let savings: UploadResult["savings"];
+  onProgress(idle(optimize && parsed.files.size > 0 ? "optimizing" : "creating"));
   if (optimize && parsed.files.size > 0) {
     // Its own chunk: the encoders are only downloaded by people who upload.
-    const { optimizePackage } = await import("./optimize");
+    const { optimizePackage } = await import("./optimize/index");
     const result = await optimizePackage(parsed, (p) =>
       onProgress({ ...idle("optimizing"), optimize: p }),
     );
@@ -219,7 +220,7 @@ export async function resumeFromFile(
 
   let source = parsed;
   if (optimize && parsed.files.size > 0) {
-    const { optimizePackage } = await import("./optimize");
+    const { optimizePackage } = await import("./optimize/index");
     source = (
       await optimizePackage(parsed, (p) => onProgress({ ...idle("optimizing"), optimize: p }))
     ).parsed;

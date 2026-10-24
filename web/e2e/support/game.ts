@@ -52,13 +52,19 @@ export async function signInAsGuest(page: Page, name: string, redirect = "/"): P
 export async function hostGame(
   page: Page,
   title: string,
-  options: { maxPlayers?: number; packageId?: number; falseStarts?: boolean } = {},
+  options: {
+    maxPlayers?: number;
+    packageId?: number;
+    falseStarts?: boolean;
+    fastestPress?: boolean;
+  } = {},
 ): Promise<string> {
   await page.goto(`/games/new?packageId=${options.packageId ?? packageId()}`);
   await page.getByLabel("Game name").fill(title);
   if (options.maxPlayers)
     await page.getByLabel("Players", { exact: true }).selectOption(String(options.maxPlayers));
   if (options.falseStarts === false) await page.getByLabel("False starts").uncheck();
+  if (options.fastestPress) await page.getByRole("radio", { name: "Fastest press" }).click();
   await page.getByRole("button", { name: "Create & open lobby" }).click();
   await expect(page).toHaveURL(/\/games\/[A-Z0-9]+$/);
   await expect(page.getByText("You are")).toContainText("Showman");

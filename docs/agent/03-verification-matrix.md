@@ -67,7 +67,7 @@ it needs `npx playwright install chromium`, but no backend or Docker. Storage
 race tests gate application continuation after a real transaction commits,
 so they exercise actual IndexedDB locking without sleeping or holding a DB lock.
 
-## Frontend checks
+## Flutter checks
 
 Run from `client/`.
 
