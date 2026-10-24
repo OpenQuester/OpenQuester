@@ -3124,6 +3124,16 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "The session wasn't signed in through the Discord Activity (`discord_activity_session_required`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -3177,6 +3187,16 @@
           },
           "401": {
             "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The session wasn't signed in through the Discord Activity (`discord_activity_session_required`)",
             "content": {
               "application/json": {
                 "schema": {

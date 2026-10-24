@@ -24,6 +24,7 @@
   "discord_activity_disabled": "The Discord Activity is not set up on this server",
   "discord_code_exchange_failed": "Discord did not accept the sign-in code (%reason)",
   "discord_activity_game_busy": "This call's game is being created, try again in a moment",
+  "discord_activity_session_required": "Open OpenQuester from the Discord Activity to see this call's game",
   "session_saving_error": "Something went wrong during session save, please try again",
   "game_data_corrupted": "Game data is corrupted",
   "game_join_password_invalid": "Password is incorrect",

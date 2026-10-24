@@ -33,7 +33,10 @@ signs in separately.
    `POST …/instances/{instanceId}/game` and hosts (`created: true`). The
    others poll every 3 s and join as players, or spectators when the seats are
    full. The game is always private; the password comes with the lobby, so
-   only people who know the instance id (people in the call) can join.
+   only people who know the instance id (people in the call) can join. Both
+   lobby calls need a session signed in through the Activity
+   (`session.discordActivity`); a website or guest session gets 403
+   `discord_activity_session_required`, so it can never read a call's password.
    A Redis lock makes concurrent launches share one game; a loser gets 409
    `discord_activity_game_busy` and picks up the game on its next poll. A
    finished or deleted game frees the call for a new one.

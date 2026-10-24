@@ -3051,6 +3051,15 @@ export interface paths {
                         "application/json": components["schemas"]["GeneralErrorResponse"];
                     };
                 };
+                /** @description The session wasn't signed in through the Discord Activity (`discord_activity_session_required`) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneralErrorResponse"];
+                    };
+                };
             };
         };
         put?: never;
@@ -3094,6 +3103,15 @@ export interface paths {
                 };
                 /** @description Not signed in */
                 401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneralErrorResponse"];
+                    };
+                };
+                /** @description The session wasn't signed in through the Discord Activity (`discord_activity_session_required`) */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
