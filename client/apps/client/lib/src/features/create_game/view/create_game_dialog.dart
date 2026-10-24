@@ -178,43 +178,165 @@ class _PrivateGameSelect extends StatelessWidget {
           color: context.theme.colorScheme.outline.withValues(alpha: 0.2),
         ),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Icon(
-            state.private ? Icons.lock_rounded : Icons.public_rounded,
-            size: 20,
-            color: context.theme.colorScheme.primary,
-          ).paddingRight(12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  LocaleKeys.private.tr(),
-                  style: context.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  LocaleKeys.private_game_description.tr(),
-                  style: context.textTheme.bodySmall?.copyWith(
-                    color: context.theme.colorScheme.onSurface.withValues(
-                      alpha: 0.7,
+          Row(
+            children: [
+              Icon(
+                state.private ? Icons.lock_rounded : Icons.public_rounded,
+                size: 20,
+                color: context.theme.colorScheme.primary,
+              ).paddingRight(12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      LocaleKeys.private.tr(),
+                      style: context.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
+                    Text(
+                      LocaleKeys.private_game_description.tr(),
+                      style: context.textTheme.bodySmall?.copyWith(
+                        color: context.theme.colorScheme.onSurface.withValues(
+                          alpha: 0.7,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+              Switch(
+                value: state.private,
+                onChanged: (private) =>
+                    controller.state.value = state.copyWith(private: private),
+              ),
+            ],
+          ),
+          if (state.private)
+            TextFormField(
+              initialValue: state.password,
+              onChanged: (value) =>
+                  controller.state.value = state.copyWith(password: value),
+              maxLength: GameValidationConst.maxPasswordLength,
+              decoration: InputDecoration(
+                labelText: LocaleKeys.password.tr(),
+                helperText: LocaleKeys.password_hint.tr(),
+                helperMaxLines: 2,
+              ),
+              validator: (value) {
+                final password = value?.trim() ?? '';
+                if (password.isEmpty) return null;
+                if (!GameValidationConst.passwordRegExp.hasMatch(password)) {
+                  return LocaleKeys.password_validation.tr();
+                }
+                return null;
+              },
+            ).paddingTop(12),
+        ],
+      ),
+    );
+  }
+}
+
+/// Buzzer and scoring rules sent with the new game
+class _GameRulesSelect extends StatelessWidget {
+  const _GameRulesSelect({required this.state, required this.controller});
+
+  final CreateGameDto state;
+  final CreateGameController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final modes = ButtonPressMode.$valuesDefined;
+    return Container(
+      padding: 14.all,
+      decoration: BoxDecoration(
+        color: context.theme.colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: context.theme.colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.rule_rounded,
+                size: 20,
+                color: context.theme.colorScheme.primary,
+              ).paddingRight(12),
+              Text(
+                LocaleKeys.game_rules_title.tr(),
+                style: context.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(LocaleKeys.game_rules_false_start.tr()),
+            subtitle: Text(LocaleKeys.game_rules_false_start_help.tr()),
+            value: state.falseStart,
+            onChanged: (value) =>
+                controller.state.value = state.copyWith(falseStart: value),
+          ),
+          Text(
+            LocaleKeys.game_rules_press_mode.tr(),
+            style: context.textTheme.bodyLarge,
+          ).paddingTop(4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final mode in modes)
+                ChoiceChip(
+                  label: Text(_modeLabel(mode)),
+                  selected: state.buttonPressMode == mode,
+                  onSelected: (_) => controller.state.value = state.copyWith(
+                    buttonPressMode: mode,
+                  ),
+                  showCheckmark: false,
+                ),
+            ],
+          ).paddingSymmetric(vertical: 8),
+          Text(
+            _modeHelp(state.buttonPressMode),
+            style: context.textTheme.bodySmall?.copyWith(
+              color: context.theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
-          Switch(
-            value: state.private,
-            onChanged: (private) =>
-                controller.state.value = state.copyWith(private: private),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(LocaleKeys.game_rules_penalty.tr()),
+            subtitle: Text(LocaleKeys.game_rules_penalty_help.tr()),
+            value: state.wrongAnswerPenalty == WrongAnswerPenalty.subtract,
+            onChanged: (value) => controller.state.value = state.copyWith(
+              wrongAnswerPenalty: value
+                  ? WrongAnswerPenalty.subtract
+                  : WrongAnswerPenalty.none,
+            ),
           ),
         ],
       ),
     );
   }
+
+  String _modeLabel(ButtonPressMode mode) => switch (mode) {
+    ButtonPressMode.firstWins => LocaleKeys.game_rules_mode_first_wins.tr(),
+    _ => LocaleKeys.game_rules_mode_fair_draw.tr(),
+  };
+
+  String _modeHelp(ButtonPressMode mode) => switch (mode) {
+    ButtonPressMode.firstWins =>
+      LocaleKeys.game_rules_mode_first_wins_help.tr(),
+    _ => LocaleKeys.game_rules_mode_fair_draw_help.tr(),
+  };
 }
 
 class _AgeRestrictionSelect extends StatelessWidget {
@@ -580,6 +702,7 @@ class _GameConfigSection extends StatelessWidget {
               ],
             ),
             _MaxPlayersSelect(state: state, controller: controller),
+            _GameRulesSelect(state: state, controller: controller),
           ],
         ),
       ],

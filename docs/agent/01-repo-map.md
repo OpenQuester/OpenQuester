@@ -8,6 +8,7 @@ This map helps agents pick the right files before editing. It is not a replaceme
 |---|---|---|
 | `server/` | Backend API, realtime game server, Redis/PostgreSQL/S3, game state execution | `server/AGENTS.md` |
 | `client/` | Flutter app, editor packages, SIQ import, compression, generated API usage | `client/AGENTS.md` |
+| `web/` | React browser client: auth, packages, lobby, gameplay, results; Playwright E2E | `web/AGENTS.md` |
 | `openapi/` | REST + Socket.IO public contract schema. Generated Dart code lives in `client/packages/openapi/`. | `openapi/AGENTS.md` |
 | `websites/` | Static docs/landing pages | nearby README/docs |
 | `.agents/skills/` | Repeatable agent workflows | relevant `SKILL.md` |

@@ -153,7 +153,7 @@ See scenarios: [Player disconnects (no explicit leave)](scenarios.md#disconnect)
 
 - Direction: **C→S** request, **S→C** broadcast
 - C→S payload: `EmptyInputData` (`{}`)
-- S→C payload: `GameStartEventPayload` = `{ currentRound: GameStateRoundDTO }`
+- S→C payload: `GameStartEventPayload` = `{ currentRound: GameStateRoundDTO, currentTurnPlayerId: number | null }` (`currentTurnPlayerId` is who picks the first question)
 
 Edge cases (server-handled):
 
@@ -446,6 +446,7 @@ Edge cases (server-handled):
 
 - Direction: **S→C** broadcast
 - Payload: `FinalQuestionEventData` = `{ questionData }`
+- Role-filtered: the showman's `questionData.question` includes `answerText`/`answerHint`; players and spectators receive the question without them.
 
 ### `final-answer-submit`
 

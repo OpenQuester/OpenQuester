@@ -157,7 +157,7 @@ describe("Stake Question Flow Tests", () => {
       });
     });
 
-    it("should handle showman picking STAKE question (random first bidder)", async () => {
+    it("should give a showman-picked STAKE question to the turn player", async () => {
       await suite.scenario(async (scenario) => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
         const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
@@ -187,7 +187,11 @@ describe("Stake Question Flow Tests", () => {
         const stakeData = await stakePickedPromise;
 
         expect(stakeData).toBeDefined();
-        expect(stakeData.pickerPlayerId).toBe(await utils.getUserIdFromSocket(showmanSocket));
+        // The showman picks on behalf of the turn player, who owns the question
+        const turnPlayerId = (await utils.getGameState(gameId))!.currentTurnPlayerId;
+        expect(turnPlayerId).not.toBeNull();
+        expect(stakeData.pickerPlayerId).toBe(turnPlayerId);
+        expect(stakeData.biddingOrder[0]).toBe(turnPlayerId);
         expect(stakeData.questionId).toBe(stakeQuestionId);
         expect(stakeData.maxPrice).toBe(400); // From PackageUtils STAKE question
         expect(stakeData.biddingOrder).toHaveLength(3);

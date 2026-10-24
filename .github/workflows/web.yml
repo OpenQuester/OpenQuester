@@ -1,0 +1,126 @@
+name: Web
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "web/**"
+      - "openapi/**"
+      - "server/src/**"
+      - ".github/workflows/web.yml"
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "openapi/**"
+      - "server/src/**"
+      - ".github/workflows/web.yml"
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: ./web
+
+jobs:
+  check:
+    name: Typecheck, lint, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ./web/package-lock.json
+      - run: npm ci
+      - name: API types match openapi/schema.json
+        run: npm run check:api
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 7
+
+  e2e:
+    name: End-to-end (phone, tablet, desktop)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            ./web/package-lock.json
+            ./server/package-lock.json
+      - run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Native browser storage regressions
+        run: npm run test:browser
+      - name: Start the backend stack and run Playwright
+        run: npm run e2e:full
+      - name: Server log
+        if: failure()
+        run: cat .e2e-stack/server.log || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7
+
+  deploy:
+    name: Deploy to Cloudflare Pages
+    needs: [check, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Forks and Dependabot have no access to the Cloudflare secrets.
+    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ./web/package-lock.json
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+      - name: Create the Pages project if it does not exist
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler pages project list | grep -q "openquester-web" || npx wrangler pages project create openquester-web --production-branch main
+      - name: Deploy
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          branch="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          npx wrangler pages deploy --project-name openquester-web --branch "$branch" --commit-dirty=true | tee deploy.log
+          url=$(grep -Eo 'https://[a-zA-Z0-9.-]+\.pages\.dev' deploy.log | tail -1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed to $url" >> "$GITHUB_STEP_SUMMARY"

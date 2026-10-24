@@ -1,0 +1,106 @@
+import { SCORE_ABS_LIMIT } from "domain/constants/game";
+import { Game } from "domain/entities/game/Game";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { ClientError } from "domain/errors/ClientError";
+import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { ValueUtils } from "domain/utils/ValueUtils";
+
+export interface AnswerUndoResult {
+  playerId: number;
+  /** The score change that was taken back */
+  revertedResult: number;
+  newScore: number;
+  /** The player may press the buzzer again (the question is still open) */
+  canAnswerAgain: boolean;
+}
+
+/** An undone ruling: what everyone is told, and what statistics must forget. */
+export interface UndoneRuling {
+  result: AnswerUndoResult;
+  /** Right, wrong or skip: the answer counter to take back. */
+  answerType: AnswerResultType;
+}
+
+/** Board and ruling corrections the showman can make (SIGame Toggle / Move back) */
+export class ShowmanToolsLogic {
+  /**
+   * Removes an unplayed question from the board, or puts a removed one back.
+   * @returns whether the question is now played (removed)
+   */
+  public static removeOrRestoreQuestion(game: Game, questionId: number): boolean {
+    if (game.gameState.questionState !== QuestionState.CHOOSING) {
+      throw new ClientError(ClientResponse.QUESTION_REMOVE_ONLY_WHILE_CHOOSING);
+    }
+
+    for (const theme of game.gameState.currentRound?.themes ?? []) {
+      const question = theme.questions.find((q) => q.id === questionId);
+      if (question) {
+        question.isPlayed = !question.isPlayed;
+
+        return question.isPlayed;
+      }
+    }
+
+    throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
+  }
+
+  /**
+   * Takes back the last ruling on the current question: its score change is
+   * reverted. After a wrong answer, the player may buzz again.
+   */
+  public static undoLastRuling(game: Game): UndoneRuling {
+    const state = game.gameState;
+    let last: GameStateAnsweredPlayerData | null = null;
+    let canAnswerAgain = false;
+
+    if (state.questionState === QuestionState.SHOWING && state.answeredPlayers?.length) {
+      last = state.answeredPlayers[state.answeredPlayers.length - 1];
+      state.answeredPlayers = state.answeredPlayers.slice(0, -1);
+      if (state.answeredPlayers.length === 0) {
+        state.answeredPlayers = null;
+      }
+
+      canAnswerAgain = true;
+    } else if (state.questionState === QuestionState.SHOWING_ANSWER && state.answerShowData) {
+      const data = state.answerShowData as { answerResult?: GameStateAnsweredPlayerData };
+      if (data.answerResult) {
+        last = data.answerResult;
+        delete data.answerResult;
+        // A final wrong ruling is also in the attempt history. Consume both
+        // copies so another undo reaches the previous player, not this one again.
+        if (state.answeredPlayers?.[state.answeredPlayers.length - 1]?.player === last.player) {
+          state.answeredPlayers = state.answeredPlayers.slice(0, -1);
+        }
+      } else if (state.answeredPlayers?.length) {
+        last = state.answeredPlayers[state.answeredPlayers.length - 1];
+        state.answeredPlayers = state.answeredPlayers.slice(0, -1);
+      }
+    }
+
+    if (!last) {
+      throw new ClientError(ClientResponse.NOTHING_TO_UNDO);
+    }
+
+    const player = game.getPlayer(last.player, { fetchDisconnected: true });
+    if (!player) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    // Take back what the ruling really changed: at the score limit that is
+    // less than the ruling asked for (older states only have the asked result)
+    const revertedResult = last.appliedChange ?? last.result;
+    player.score = ValueUtils.clampAbs(player.score - revertedResult, SCORE_ABS_LIMIT);
+
+    return {
+      result: {
+        playerId: last.player,
+        revertedResult,
+        newScore: player.score,
+        canAnswerAgain
+      },
+      answerType: last.answerType
+    };
+  }
+}

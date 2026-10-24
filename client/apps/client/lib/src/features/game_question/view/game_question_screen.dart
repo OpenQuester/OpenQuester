@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -70,41 +71,264 @@ class _QuestionBottom extends WatchingWidget {
         ) ??
         false;
     final showingQuestion = gameData?.gameState.currentQuestion != null;
+    final eligible = gameData?.gameState.questionEligiblePlayers;
+    final notMyNoRiskQuestion =
+        gameData?.gameState.currentQuestion?.type == QuestionType.noRisk &&
+        !(eligible?.isEmpty ?? true) &&
+        !eligible!.contains(me?.meta.id);
+    final choiceShowDelayMs = watchValue(
+      (GameLobbyController e) => e.choiceShowDelayMs,
+    );
+    final choiceAnswers = watchValue(
+      (GameLobbyController e) => e.choiceAnswers,
+    );
 
     Widget child = const SizedBox();
 
     if (showingQuestion) {
-      if (!imShowman && answeringPlayer == null && !iAlreadyAnswered) {
+      if (!imShowman && answeringPlayer == null && notMyNoRiskQuestion) {
+        final picker = gameData?.players.getById(eligible.first);
+        child = Text(
+          LocaleKeys.question_only_picker_answers.tr(
+            args: [picker?.meta.username ?? ''],
+          ),
+          textAlign: TextAlign.center,
+          style: context.textTheme.bodyLarge,
+        ).center();
+      } else if (!imShowman && answeringPlayer == null && !iAlreadyAnswered) {
         child = const _AnswerButtons();
       } else if (answeringPlayer != null || imShowman) {
         child = const _AnsweringWidget();
       }
     }
 
-    return ConstrainedBox(
+    final bottom = ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 150),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [child.flexible()],
       ),
     );
+    if (!showingQuestion || (choiceAnswers?.isEmpty ?? true)) return bottom;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GameChoiceOptions(
+          answers: choiceAnswers!,
+          showDelayMs: choiceShowDelayMs,
+        ),
+        bottom,
+      ],
+    );
   }
 }
 
-class _AnswerButtons extends WatchingWidget {
+/// Answer options of a choice question. The player who pressed the buzzer
+/// picks one; the game checks it.
+class GameChoiceOptions extends StatefulWidget {
+  const GameChoiceOptions({
+    required this.answers,
+    required this.showDelayMs,
+    super.key,
+  });
+
+  final List<QuestionChoiceAnswers> answers;
+  final int showDelayMs;
+
+  @override
+  State<GameChoiceOptions> createState() => _ChoiceOptionsState();
+}
+
+class _ChoiceOptionsState extends State<GameChoiceOptions> {
+  Timer? _showTimer;
+  int? _picked;
+
+  @override
+  void dispose() {
+    _showTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant GameChoiceOptions oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.answers, widget.answers)) _picked = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = getIt<GameLobbyController>();
+    return ValueListenableBuilder(
+      valueListenable: controller.gameData,
+      builder: (context, gameData, _) {
+        final state = gameData?.gameState;
+        final me = gameData?.me;
+        // The choice timeline remains active when false starts are off.
+        final showAt = state?.choiceOptionsShowAt(
+          showDelayMs: widget.showDelayMs,
+        );
+        _showTimer?.cancel();
+        if (showAt != null) {
+          if (!(state?.isPaused ?? true)) {
+            _showTimer = Timer(
+              showAt.difference(DateTime.now()),
+              () => mounted ? setState(() {}) : null,
+            );
+          }
+          return Text(
+            LocaleKeys.choice_options_soon.tr(),
+            style: context.textTheme.bodyLarge,
+          ).paddingAll(16);
+        }
+
+        final answering =
+            state?.answeringPlayer != null &&
+            state?.answeringPlayer == me?.meta.id;
+        final correct = me.isShowman
+            ? state?.currentQuestion?.answerText?.trim().toLowerCase()
+            : null;
+        final extraColors = ExtraColors.of(context);
+
+        return Semantics(
+          label: LocaleKeys.choice_options.tr(),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            alignment: WrapAlignment.center,
+            children: [
+              for (final (index, answer) in widget.answers.indexed)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minWidth: 220,
+                    maxWidth: 360,
+                  ),
+                  child: OutlinedButton(
+                    onPressed: !answering || _picked != null
+                        ? null
+                        : () {
+                            setState(() => _picked = index);
+                            unawaited(
+                              controller.answerQuestion(
+                                answerText: answer.text ?? '',
+                              ),
+                            );
+                          },
+                    style: OutlinedButton.styleFrom(
+                      padding: 16.all,
+                      alignment: Alignment.centerLeft,
+                      side: BorderSide(
+                        width: _picked == index ? 2 : 1,
+                        color: _picked == index
+                            ? context.theme.colorScheme.primary
+                            : correct != null &&
+                                  answer.text?.trim().toLowerCase() == correct
+                            ? extraColors.success
+                            : context.theme.colorScheme.outline,
+                      ),
+                    ),
+                    child: Row(
+                      spacing: 12,
+                      children: [
+                        CircleAvatar(
+                          radius: 14,
+                          child: Text('${index + 1}'),
+                        ),
+                        Text(
+                          answer.text ?? '',
+                          style: context.textTheme.titleMedium,
+                        ).flexible(),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ).paddingAll(16);
+      },
+    );
+  }
+}
+
+class _AnswerButtons extends WatchingStatefulWidget {
   const _AnswerButtons();
+
+  @override
+  State<_AnswerButtons> createState() => _AnswerButtonsState();
+}
+
+class _AnswerButtonsState extends State<_AnswerButtons> {
+  Timer? _tick;
+  bool _wasClosed = false;
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  /// Rebuilds when the buzzer opens or a false-start lock ends
+  void _rebuildAt(DateTime? at) {
+    _tick?.cancel();
+    if (at == null) return;
+    final wait = at.difference(DateTime.now());
+    _tick = Timer(
+      wait.isNegative ? Duration.zero : wait + const Duration(milliseconds: 20),
+      () => mounted ? setState(() {}) : null,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final lockedUntil = watchValue(
+      (GameLobbyController e) => e.buzzerLockedUntil,
+    );
     final myId = gameData?.me.meta.id;
     final playerSkipped =
         gameData?.gameState.skippedPlayers?.contains(myId) ?? false;
     final borderRadius = 8.circular;
     final foregroundColor = context.theme.colorScheme.onSurfaceVariant;
 
+    final now = DateTime.now();
+    final opensAt = gameData?.gameState.buzzerOpensAt(now: now);
+    final locked = lockedUntil != null && lockedUntil.isAfter(now);
+    // While locked, count the seconds down
+    _rebuildAt(
+      locked ? [lockedUntil, now.add(const Duration(seconds: 1))].min : opensAt,
+    );
+
+    // The button just opened: everyone hears it
+    if (opensAt != null) {
+      _wasClosed = true;
+    } else if (_wasClosed) {
+      _wasClosed = false;
+      getIt<GameSoundController>().play(GameSound.open);
+    }
+
+    final lines = [
+      if (locked)
+        LocaleKeys.buzzer_locked.tr(
+          args: [
+            (lockedUntil.difference(now).inMilliseconds / 1000)
+                .ceil()
+                .toString(),
+          ],
+        )
+      else if (opensAt != null) ...[
+        LocaleKeys.buzzer_wait.tr(),
+        LocaleKeys.buzzer_early_hint.tr(),
+      ] else
+        LocaleKeys.question_press_to_answer.tr(),
+      if (playerSkipped)
+        LocaleKeys.question_hold_to_unskip.tr()
+      else
+        LocaleKeys.question_hold_to_skip.tr(),
+    ];
+    final open = opensAt == null && !locked;
+
     return InkWell(
-      onTap: getIt<GameLobbyController>().onAnswer,
+      onTap: locked ? null : getIt<GameLobbyController>().onAnswer,
       onLongPress: () =>
           getIt<GameLobbyController>().passQuestion(pass: !playerSkipped),
       borderRadius: borderRadius,
@@ -112,21 +336,23 @@ class _AnswerButtons extends WatchingWidget {
         builder: (context) {
           final child = Container(
             decoration: BoxDecoration(
-              border: playerSkipped ? null : Border.all(color: foregroundColor),
+              border: playerSkipped
+                  ? null
+                  : Border.all(
+                      color: open
+                          ? foregroundColor
+                          : foregroundColor.withValues(alpha: 0.4),
+                    ),
               borderRadius: borderRadius,
             ),
             padding: 16.all,
             child: Text(
-              [
-                LocaleKeys.question_press_to_answer.tr(),
-                if (playerSkipped)
-                  LocaleKeys.question_hold_to_unskip.tr()
-                else
-                  LocaleKeys.question_hold_to_skip.tr(),
-              ].join('\n'),
+              lines.join('\n'),
               textAlign: TextAlign.center,
               style: context.textTheme.bodyLarge?.copyWith(
-                color: foregroundColor,
+                color: open
+                    ? foregroundColor
+                    : foregroundColor.withValues(alpha: 0.6),
               ),
             ).center(),
           );
@@ -220,6 +446,10 @@ class _AnsweringWidget extends WatchingWidget {
             ),
           ),
           if (gameData?.me.role == PlayerRole.showman) const _ShowmanControls(),
+          if (answeringPlayerId != null &&
+              answeringPlayerId == gameData?.me.meta.id &&
+              _giveUpQuestionTypes.contains(question?.type))
+            const _GiveUpButton(),
         ],
       ),
     );
@@ -336,6 +566,36 @@ class _SkipQuestionBtn extends StatelessWidget {
     return FilledButton.tonal(
       onPressed: getIt<GameLobbyController>().skipQuestion,
       child: Text(LocaleKeys.skip_question.tr()),
+    );
+  }
+}
+
+/// Question types answered by one player, who may give up instead
+const Set<QuestionType> _giveUpQuestionTypes = {
+  QuestionType.noRisk,
+  QuestionType.secret,
+  QuestionType.stake,
+};
+
+class _GiveUpButton extends StatelessWidget {
+  const _GiveUpButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 4,
+      children: [
+        OutlinedButton(
+          onPressed: getIt<GameLobbyController>().giveUp,
+          child: Text(LocaleKeys.question_give_up.tr()),
+        ),
+        Text(
+          LocaleKeys.question_give_up_hint.tr(),
+          style: context.textTheme.bodySmall,
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }

@@ -27,7 +27,8 @@ export class SocketChatRepository {
       message: data.message,
       uuid: messageId,
       user: data.user,
-      timestamp: new Date()
+      timestamp: new Date(),
+      ...(data.system ? { system: data.system } : {})
     };
 
     const key = this.getGameChatKey(data.gameId, data.gameCreatedAt);

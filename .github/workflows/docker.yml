@@ -30,6 +30,8 @@ jobs:
           filters: |
             server:
               - 'server/**'
+              - 'web/**'
+              - 'docker/**'
       - name: Check if we should force jobs to run
         id: should_force
         run: echo "should_force=${{ github.event_name == 'workflow_dispatch' || github.workflow == 'Release' || github.event_name == 'push' }}" >> "$GITHUB_OUTPUT"

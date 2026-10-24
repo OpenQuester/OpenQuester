@@ -20,6 +20,8 @@ export interface ActionHandlerResult<TData = unknown> {
 
   /** Error message when success is false */
   error?: string;
+  /** HTTP status retained for non-socket callers of queued actions. */
+  errorCode?: number;
 
   /**
    * Ordered list of data mutations to apply.

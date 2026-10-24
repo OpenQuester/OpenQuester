@@ -1,5 +1,7 @@
+import { AllPlayDataDTO } from "domain/types/dto/game/state/AllPlayDataDTO";
 import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuestionGameData";
 import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
@@ -17,6 +19,24 @@ export interface GameStateAnsweredPlayerData {
   result: number;
   score: number;
   answerType: AnswerResultType;
+  /**
+   * How much the score really moved: `result` clamped by the score limit.
+   * Undoing the ruling takes back exactly this.
+   */
+  appliedChange?: number;
+}
+
+export enum GameJoinMode {
+  OPEN = "open",
+  SPECTATORS_ONLY = "spectators_only",
+  CLOSED = "closed"
+}
+
+export interface BuzzerWindowDTO {
+  /** When the first press arrived (epoch ms) */
+  openedAt: number;
+  /** Players who pressed inside the window, in arrival order */
+  presses: number[];
 }
 
 export interface GameStateDTO {
@@ -29,6 +49,36 @@ export interface GameStateDTO {
   /** This is used as readiness at game start and as readiness for another events */
   readyPlayers: number[] | null;
   timer: GameStateTimerDTO | null;
+  /**
+   * Timeline of the current question's content, run on the SHOWING timer.
+   * Null when the question has nothing to sequence (text only, single caption).
+   */
+  questionContentPlan?: QuestionContentPlanDTO | null;
+  /** Real audio/video lengths reported by players while preloading, by md5 */
+  mediaDurations?: Record<string, number> | null;
+  /**
+   * Position on the SHOWING timer (ms) when the buzzer opens: after the
+   * content timeline, the reading time of a caption text and the question's
+   * answer delay. A press before that is a false start. 0 or null: open now.
+   */
+  buzzerOpensAtMs?: number | null;
+  /** Presses collected in the accept window after the first press */
+  buzzerWindow?: BuzzerWindowDTO | null;
+  /** Players locked out after a false start: player id -> epoch ms when the lock ends */
+  buzzerLocks?: Record<string, number> | null;
+  /** When the current round started (epoch ms), for the round time limit */
+  roundStartedAt?: number | null;
+  /** Time the current round spent paused (ms); paused time doesn't count */
+  roundPausedMs?: number | null;
+  /** When the current pause began (epoch ms) */
+  pausedAt?: number | null;
+  /**
+   * Who may join right now (set by the showman): open to everyone, spectators
+   * only, or closed. People already in the game can always come back.
+   */
+  joinMode?: GameJoinMode | null;
+  /** "Everyone answers" question (stake / no-risk for everyone) in play */
+  allPlay?: AllPlayDataDTO | null;
   /** Final round specific data */
   finalRoundData?: FinalRoundGameData | null;
   /** Which player can pick a question or eliminate theme in final */

@@ -1,3 +1,4 @@
+import { type Game } from "domain/entities/game/Game";
 import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
@@ -130,6 +131,61 @@ export class PlayerGameStatsService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Counts the "everyone answers" rulings made since `ruledBefore` (players
+   * whose answers were already judged then are skipped), with each player's
+   * score after the ruling.
+   */
+  public async recordEveryoneRulings(game: Game, ruledBefore: ReadonlySet<number>): Promise<void> {
+    const entries = game.gameState.allPlay?.entries ?? [];
+
+    for (const entry of entries) {
+      if (entry.isCorrect === null || ruledBefore.has(entry.playerId)) {
+        continue;
+      }
+
+      const player = game.getPlayer(entry.playerId, { fetchDisconnected: true });
+      if (!player) {
+        continue;
+      }
+
+      await this.updatePlayerAnswerStats(
+        game.id,
+        entry.playerId,
+        entry.isCorrect ? AnswerResultType.CORRECT : AnswerResultType.WRONG,
+        player.score
+      );
+    }
+  }
+
+  /**
+   * Forgets one answer after the showman took back its ruling: its counters
+   * go down again and the score is the one after the undo.
+   */
+  public async revertPlayerAnswerStats(
+    gameId: string,
+    userId: number,
+    answerType: AnswerResultType,
+    newScore: number
+  ): Promise<void> {
+    const playerStats = await this.repository.getStats(gameId, userId);
+
+    const questionsAnswered = parseInt(playerStats?.questionsAnswered || "0");
+    const correctAnswers = parseInt(playerStats?.correctAnswers || "0");
+    const wrongAnswers = parseInt(playerStats?.wrongAnswers || "0");
+
+    const updates = {
+      currentScore: newScore,
+      questionsAnswered: Math.max(0, questionsAnswered - 1),
+      correctAnswers:
+        answerType === AnswerResultType.CORRECT ? Math.max(0, correctAnswers - 1) : correctAnswers,
+      wrongAnswers:
+        answerType === AnswerResultType.WRONG ? Math.max(0, wrongAnswers - 1) : wrongAnswers
+    } satisfies PlayerGameStatsRedisUpdate;
+
+    await this.repository.updateStats(gameId, userId, updates);
   }
 
   /**

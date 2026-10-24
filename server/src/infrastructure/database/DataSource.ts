@@ -60,6 +60,15 @@ import { AddMutePlayerPermission_0_21_0_1767095975972 as AddMutePlayerPermission
 import { AddMutedUntilToUser_0_21_0_1767095976000 as AddMutedUntilToUser } from "./migrations/0.21.0_Part2AddMutedUntilToUser_1767095976000";
 import { AddShowAnswerDurationToPackageQuestion_0_22_0_1766934959798 as AddShowAnswerDuration } from "./migrations/0.22.0_AddShowAnswerDurationToPackageQuestion_1766934959798";
 import { AddViewSystemLogsPermission_0_23_0_1767264810999 as AddViewLogsPerm } from "./migrations/0.23.0_AddViewSystemLogsPermission_1767264810999";
+import { AddContentSequencingFields_0_24_0_1792000000000 as AddContentSequencingFields } from "./migrations/0.24.0_AddContentSequencingFields_1792000000000";
+import { AddManageGamesPermission_0_25_0_1792100000000 as AddManageGamesPermission } from "./migrations/0.25.0_AddManageGamesPermission_1792100000000";
+import { AddStorageLimits_0_26_0_1792200000000 as AddStorageLimits } from "./migrations/0.26.0_AddStorageLimits_1792200000000";
+import { AddPackageCreditsAndAnswers_0_27_0_1792300000000 as AddPackageCreditsAndAnswers } from "./migrations/0.27.0_AddPackageCreditsAndAnswers_1792300000000";
+import { AddAnswerTypes_0_28_0_1792400000000 as AddAnswerTypes } from "./migrations/0.28.0_AddAnswerTypes_1792400000000";
+import { AddQuestionReports_0_29_0_1792500000000 as AddQuestionReports } from "./migrations/0.29.0_AddQuestionReports_1792500000000";
+import { AddPackageUploadStatus_0_30_0_1792600000000 as AddPackageUploadStatus } from "./migrations/0.30.0_AddPackageUploadStatus_1792600000000";
+import { QuestionReport } from "infrastructure/database/models/report/QuestionReport";
+import { StorageLimit } from "infrastructure/database/models/StorageLimit";
 
 function createBootstrapDataSourceLogger(): ILogger {
   const performanceLog: PerformanceLog = {
@@ -124,6 +133,7 @@ try {
   if (err instanceof Error) {
     message = err.message;
   }
+
   logger.error(ServerResponse.FAILED_TO_LOAD_ENV, {
     prefix: LogPrefix.SERVER
   });
@@ -160,7 +170,9 @@ export const AppDataSource = new DataSource({
     PackageTheme,
     PackageQuestionChoiceAnswer,
     GameStatistics,
-    PlayerGameStats
+    PlayerGameStats,
+    StorageLimit,
+    QuestionReport
   ],
   migrations: [
     createUserAndFileTables,
@@ -193,7 +205,14 @@ export const AppDataSource = new DataSource({
     AddMutePlayerPermission,
     AddMutedUntilToUser,
     AddShowAnswerDuration,
-    AddViewLogsPerm
+    AddViewLogsPerm,
+    AddContentSequencingFields,
+    AddManageGamesPermission,
+    AddStorageLimits,
+    AddPackageCreditsAndAnswers,
+    AddAnswerTypes,
+    AddQuestionReports,
+    AddPackageUploadStatus
   ],
   poolSize: env.DB_POOL_SIZE,
   migrationsRun: true,

@@ -103,6 +103,15 @@ Read before changing gameplay UI:
 
 Do not treat disabled reasons, phase labels, and result feedback as optional polish. They are part of correctness.
 
+Where the question screen follows the server:
+
+- `features/game_question/data/content_plan_position.dart` resolves screen content and active background tracks on the server's question timer. `GameQuestionController` keeps background audio playing across screen steps, pauses it with the plan, and stops each track at its own end.
+- Screen clips seek to the current step offset on reconnect and resume. Seeks are serialized per player; a held/replaced plan cannot resume through a stale completion, and expired clips stay stopped instead of replaying from zero.
+- Each screen media load owns its temporary file even when hashes match. Replacement/clear disposes its player and file; late loads discard their resources instead of replacing current media.
+- `features/game_question/data/buzzer_timing.dart` says when the buzzer opens (`buzzerOpensAtMs`); the answer button shows a wait state before it and a countdown after a `buzzer-false-start`.
+- Choice options and their delay are read from the raw question payload (`GameLobbyController.choiceAnswers` and `choiceShowDelayMs`), since the generated `PackageQuestion` has no `answers` or `showDelay`. Turning false starts off does not skip the option delay; pausing freezes it.
+- Sounds are the short WAV cues in `assets/sounds/`, played by `GameSoundController` and switched off in settings.
+
 ## Package editor rule
 
 The editor is a strategic product surface, not just a JSON form. For editor/import/export changes, read:

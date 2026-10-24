@@ -13,7 +13,11 @@ import {
   GameStateDTO
 } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import type { GameSettingsDTO } from "domain/types/dto/game/settings/GameSettingsDTO";
+import { GameSettingsLogic } from "domain/logic/game/GameSettingsLogic";
+import { WrongAnswerPenalty } from "domain/enums/game/GameSettings";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GetPlayerOptions } from "domain/types/game/GetPlayerOptions";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -28,6 +32,13 @@ type PlayerAndIndex = {
 };
 
 export class Game {
+  /** Questions answered by whoever buzzes first; the wrong-answer penalty applies to these */
+  private static readonly BUZZER_QUESTION_TYPES: ReadonlySet<PackageQuestionType> = new Set([
+    PackageQuestionType.SIMPLE,
+    PackageQuestionType.CHOICE,
+    PackageQuestionType.HIDDEN
+  ]);
+
   private readonly _id: string;
   private _title: string;
   private readonly _createdBy: userId;
@@ -42,6 +53,7 @@ export class Game {
   private _questionsCount: number;
   private readonly _players: Player[];
   private _gameState: GameStateDTO;
+  private _settings: GameSettingsDTO;
 
   constructor(data: GameImportDTO) {
     this._id = data.id;
@@ -58,6 +70,7 @@ export class Game {
     this._questionsCount = data.questionsCount;
     this._players = data.players;
     this._gameState = data.gameState;
+    this._settings = GameSettingsLogic.normalize(data.settings);
   }
 
   // Getters
@@ -95,6 +108,14 @@ export class Game {
 
   public set ageRestriction(ageRestriction: AgeRestriction) {
     this._ageRestriction = ageRestriction;
+  }
+
+  public get settings(): GameSettingsDTO {
+    return this._settings;
+  }
+
+  public set settings(settings: GameSettingsDTO) {
+    this._settings = GameSettingsLogic.normalize(settings);
   }
 
   public get maxPlayers() {
@@ -182,6 +203,7 @@ export class Game {
       playerData.gameSlot = slotIdx;
       // Always update meta with current user data
       playerData.updateMeta(meta);
+
       return playerData;
     }
 
@@ -199,6 +221,7 @@ export class Game {
     });
 
     this._players.push(player);
+
     return player;
   }
 
@@ -211,6 +234,7 @@ export class Game {
       if (opts.fetchDisconnected) {
         return true;
       }
+
       return p.gameStatus === PlayerGameStatus.IN_GAME;
     });
 
@@ -226,6 +250,7 @@ export class Game {
       if (opts.fetchDisconnected) {
         return true;
       }
+
       return p.gameStatus === PlayerGameStatus.IN_GAME;
     });
 
@@ -252,8 +277,10 @@ export class Game {
     if (inGamePlayers.length > 0) {
       // Select a random player using Math.random for index
       const randomIndex = Math.floor(Math.random() * inGamePlayers.length);
+
       return inGamePlayers[randomIndex].meta.id;
     }
+
     return null;
   }
 
@@ -271,6 +298,27 @@ export class Game {
     return this._players.some(
       (p) => p.role === PlayerRole.SHOWMAN && p.gameStatus === PlayerGameStatus.IN_GAME
     );
+  }
+
+  /**
+   * The round's time limit (settings.timers.roundMs) has passed, not counting
+   * paused time. Regular rounds only; 0 means no limit.
+   */
+  public isRoundTimeUp(now: number = Date.now()): boolean {
+    const limit = this._settings.timers.roundMs;
+    const startedAt = this._gameState.roundStartedAt;
+    if (!limit || !startedAt || this._gameState.currentRound?.type === PackageRoundType.FINAL) {
+      return false;
+    }
+
+    const pausedNow = this._gameState.pausedAt ? now - this._gameState.pausedAt : 0;
+
+    return now - startedAt - (this._gameState.roundPausedMs ?? 0) - pausedNow >= limit;
+  }
+
+  /** Every question is played, or the round's time is up */
+  public isRoundOver(): boolean {
+    return (this.isAllQuestionsPlayed() ?? false) || this.isRoundTimeUp();
   }
 
   public isAllQuestionsPlayed() {
@@ -293,6 +341,7 @@ export class Game {
     }
 
     const nextOrder = this.gameState.currentRound!.order + 1;
+
     return this._roundIndex.find((r) => r.order === nextOrder) ?? null;
   }
 
@@ -302,10 +351,19 @@ export class Game {
 
   public pause() {
     this._gameState.isPaused = true;
+    this._gameState.pausedAt = Date.now();
+    // Presses waiting for the draw are dropped; players press again after the pause
+    this._gameState.buzzerWindow = null;
   }
 
   public unpause() {
     this._gameState.isPaused = false;
+    if (this._gameState.pausedAt) {
+      this._gameState.roundPausedMs =
+        (this._gameState.roundPausedMs ?? 0) + Math.max(0, Date.now() - this._gameState.pausedAt);
+    }
+
+    this._gameState.pausedAt = null;
   }
 
   public isPlayerMuted(playerId: number) {
@@ -366,7 +424,19 @@ export class Game {
       modifiedScoreResult = 0;
     }
 
-    const preClampedScore = player.score + modifiedScoreResult;
+    // The game's rules can make wrong answers to buzzer questions free
+    if (
+      scoreResult < 0 &&
+      this._settings.wrongAnswerPenalty === WrongAnswerPenalty.NONE &&
+      Game.BUZZER_QUESTION_TYPES.has(
+        this.gameState.currentQuestion?.type ?? PackageQuestionType.SIMPLE
+      )
+    ) {
+      modifiedScoreResult = 0;
+    }
+
+    const previousScore = player.score;
+    const preClampedScore = previousScore + modifiedScoreResult;
     const score = ValueUtils.clampAbs(preClampedScore, SCORE_ABS_LIMIT);
 
     // Update the player's score in the _players array
@@ -380,7 +450,8 @@ export class Game {
       player: this.gameState.answeringPlayer!,
       result: modifiedScoreResult,
       score,
-      answerType
+      answerType,
+      appliedChange: score - previousScore
     };
 
     const answeredPlayers = this.gameState.answeredPlayers || [];
@@ -412,6 +483,9 @@ export class Game {
     this.gameState.secretQuestionData = null;
     this.gameState.stakeQuestionData = null;
     this.gameState.questionEligiblePlayers = null;
+    this.gameState.questionContentPlan = null;
+    this.gameState.mediaDurations = null;
+    this.gameState.allPlay = null;
     this.setQuestionState(QuestionState.CHOOSING);
   }
 
@@ -421,6 +495,21 @@ export class Game {
     }
 
     this.gameState.questionState = questionState;
+
+    // A buzzer race only lives inside SHOWING
+    if (questionState !== QuestionState.SHOWING) {
+      this.gameState.buzzerWindow = null;
+    }
+
+    // Buzzer timing belongs to one question's content
+    if (
+      questionState === QuestionState.CHOOSING ||
+      questionState === QuestionState.MEDIA_DOWNLOADING ||
+      questionState === QuestionState.SHOWING_ANSWER
+    ) {
+      this.gameState.buzzerOpensAtMs = null;
+      this.gameState.buzzerLocks = null;
+    }
   }
 
   public setTimer(timer: GameStateTimerDTO | null) {
@@ -457,14 +546,32 @@ export class Game {
     return this.gameState.skippedPlayers?.includes(playerId) ?? false;
   }
 
+  /**
+   * True when nobody can still buzz: every player who may answer the current
+   * question has either passed or already answered it. A pass after someone
+   * else's wrong answer therefore ends the question instead of leaving
+   * everyone waiting for the timer.
+   */
   public haveAllPlayersSkipped(): boolean {
-    const activePlayers = this.getInGamePlayers();
+    const activePlayers = this._getAnswerEligibleInGamePlayers();
     if (activePlayers.length === 0) {
       return false;
     }
 
     const skippedPlayers = this.gameState.skippedPlayers ?? [];
-    return activePlayers.every((player) => skippedPlayers.includes(player.meta.id));
+    const answeredPlayerIds = this.gameState.answeredPlayers?.map((ap) => ap.player) ?? [];
+
+    return activePlayers.every(
+      (player) =>
+        skippedPlayers.includes(player.meta.id) || answeredPlayerIds.includes(player.meta.id)
+    );
+  }
+
+  /** In-game players allowed to answer the current question (late joiners excluded). */
+  private _getAnswerEligibleInGamePlayers(): Player[] {
+    return this.getInGamePlayers().filter((player) =>
+      this.isPlayerEligibleToAnswer(player.meta.id)
+    );
   }
 
   /**
@@ -476,7 +583,7 @@ export class Game {
    * @returns true if all players will be exhausted after the current answer is processed
    */
   public willAllPlayersBeExhausted(): boolean {
-    const activePlayers = this.getInGamePlayers();
+    const activePlayers = this._getAnswerEligibleInGamePlayers();
     if (activePlayers.length === 0) {
       return true;
     }

@@ -178,6 +178,15 @@ the origin socket.
   spread it further.
 - Public methods need explicit return types.
 - DTO contracts live in `domain/types/dto/` as interfaces when practical.
+- Use braces for branches and loops, and separate logical steps with blank lines.
+  Prefer names that explain the operation without inspecting its implementation.
+- Give shared inputs/results named types instead of repeating inline object shapes.
+  For a short list of arguments, prefer positional parameters when they are clearer.
+- Keep executable logic out of DTO modules. A module exporting standalone functions
+  uses camelCase; class modules use PascalCase.
+- Prefer TypeORM repositories/QueryBuilder to raw SQL. Keep a focused raw query only
+  when it preserves necessary database behavior or avoids per-row round trips, and
+  explain that reason beside it.
 
 ## Testing rules
 

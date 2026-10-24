@@ -1,8 +1,8 @@
 import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
-import { type FileDTO } from "domain/types/dto/file/FileDTO";
 import { type S3Context } from "domain/types/file/S3Context";
+import { type FileLocation } from "domain/types/file/FileLocation";
 import { ValueUtils } from "domain/utils/ValueUtils";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
@@ -28,7 +28,7 @@ export class PackageStorageService {
    * Generate upload links for files declared by an uploaded package.
    */
   public async generateUploadLinks(
-    files: FileDTO[],
+    files: FileLocation[],
     expiresIn: number
   ): Promise<Record<string, string>> {
     const links: Record<string, string> = {};

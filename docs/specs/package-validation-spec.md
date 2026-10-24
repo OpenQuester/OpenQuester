@@ -43,6 +43,19 @@ A package should be considered broken when any of these are true:
 - final round lacks enough valid themes/questions for current gameplay rules
 - package exceeds hard storage/upload limits
 - question order/round order is invalid in a way the app cannot safely normalize
+- number-answer target is missing or non-finite
+- point-answer target is missing, non-finite, outside the `[0, 1]` coordinate
+  range, or has no question image
+
+The web editor and `.oq` reader preserve a selected number/point answer mode
+even when its target is incomplete. Drafts remain editable; critical validation
+blocks publishing instead of silently changing the mode to text.
+
+The web question form edits text answers in one **Correct answers** list, one
+accepted answer per line. It preserves the wire format: the first is
+`answerText`, the rest are `rightAnswers`. Choice questions keep the selected
+correct option plus an **Also accept** list. This UI grouping does not change
+import/export formats or automatic answer-checking rules.
 
 ## Warning validations
 

@@ -1,4 +1,4 @@
-import { STAKE_QUESTION_BID_TIME } from "domain/constants/game";
+import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -11,14 +11,14 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   ChoosingToStakeBiddingCtx,
-  ChoosingToStakeBiddingMutationData,
+  ChoosingToStakeBiddingMutationData
 } from "domain/types/socket/transition/choosing";
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
@@ -41,27 +41,33 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
   public canTransition(ctx: ChoosingToStakeBiddingCtx): boolean {
     const { game, trigger, payload } = ctx;
 
-    if (!payload) return false;
-    if (getGamePhase(game) !== this.fromPhase) return false;
-
-    if (
-      !TransitionGuards.canTransitionInRegularRound(
-        game,
-        QuestionState.CHOOSING
-      )
-    ) {
+    if (!payload) {
       return false;
     }
 
-    if (trigger !== TransitionTrigger.USER_ACTION) return false;
+    if (getGamePhase(game) !== this.fromPhase) {
+      return false;
+    }
+
+    if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.CHOOSING)) {
+      return false;
+    }
+
+    if (trigger !== TransitionTrigger.USER_ACTION) {
+      return false;
+    }
 
     try {
-      const { question } = QuestionPickLogic.validateQuestionPick(
-        game,
-        payload.questionData
-      );
+      const { question } = QuestionPickLogic.validateQuestionPick(game, payload.questionData);
 
-      if (question.type !== PackageQuestionType.STAKE) return false;
+      if (question.type !== PackageQuestionType.STAKE) {
+        return false;
+      }
+
+      // Stake for everyone has its own flow (ChoosingToAllPlayBiddingHandler)
+      if (AllPlayLogic.modeOf(question) != null) {
+        return false;
+      }
 
       return TransitionGuards.hasEligiblePlayers(game);
     } catch {
@@ -73,27 +79,17 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
     GameStateValidator.validateGameInProgress(ctx.game);
   }
 
-  protected async mutate(
-    ctx: ChoosingToStakeBiddingCtx
-  ): Promise<MutationResult> {
+  protected async mutate(ctx: ChoosingToStakeBiddingCtx): Promise<MutationResult> {
     const { game, payload, triggeredBy } = ctx;
-    const pickerPlayerId = triggeredBy.playerId!;
+    const pickerPlayerId = QuestionPickLogic.resolvePickerPlayerId(game, triggeredBy.playerId!);
 
-    const { question, theme } = QuestionPickLogic.validateQuestionPick(
-      game,
-      payload!.questionData
-    );
+    const { question, theme } = QuestionPickLogic.validateQuestionPick(game, payload!.questionData);
 
     const eligiblePlayers = game.players.filter(
-      (p) =>
-        p.role === PlayerRole.PLAYER &&
-        p.gameStatus === PlayerGameStatus.IN_GAME
+      (p) => p.role === PlayerRole.PLAYER && p.gameStatus === PlayerGameStatus.IN_GAME
     );
 
-    const biddingOrder = this._calculateBiddingOrder(
-      eligiblePlayers,
-      pickerPlayerId
-    );
+    const biddingOrder = this._calculateBiddingOrder(eligiblePlayers, pickerPlayerId);
 
     const stakeData: StakeQuestionGameData = {
       pickerPlayerId,
@@ -105,11 +101,11 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
       currentBidderIndex: 0,
       highestBid: null,
       winnerPlayerId: null,
-      biddingPhase: true,
+      biddingPhase: true
     };
 
     const pickerPlayer = game.getPlayer(pickerPlayerId, {
-      fetchDisconnected: true,
+      fetchDisconnected: true
     });
 
     let automaticBid: PlayerBidData | null = null;
@@ -117,11 +113,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
 
     // Bid question price automatically if picker score is lower
     if (pickerPlayer && pickerPlayer.score < nominalBidAmount) {
-      automaticBid = this._handleAutomaticNominalBid(
-        stakeData,
-        pickerPlayer,
-        nominalBidAmount
-      );
+      automaticBid = this._handleAutomaticNominalBid(stakeData, pickerPlayer, nominalBidAmount);
     }
 
     game.setQuestionState(QuestionState.BIDDING);
@@ -139,8 +131,8 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
         maxPrice: stakeData.maxPrice,
         biddingOrder: stakeData.biddingOrder,
         timer: undefined,
-        automaticBid,
-      } satisfies ChoosingToStakeBiddingMutationData,
+        automaticBid
+      } satisfies ChoosingToStakeBiddingMutationData
     };
   }
 
@@ -151,7 +143,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    const timer = new GameStateTimer(STAKE_QUESTION_BID_TIME);
+    const timer = new GameStateTimer(game.settings.timers.stakeMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -162,9 +154,9 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: STAKE_QUESTION_BID_TIME,
-        },
-      ],
+          pxTtl: game.settings.timers.stakeMs
+        }
+      ]
     };
   }
 
@@ -173,11 +165,11 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
     mutationResult: MutationResult,
     timerResult: TimerResult
   ): BroadcastEvent[] {
-    const data = mutationResult.data as
-      | ChoosingToStakeBiddingMutationData
-      | undefined;
+    const data = mutationResult.data as ChoosingToStakeBiddingMutationData | undefined;
 
-    if (!data) return [];
+    if (!data) {
+      return [];
+    }
 
     const broadcasts: BroadcastEvent[] = [];
 
@@ -193,18 +185,17 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
           durationMs: 0,
           elapsedMs: 0,
           startedAt: new Date(),
-          resumedAt: null,
+          resumedAt: null
         },
-        questionEligiblePlayers: ctx.game.getQuestionEligiblePlayers(),
+        questionEligiblePlayers: ctx.game.getQuestionEligiblePlayers()
       } satisfies StakeQuestionPickedBroadcastData,
-      room: ctx.game.id,
+      room: ctx.game.id
     });
 
     // Automatic nominal bid (only when picker cannot afford nominal price)
     const stakeData = ctx.game.gameState.stakeQuestionData;
     if (data.automaticBid && stakeData) {
-      const nextBidderId =
-        stakeData.biddingOrder[stakeData.currentBidderIndex] ?? null;
+      const nextBidderId = stakeData.biddingOrder[stakeData.currentBidderIndex] ?? null;
 
       broadcasts.push({
         event: SocketIOGameEvents.STAKE_BID_SUBMIT,
@@ -214,29 +205,24 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
           bidType: StakeBidType.NORMAL,
           isPhaseComplete: false,
           nextBidderId,
-          timer: timerResult.timer ?? null,
+          timer: timerResult.timer ?? null
         },
-        room: ctx.game.id,
+        room: ctx.game.id
       });
     }
 
     return broadcasts;
   }
 
-  private _calculateBiddingOrder(
-    eligiblePlayers: Player[],
-    pickerPlayerId: number
-  ): number[] {
-    const pickerIndex = eligiblePlayers.findIndex(
-      (p) => p.meta.id === pickerPlayerId
-    );
+  private _calculateBiddingOrder(eligiblePlayers: Player[], pickerPlayerId: number): number[] {
+    const pickerIndex = eligiblePlayers.findIndex((p) => p.meta.id === pickerPlayerId);
 
     const normalizedIndex = pickerIndex >= 0 ? pickerIndex : 0;
 
     // If picker index 2, list will be [2, 3, 0, 1]
     return [
       ...eligiblePlayers.slice(normalizedIndex),
-      ...eligiblePlayers.slice(0, normalizedIndex),
+      ...eligiblePlayers.slice(0, normalizedIndex)
     ].map((p) => p.meta.id);
   }
 
@@ -252,12 +238,11 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
 
     // Keep bidding open; move to next bidder if any
     stakeQuestionData.currentBidderIndex =
-      (stakeQuestionData.currentBidderIndex + 1) %
-      stakeQuestionData.biddingOrder.length;
+      (stakeQuestionData.currentBidderIndex + 1) % stakeQuestionData.biddingOrder.length;
 
     return {
       playerId: currentPlayer.meta.id,
-      bidAmount: autoBidAmount,
+      bidAmount: autoBidAmount
     };
   }
 }

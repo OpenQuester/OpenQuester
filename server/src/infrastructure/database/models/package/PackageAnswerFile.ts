@@ -1,8 +1,9 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 
+import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageFileDTO } from "domain/types/dto/package/PackageFileDTO";
-import { PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
+import { PackageAnswerFileDTO } from "domain/types/dto/package/PackageAnswerFileDTO";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
 import { type IFileUrlBuilder } from "domain/types/storage/IFileUrlBuilder";
 import { File } from "infrastructure/database/models/File";
@@ -13,6 +14,8 @@ export interface PackageAnswerFileImport {
   order: number;
   type: PackageFileType;
   display_time: number | null;
+  placement?: ContentPlacement | null;
+  wait_for_finish?: boolean | null;
   question: PackageQuestion;
 }
 
@@ -40,15 +43,23 @@ export class PackageAnswerFile {
   @Column({ type: "int", nullable: true })
   display_time!: number | null;
 
+  @Column({ type: "varchar", length: 16, default: ContentPlacement.SCREEN })
+  placement!: ContentPlacement;
+
+  @Column({ type: "boolean", default: true })
+  wait_for_finish!: boolean;
+
   public import(data: PackageAnswerFileImport) {
     this.file = data.file;
     this.order = data.order;
     this.type = data.type;
     this.display_time = data.display_time;
+    this.placement = data.placement ?? ContentPlacement.SCREEN;
+    this.wait_for_finish = data.wait_for_finish ?? true;
     this.question = data.question;
   }
 
-  public toDTO(fileUrlBuilder: IFileUrlBuilder, opts: PackageDTOOptions): PackageQuestionFileDTO {
+  public toDTO(fileUrlBuilder: IFileUrlBuilder, opts: PackageDTOOptions): PackageAnswerFileDTO {
     const fileDTO: PackageFileDTO = {
       md5: this.file.filename,
       type: this.type,
@@ -62,7 +73,9 @@ export class PackageAnswerFile {
     return {
       file: fileDTO,
       order: this.order,
-      displayTime: this.display_time
+      displayTime: this.display_time,
+      placement: this.placement,
+      waitForFinish: this.wait_for_finish
     };
   }
 }

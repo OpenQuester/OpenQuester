@@ -105,6 +105,15 @@ class _GameSettingsSection extends WatchingWidget {
             ),
           ),
         ),
+        _BoolSetting(
+          title: LocaleKeys.settings_game_sounds.tr(),
+          state: watchPropertyValue(
+            (SettingsController m) => m.settings.gameSounds,
+          ),
+          onChanged: (value) => controller.updateSettings(
+            controller.settings.copyWith(gameSounds: value),
+          ),
+        ),
       ],
     );
   }

@@ -1,5 +1,6 @@
 import { Player } from "domain/entities/game/Player";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import type { GameSettingsDTO } from "domain/types/dto/game/settings/GameSettingsDTO";
 import { RoundIndexEntry } from "domain/types/dto/game/RoundIndexEntry";
 import { userId } from "domain/types/ids";
 import { GameStateDTO } from "./state/GameStateDTO";
@@ -19,4 +20,6 @@ export interface GameImportDTO {
   questionsCount: number;
   players: Player[];
   gameState: GameStateDTO;
+  /** Missing on games created before settings existed */
+  settings?: GameSettingsDTO | null;
 }

@@ -78,8 +78,11 @@ describe("Secret Question Flow Tests", () => {
 
         const secretPickedEvent = await secretQuestionPickedPromise;
 
-        // Verify secret question picked event
-        expect(secretPickedEvent.pickerPlayerId).toBe(setup.showmanUser.id);
+        // Verify secret question picked event: the showman picked on behalf of
+        // the turn player, who owns the question
+        const turnPlayerId = (await utils.getGameState(gameId))!.currentTurnPlayerId;
+        expect(turnPlayerId).not.toBeNull();
+        expect(secretPickedEvent.pickerPlayerId).toBe(turnPlayerId);
         expect(secretPickedEvent.transferType).toBe(PackageQuestionTransferType.ANY);
         expect(secretPickedEvent.questionId).toBe(secretQuestion!.id);
 
@@ -87,7 +90,7 @@ describe("Secret Question Flow Tests", () => {
         const transferState = await utils.getGameState(gameId);
         expect(transferState!.questionState).toBe(QuestionState.SECRET_TRANSFER);
         expect(transferState!.secretQuestionData).toBeDefined();
-        expect(transferState!.secretQuestionData!.pickerPlayerId).toBe(setup.showmanUser.id);
+        expect(transferState!.secretQuestionData!.pickerPlayerId).toBe(turnPlayerId);
 
         // Set up listeners for transfer error (showman cannot transfer to themselves - invalid target)
         const errorPromise = scenario.waitForEvent(showmanSocket, "error");
@@ -227,6 +230,8 @@ describe("Secret Question Flow Tests", () => {
             SocketIOGameEvents.ANSWER_RESULT
           )
         ];
+        const finish = scenario.waitForEvent(spectatorSocket, SocketIOGameEvents.QUESTION_FINISH);
+        const reveal = scenario.waitForEvent(spectatorSocket, SocketIOGameEvents.ANSWER_SHOW_START);
         const beforeSkip = scenario.mark();
         const skipProbe = scenario.createAcceptedActionProbe({
           gameId,
@@ -237,6 +242,7 @@ describe("Secret Question Flow Tests", () => {
         scenario.actor(answeringPlayerSocket).emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
         const answerResults = await Promise.all(answerResultPromises);
+        await Promise.all([finish, reveal]);
         await skipProbe.waitForCount(1);
         await scenario.assert.waitForActionsComplete({ gameId });
         await scenario.assert.noInbound({
@@ -246,19 +252,23 @@ describe("Secret Question Flow Tests", () => {
           durationMs: 100
         });
 
-        const expectedPenalty = -Math.max(1, secretQuestion!.price ?? 1);
+        const expectedPenalty = -(secretQuestion!.price ?? 0);
         for (const answerResult of answerResults) {
           expect(answerResult.answerResult.player).toBe(setup.playerUsers[0].id);
           expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
           expect(answerResult.answerResult.result).toBe(expectedPenalty);
-          expect(answerResult.timer).toBeNull();
+          expect(answerResult.timer).toBeTruthy();
         }
 
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
         expect(finalState!.answeringPlayer).toBeNull();
-        expect(finalState!.timer).toBeNull();
+        expect(finalState!.timer).toBeTruthy();
+        expect(finalState!.currentQuestion).toBeNull();
+        expect(finalState!.answerShowData).toBeTruthy();
         expect(finalState!.secretQuestionData).toBeNull();
+        await utils.skipShowAnswer(showmanSocket);
+        expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.CHOOSING);
       });
     });
 
@@ -334,7 +344,10 @@ describe("Secret Question Flow Tests", () => {
         const targetPlayerIds = setup.playerUsers.map((user) => user.id);
 
         for (const transferEvent of transferEvents) {
-          expect(transferEvent.fromPlayerId).toBe(setup.showmanUser.id);
+          // Timeout transfers come from the question's owner (the turn player)
+          expect(transferEvent.fromPlayerId).toBe(
+            transferState!.secretQuestionData!.pickerPlayerId
+          );
           expect(targetPlayerIds).toContain(transferEvent.toPlayerId);
           expect(transferEvent.questionId).toBe(secretQuestion!.id);
         }

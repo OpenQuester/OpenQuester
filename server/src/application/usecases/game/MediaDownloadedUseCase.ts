@@ -2,6 +2,7 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
 import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
@@ -12,7 +13,7 @@ import {
 } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { type EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
+import { type MediaDownloadedInputData } from "domain/types/socket/events/game/MediaDownloadedInputData";
 import { type MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { GameValidator } from "domain/validators/GameValidator";
 
@@ -22,12 +23,12 @@ import { GameValidator } from "domain/validators/GameValidator";
  */
 export class MediaDownloadedUseCase
   implements
-    GameActionHandler<EmptyInputData, MediaDownloadStatusBroadcastData>
+    GameActionHandler<MediaDownloadedInputData, MediaDownloadStatusBroadcastData>
 {
   constructor(private readonly phaseTransitionRouter: PhaseTransitionRouter) {}
 
   public async execute(
-    ctx: ActionExecutionContext<EmptyInputData>
+    ctx: ActionExecutionContext<MediaDownloadedInputData>
   ): Promise<ActionHandlerResult<MediaDownloadStatusBroadcastData>> {
     GameValidator.validatePlayerAuthenticated(ctx);
 
@@ -38,6 +39,10 @@ export class MediaDownloadedUseCase
     }
 
     currentPlayer.mediaDownloaded = true;
+    QuestionContentPlanLogic.mergeMediaDurations(
+      game,
+      ctx.action.payload?.mediaDurations
+    );
 
     const allPlayersReady = MediaDownloadLogic.areAllPlayersReady(game);
 
@@ -67,6 +72,12 @@ export class MediaDownloadedUseCase
       mediaDownloaded: true,
       allPlayersReady,
       timer: transitionTimer,
+      contentPlan: transitionTimer
+        ? (game.gameState.questionContentPlan ?? null)
+        : undefined,
+      buzzerOpensAtMs: transitionTimer
+        ? (game.gameState.buzzerOpensAtMs ?? null)
+        : undefined,
     };
 
     const broadcast: SocketEventBroadcast<MediaDownloadStatusBroadcastData> = {

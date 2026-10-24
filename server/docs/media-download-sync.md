@@ -20,7 +20,7 @@ in [OpenAPI](../../openapi/schema.json).
 | Pick | Client → server `QUESTION_PICK` | Input `{ questionId }`; existing role/phase validation applies. |
 | Deliver data | Server → game clients `QUESTION_DATA` | Role-filtered question data, including file links, and the media timer. Persisted phase is `MEDIA_DOWNLOADING`; readiness flags are reset. Showman-only answers are not sent to players/spectators. |
 | Partial readiness | Client → server `MEDIA_DOWNLOADED`, then server → game `MEDIA_DOWNLOAD_STATUS` | No application payload is required for the command. Status includes `playerId`, `mediaDownloaded: true`, `allPlayersReady: false`, `timer: null`. The existing media timer remains active. |
-| Last required readiness | Same command/status pair | The last active player's ACK completes readiness, enters `SHOWING`, and supplies the question timer in the status. |
+| Last required readiness | Same command/status pair | The last active player's ACK completes readiness, enters `SHOWING`, and supplies the question timer and `contentPlan` in the status. |
 | Timeout | Server → game `MEDIA_DOWNLOAD_STATUS` | Forces active players ready, enters `SHOWING`, and starts the question timer. Status uses `playerId: -1` (`SYSTEM_PLAYER_ID`) and `allPlayersReady: true`; it does not prove successful downloads. |
 
 Only `PlayerRole.PLAYER` participants with `PlayerGameStatus.IN_GAME` belong
@@ -47,7 +47,9 @@ callback acknowledgement or proof that an action reached the Redis queue.
 - Repeated ACKs while still in the media phase can produce repeated status
   broadcasts. Do not document them as universally deduplicated. ACKs queued
   after completion are covered by the phase guard.
-- Selection starts `MEDIA_DOWNLOAD_TIMEOUT`; partial status `timer: null`
+- Selection starts `MEDIA_DOWNLOAD_TIMEOUT` (30 s, long enough for a slow
+  phone to load a picture; the web client hides this countdown and shows
+  "x of y players ready" instead); partial status `timer: null`
   means no replacement timer, not that the running media timer was removed.
 - Readiness completion or timeout starts `GAME_QUESTION_ANSWER_TIME`.
 - An ACK has no question identifier. The phase guard is not a general guarantee
@@ -111,3 +113,36 @@ Controlled helper self-tests prove assertions reject injected defects; they
 are not evidence of backend health. Backend transport tests prove coordination,
 not Flutter downloading, content hiding, or playback. Keep those evidence
 boundaries explicit in bug reports and release claims.
+
+## Content timeline (question sequencing)
+
+The `media-downloaded` ACK may carry `{ mediaDurations: [{ md5, durationMs }] }`:
+real audio/video lengths read while preloading. The server keeps the longest
+report per file of the current question (`gameState.mediaDurations`, capped at
+`CONTENT_ITEM_MAX_TIME`) and ignores unknown md5s.
+
+On entering `SHOWING`, `QuestionContentPlanLogic` builds `questionContentPlan`
+(SIGame parity): items play in order (file `order`, plus the question text when
+`textOrder` is set), grouped into one step until an item that waits for its
+finish. A step lasts as long as its longest item; non-waiting background audio
+does not stretch it. Item time is `displayTime`, else the reported length
+(audio/video), else a default. The buzzer opens at `buzzerOpensAtMs` (see
+`docs/specs/buzzer-state-machine.md`), sent next to every `contentPlan`. The
+question timer is `max(totalMs, buzzerOpensAtMs)` plus
+`GAME_QUESTION_ANSWER_TIME`, and clients read the timeline position from
+that timer's elapsed time, so pauses, buzzes (the saved SHOWING timer) and
+reconnects stay in step. The plan travels with the completion status
+(`contentPlan`), `question-data` for direct-answer paths, and the game state.
+Answer files get the same treatment as `answerContentPlan` in the reveal
+payload, timed with the show-answer defaults.
+
+Flutter's question timeline resolves background tracks independently of screen
+steps. Each active background audio file has a separate player, starts at its
+offset in the server timer, keeps playing across screen changes, and stops at
+its own end. Pausing or answering holds background playback; resuming seeks to
+the restored timer. Question replacement and clear dispose owned players and
+ignore stale loads. The question volume also controls background audio.
+
+Controller tests exercise those player calls with a fake video platform,
+including delayed initialization, seek, and disposal. They do not establish
+native-device playback or fix the readiness/reveal gaps described above.

@@ -19,10 +19,21 @@ class GameLobbyController {
   final lobbyEditorMode = ValueNotifier<bool>(false);
   final showChat = ValueNotifier<bool>(false);
 
+  /// Options of the current choice question, in order
+  final choiceAnswers = ValueNotifier<List<QuestionChoiceAnswers>?>(null);
+
+  /// How long the options of the current choice question wait after the
+  /// question has played. Set together with [choiceAnswers]
+  final choiceShowDelayMs = ValueNotifier<int>(0);
+
+  /// Until when my buzzer is locked after a false start
+  final buzzerLockedUntil = ValueNotifier<DateTime?>(null);
+
   StreamSubscription<ChatOperation>? _chatMessagesSub;
   double? themeScrollPosition;
   PlayerRole? _requestedJoinRole;
   int? _requestedTargetSlot;
+  String? _password;
 
   String? get gameId => _gameId;
 
@@ -50,6 +61,16 @@ class GameLobbyController {
       gameListData.value = await Api.I.api.games.getV1GamesGameId(
         gameId: gameId,
       );
+
+      // A private game asks for its password, except from its host
+      // and from someone already in it (a reconnect)
+      if (_needsPassword(gameListData.value!)) {
+        _password = await _askPassword();
+        if (_password == null) {
+          await clear();
+          return false;
+        }
+      }
 
       socket = await getIt<SocketController>().createConnection(path: '/games');
       socket!
@@ -92,6 +113,11 @@ class GameLobbyController {
           _onPlayerRoleChange,
         )
         ..on(SocketIoGameReceiveEvents.playerReady.json!, _onPlayerReady)
+        ..on(
+          SocketIoGameReceiveEvents.buzzerFalseStart.json!,
+          _onBuzzerFalseStart,
+        )
+        ..on(SocketIoGameReceiveEvents.buzzerOpen.json!, _onBuzzerOpen)
         ..on(
           SocketIoGameReceiveEvents.secretQuestionPicked.json!,
           _onSecretQuestionPicked,
@@ -203,6 +229,7 @@ class GameLobbyController {
         gameId: _gameId!,
         role: joinRole,
         targetSlot: joinRole == PlayerRole.player ? _requestedTargetSlot : null,
+        password: _password,
       );
 
       socket?.emit(SocketIoGameSendEvents.join.json!, ioGameJoinInput.toJson());
@@ -220,6 +247,26 @@ class GameLobbyController {
       // Close game
       await AppRouter.I.replace(const HomeTabsRoute());
     }
+  }
+
+  bool _needsPassword(GameListItem game) {
+    if (!game.isPrivate) return false;
+    if (game.createdBy.id == myId) return false;
+    return !game.players.any((player) => player.id == myId);
+  }
+
+  Future<String?> _askPassword() async {
+    final context = AppRouter.I.navigatorKey.currentContext;
+    if (context == null) return null;
+    final password = await OneFieldDialog(
+      title: LocaleKeys.join_password_title.tr(),
+      subtitle: LocaleKeys.join_password_subtitle.tr(),
+      maxLength: GameValidationConst.maxPasswordLength,
+      validator: (value) => (value?.trim().isEmpty ?? true)
+          ? LocaleKeys.join_password_required.tr()
+          : null,
+    ).show(context);
+    return password?.trim();
   }
 
   PlayerRole _getJoinRole() {
@@ -259,23 +306,23 @@ class GameLobbyController {
 
     if (chatOperation.type != ChatOperationType.insert) return;
     final message = chatOperation.message;
-    final text = switch (message) {
-      TextMessage() => message.text,
-      SystemMessage() => message.text,
-      _ => null,
-    };
+    // Game events stay in the chat log without a popup; only people's
+    // messages pop up
+    if (message is SystemMessage ||
+        message?.authorId == SocketChatController.systemMessageId) {
+      return;
+    }
+    final text = message is TextMessage ? message.text : null;
     if ((text?.trim()).isEmptyOrNull) return;
 
     final author = gameData.value?.players.getById(
       int.tryParse(message?.authorId ?? ''),
     );
-    final isSystemMessage =
-        message?.authorId == SocketChatController.systemMessageId;
 
     await getIt<ToastController>().show(
       text?.trim(),
       title: author?.meta.username,
-      type: isSystemMessage ? ToastType.info : ToastType.chat,
+      type: ToastType.chat,
     );
   }
 
@@ -292,9 +339,13 @@ class GameLobbyController {
       showChat.value = false;
       gameFinished.value = false;
       lobbyEditorMode.value = false;
+      choiceAnswers.value = null;
+      choiceShowDelayMs.value = 0;
+      buzzerLockedUntil.value = null;
       themeScrollPosition = null;
       _requestedJoinRole = null;
       _requestedTargetSlot = null;
+      _password = null;
       getIt<SocketChatController>().clear();
       await getIt<GameQuestionController>().clear();
       getIt<GameLobbyPlayerPickerController>().clear();
@@ -333,7 +384,21 @@ class GameLobbyController {
 
       await _initChat();
 
+      final currentQuestion = (data['gameState'] as Map?)?['currentQuestion'];
+      choiceShowDelayMs.value = _parseChoiceShowDelay(currentQuestion);
+      choiceAnswers.value = _parseChoiceAnswers(currentQuestion);
       _showQuestion();
+      final state = gameData.value?.gameState;
+      if (state?.questionContentPlan != null &&
+          state?.timer != null &&
+          state?.answeringPlayer == null &&
+          !(state?.isPaused ?? true)) {
+        getIt<GameQuestionController>().playPlan(
+          question: state!.currentQuestion!,
+          plan: state.questionContentPlan!,
+          timer: state.timer!,
+        );
+      }
       _showFinalRound();
       _showStakeQuestion();
     } catch (e, s) {
@@ -566,7 +631,15 @@ class GameLobbyController {
           answeringPlayer: questionData.data.type == QuestionType.stake
               ? gameData.value?.gameState.answeringPlayer
               : null,
+          questionContentPlan: questionData.contentPlan,
+          buzzerOpensAtMs: questionData.buzzerOpensAtMs,
+          buzzerLocks: null,
+          // A no-risk question is reserved for the player who picked it
+          questionEligiblePlayers: questionData.questionEligiblePlayers,
         );
+    choiceShowDelayMs.value = _parseChoiceShowDelay(data['data']);
+    choiceAnswers.value = _parseChoiceAnswers(data['data']);
+    buzzerLockedUntil.value = null;
 
     gameData.value = gameData.value!.copyWith.gameState(
       currentRound: gameData.value!.gameState.currentRound?.changeQuestion(
@@ -580,6 +653,68 @@ class GameLobbyController {
 
     // Pass the question to controller to show the question
     _showQuestion();
+  }
+
+  /// Like the options, the choice show delay is not part of the generated
+  /// question model, so it is read from the raw payload.
+  int _parseChoiceShowDelay(dynamic question) {
+    if (question is! Map) return 0;
+    if (question['type'] != QuestionType.choice.json) return 0;
+    final showDelay = question['showDelay'];
+    return showDelay is num && showDelay > 0 ? showDelay.toInt() : 0;
+  }
+
+  /// Choice options are not part of the generated question model, so they
+  /// are read from the raw payload.
+  List<QuestionChoiceAnswers>? _parseChoiceAnswers(dynamic question) {
+    if (question is! Map) return null;
+    if (question['type'] != QuestionType.choice.json) return null;
+    final answers = question['answers'];
+    if (answers is! List) return null;
+    try {
+      return answers
+          .whereType<Map<dynamic, dynamic>>()
+          .map((e) => QuestionChoiceAnswers.fromJson(e.cast<String, Object?>()))
+          .sortedBy<num>((e) => e.order);
+    } catch (e, s) {
+      logger.e(e, stackTrace: s);
+      return null;
+    }
+  }
+
+  void _onBuzzerFalseStart(dynamic data) {
+    if (data is! Map) return;
+    final falseStart = SocketIoBuzzerFalseStartEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+    if (falseStart.playerId != myId) return;
+    final lockMs = falseStart.lockMs.toInt();
+    buzzerLockedUntil.value = DateTime.now().add(
+      Duration(milliseconds: lockMs),
+    );
+    getIt<GameSoundController>().play(GameSound.wrong);
+    unawaited(
+      getIt<ToastController>().show(
+        LocaleKeys.buzzer_false_start.tr(
+          args: [(lockMs / 1000).ceil().toString()],
+        ),
+        type: ToastType.warning,
+      ),
+    );
+  }
+
+  /// The showman opened the buzzer early: presses are no longer false
+  /// starts and running false-start locks are lifted
+  void _onBuzzerOpen(dynamic data) {
+    if (data is! Map) return;
+    final open = SocketIoBuzzerOpenEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+    gameData.value = gameData.value?.copyWith.gameState(
+      buzzerOpensAtMs: open.buzzerOpensAtMs,
+      buzzerLocks: null,
+    );
+    buzzerLockedUntil.value = null;
   }
 
   void _showQuestion({bool dontWaitForPlayers = false}) {
@@ -607,6 +742,10 @@ class GameLobbyController {
       answeringPlayer: questionData.userId,
       timer: questionData.timer,
     );
+    getIt<GameQuestionController>().holdPlan();
+    getIt<GameSoundController>().play(
+      questionData.userId == myId ? GameSound.turn : GameSound.buzz,
+    );
 
     // Pause media during question answer
     await _pauseMediaPlay();
@@ -624,9 +763,16 @@ class GameLobbyController {
     // Question answered, hide question screen and show answer
     final result = questionData.answerResult?.result;
     if (result != null) {
+      final correct =
+          questionData.answerResult?.answerType ==
+          SocketIoGameAnswerType.correct;
+      getIt<GameSoundController>().play(
+        correct ? GameSound.correct : GameSound.wrong,
+      );
       if (result > 0) {
         await _showAnswer();
       } else {
+        getIt<GameQuestionController>().resumePlan(questionData.timer);
         await _resumeMediaPlay();
       }
     }
@@ -704,6 +850,9 @@ class GameLobbyController {
 
   Future<void> _showAnswer() async {
     final controller = getIt<GameQuestionController>();
+    unawaited(controller.stopPlan());
+    choiceAnswers.value = null;
+    choiceShowDelayMs.value = 0;
     final currentQuestion = gameData.value?.gameState.currentQuestion;
 
     // Check for empty answer
@@ -800,8 +949,18 @@ class GameLobbyController {
     if (me.role != PlayerRole.player) return;
     if (gameData.value?.gameState.answeringPlayer != null) return;
     if (gameData.value?.gameState.isPaused ?? true) return;
+    final lockedUntil = buzzerLockedUntil.value;
+    if (lockedUntil != null && lockedUntil.isAfter(DateTime.now())) return;
 
     socket?.emit(SocketIoGameSendEvents.questionAnswer.json!);
+  }
+
+  /// Gives up a no-risk, secret or stake question I'm answering: the server
+  /// rules it as a wrong answer
+  void giveUp() {
+    final state = gameData.value?.gameState;
+    if (state?.answeringPlayer != myId) return;
+    socket?.emit(SocketIoGameSendEvents.questionSkip.json!);
   }
 
   void passQuestion({required bool pass}) {
@@ -869,6 +1028,9 @@ class GameLobbyController {
     gameData.value = gameData.value?.copyWith.gameState(
       timer: unpauseData.timer,
     );
+    if (gameData.value?.gameState.answeringPlayer == null) {
+      getIt<GameQuestionController>().resumePlan(unpauseData.timer);
+    }
   }
 
   Future<void> _setGamePause({required bool isPaused}) async {
@@ -877,6 +1039,7 @@ class GameLobbyController {
       timer: null,
     );
     if (isPaused) {
+      getIt<GameQuestionController>().holdPlan();
       await _pauseMediaPlay();
     } else {
       await _resumeMediaPlay();
@@ -1472,8 +1635,24 @@ class GameLobbyController {
     await _showAnswer();
   }
 
-  void notifyMediaDownloaded() =>
-      socket?.emit(SocketIoGameSendEvents.mediaDownloaded.json!);
+  bool _buzzerOpensNow() {
+    final state = gameData.value?.gameState;
+    return state != null &&
+        state.currentQuestion != null &&
+        state.buzzerOpensAt() == null;
+  }
+
+  void notifyMediaDownloaded({List<MediaDurations>? mediaDurations}) {
+    final event = SocketIoGameSendEvents.mediaDownloaded.json!;
+    if (mediaDurations == null || mediaDurations.isEmpty) {
+      socket?.emit(event);
+      return;
+    }
+    socket?.emit(
+      event,
+      SocketIoMediaDownloadedInput(mediaDurations: mediaDurations).toJson(),
+    );
+  }
 
   Future<void> _onMediaDownloadStatus(dynamic data) async {
     if (data is! Map) return;
@@ -1496,9 +1675,23 @@ class GameLobbyController {
       if (statusData.timer != null) {
         gameData.value = gameData.value?.copyWith.gameState(
           timer: statusData.timer,
+          questionContentPlan: statusData.contentPlan,
+          buzzerOpensAtMs: statusData.buzzerOpensAtMs,
         );
       }
-      await getIt<GameQuestionController>().onAllPlayersReady();
+      final questionController = getIt<GameQuestionController>();
+      await questionController.onAllPlayersReady();
+      final question = gameData.value?.gameState.currentQuestion;
+      if (statusData.contentPlan != null &&
+          statusData.timer != null &&
+          question != null) {
+        questionController.playPlan(
+          question: question,
+          plan: statusData.contentPlan!,
+          timer: statusData.timer!,
+        );
+      }
+      if (_buzzerOpensNow()) getIt<GameSoundController>().play(GameSound.open);
     }
   }
 }

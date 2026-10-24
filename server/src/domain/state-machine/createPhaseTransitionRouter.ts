@@ -1,3 +1,7 @@
+import { AllPlayBiddingToMediaDownloadingHandler } from "domain/state-machine/handlers/all-play/AllPlayBiddingToMediaDownloadingHandler";
+import { AllPlayReviewingToShowingAnswerHandler } from "domain/state-machine/handlers/all-play/AllPlayReviewingToShowingAnswerHandler";
+import { ChoosingToAllPlayBiddingHandler } from "domain/state-machine/handlers/all-play/ChoosingToAllPlayBiddingHandler";
+import { ShowingToAllPlayReviewingHandler } from "domain/state-machine/handlers/all-play/ShowingToAllPlayReviewingHandler";
 import { FinalAnsweringToReviewingHandler } from "domain/state-machine/handlers/final-round/FinalAnsweringToReviewingHandler";
 import { FinalBiddingToAnsweringHandler } from "domain/state-machine/handlers/final-round/FinalBiddingToAnsweringHandler";
 import { FinalReviewingToGameFinishHandler } from "domain/state-machine/handlers/final-round/FinalReviewingToGameFinishHandler";
@@ -42,6 +46,9 @@ export function createPhaseTransitionRouter(
     // Regular Round Transitions
     // =========================================================================
 
+    // Stake for everyone picked: CHOOSING → ALL_PLAY_BIDDING
+    new ChoosingToAllPlayBiddingHandler(),
+
     // Question picked (special): CHOOSING → SECRET_TRANSFER / STAKE_BIDDING
     new ChoosingToSecretTransferHandler(),
     new ChoosingToStakeBiddingHandler(),
@@ -54,6 +61,9 @@ export function createPhaseTransitionRouter(
 
     // Player buzzes to answer: SHOWING → ANSWERING
     new ShowingToAnsweringHandler(),
+
+    // Everyone answered in writing (or time ran out): SHOWING → ALL_PLAY_REVIEWING
+    new ShowingToAllPlayReviewingHandler(),
 
     // Timer expired, force skip, or all players skipped: SHOWING → SHOWING_ANSWER
     new ShowingToShowingAnswerHandler(),
@@ -84,7 +94,17 @@ export function createPhaseTransitionRouter(
     new StakeBiddingToAnsweringHandler(),
 
     // Secret question transferred: SECRET_QUESTION_TRANSFER → ANSWERING
-    new SecretTransferToAnsweringHandler()
+    new SecretTransferToAnsweringHandler(),
+
+    // =========================================================================
+    // "Everyone answers" questions
+    // =========================================================================
+
+    // Stakes in: ALL_PLAY_BIDDING → MEDIA_DOWNLOADING
+    new AllPlayBiddingToMediaDownloadingHandler(),
+
+    // Every answer ruled on: ALL_PLAY_REVIEWING → SHOWING_ANSWER
+    new AllPlayReviewingToShowingAnswerHandler()
   ];
 
   return new PhaseTransitionRouter(logger, handlers);

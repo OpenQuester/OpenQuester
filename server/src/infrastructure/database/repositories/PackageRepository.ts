@@ -1,9 +1,10 @@
 import { inject, singleton } from "tsyringe";
-import { EntityManager, In, Repository } from "typeorm";
+import { EntityManager, In, IsNull, Repository } from "typeorm";
 
 import { DI_TOKENS } from "shared/di/tokens";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { FileSource } from "domain/enums/file/FileSource";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { FileDTO } from "domain/types/dto/file/FileDTO";
@@ -77,6 +78,33 @@ export class PackageRepository {
     return searchHelper.searchWithoutStatsFiltering(searchOpts);
   }
 
+  /** Only the content generation whose measured quotas passed may become ready. */
+  public async markUploadReady(id: number, startedAt: Date | null): Promise<boolean> {
+    const result = await this.repository.update(
+      {
+        id,
+        upload_status: PackageUploadStatus.UPLOADING,
+        upload_started_at: startedAt ?? IsNull()
+      },
+      { upload_status: PackageUploadStatus.READY }
+    );
+    return result.affected === 1;
+  }
+
+  /** Ids of packages still uploading that started after `since`, newest first. */
+  public async getUploadingSince(since: Date, limit: number): Promise<number[]> {
+    const rows = await this.repository
+      .createQueryBuilder("package")
+      .select("package.id", "id")
+      .where("package.upload_status = :status", { status: PackageUploadStatus.UPLOADING })
+      .andWhere("package.upload_started_at > :since", { since })
+      .orderBy("package.upload_started_at", "DESC")
+      .limit(limit)
+      .getRawMany<{ id: number }>();
+
+    return rows.map((r) => Number(r.id));
+  }
+
   public findByIds(ids: number[], selectOptions: SelectOptions<Package>): Promise<Package[]> {
     return this.repository.find({
       where: { id: In(ids) },
@@ -117,9 +145,16 @@ export class PackageRepository {
    * @param author Package author, typically current user
    * @returns Package data and files, which can be used for links generation
    */
+  /**
+   * Creates a package, or with `replaceId` replaces the content of that package
+   * in place (same id, author and creation date): its rounds and file usages are
+   * removed first, then the new content is written exactly as for a new package.
+   */
   public async create(
     packageData: PackageDTO,
-    author: User
+    author: User,
+    replaceId?: number,
+    sourceHash?: string | null
   ): Promise<{
     pack: Package;
     files: FileDTO[];
@@ -128,6 +163,23 @@ export class PackageRepository {
     const files: FileDTO[] = [];
 
     return this.db.dataSource.transaction(async (transaction) => {
+      let existing: Package | null = null;
+      if (replaceId !== undefined) {
+        existing = await transaction.findOne(Package, {
+          where: { id: replaceId },
+          relations: ["author", "tags", "logo"],
+          lock: { mode: "pessimistic_write", tables: ["package"] }
+        });
+
+        if (!existing) {
+          throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND, 404);
+        }
+
+        // Themes, questions, their files and choice answers cascade from rounds.
+        await transaction.delete(PackageRound, { package: { id: replaceId } });
+        await transaction.delete(FileUsage, { package: { id: replaceId } });
+      }
+
       // Process Tags, fetch old and save new tags
       const tagNames = (packageData.tags || []).map((tagData) => tagData.tag);
 
@@ -137,6 +189,7 @@ export class PackageRepository {
 
       const newTags: PackageTag[] = [];
       const tagEntities: PackageTag[] = [];
+
       for (const tagName of tagNames) {
         let tag = existingTagMap.get(tagName);
         if (!tag) {
@@ -144,6 +197,7 @@ export class PackageRepository {
           tag.import({ tag: tagName });
           newTags.push(tag);
         }
+
         tagEntities.push(tag);
       }
 
@@ -169,19 +223,30 @@ export class PackageRepository {
       }
 
       // Create, import and save package
-      const pack = new Package();
+      const pack = existing ?? new Package();
 
       pack.import({
         ageRestriction: packageData.ageRestriction,
-        createdAt: new Date(),
-        author: author,
+        createdAt: existing?.created_at ?? new Date(),
+        author: existing?.author ?? author,
         title: packageData.title,
         description: packageData.description,
         language: packageData.language,
+        authors: packageData.authors,
+        sources: packageData.sources,
         logo: logoFile,
         // Saved automatically because of cascade
         tags: tagEntities
       });
+      // import() keeps an old logo when none is given; an edit may remove it.
+      pack.logo = logoFile;
+      // Publish readiness only after measured quota validation. The monotonic
+      // timestamp also prevents an older refresh from accepting a replacement.
+      pack.upload_status = PackageUploadStatus.UPLOADING;
+      pack.upload_started_at = new Date(
+        Math.max(Date.now(), (existing?.upload_started_at?.getTime() ?? 0) + 1)
+      );
+      if (sourceHash !== undefined) pack.source_hash = sourceHash;
       await transaction.save(pack);
 
       // Create file usage for logo if it exists (for both new and existing files)
@@ -290,8 +355,17 @@ export class PackageRepository {
               type: questionData.type,
               isHidden: questionData.isHidden,
               text: questionData.text,
+              textOrder: questionData.textOrder,
               answerHint: questionData.answerHint,
               answerText: questionData.answerText,
+              answerType: questionData.answerType,
+              answerNumber: questionData.answerNumber,
+              answerPoint: questionData.answerPoint,
+              answerDeviation: questionData.answerDeviation,
+              rightAnswers: questionData.rightAnswers,
+              wrongAnswers: questionData.wrongAnswers,
+              authors: questionData.authors,
+              sources: questionData.sources,
               answerDelay: questionData.answerDelay,
               questionComment: questionData.questionComment,
               subType: questionData.subType,
@@ -334,6 +408,8 @@ export class PackageRepository {
                 order: questionFileData.order,
                 type: questionFileData.file.type,
                 display_time: questionFileData.displayTime,
+                placement: questionFileData.placement,
+                wait_for_finish: questionFileData.waitForFinish,
                 question: question
               });
               orders.add(questionFileData.order);
@@ -351,6 +427,7 @@ export class PackageRepository {
 
               files.push(fileEntity.toDTO());
             }
+
             ordersMap.set("questionFiles", new Set());
 
             // Create and save answer files with the saved question
@@ -382,6 +459,8 @@ export class PackageRepository {
                 order: answerFileData.order,
                 type: answerFileData.file.type,
                 display_time: answerFileData.displayTime,
+                placement: answerFileData.placement,
+                wait_for_finish: answerFileData.waitForFinish,
                 question: question
               });
               orders.add(answerFileData.order);
@@ -399,6 +478,7 @@ export class PackageRepository {
 
               files.push(fileEntity.toDTO());
             }
+
             ordersMap.set("answerFiles", new Set());
 
             // Create and save answers for choice questions (if there any)
@@ -451,10 +531,13 @@ export class PackageRepository {
 
               answersToSave.push(answer);
             }
+
             ordersMap.set("answers", new Set());
           }
+
           ordersMap.set("questions", new Set());
         }
+
         ordersMap.set("themes", new Set());
       }
 
@@ -474,7 +557,8 @@ export class PackageRepository {
     });
   }
 
-  public async deletePackageData(packageId: number): Promise<{ filesDeletedFromDB: string[] }> {
+  /** Delete package references; the shared cleanup service checks files after commit. */
+  public async deletePackageData(packageId: number): Promise<{ filenames: string[] }> {
     return this.db.dataSource.transaction(async (transaction) => {
       const packageEntity = await transaction.findOne(Package, {
         where: { id: packageId },
@@ -498,37 +582,13 @@ export class PackageRepository {
       }
 
       const allFiles = this.collectPackageFiles(packageEntity);
-      const fileUsageByFilename = await this.getFileUsageByFilename(
-        transaction,
-        allFiles.map((file) => file.filename)
-      );
       const tagUsageCountsById = await this.getTagUsageCountsById(
         transaction,
         packageEntity.tags?.map((tag) => tag.id) ?? []
       );
-      const filesToDelete = this.resolveFilesToDelete(
-        packageId,
-        allFiles,
-        fileUsageByFilename
-      );
       const tagsToDelete = this.resolveTagsToDelete(packageEntity, tagUsageCountsById);
-      const fileIdsToDeleteUsage = this.resolveFileUsageIdsToDelete(
-        packageEntity.id,
-        filesToDelete,
-        fileUsageByFilename
-      );
-
-      if (fileIdsToDeleteUsage.length > 0) {
-        await transaction
-          .createQueryBuilder()
-          .delete()
-          .from("file_usage")
-          .where("file_id IN (:...fileIds) AND package_id = :packageId", {
-            fileIds: fileIdsToDeleteUsage,
-            packageId: packageEntity.id
-          })
-          .execute();
-      }
+      // The FK uses SET NULL, so remove only this package's ownership rows first.
+      await transaction.delete(FileUsage, { package: { id: packageEntity.id } });
 
       if (tagsToDelete.length > 0) {
         await transaction.delete(
@@ -538,27 +598,7 @@ export class PackageRepository {
       }
 
       await transaction.delete(Package, packageEntity.id);
-
-      const filesDeletedFromDB: string[] = [];
-      for (const filename of filesToDelete) {
-        const originalUsageRecords = fileUsageByFilename.get(filename) || [];
-        const nonPackageUsageRecords = originalUsageRecords.filter(
-          (record) => !record.package || record.package.id !== packageEntity.id
-        );
-
-        if (nonPackageUsageRecords.length === 0) {
-          await transaction
-            .createQueryBuilder()
-            .delete()
-            .from("file")
-            .where("filename = :filename", { filename })
-            .execute();
-
-          filesDeletedFromDB.push(filename);
-        }
-      }
-
-      return { filesDeletedFromDB };
+      return { filenames: [...new Set(allFiles.map((file) => file.filename))] };
     });
   }
 
@@ -608,40 +648,6 @@ export class PackageRepository {
     return allFiles;
   }
 
-  private async getFileUsageByFilename(
-    transaction: EntityManager,
-    filenames: string[]
-  ): Promise<Map<string, FileUsage[]>> {
-    const usageMap = new Map<string, FileUsage[]>();
-
-    for (const filename of filenames) {
-      usageMap.set(filename, []);
-    }
-
-    if (filenames.length === 0) {
-      return usageMap;
-    }
-
-    const usageRecords = await transaction.find(FileUsage, {
-      where: {
-        file: {
-          filename: In(filenames)
-        }
-      },
-      relations: ["file", "user", "user.avatar", "package", "package.author"]
-    });
-
-    for (const usage of usageRecords) {
-      if (usage.file?.filename) {
-        const existingUsage = usageMap.get(usage.file.filename) || [];
-        existingUsage.push(usage);
-        usageMap.set(usage.file.filename, existingUsage);
-      }
-    }
-
-    return usageMap;
-  }
-
   private async getTagUsageCountsById(
     transaction: EntityManager,
     tagIds: number[]
@@ -673,28 +679,6 @@ export class PackageRepository {
     return usageMap;
   }
 
-  private resolveFilesToDelete(
-    packageId: number,
-    allFiles: { filename: string; id: number }[],
-    fileUsageByFilename: Map<string, FileUsage[]>
-  ): string[] {
-    const filesToDelete: string[] = [];
-
-    for (const file of allFiles) {
-      const usageRecords = fileUsageByFilename.get(file.filename) || [];
-      const usedByOtherPackages = usageRecords.some(
-        (usage) => usage.package && usage.package.id !== packageId
-      );
-      const usedByUsers = usageRecords.some((usage) => usage.user);
-
-      if (!usedByOtherPackages && !usedByUsers) {
-        filesToDelete.push(file.filename);
-      }
-    }
-
-    return filesToDelete;
-  }
-
   private resolveTagsToDelete(
     packageEntity: Package,
     tagUsageCountsById: Map<number, number>
@@ -709,23 +693,5 @@ export class PackageRepository {
     }
 
     return tagsToDelete;
-  }
-
-  private resolveFileUsageIdsToDelete(
-    packageId: number,
-    filesToDelete: string[],
-    fileUsageByFilename: Map<string, FileUsage[]>
-  ): number[] {
-    const fileIdsToDeleteUsage: number[] = [];
-
-    for (const filename of filesToDelete) {
-      const usageRecords = fileUsageByFilename.get(filename) || [];
-      const packageUsage = usageRecords.find((record) => record.package?.id === packageId);
-      if (packageUsage?.file) {
-        fileIdsToDeleteUsage.push(packageUsage.file.id);
-      }
-    }
-
-    return fileIdsToDeleteUsage;
   }
 }

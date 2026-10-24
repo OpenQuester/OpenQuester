@@ -14,6 +14,11 @@ export class Database {
   private static _instanceMap: Map<DataSource, Database> = new Map();
   private _connected: boolean = false;
   private _repositories: Map<EntityTarget<any>, Repository<any>> = new Map();
+  /**
+   * TypeORM marks a data source initialized before `migrationsRun` finishes,
+   * so build() awaits the initialize() call itself, migrations included.
+   */
+  private _initialization: Promise<unknown> | null = null;
 
   private constructor(
     private readonly _dataSource: DataSource,
@@ -22,8 +27,11 @@ export class Database {
     if (!this._dataSource) {
       throw new ServerError(ServerResponse.INVALID_DATA_SOURCE);
     }
+
     if (!this._dataSource.isInitialized) {
-      void this._dataSource.initialize();
+      this._initialization = this._dataSource.initialize();
+      // Handled in build(); this only stops an early failure counting as unhandled
+      this._initialization.catch(() => undefined);
     }
   }
 
@@ -36,6 +44,7 @@ export class Database {
     if (!db) {
       const freshDatabase = new Database(dataSource, logger);
       Database._instanceMap.set(dataSource, freshDatabase);
+
       return freshDatabase;
     }
 
@@ -50,9 +59,12 @@ export class Database {
 
     try {
       // Force only one DataSource init at the time, so only one migrations runner will be executed
-      if (!this._dataSource.isInitialized) {
+      if (this._initialization) {
+        await this._initialization;
+      } else if (!this._dataSource.isInitialized) {
         await this.waitForInitialization();
       }
+
       this._connected = true;
       this._logger.info("Connection to DB established", { prefix: DB_PREFIX });
     } catch (err: unknown) {
@@ -60,6 +72,7 @@ export class Database {
       if (err instanceof Error) {
         message = err.message;
       }
+
       throw new ServerError(`${ServerResponse.DB_NOT_CONNECTED} -> ${message}`);
     }
   }
@@ -91,9 +104,7 @@ export class Database {
    * Get TypeORM repository for the given entity.
    * Caches the repository to avoid multiple creations.
    */
-  public getRepository<T extends ObjectLiteral>(
-    target: EntityTarget<T>
-  ): Repository<T> {
+  public getRepository<T extends ObjectLiteral>(target: EntityTarget<T>): Repository<T> {
     if (!this._connected) {
       throw new ServerError(ServerResponse.DB_NOT_CONNECTED);
     }
@@ -112,6 +123,7 @@ export class Database {
     if (!this._connected) {
       throw new ServerError(ServerResponse.DB_NOT_CONNECTED);
     }
+
     return this._dataSource;
   }
 
@@ -123,6 +135,7 @@ export class Database {
     if (this._dataSource.isInitialized) {
       await this._dataSource.destroy();
     }
+
     Database._instanceMap.delete(this._dataSource);
     this._connected = false;
     this._logger.warn("Database connection closed", { prefix: DB_PREFIX });

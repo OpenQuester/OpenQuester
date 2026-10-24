@@ -274,6 +274,45 @@ describe("Question Answer Edge Cases", () => {
     });
   });
 
+  describe("Pass After Wrong Answer", () => {
+    it("should finish the question when the last player passes after another answered wrong", async () => {
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
+
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+
+        // Player 1 answers wrong; the buzzer reopens for player 2
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+        const reopenPromise = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT);
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+          answerType: AnswerResultType.WRONG,
+          scoreResult: -100
+        });
+        await reopenPromise;
+        expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.SHOWING);
+
+        // Player 2 passes: nobody is left to buzz, so the answer is shown at once
+        const finishPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_FINISH
+        );
+        const showStartPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.QUESTION_SKIP, {});
+        await finishPromise;
+        await showStartPromise;
+
+        expect((await utils.getGameState(gameId))!.questionState).toBe(
+          QuestionState.SHOWING_ANSWER
+        );
+      });
+    });
+  });
+
   describe("Question Pick Validation", () => {
     it("should reject picking non-existent question", async () => {
       await suite.scenario(async (scenario) => {

@@ -63,6 +63,65 @@ describe("Socket Timer and Pause Edge Cases", () => {
   });
 
   describe("Game Pause Edge Cases", () => {
+    it("ignores a delayed expiration after give-up starts a fresh reveal timer", async () => {
+      await suite.scenario(async (scenario) => {
+        const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          1,
+          0
+        );
+        await utils.startGame(showmanSocket);
+        const question = (await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId))!;
+        await utils.pickQuestion(showmanSocket, question.id, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+        const reveal = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_SHOW_START);
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_SKIP, {});
+        await reveal;
+        await scenario.assert.waitForActionsComplete({ gameId });
+        const before = (await utils.getGameState(gameId))!;
+        expect(before.questionState).toBe(QuestionState.SHOWING_ANSWER);
+        expect(before.timer).toBeTruthy();
+
+        // An old keyspace notification can arrive after the next timer is saved,
+        // and its adapter then reads this new phase and timestamps it as current.
+        const after = scenario.mark();
+        const accepted = scenario
+          .createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+          })
+          .waitForCount(1);
+        const [result] = await Promise.all([
+          submitTimerExpiration(
+            gameId,
+            GameActionType.TIMER_QUESTION_SHOWING_EXPIRED,
+            QuestionState.SHOWING_ANSWER
+          ),
+          accepted
+        ]);
+        expect(result.success).toBe(true);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        const state = (await utils.getGameState(gameId))!;
+        expect(state.questionState).toBe(QuestionState.SHOWING_ANSWER);
+        expect(state.timer).toEqual(before.timer);
+        await scenario.assert.noInbound({
+          actor: scenario.actor(showmanSocket),
+          event: SocketIOGameEvents.ANSWER_SHOW_END,
+          afterSequence: after,
+          durationMs: 100
+        });
+
+        const ended = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_SHOW_END);
+        await suite.testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
+        await ended;
+        expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.CHOOSING);
+      });
+    });
+
     it("should ignore stale timer action when game is choosing", async () => {
       await suite.scenario(async () => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);

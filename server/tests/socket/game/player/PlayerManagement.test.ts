@@ -64,6 +64,54 @@ describe("SocketIOGameLobby", () => {
     });
   });
 
+  it("should change the score of a player who is offline", async () => {
+    await suite.scenario(async (scenario) => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const offlinePlayerId = setup.playerUsers[0].id;
+
+      const leavePromise = scenario.waitForEvent(
+        setup.showmanSocket,
+        SocketIOGameEvents.LEAVE,
+        3000
+      );
+      scenario.actor(setup.playerSockets[0]).disconnect();
+      await leavePromise;
+
+      const scoreChangeEventPromise = scenario.waitForEvent<PlayerScoreChangeBroadcastData>(
+        setup.showmanSocket,
+        SocketIOGameEvents.SCORE_CHANGED
+      );
+      scenario.actor(setup.showmanSocket).emit(SocketIOGameEvents.SCORE_CHANGED, {
+        playerId: offlinePlayerId,
+        newScore: 12272
+      });
+      const scoreData = await scoreChangeEventPromise;
+      expect(scoreData).toEqual({ playerId: offlinePlayerId, newScore: 12272 });
+
+      const game = await utils.getGameFromGameService(setup.gameId);
+      const player = game.getPlayer(offlinePlayerId, { fetchDisconnected: true });
+      expect(player?.gameStatus).toBe(PlayerGameStatus.DISCONNECTED);
+      expect(player?.score).toBe(12272);
+    });
+  });
+
+  it("should answer with a clear error for an unknown player's score", async () => {
+    await suite.scenario(async (scenario) => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+
+      const errorPromise = scenario.waitForEvent<{ message: string }>(
+        setup.showmanSocket,
+        SocketIOEvents.ERROR
+      );
+      scenario.actor(setup.showmanSocket).emit(SocketIOGameEvents.SCORE_CHANGED, {
+        playerId: 987654,
+        newScore: 100
+      });
+      const error = await errorPromise;
+      expect(error.message).not.toContain("Internal server error");
+    });
+  });
+
   it("should successfully change player role", async () => {
     await suite.scenario(async (scenario) => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);

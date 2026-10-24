@@ -1,6 +1,7 @@
 import { singleton } from "tsyringe";
 
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
+import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import {
   PlayerLeaveCleanupOptions,
   PlayerLeaveOptions,
@@ -16,6 +17,7 @@ import { PlayerLeaveStrategyResult } from "domain/logic/player-leave/strategies/
 import { DEFAULT_QUESTION_PRICE } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { type TransitionResources } from "domain/state-machine/types";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 
@@ -34,7 +36,8 @@ export class PlayerLeaveService {
   public constructor(
     private readonly playerLeaveOrchestrator: PlayerLeaveOrchestrator,
     private readonly transitionResourceService: TransitionResourceService,
-    private readonly packageStore: PackageStore
+    private readonly packageStore: PackageStore,
+    private readonly playerGameStatsService: PlayerGameStatsService
   ) {
     //
   }
@@ -46,12 +49,16 @@ export class PlayerLeaveService {
   ): Promise<PlayerLeaveStrategyResult> {
     const stakeBidding = await this._resolveStakeBiddingInput(game, userId);
     const transitionResources = await this._resolveTransitionResources(game, userId);
+    const ruledBefore = AllPlayLogic.ruledPlayerIds(game);
 
-    return this.playerLeaveOrchestrator.processLeave(game, userId, {
+    const result = await this.playerLeaveOrchestrator.processLeave(game, userId, {
       ...options,
       stakeBidding,
       transitionResources
     });
+    await this._recordEveryoneRulings(game, ruledBefore);
+
+    return result;
   }
 
   public async processGameStateCleanup(
@@ -64,8 +71,25 @@ export class PlayerLeaveService {
       stakeBidding,
       transitionResources
     };
+    const ruledBefore = AllPlayLogic.ruledPlayerIds(game);
 
-    return this.playerLeaveOrchestrator.processGameStateCleanup(game, userId, options);
+    const result = await this.playerLeaveOrchestrator.processGameStateCleanup(
+      game,
+      userId,
+      options
+    );
+    await this._recordEveryoneRulings(game, ruledBefore);
+
+    return result;
+  }
+
+  /** A leave can start the review, which judges some answers automatically */
+  private async _recordEveryoneRulings(game: Game, ruledBefore: Set<number>): Promise<void> {
+    if (!game.gameState.allPlay) {
+      return;
+    }
+
+    await this.playerGameStatsService.recordEveryoneRulings(game, ruledBefore);
   }
 
   private async _resolveStakeBiddingInput(
@@ -95,6 +119,12 @@ export class PlayerLeaveService {
   ): Promise<TransitionResources | undefined> {
     const validation = AnsweringPlayerLeaveLogic.validate(game, userId);
     const questionType = game.gameState.currentQuestion?.type ?? PackageQuestionType.SIMPLE;
+
+    // An "everyone answers" question may move on once the player is gone
+    const allPlay = game.gameState.allPlay;
+    if (allPlay) {
+      return this.transitionResourceService.getQuestionWithTheme(game, allPlay.questionId);
+    }
 
     const stakeData = game.gameState.stakeQuestionData;
     if (stakeData?.biddingPhase) {

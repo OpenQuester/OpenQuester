@@ -54,6 +54,7 @@ This matrix should be updated as parser/editor/game support evolves.
 | Text question | Supported | Import question text and answer. |
 | Image/audio/video media | SupportedWithConversion | Import media by hash and represent through OQ media fields; warn if file type/codec is risky. |
 | Simple answer text | Supported | Preserve answer text. |
+| Content order and timing (`placement`, `waitForFinish`, `duration`) | Supported | Keep item order, background audio, grouping and explicit durations; the game plays them one step at a time. All screen texts merge into the question text at the first text's position (`textOrder`); a text shown together with the next item becomes a caption. `replic`/`say` goes to the comment. |
 | Answer media | Partial | Preserve when model supports it; warn if game/editor preview is incomplete. |
 | Choice question | Partial | Preserve choices when possible; ensure gameplay CTA explains screen selection. |
 | Stake/bidding question | Supported or Partial | Preserve type if game support exists; warn if SIQ semantics differ. |
@@ -61,7 +62,8 @@ This matrix should be updated as parser/editor/game support evolves.
 | No Risk question | Supported | Preserve no-negative-score behavior. |
 | Hidden/unknown price modes | Partial or UnsupportedWithFallback | Use safe fallback and warn; do not silently change strategy. |
 | Final round | Partial | Preserve themes/questions; warn on unsupported final-specific metadata. |
-| Authors/sources/comments | Partial | Preserve where target model supports; otherwise info warning. |
+| Authors/sources/comments | Partial | Package and question authors and sources are kept (`authors`, `sources`) and shown with the answer and on the package page; round and theme authors/sources are dropped. Comments go to descriptions / `questionComment`. |
+| Multiple right answers / wrong answers | Supported | The first right answer is `answerText`, the rest go to `rightAnswers`; wrong answers go to `wrongAnswers`. The showman sees both; extra right answers are revealed with the answer and count for choice auto-check. |
 | Complex scenario/scripted behavior | UnsupportedCritical | Block publish until manually resolved or removed. |
 | Unsupported media reference | UnsupportedCritical | Critical validation error. |
 | Unknown XML node/attribute with gameplay impact | Unknown | Add to unsupported feature accumulator. |

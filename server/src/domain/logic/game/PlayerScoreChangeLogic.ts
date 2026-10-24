@@ -1,9 +1,11 @@
 import { SCORE_ABS_LIMIT } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
+import { ClientResponse } from "domain/enums/ClientResponse";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
 import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { PlayerScoreChangeBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
+import { ClientError } from "domain/errors/ClientError";
 import { ValueUtils } from "domain/utils/ValueUtils";
 
 /**
@@ -41,12 +43,14 @@ export class PlayerScoreChangeLogic {
    * @returns The actually applied score (after clamping)
    */
   public static applyScore(game: Game, targetPlayerId: number, newScore: number): number {
+    // Offline players keep their seat and score, so the showman can still
+    // correct it while they reconnect.
     const targetPlayer = game.getPlayer(targetPlayerId, {
-      fetchDisconnected: false
+      fetchDisconnected: true
     });
 
     if (!targetPlayer) {
-      throw new Error(`Player ${targetPlayerId} not found`);
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
 
     // Clamp score to absolute limit

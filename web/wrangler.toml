@@ -1,0 +1,12 @@
+# Cloudflare Pages project for the web app. `npm run build` fills ./dist and
+# functions/ proxies /v1 and /socket.io to the API (see functions/_proxy.ts).
+name = "openquester-web"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-09-01"
+
+# Previews talk to the dev server.
+[vars]
+API_ORIGIN = "https://dev-api.openquester.app"
+
+[env.production.vars]
+API_ORIGIN = "https://api.openquester.app"

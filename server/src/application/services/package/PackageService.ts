@@ -24,6 +24,14 @@ import { S3FileUrlBuilder } from "infrastructure/storage/S3FileUrlBuilder";
 import { ValueUtils } from "domain/utils/ValueUtils";
 import { PackageStorageService } from "application/services/package/PackageStorageService";
 import { UserSessionService } from "application/services/user/UserSessionService";
+import { StorageCleanupService } from "application/services/storage/StorageCleanupService";
+import { StorageQuotaService } from "application/services/storage/StorageQuotaService";
+import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
+import { PackageUploadService } from "application/services/package/PackageUploadService";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
+import { type PackageUploadStateDTO } from "domain/types/dto/package/PackageUploadStateDTO";
+import { type PackageUploadBody } from "domain/types/dto/package/PackageUploadBody";
+import { type EditablePackage } from "application/types/package/EditablePackage";
 
 /**
  * Service for package management operations.
@@ -35,6 +43,10 @@ export class PackageService {
     private readonly packageStorageService: PackageStorageService,
     private readonly fileUrlBuilder: S3FileUrlBuilder,
     private readonly userSessionService: UserSessionService,
+    private readonly storageQuotaService: StorageQuotaService,
+    private readonly storageCleanupService: StorageCleanupService,
+    private readonly storageRepository: StorageRepository,
+    private readonly packageUploadService: PackageUploadService,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -45,9 +57,18 @@ export class PackageService {
     select?: (keyof Package)[],
     relations?: string[]
   ): Promise<PackageDTO> {
-    return (
-      await this.getPackageRaw(packId, select, relations ?? PACKAGE_DETAILED_RELATIONS)
-    ).toDTO(this.fileUrlBuilder, {
+    const pack = await this.getPackageRaw(packId, select, relations ?? PACKAGE_DETAILED_RELATIONS);
+    if (pack.upload_status === PackageUploadStatus.UPLOADING) {
+      // Uploaders that never report back (Flutter, scripts) would otherwise look
+      // unfinished until the background check; ask storage while someone looks.
+      try {
+        pack.upload_status = (await this.packageUploadService.refresh(pack.id)).status;
+      } catch {
+        // Keep the stored status.
+      }
+    }
+
+    return pack.toDTO(this.fileUrlBuilder, {
       fetchIds: true
     });
   }
@@ -92,36 +113,129 @@ export class PackageService {
 
   public async uploadPackage(
     author: User | null,
-    packageData: PackageDTO,
+    request: PackageUploadBody,
     expiresIn: number = UPLOAD_PACKAGE_LINKS_EXPIRES_IN
   ): Promise<PackageUploadResponse> {
     if (!author || !author.id) {
       throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND);
     }
 
-    const { pack, files } = await this.packageRepository.create(packageData, author);
+    const unverifiedFileSizes = await this.storageQuotaService.assertPackageFits(
+      author,
+      request.content,
+      request.fileSizes
+    );
+    const { pack, files } = await this.packageRepository.create(
+      request.content,
+      author,
+      undefined,
+      request.sourceHash ?? null
+    );
+    await this.storageRepository.setDeclaredSizes(unverifiedFileSizes);
+    const uploadStatus = await this.packageUploadService.markSaved(pack.id);
 
     const links = await this.packageStorageService.generateUploadLinks(files, expiresIn);
+
     return {
       id: pack.id,
-      uploadLinks: links
+      uploadLinks: links,
+      uploadStatus
     };
   }
 
-  public async uploadPackageForSession(input: {
-    sessionUserId: number | undefined;
-    packageData: PackageDTO;
-    expiresIn?: number;
-  }): Promise<PackageUploadResponse> {
+  public async uploadPackageForSession(
+    sessionUserId: number | undefined,
+    request: PackageUploadBody,
+    expiresIn?: number
+  ): Promise<PackageUploadResponse> {
     const author = await this.userSessionService.getValidatedSessionUser({
-      sessionUserId: input.sessionUserId
+      sessionUserId
     });
 
     if (author.is_guest) {
       throw new ClientError(ClientResponse.CANNOT_UPLOAD_PACKAGE_AS_GUEST, HttpStatus.FORBIDDEN);
     }
 
-    return this.uploadPackage(author, input.packageData, input.expiresIn);
+    return this.uploadPackage(author, request, expiresIn);
+  }
+
+  /**
+   * Replaces a package's content in place. Allowed for its author and for
+   * users with EDIT_PACKAGE. Returns upload links for every file it uses;
+   * files already in storage answer the upload with 412, which clients skip.
+   */
+  public async updatePackageForSession(
+    editable: EditablePackage,
+    request: PackageUploadBody,
+    expiresIn: number = UPLOAD_PACKAGE_LINKS_EXPIRES_IN
+  ): Promise<PackageUploadResponse> {
+    const { user, pack: packageEntity } = editable;
+    const packageId = packageEntity.id;
+    // Limits are the author's: an editor with EDIT_PACKAGE fixes someone else's package.
+    const unverifiedFileSizes = await this.storageQuotaService.assertPackageFits(
+      packageEntity.author ?? user,
+      request.content,
+      request.fileSizes,
+      packageId
+    );
+    const previousFilenames = await this.storageRepository.getPackageFilenames(packageId);
+    // The repository replaces content in place; package identity and original author stay intact.
+    const { pack, files } = await this.packageRepository.create(
+      request.content,
+      user,
+      packageId,
+      request.sourceHash
+    );
+    await this.storageRepository.setDeclaredSizes(unverifiedFileSizes);
+    // Media the edit dropped is deleted unless something else still uses it.
+    await this.storageCleanupService.removeIfUnused(previousFilenames);
+    const uploadStatus = await this.packageUploadService.markSaved(pack.id);
+    const links = await this.packageStorageService.generateUploadLinks(files, expiresIn);
+
+    return { id: pack.id, uploadLinks: links, uploadStatus };
+  }
+
+  /**
+   * Which media files of a package storage still lacks, with fresh upload
+   * links for them, so its author (or an EDIT_PACKAGE user) can finish an
+   * interrupted upload. Checking also marks the package ready once complete.
+   */
+  public async getUploadStateForSession(
+    sessionUserId: number | undefined,
+    packageId: number
+  ): Promise<PackageUploadStateDTO> {
+    await this.assertCanEditPackage(sessionUserId, packageId);
+
+    return this.packageUploadService.getState(packageId);
+  }
+
+  /**
+   * Resolves an active, non-banned user and throws 403 unless they wrote the package or have
+   * EDIT_PACKAGE. Middleware only verifies the session; public GET upload-state routes also
+   * reach this check. Callers may reuse the loaded entities when replacing package content.
+   */
+  public async getEditablePackage(
+    sessionUserId: number | undefined,
+    packageId: number
+  ): Promise<EditablePackage> {
+    const user = await this.userSessionService.getValidatedSessionUser({
+      sessionUserId
+    });
+    const packageEntity = await this.getPackageRaw(packageId, ["id"], ["author"]);
+    const isAuthor = packageEntity.author?.id === user.id;
+    if (!isAuthor && !this.userSessionService.userHasPermission(user, Permissions.EDIT_PACKAGE)) {
+      throw new ClientError(ClientResponse.NO_PERMISSION, HttpStatus.FORBIDDEN);
+    }
+
+    return { user, pack: packageEntity };
+  }
+
+  /** Throws 403 unless the active session user wrote the package or has EDIT_PACKAGE. */
+  public async assertCanEditPackage(
+    sessionUserId: number | undefined,
+    packageId: number
+  ): Promise<void> {
+    await this.getEditablePackage(sessionUserId, packageId);
   }
 
   public async canDeletePackage(input: {
@@ -145,21 +259,8 @@ export class PackageService {
    * Delete package and all related data including files and tags if not used elsewhere
    */
   public async deletePackage(packageId: number): Promise<void> {
-    const { filesDeletedFromDB } = await this.packageRepository.deletePackageData(packageId);
-
-    if (filesDeletedFromDB.length > 0) {
-      try {
-        await this.packageStorageService.deleteFiles(filesDeletedFromDB);
-      } catch (error) {
-        // Log error but don't fail the entire operation
-        this.logger.error(`Failed to delete files from S3 in batch`, {
-          prefix: LogPrefix.S3,
-          filenames: filesDeletedFromDB,
-          packageId,
-          error: error instanceof Error ? error.message : String(error)
-        });
-      }
-    }
+    const { filenames } = await this.packageRepository.deletePackageData(packageId);
+    await this.storageCleanupService.removeIfUnused(filenames);
 
     this.logger.audit(`Package ${packageId} deleted successfully`, {
       prefix: LogPrefix.ADMIN,

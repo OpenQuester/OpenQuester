@@ -20,14 +20,11 @@ export const gameRedisDataScheme = () =>
       .required(),
     players: Joi.string().required(),
     maxPlayers: Joi.string().pattern(/^\d+$/).required(),
-    startedAt: Joi.alternatives()
-      .try(Joi.string().allow(""), Joi.date().iso())
-      .optional(),
-    finishedAt: Joi.alternatives()
-      .try(Joi.string().allow(""), Joi.date().iso())
-      .optional(),
+    startedAt: Joi.alternatives().try(Joi.string().allow(""), Joi.date().iso()).optional(),
+    finishedAt: Joi.alternatives().try(Joi.string().allow(""), Joi.date().iso()).optional(),
     roundIndex: Joi.string().required(),
     roundsCount: Joi.string().pattern(/^\d+$/).required(),
     questionsCount: Joi.string().pattern(/^\d+$/).required(),
     gameState: Joi.string().required(),
+    settings: Joi.string().required()
   });

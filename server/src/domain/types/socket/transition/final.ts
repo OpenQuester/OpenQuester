@@ -1,3 +1,4 @@
+import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { AnswerReviewData } from "domain/types/socket/finalround/FinalRoundResults";
 import { QuestionAnswerData } from "domain/types/socket/finalround/QuestionAnswerData";
 import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
@@ -13,4 +14,6 @@ export type FinalReviewingToGameFinishMutationData = {
 
 export type FinalBiddingToAnsweringMutationData = {
   questionData: FinalRoundQuestionData;
+  /** Full question (with answer) for the showman's role-filtered copy */
+  fullQuestion: PackageQuestionDTO | null;
 };

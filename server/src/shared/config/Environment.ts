@@ -64,11 +64,18 @@ export class Environment {
   public SOCKET_IO_ADMIN_UI_USERNAME!: string;
   public SOCKET_IO_ADMIN_UI_PASSWORD!: string;
   public ADMIN_EMAILS!: string[];
+  /** Public Discord application id; empty turns Discord sign-in off */
+  public DISCORD_CLIENT_ID!: string;
   public INFLUX_URL!: string;
   public LOG_LEVEL!: LogLevel;
   public CRON_S3_CLEANUP_EXPRESSION!: string;
   public LOG_ARCHIVE_CRON_EXPRESSION!: string;
   public LOG_ARCHIVE_ENABLED!: boolean;
+  /** Whole-bucket ceiling in bytes; 0 means none. Uploads stop at 95 %. */
+  public S3_BUCKET_QUOTA_BYTES!: number;
+  /** Guests not seen for this many days are removed with their files. */
+  public GUEST_INACTIVE_DAYS!: number;
+  public CRON_GUEST_CLEANUP_EXPRESSION!: string;
   public LOG_ARCHIVE_INTERVAL_DAYS!: number;
   public LOG_ARCHIVE_RETENTION_DAYS!: number;
   public STARTUP_RECOVERY_ENABLED!: boolean;
@@ -195,6 +202,14 @@ export class Environment {
       true
     );
     this.LOG_ARCHIVE_ENABLED = this.getEnvVar("LOG_ARCHIVE_ENABLED", "boolean", true, true);
+    this.S3_BUCKET_QUOTA_BYTES = this.getEnvVar("S3_BUCKET_QUOTA_BYTES", "number", 0, true);
+    this.GUEST_INACTIVE_DAYS = this.getEnvVar("GUEST_INACTIVE_DAYS", "number", 30, true);
+    this.CRON_GUEST_CLEANUP_EXPRESSION = this.getEnvVar(
+      "CRON_GUEST_CLEANUP_EXPRESSION",
+      "string",
+      "0 4 * * *",
+      true
+    );
     this.LOG_ARCHIVE_INTERVAL_DAYS = this.getEnvVar("LOG_ARCHIVE_INTERVAL_DAYS", "number", 7, true);
     this.LOG_ARCHIVE_RETENTION_DAYS = this.getEnvVar(
       "LOG_ARCHIVE_RETENTION_DAYS",
@@ -217,19 +232,17 @@ export class Environment {
       "string",
       "admin"
     );
-    const adminEmails = this.getEnvVar(
-      "ADMIN_EMAILS",
-      "string",
-      "",
-      true
-    ) as string | undefined;
+    this.DISCORD_CLIENT_ID = (
+      (this.getEnvVar("DISCORD_CLIENT_ID", "string", "", true) as string | undefined) ?? ""
+    ).trim();
+    const adminEmails = this.getEnvVar("ADMIN_EMAILS", "string", "", true) as string | undefined;
     this.ADMIN_EMAILS = [
       ...new Set(
         (adminEmails ?? "")
           .split(",")
           .map((email: string) => email.trim().toLowerCase())
           .filter((email: string) => email.length > 0)
-      ),
+      )
     ];
   }
 

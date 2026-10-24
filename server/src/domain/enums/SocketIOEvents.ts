@@ -18,6 +18,8 @@ export enum SocketIOGameEvents {
   GAME_DATA = "game-data",
   QUESTION_PICK = "question-pick",
   QUESTION_ANSWER = "question-answer",
+  BUZZER_FALSE_START = "buzzer-false-start",
+  BUZZER_OPEN = "buzzer-open",
   QUESTION_DATA = "question-data",
   QUESTION_FINISH = "question-finish",
   ANSWER_SUBMITTED = "answer-submitted",
@@ -27,6 +29,7 @@ export enum SocketIOGameEvents {
   SKIP_SHOW_ANSWER = "skip-show-answer",
   NEXT_ROUND = "next-round",
   GAME_FINISHED = "game-finished",
+  GAME_CLOSED = "game-closed",
   SKIP_QUESTION_FORCE = "skip-question-force",
   QUESTION_SKIP = "question-skip",
   QUESTION_UNSKIP = "question-unskip",
@@ -57,6 +60,19 @@ export enum SocketIOGameEvents {
   // Secret Question Events
   SECRET_QUESTION_PICKED = "secret-question-picked",
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
+  SECRET_QUESTION_PRICE = "secret-question-price",
+
+  // "Everyone answers" questions
+  ALL_PLAY_START = "all-play-start",
+
+  // Showman tools
+  QUESTION_REMOVE_RESTORE = "question-remove-restore",
+  ANSWER_RESULT_UNDO = "answer-result-undo",
+  GAME_JOIN_MODE_CHANGE = "game-join-mode-change",
+  ALL_PLAY_STAKE = "all-play-stake",
+  ALL_PLAY_ANSWER = "all-play-answer",
+  ALL_PLAY_REVIEWING = "all-play-reviewing",
+  ALL_PLAY_REVIEW = "all-play-review",
 
   // Stake Question Events
   STAKE_QUESTION_PICKED = "stake-question-picked",

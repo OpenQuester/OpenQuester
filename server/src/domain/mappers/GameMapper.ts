@@ -25,7 +25,8 @@ export class GameMapper {
       roundsCount: game.roundsCount.toString(),
       questionsCount: game.questionsCount.toString(),
       players: JSON.stringify(game.players.map((p) => p.toDTO())),
-      gameState: JSON.stringify(game.gameState)
+      gameState: JSON.stringify(game.gameState),
+      settings: JSON.stringify(game.settings)
     };
   }
 
@@ -48,7 +49,8 @@ export class GameMapper {
       roundsCount: parseInt(data.roundsCount),
       questionsCount: parseInt(data.questionsCount),
       players: JSON.parse(data.players).map((p: PlayerDTO) => new Player(p)),
-      gameState: JSON.parse(data.gameState)
+      gameState: JSON.parse(data.gameState),
+      settings: JSON.parse(data.settings)
     });
   }
 }

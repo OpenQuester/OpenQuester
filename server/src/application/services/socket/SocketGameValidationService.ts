@@ -1,8 +1,11 @@
 import { singleton } from "tsyringe";
 
+import { UserSessionService } from "application/services/user/UserSessionService";
+import { SYSTEM_SOCKET_ID } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { Permissions } from "domain/enums/Permissions";
 import { ClientError } from "domain/errors/ClientError";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
@@ -10,12 +13,43 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type GameAction } from "domain/types/action/GameAction";
+import { GameValidator } from "domain/validators/GameValidator";
 
 /**
  * Validation service for socket game operations.
  */
 @singleton()
 export class SocketGameValidationService {
+  constructor(private readonly userSessionService: UserSessionService) {}
+
+  public async validateModerator(action: GameAction): Promise<void> {
+    if (
+      action.socketId !== SYSTEM_SOCKET_ID ||
+      !(await this.userSessionService.hasPermission({
+        sessionUserId: action.playerId,
+        permission: Permissions.MANAGE_GAMES
+      }))
+    ) {
+      throw new ClientError(ClientResponse.ACCESS_DENIED);
+    }
+  }
+
+  public async validateShowmanOrModerator<T>(
+    ctx: ActionExecutionContext<T>,
+    action: ShowmanAction
+  ): Promise<void> {
+    if (ctx.action.socketId === SYSTEM_SOCKET_ID) {
+      await this.validateModerator(ctx.action);
+
+      return;
+    }
+
+    GameValidator.validatePlayerAuthenticated(ctx);
+    this.validateShowmanRole(ctx.currentPlayer, action);
+  }
+
   /**
    * Validates that the player has showman role and throws error based on action
    */
@@ -52,6 +86,7 @@ export class SocketGameValidationService {
         if (currentPlayer?.role !== PlayerRole.PLAYER) {
           throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_SKIP);
         }
+
         break;
       case QuestionAction.ANSWER:
         if (
@@ -60,21 +95,25 @@ export class SocketGameValidationService {
         ) {
           throw new ClientError(ClientResponse.YOU_CANNOT_ANSWER_QUESTION);
         }
+
         break;
       case QuestionAction.SUBMIT_ANSWER:
         if (currentPlayer?.role !== PlayerRole.PLAYER) {
           throw new ClientError(ClientResponse.INSUFFICIENT_PERMISSIONS);
         }
+
         break;
       case QuestionAction.ANSWER_RESULT:
         if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
           throw new ClientError(ClientResponse.ONLY_SHOWMAN_SEND_ANSWER_RESULT);
         }
+
         break;
       case QuestionAction.FORCE_SKIP:
         if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
           throw new ClientError(ClientResponse.ONLY_SHOWMAN_SKIP_QUESTION_FORCE);
         }
+
         break;
       case QuestionAction.PICK:
         if (
@@ -83,6 +122,7 @@ export class SocketGameValidationService {
         ) {
           throw new ClientError(ClientResponse.YOU_CANNOT_PICK_QUESTION);
         }
+
         // If simple round, restrict to showman or currentTurnPlayerId
         if (
           game.gameState.currentRound?.type === PackageRoundType.SIMPLE &&
@@ -91,6 +131,7 @@ export class SocketGameValidationService {
         ) {
           throw new ClientError(ClientResponse.NOT_YOUR_TURN);
         }
+
         break;
     }
   }
@@ -252,6 +293,7 @@ export class SocketGameValidationService {
     if (isShowmanChange) {
       this.validatePlayerManagement(currentPlayer);
     }
+
     // Target player must be a player (not showman or spectator)
     if (targetPlayer.role !== PlayerRole.PLAYER) {
       throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_CHANGE_SLOTS);

@@ -77,6 +77,19 @@ export enum ClientResponse {
   QUESTION_ALREADY_PLAYED = "question_already_played",
   QUESTION_NOT_PICKED = "question_not_picked",
   SOMEONE_ALREADY_ANSWERING = "someone_already_answering",
+  /** Player pressed too early and is still locked out */
+  BUZZER_LOCKED = "buzzer_locked",
+  GAME_JOIN_CLOSED = "game_join_closed",
+  GAME_JOIN_SPECTATORS_ONLY = "game_join_spectators_only",
+  NOTHING_TO_UNDO = "nothing_to_undo",
+  QUESTION_REMOVE_ONLY_WHILE_CHOOSING = "question_remove_only_while_choosing",
+  ALL_PLAY_ALREADY_SUBMITTED = "all_play_already_submitted",
+  ALL_PLAY_ALREADY_REVIEWED = "all_play_already_reviewed",
+  ALL_PLAY_INVALID_STAKE = "all_play_invalid_stake",
+  ALL_PLAY_NOT_PARTICIPANT = "all_play_not_participant",
+  ALL_PLAY_NO_BUZZER = "all_play_no_buzzer",
+  CANNOT_PICK_SECRET_QUESTION_PRICE = "cannot_pick_secret_question_price",
+  INVALID_SECRET_QUESTION_PRICE = "invalid_secret_question_price",
   ALREADY_ANSWERED = "already_answered",
   GAME_IS_PAUSED = "game_is_paused",
   PLAYER_NOT_FOUND = "player_not_found",
@@ -125,6 +138,24 @@ export enum ClientResponse {
   CANNOT_TRANSFER_SECRET_QUESTION = "cannot_transfer_secret_question",
   INVALID_TRANSFER_TARGET = "invalid_transfer_target",
   CANNOT_TRANSFER_TO_SELF = "cannot_transfer_to_self",
+
+  // Moderation
+  CANNOT_MODERATE_STAFF = "cannot_moderate_staff",
+  CANNOT_MODERATE_SELF = "cannot_moderate_self",
+
+  // Storage limits
+  STORAGE_FILE_TOO_LARGE = "storage_file_too_large",
+  STORAGE_PACKAGE_TOO_LARGE = "storage_package_too_large",
+  STORAGE_QUOTA_EXCEEDED = "storage_quota_exceeded",
+  STORAGE_FULL = "storage_full",
+  STORAGE_SIGN_IN_TO_UPLOAD = "storage_sign_in_to_upload",
+
+  // Package upload state
+  PACKAGE_UPLOAD_UNFINISHED = "package_upload_unfinished",
+
+  // Question reports
+  QUESTION_REPORT_ALREADY_SENT = "question_report_already_sent",
+  QUESTION_REPORT_NOT_FOUND = "question_report_not_found",
 
   // Other
   DELETE_REQUEST_SENT = "delete_request_sent"

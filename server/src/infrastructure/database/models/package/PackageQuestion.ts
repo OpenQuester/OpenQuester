@@ -1,8 +1,11 @@
+import { nonEmpty } from "domain/utils/textList";
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
+import { AnswerType } from "domain/enums/package/AnswerType";
 import {
+  AnswerPointDTO,
   PackageQuestionDTO,
   PackageQuestionSubType
 } from "domain/types/dto/package/PackageQuestionDTO";
@@ -20,8 +23,17 @@ export interface PackageQuestionImport {
   type: PackageQuestionType;
   isHidden: boolean;
   text?: string | null;
+  textOrder?: number | null;
   answerHint?: string | null;
   answerText?: string | null;
+  answerType?: AnswerType | null;
+  answerNumber?: number | null;
+  answerPoint?: AnswerPointDTO | null;
+  answerDeviation?: number | null;
+  rightAnswers?: string[] | null;
+  wrongAnswers?: string[] | null;
+  authors?: string[] | null;
+  sources?: string[] | null;
   answerDelay?: number | null;
   questionComment?: string | null;
   subType?: PackageQuestionSubType | null;
@@ -65,11 +77,39 @@ export class PackageQuestion {
   @Column({ type: "text", nullable: true })
   text?: string | null;
 
+  /** Position of the text in the content order; null shows it as a caption */
+  @Column({ name: "text_order", type: "int", nullable: true })
+  text_order?: number | null;
+
   @Column({ type: "text", nullable: true })
   answer_hint?: string | null;
 
   @Column({ type: "text", nullable: true })
   answer_text?: string | null;
+
+  @Column({ type: "varchar", length: 16, nullable: true })
+  answer_type?: AnswerType | null;
+
+  @Column({ type: "double precision", nullable: true })
+  answer_number?: number | null;
+
+  @Column({ type: "jsonb", nullable: true })
+  answer_point?: AnswerPointDTO | null;
+
+  @Column({ type: "double precision", nullable: true })
+  answer_deviation?: number | null;
+
+  @Column({ type: "text", array: true, nullable: true })
+  right_answers?: string[] | null;
+
+  @Column({ type: "text", array: true, nullable: true })
+  wrong_answers?: string[] | null;
+
+  @Column({ type: "text", array: true, nullable: true })
+  authors?: string[] | null;
+
+  @Column({ type: "text", array: true, nullable: true })
+  sources?: string[] | null;
 
   @Column({ type: "int", nullable: true })
   answer_delay?: number | null;
@@ -114,8 +154,17 @@ export class PackageQuestion {
     this.type = data.type;
     this.isHidden = data.isHidden;
     this.text = data.text;
+    this.text_order = data.textOrder ?? null;
     this.answer_hint = data.answerHint;
     this.answer_text = data.answerText;
+    this.answer_type = data.answerType && data.answerType !== AnswerType.TEXT ? data.answerType : null;
+    this.answer_number = data.answerNumber ?? null;
+    this.answer_point = data.answerPoint ?? null;
+    this.answer_deviation = data.answerDeviation ?? null;
+    this.right_answers = nonEmpty(data.rightAnswers);
+    this.wrong_answers = nonEmpty(data.wrongAnswers);
+    this.authors = nonEmpty(data.authors);
+    this.sources = nonEmpty(data.sources);
     this.answer_delay = data.answerDelay;
     this.question_comment = data.questionComment;
     this.sub_type = data.subType;
@@ -149,8 +198,17 @@ export class PackageQuestion {
       price: this.price,
       isHidden: this.isHidden,
       text: this.text,
+      textOrder: this.text_order ?? null,
       answerHint: this.answer_hint,
       answerText: this.answer_text,
+      answerType: this.answer_type ?? AnswerType.TEXT,
+      answerNumber: this.answer_number ?? null,
+      answerPoint: this.answer_point ?? null,
+      answerDeviation: this.answer_deviation ?? null,
+      rightAnswers: this.right_answers ?? null,
+      wrongAnswers: this.wrong_answers ?? null,
+      authors: this.authors ?? null,
+      sources: this.sources ?? null,
       answerDelay: this.answer_delay ?? 5000,
       questionComment: this.question_comment,
       questionFiles: questionFilesDTO,

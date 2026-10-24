@@ -9,8 +9,33 @@ class AuthController extends ChangeNotifier {
 
   String? lastUsername;
 
+  /// Discord application id from the server's sign-in settings, or null
+  /// while unknown or when Discord sign-in is off there
+  final discordClientId = ValueNotifier<String?>(null);
+
   @PostConstruct(preResolve: true)
-  Future<void> init() async {}
+  Future<void> init() async {
+    // Don't hold up startup on the network: the button appears once known
+    unawaited(loadSettings());
+  }
+
+  /// Reads the sign-in settings from the server, so one build works for
+  /// every deployment
+  Future<void> loadSettings() async {
+    try {
+      final settings = await Api.I.api.auth.getV1AuthSettings();
+      // Providers this build doesn't know arrive as $unknown and are skipped
+      final clientId = settings.oauthProviders
+          .firstWhereOrNull(
+            (p) => p.provider == OauthProviderSettingsProvider.discord,
+          )
+          ?.clientId
+          .trim();
+      discordClientId.value = (clientId?.isEmpty ?? true) ? null : clientId;
+    } catch (e, s) {
+      logger.w(e, stackTrace: s);
+    }
+  }
 
   Future<void> loginUser({
     required AuthType auth,
@@ -48,7 +73,18 @@ abstract class AuthType {
 class Oauth2AuthType extends AuthType {
   @override
   Future<ResponseUser> loginUser({required String? username}) async {
-    final accessTokenResponse = await getIt<Oauth2Controller>().auth();
+    final authController = getIt<AuthController>();
+    if (authController.discordClientId.value == null) {
+      await authController.loadSettings();
+    }
+    final clientId = authController.discordClientId.value;
+    if (clientId == null) {
+      throw UserError(LocaleKeys.login_discord_unavailable.tr());
+    }
+
+    final accessTokenResponse = await getIt<Oauth2Controller>().auth(
+      clientId: clientId,
+    );
     final token = accessTokenResponse.accessToken;
 
     if (token == null) {

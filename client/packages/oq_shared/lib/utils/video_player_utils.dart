@@ -31,6 +31,7 @@ class VideoPlayerUtils {
     required String url,
     String? fileExtension,
     String? cacheKey,
+    VideoPlayerOptions? videoPlayerOptions,
   }) async {
     final uri = Uri.parse(url);
 
@@ -38,7 +39,13 @@ class VideoPlayerUtils {
     if (kIsWeb) {
       // Web: Browsers do not support file system access,
       // so we use the network URL.
-      return (VideoPlayerController.networkUrl(uri), null);
+      return (
+        VideoPlayerController.networkUrl(
+          uri,
+          videoPlayerOptions: videoPlayerOptions,
+        ),
+        null,
+      );
     } else {
       try {
         // Mobile/Desktop: Download and use local file for reliable preloading
@@ -47,14 +54,26 @@ class VideoPlayerUtils {
           fileExtension ?? 'mp4',
         );
         await _cacheDio.downloadUri(uri, tmpFile.path);
-        return (VideoPlayerController.file(tmpFile), tmpFile);
+        return (
+          VideoPlayerController.file(
+            tmpFile,
+            videoPlayerOptions: videoPlayerOptions,
+          ),
+          tmpFile,
+        );
       } catch (e) {
         debugPrint(
           'VideoPlayerUtils.createController: '
           'Failed to preload media from $uri: $e',
         );
         // Fallback to network URL if download fails
-        return (VideoPlayerController.networkUrl(uri), null);
+        return (
+          VideoPlayerController.networkUrl(
+            uri,
+            videoPlayerOptions: videoPlayerOptions,
+          ),
+          null,
+        );
       }
     }
   }

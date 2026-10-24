@@ -40,7 +40,8 @@
       "ready": {
         "event": "media-downloaded",
         "direction": "client-to-server",
-        "description": "Application readiness acknowledgement with no required payload. After authentication/player validation, acknowledgements outside MEDIA_DOWNLOADING are successful no-ops without readiness, persistence, timer, or broadcast mutations. This is not a Socket.IO callback acknowledgement."
+        "payloadSchema": "#/components/schemas/SocketIOMediaDownloadedInput",
+        "description": "Application readiness acknowledgement with an optional payload (real audio/video lengths for the content timeline). After authentication/player validation, acknowledgements outside MEDIA_DOWNLOADING are successful no-ops without readiness, persistence, timer, or broadcast mutations. This is not a Socket.IO callback acknowledgement."
       },
       "status": {
         "event": "media-download-status",
@@ -67,6 +68,26 @@
       },
       "system": {
         "schema": "#/components/schemas/SocketIOEvents"
+      }
+    },
+    "buzzer": {
+      "press": {
+        "event": "question-answer",
+        "direction": "client-to-server"
+      },
+      "opens": "The buzzer opens when the SHOWING timer reaches buzzerOpensAtMs. A press before that is a false start: the server broadcasts buzzer-false-start and rejects the player's presses with buzzer_locked until the lock ends (3 s).",
+      "acceptWindow": "The first press in time opens a 300 ms accept window. Players who press inside it take part in a random draw when it closes; the winner is announced with question-answer. A press inside the window gets no immediate broadcast.",
+      "directAnswer": "When a player is already designated to answer (secret or stake winner), their press answers immediately without false-start or window rules.",
+      "falseStartEvent": {
+        "event": "buzzer-false-start",
+        "direction": "server-to-client",
+        "payloadSchema": "#/components/schemas/SocketIOBuzzerFalseStartEventPayload"
+      },
+      "openNowEvent": {
+        "event": "buzzer-open",
+        "direction": "both",
+        "payloadSchema": "#/components/schemas/SocketIOBuzzerOpenEventPayload",
+        "description": "The showman opens the buzzer early; the server broadcasts the new buzzerOpensAtMs."
       }
     }
   },
@@ -143,6 +164,21 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Sign in (a guest account is enough) to get an upload link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -216,6 +252,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PackageCorruptedResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "A file, the package or the uploader's total storage is over its limit; the message says which and by how much",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "The storage bucket is full; uploads are paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -312,6 +378,25 @@
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/AgeRestriction"
+            }
+          },
+          {
+            "name": "sourceHash",
+            "in": "query",
+            "description": "Find packages uploaded from the same file (see `sourceHash` on upload). Used to warn before uploading a duplicate.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-fA-F0-9]{1,64}$"
+            }
+          },
+          {
+            "name": "uploadStatus",
+            "in": "query",
+            "description": "`ready` lists only packages that can be played now. Without it, packages still uploading are listed too.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PackageUploadStatus"
             }
           },
           {
@@ -412,6 +497,89 @@
           }
         }
       },
+      "put": {
+        "summary": "Replace a package's content (author or edit_package permission); returns upload links for its files",
+        "tags": ["Packages"],
+        "requestBody": {
+          "description": "Data for package creation",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageCreationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns object of key-values where key is filename, and value is file upload link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Package is corrupted!",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageCorruptedResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the author and no edit_package permission"
+          },
+          "404": {
+            "description": "Package not found"
+          },
+          "413": {
+            "description": "A file, the package or the uploader's total storage is over its limit; the message says which and by how much",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "507": {
+            "description": "The storage bucket is full; uploads are paused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ]
+      },
       "delete": {
         "summary": "Delete package by id",
         "description": "Delete a package. Requires DELETE_PACKAGE permission or being the package author. This will also delete all associated files and cleanup orphaned tags.",
@@ -453,6 +621,75 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Package not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packages/{id}/upload": {
+      "get": {
+        "summary": "Upload state of a package's media",
+        "description": "For the package author or a user with edit_package. Lists the media files storage doesn't have yet, with fresh upload links, so an interrupted upload can be resumed; marks the package ready once every file is stored.",
+        "tags": ["Packages"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upload state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageUploadProgress"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -868,6 +1105,25 @@
         }
       }
     },
+    "/v1/auth/settings": {
+      "get": {
+        "summary": "Public sign-in settings",
+        "description": "Settings clients need for sign-in, read at runtime instead of built in. No session needed.",
+        "tags": ["Auth"],
+        "responses": {
+          "200": {
+            "description": "Sign-in settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseAuthSettings"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/logout": {
       "get": {
         "summary": "Logout user",
@@ -1049,6 +1305,21 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The package's media isn't fully uploaded yet (`package_upload_unfinished`), so it can't be played",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -1546,7 +1817,7 @@
             }
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1594,7 +1865,7 @@
             }
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1662,7 +1933,7 @@
             }
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1710,7 +1981,7 @@
             }
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1751,7 +2022,7 @@
             "description": "User deleted successfully"
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1799,7 +2070,7 @@
             }
           },
           "403": {
-            "description": "Permission denied",
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
             "content": {
               "application/json": {
                 "schema": {
@@ -1814,6 +2085,941 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/roles": {
+      "get": {
+        "summary": "Staff permissions and role presets",
+        "tags": ["Admin"],
+        "description": "Requires admin_panel_access.",
+        "responses": {
+          "200": {
+            "description": "Permission list and presets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRoles"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/{id}/permissions": {
+      "put": {
+        "summary": "Replace a user's permissions (role editor)",
+        "tags": ["Admin"],
+        "description": "Requires manage_permissions. Refuses your own account.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPermissionsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown permission name"
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/games": {
+      "get": {
+        "summary": "List every game, private ones included",
+        "tags": ["Admin"],
+        "description": "Requires manage_games.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Title prefix"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Games, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedGames"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/games/{gameId}": {
+      "get": {
+        "summary": "Game details with everyone in it",
+        "tags": ["Admin"],
+        "description": "Requires manage_games.",
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Game",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGameDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or player not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Close a game for everyone",
+        "tags": ["Admin"],
+        "description": "Requires manage_games. Everyone in the game receives game-closed; the game is deleted.",
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or player not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/games/{gameId}/players/{playerId}/kick": {
+      "post": {
+        "summary": "Remove someone from a game",
+        "tags": ["Admin"],
+        "description": "Requires manage_games. Works on the showman too; the room receives player-kicked.",
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "playerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or player not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/games/{gameId}/pause": {
+      "post": {
+        "summary": "Pause a running game",
+        "tags": ["Admin"],
+        "description": "Requires manage_games. The room receives game-pause.",
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "Game not running"
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or player not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/games/{gameId}/unpause": {
+      "post": {
+        "summary": "Resume a paused game",
+        "tags": ["Admin"],
+        "description": "Requires manage_games. The room receives game-unpause.",
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done"
+          },
+          "400": {
+            "description": "Game not paused or not started"
+          },
+          "403": {
+            "description": "Permission denied, or the target is staff and you are not an admin, or it is your own account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or player not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/storage": {
+      "get": {
+        "summary": "Your storage use and limits",
+        "tags": ["Users"],
+        "responses": {
+          "200": {
+            "description": "Usage and limits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyStorage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/storage": {
+      "get": {
+        "summary": "Bucket usage, group limits and the heaviest users",
+        "tags": ["Admin"],
+        "description": "Requires admin_panel_access.",
+        "responses": {
+          "200": {
+            "description": "Storage overview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStorage"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/storage/groups/{group}": {
+      "put": {
+        "summary": "Change a group's storage limits",
+        "tags": ["Admin"],
+        "description": "Requires manage_storage.",
+        "parameters": [
+          {
+            "name": "group",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/StorageGroup"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StorageLimits"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved limits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageGroupLimits"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/storage/users/{id}": {
+      "put": {
+        "summary": "Set or clear one user's storage quota",
+        "tags": ["Admin"],
+        "description": "Requires manage_storage. A null quota goes back to the group's.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "quotaBytes": {
+                    "type": ["integer", "null"]
+                  }
+                },
+                "required": ["quotaBytes"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Saved"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stats/me": {
+      "get": {
+        "summary": "Your game stats",
+        "tags": ["Stats"],
+        "responses": {
+          "200": {
+            "description": "Totals and recent games",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stats/users/{id}": {
+      "get": {
+        "summary": "Another player's game stats",
+        "tags": ["Stats"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Totals and recent games",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserStats"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stats/leaderboard": {
+      "get": {
+        "summary": "Top players",
+        "description": "Ranked by wins, then total score. Guest, deleted and banned accounts are left out.",
+        "tags": ["Stats"],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LeaderboardPeriod"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Leaderboard",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LeaderboardEntry"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/games/{gameId}/reports": {
+      "post": {
+        "summary": "Report a question of the game's package",
+        "description": "Sent to the package author. One open report per question per player.",
+        "tags": ["Games"],
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionReportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or question not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "You already reported this question",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packages/{id}/reports": {
+      "get": {
+        "summary": "Reports on a package's questions",
+        "description": "For the package author or a user with edit_package.",
+        "tags": ["Packages"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reports",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionReportList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/packages/{id}/reports/{reportId}": {
+      "patch": {
+        "summary": "Mark a report resolved or open again",
+        "tags": ["Packages"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "reportId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["resolved"],
+                "properties": {
+                  "resolved": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the author",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Report not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -1858,7 +3064,9 @@
           "view_users_info",
           "ban_users",
           "mute_player",
-          "view_system_logs"
+          "view_system_logs",
+          "manage_games",
+          "manage_storage"
         ]
       },
       "PackageCreationInput": {
@@ -1866,9 +3074,52 @@
         "properties": {
           "content": {
             "$ref": "#/components/schemas/PackageCreateInputData"
+          },
+          "fileSizes": {
+            "type": "object",
+            "description": "Bytes of each media file, keyed by MD5. Checked against the uploader's storage limits before any upload link is issued; files already stored use their recorded size.",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "sourceHash": {
+            "type": ["string", "null"],
+            "pattern": "^[a-fA-F0-9]{1,64}$",
+            "description": "Fingerprint of the imported package file's content (hex). Stored so a later upload of the same file can find this package with `GET /v1/packages?sourceHash=`. On PUT, omit to keep the stored value; null clears it."
           }
         },
         "required": ["content"]
+      },
+      "ResponseAuthSettings": {
+        "type": "object",
+        "properties": {
+          "oauthProviders": {
+            "type": "array",
+            "description": "Sign-in providers the server has set up. A provider that isn't set up is left out; clients ignore providers they don't know.",
+            "items": {
+              "$ref": "#/components/schemas/OauthProviderSettings"
+            }
+          }
+        },
+        "required": ["oauthProviders"]
+      },
+      "OauthProviderSettings": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Same value as oauthProvider in POST /v1/auth/oauth2",
+            "examples": ["discord"],
+            "enum": ["discord"]
+          },
+          "clientId": {
+            "type": "string",
+            "description": "Public application id the client starts this provider's sign-in with",
+            "examples": ["1234567890"]
+          }
+        },
+        "required": ["provider", "clientId"]
       },
       "ResponseUser": {
         "type": "object",
@@ -2093,6 +3344,11 @@
             "type": ["integer", "null"],
             "description": "Player's game slot index (0-based). Only set for players with PLAYER role.",
             "examples": [0, 1, 2, null]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["in-game", "disconnected"],
+            "description": "in-game, or disconnected: gone for now, their seat is kept for a rejoin"
           }
         },
         "required": ["id", "role"]
@@ -2159,6 +3415,20 @@
           },
           "package": {
             "$ref": "#/components/schemas/PackageItem"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/GameSettings"
+          },
+          "joinMode": {
+            "description": "Who may join right now; open when null",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GameJoinMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2170,6 +3440,7 @@
           "maxPlayers",
           "package",
           "players",
+          "settings",
           "title"
         ]
       },
@@ -2205,6 +3476,9 @@
             "pattern": "^[A-Za-z0-9_-]+$",
             "description": "Optional password for private games. If not provided for a private game, a 4-character password (uppercase letters A-Z only) will be auto-generated. User-provided passwords can contain letters A-Z, a-z, digits 0-9, hyphen and underscore.",
             "examples": ["MyPass-123", null]
+          },
+          "settings": {
+            "$ref": "#/components/schemas/GameSettingsInput"
           }
         },
         "required": [
@@ -2275,7 +3549,12 @@
             "type": "object",
             "description": "Additional error context (optional, included for errors like invalid_input)",
             "additionalProperties": true,
-            "examples": [{ "maxPlayers": 5, "playersCount": 8 }]
+            "examples": [
+              {
+                "maxPlayers": 5,
+                "playersCount": 8
+              }
+            ]
           }
         },
         "required": ["error"]
@@ -2406,6 +3685,9 @@
               ],
               null
             ]
+          },
+          "uploadStatus": {
+            "$ref": "#/components/schemas/PackageUploadStatus"
           }
         },
         "required": ["ageRestriction", "author", "createdAt", "id", "title"]
@@ -2442,6 +3724,24 @@
           "language": {
             "type": ["string", "null"],
             "examples": ["en"]
+          },
+          "authors": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Who wrote the package (names, not accounts)"
+          },
+          "sources": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Where the package's facts come from"
           },
           "logo": {
             "oneOf": [
@@ -2498,6 +3798,9 @@
               ],
               null
             ]
+          },
+          "uploadStatus": {
+            "$ref": "#/components/schemas/PackageUploadStatus"
           }
         },
         "required": [
@@ -2750,6 +4053,10 @@
                 "uniqueIdentifier": "https://example.com/upload/file.jpg"
               }
             ]
+          },
+          "uploadStatus": {
+            "$ref": "#/components/schemas/PackageUploadStatus",
+            "description": "`ready` when storage already holds every file, so nothing needs uploading."
           }
         },
         "required": ["id", "uploadLinks"]
@@ -3141,12 +4448,114 @@
           },
           "displayTime": {
             "type": ["integer", "null"],
-            "description": "Display duration in milliseconds",
+            "description": "Display duration in milliseconds. Null uses the real audio/video length (or a default for images)",
             "examples": [5000]
+          },
+          "placement": {
+            "$ref": "#/components/schemas/ContentPlacement"
+          },
+          "waitForFinish": {
+            "type": "boolean",
+            "default": true,
+            "description": "When false, the next content item is shown together with this one (same step)",
+            "examples": [true]
           }
         },
         "required": ["displayTime", "file", "order"],
         "description": "Question media file structure for package creation"
+      },
+      "ContentPlacement": {
+        "type": "string",
+        "enum": ["screen", "background"],
+        "default": "screen",
+        "description": "Where a content item plays: screen takes the stage for its step; background is audio that plays under the stage",
+        "examples": ["screen"]
+      },
+      "QuestionContentPlanItem": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["text", "file"],
+            "examples": ["file"]
+          },
+          "order": {
+            "type": "integer",
+            "description": "File order for file items; the question's textOrder for the text item",
+            "examples": [1]
+          },
+          "placement": {
+            "$ref": "#/components/schemas/ContentPlacement"
+          },
+          "durationMs": {
+            "type": "integer",
+            "description": "How long this item plays. A background sound can outlive its step",
+            "examples": [12000]
+          }
+        },
+        "required": ["kind", "order", "placement", "durationMs"]
+      },
+      "QuestionContentStep": {
+        "type": "object",
+        "properties": {
+          "startMs": {
+            "type": "integer",
+            "description": "Offset from the start of the content timeline",
+            "examples": [0]
+          },
+          "durationMs": {
+            "type": "integer",
+            "examples": [12000]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionContentPlanItem"
+            }
+          }
+        },
+        "required": ["startMs", "durationMs", "items"]
+      },
+      "QuestionContentPlan": {
+        "type": "object",
+        "description": "Server-timed content timeline. Steps play one after another on the phase timer (SHOWING for questions, SHOWING_ANSWER for answers): the timeline position is the timer's elapsed time, so pauses, answers and reconnects keep every client on the same step. A step without screen items keeps the previous screen. After totalMs the question timer continues with the answer window.",
+        "properties": {
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionContentStep"
+            }
+          },
+          "totalMs": {
+            "type": "integer",
+            "examples": [26000]
+          }
+        },
+        "required": ["steps", "totalMs"]
+      },
+      "SocketIOMediaDownloadedInput": {
+        "type": "object",
+        "description": "Optional media-downloaded payload. Clients that can read media metadata report real audio/video lengths so the server can time the content timeline; the longest report per file wins.",
+        "properties": {
+          "mediaDurations": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "md5": {
+                  "type": "string",
+                  "examples": ["32f6abdc2da002d5f992d2b244ca0820"]
+                },
+                "durationMs": {
+                  "type": "number",
+                  "examples": [31500]
+                }
+              },
+              "required": ["md5", "durationMs"]
+            }
+          }
+        }
       },
       "PackageQuestion": {
         "type": "object",
@@ -3177,6 +4586,11 @@
             "description": "Question text",
             "examples": ["Where is Kyiv located?"]
           },
+          "textOrder": {
+            "type": ["integer", "null"],
+            "description": "Position of the text among questionFiles orders (text first on a tie). Null keeps the text as a caption for the whole question instead of its own step",
+            "examples": [0, null]
+          },
           "answerHint": {
             "type": ["string", "null"],
             "description": "Hint for the answer",
@@ -3191,6 +4605,71 @@
                 "type": "null"
               }
             ]
+          },
+          "answerType": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AnswerType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answerNumber": {
+            "type": ["number", "null"],
+            "description": "Number answers: the right number. Showman only"
+          },
+          "answerPoint": {
+            "description": "Point answers: the right spot. Showman only until the answer is revealed",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AnswerPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answerDeviation": {
+            "type": ["number", "null"],
+            "description": "How far off still counts: an amount for numbers, a fraction of the picture's width for points"
+          },
+          "rightAnswers": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Other answers that count as right (besides answerText). Only the showman sees them during the question; revealed with the answer"
+          },
+          "wrongAnswers": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Answers known to be wrong, to help the showman judge. Never sent to players"
+          },
+          "authors": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Who wrote the question; shown with the answer"
+          },
+          "sources": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Where the facts come from; shown with the answer"
           },
           "answerDelay": {
             "type": ["integer", "null"],
@@ -3521,6 +5000,24 @@
             "description": "Language of the package",
             "examples": ["en", "ua"]
           },
+          "authors": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Who wrote the package (names, not accounts)"
+          },
+          "sources": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Where the package's facts come from"
+          },
           "ageRestriction": {
             "$ref": "#/components/schemas/AgeRestriction",
             "description": "Age restriction"
@@ -3629,6 +5126,7 @@
           },
           "username": {
             "type": "string",
+            "description": "Name shown to other players: the user's display name when set, otherwise their username.",
             "examples": ["Asion001"]
           },
           "avatar": {
@@ -3743,6 +5241,9 @@
                 "type": "string",
                 "format": "date-time",
                 "examples": ["2024-01-01T00:00:00Z"]
+              },
+              "system": {
+                "$ref": "#/components/schemas/SocketIOChatSystemEntry"
               }
             }
           }
@@ -3857,9 +5358,12 @@
           "title": {
             "type": "string",
             "examples": ["Game title"]
+          },
+          "settings": {
+            "$ref": "#/components/schemas/GameSettings"
           }
         },
-        "required": ["title"]
+        "required": ["settings", "title"]
       },
       "GameState": {
         "type": "object",
@@ -3924,6 +5428,80 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "questionContentPlan": {
+            "description": "Timeline of the current question's content on the question timer; null when there is nothing to sequence",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuestionContentPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mediaDurations": {
+            "type": ["object", "null"],
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Reported audio/video lengths in ms for the current question, keyed by file md5"
+          },
+          "buzzerOpensAtMs": {
+            "type": ["number", "null"],
+            "description": "Position on the SHOWING timer (ms) when the buzzer opens: after the content timeline, the reading time of a caption text and a choice question's showDelay. A press before it is a false start. 0 or null: open right away"
+          },
+          "buzzerWindow": {
+            "description": "Presses collected in the buzzer accept window after the first press; the answerer is drawn among them when it closes",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BuzzerWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "buzzerLocks": {
+            "type": ["object", "null"],
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Players locked out after a false start: player id -> epoch ms when the lock ends"
+          },
+          "roundStartedAt": {
+            "type": ["number", "null"],
+            "description": "When the current round started (epoch ms), for the round time limit"
+          },
+          "roundPausedMs": {
+            "type": ["number", "null"],
+            "description": "Time the current round spent paused (ms)"
+          },
+          "pausedAt": {
+            "type": ["number", "null"],
+            "description": "When the current pause began (epoch ms)"
+          },
+          "joinMode": {
+            "description": "Who may join right now (set by the showman); open when null",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GameJoinMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "allPlay": {
+            "description": "\"Everyone answers\" question in play",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AllPlayData"
               },
               {
                 "type": "null"
@@ -4053,6 +5631,10 @@
           },
           "answerType": {
             "$ref": "#/components/schemas/SocketIOGameAnswerType"
+          },
+          "appliedChange": {
+            "type": "integer",
+            "description": "How much the score really moved (result clamped by the score limit); undoing the ruling takes back exactly this"
           }
         },
         "required": ["answerType", "player", "result", "score"]
@@ -4063,6 +5645,15 @@
         "properties": {
           "currentRound": {
             "$ref": "#/components/schemas/SocketIOGameStateRoundData"
+          },
+          "currentTurnPlayerId": {
+            "type": ["integer", "null"],
+            "description": "Player who picks the first question. Null when no player is seated.",
+            "examples": [2]
+          },
+          "roundStartedAt": {
+            "type": ["number", "null"],
+            "description": "When the first round started (epoch ms), for the round time limit"
           }
         },
         "required": ["currentRound"]
@@ -4226,12 +5817,20 @@
           "player-restricted",
           "player-role-change",
           "score-changed",
+          "question-remove-restore",
+          "answer-result-undo",
+          "buzzer-open",
+          "game-join-mode-change",
           "player-slot-change",
           "turn-player-changed",
           "final-bid-submit",
           "final-answer-submit",
           "final-answer-review",
           "secret-question-transfer",
+          "secret-question-price",
+          "all-play-stake",
+          "all-play-answer",
+          "all-play-review",
           "stake-bid-submit",
           "media-downloaded"
         ],
@@ -4246,6 +5845,7 @@
           "user-leave",
           "game-data",
           "question-answer",
+          "buzzer-false-start",
           "question-data",
           "question-finish",
           "answer-submitted",
@@ -4254,6 +5854,7 @@
           "answer-show-end",
           "next-round",
           "game-finished",
+          "game-closed",
           "game-pause",
           "game-unpause",
           "theme-eliminate",
@@ -4265,6 +5866,10 @@
           "player-restricted",
           "player-role-change",
           "score-changed",
+          "question-remove-restore",
+          "answer-result-undo",
+          "buzzer-open",
+          "game-join-mode-change",
           "player-slot-change",
           "turn-player-changed",
           "final-bid-submit",
@@ -4276,6 +5881,12 @@
           "final-auto-loss",
           "secret-question-picked",
           "secret-question-transfer",
+          "secret-question-price",
+          "all-play-start",
+          "all-play-stake",
+          "all-play-answer",
+          "all-play-reviewing",
+          "all-play-review",
           "stake-question-picked",
           "stake-bid-submit",
           "stake-question-winner",
@@ -4325,6 +5936,21 @@
                 "type": "null"
               }
             ]
+          },
+          "contentPlan": {
+            "description": "Sent with the SHOWING timer: the content timeline to play on it",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuestionContentPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "buzzerOpensAtMs": {
+            "type": ["number", "null"],
+            "description": "Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away"
           }
         },
         "required": ["allPlayersReady", "mediaDownloaded", "playerId", "timer"]
@@ -4638,6 +6264,21 @@
           },
           "questionEligiblePlayers": {
             "$ref": "#/components/schemas/QuestionEligiblePlayers"
+          },
+          "contentPlan": {
+            "description": "Content timeline on this payload's timer. Absent during MEDIA_DOWNLOADING (it then arrives with media-download-status)",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuestionContentPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "buzzerOpensAtMs": {
+            "type": ["number", "null"],
+            "description": "Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away"
           }
         },
         "required": ["data", "timer"]
@@ -4798,6 +6439,24 @@
             "type": "integer",
             "description": "ID of the transferred secret question",
             "examples": [456]
+          },
+          "allowedPrices": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "integer"
+            },
+            "description": "customPrice questions: the receiver now picks one of these prices (secret-question-price); the question data follows the pick"
+          },
+          "timer": {
+            "description": "customPrice questions: the timer of the price pick",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": ["fromPlayerId", "questionId", "toPlayerId"]
@@ -5084,7 +6743,7 @@
       },
       "SocketIOFinalQuestionEventDataPayload": {
         "type": "object",
-        "description": "Data sent when final round question is revealed",
+        "description": "Data sent when final round question is revealed. Role-filtered: the showman's copy includes answerText and answerHint so they can judge; players and spectators get the question without the answer.",
         "properties": {
           "questionData": {
             "$ref": "#/components/schemas/FinalRoundQuestionData"
@@ -5163,6 +6822,58 @@
               }
             ],
             "description": "ID of the next player to take their turn, null if no next player (game finished)"
+          },
+          "answerContentPlan": {
+            "description": "Answer files timeline on the SHOWING_ANSWER timer; the answer text stays visible as the headline",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuestionContentPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rightAnswers": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Other answers that also counted as right"
+          },
+          "authors": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Who wrote the question"
+          },
+          "sources": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "maxItems": 20,
+            "description": "Where the facts come from"
+          },
+          "answerPoint": {
+            "description": "Point answers: the right spot",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AnswerPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answerDeviation": {
+            "type": ["number", "null"]
           }
         },
         "required": ["answerFiles", "answerText"]
@@ -5408,6 +7119,17 @@
             "type": "boolean",
             "description": "Whether currently in the transfer decision phase (waiting for transfer decision)",
             "examples": [true]
+          },
+          "priceSelection": {
+            "description": "customPrice questions: after the transfer, the receiving player picks one of allowedPrices before the question shows",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SecretPriceSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -5870,6 +7592,1118 @@
             "description": "Number of entries returned (0 to limit)"
           }
         }
+      },
+      "StaffRole": {
+        "type": "string",
+        "enum": ["user", "moderator", "admin"],
+        "description": "Admin panel role. Not stored: admin = has manage_permissions, moderator = has admin_panel_access."
+      },
+      "AdminRoles": {
+        "type": "object",
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PermissionName"
+            }
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "$ref": "#/components/schemas/StaffRole"
+                },
+                "permissions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PermissionName"
+                  }
+                }
+              },
+              "required": ["id", "permissions"]
+            }
+          }
+        },
+        "required": ["permissions", "roles"]
+      },
+      "AdminGamePlayer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          },
+          "avatar": {
+            "type": ["string", "null"]
+          },
+          "role": {
+            "$ref": "#/components/schemas/PlayerRole"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["in-game", "disconnected"]
+          },
+          "score": {
+            "type": "integer"
+          },
+          "slot": {
+            "type": ["integer", "null"]
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "avatar",
+          "role",
+          "status",
+          "score",
+          "slot"
+        ]
+      },
+      "AdminGameDetails": {
+        "type": "object",
+        "properties": {
+          "game": {
+            "$ref": "#/components/schemas/GameListItem"
+          },
+          "isPaused": {
+            "type": "boolean"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminGamePlayer"
+            }
+          }
+        },
+        "required": ["game", "isPaused", "players"]
+      },
+      "SocketIOGameClosedEventPayload": {
+        "type": "object",
+        "description": "Sent to everyone in a game an admin or moderator closed. The game no longer exists.",
+        "properties": {
+          "gameId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": ["moderator"]
+          }
+        },
+        "required": ["gameId", "reason"]
+      },
+      "StorageLimits": {
+        "type": "object",
+        "description": "Bytes; null means no limit.",
+        "properties": {
+          "userQuotaBytes": {
+            "type": ["integer", "null"],
+            "description": "Total a user may store"
+          },
+          "packageBytes": {
+            "type": ["integer", "null"],
+            "description": "Media in one package"
+          },
+          "imageBytes": {
+            "type": ["integer", "null"],
+            "description": "One picture"
+          },
+          "audioBytes": {
+            "type": ["integer", "null"],
+            "description": "One sound file"
+          },
+          "videoBytes": {
+            "type": ["integer", "null"],
+            "description": "One video"
+          }
+        },
+        "required": [
+          "userQuotaBytes",
+          "packageBytes",
+          "imageBytes",
+          "audioBytes",
+          "videoBytes"
+        ]
+      },
+      "StorageGroup": {
+        "type": "string",
+        "enum": ["guest", "user", "moderator", "admin"],
+        "description": "Derived from the user: guests, everyone else, moderators (admin panel access) and admins (manage permissions)."
+      },
+      "StorageGroupLimits": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StorageLimits"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "group": {
+                "$ref": "#/components/schemas/StorageGroup"
+              }
+            },
+            "required": ["group"]
+          }
+        ]
+      },
+      "MyStorage": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "$ref": "#/components/schemas/StorageGroup"
+          },
+          "usedBytes": {
+            "type": "integer",
+            "description": "Distinct files your packages and avatar use; a file in several of your packages counts once."
+          },
+          "quotaBytes": {
+            "type": ["integer", "null"]
+          },
+          "quotaOverridden": {
+            "type": "boolean",
+            "description": "True when an admin set your own quota."
+          },
+          "limits": {
+            "$ref": "#/components/schemas/StorageLimits"
+          }
+        },
+        "required": [
+          "group",
+          "usedBytes",
+          "quotaBytes",
+          "quotaOverridden",
+          "limits"
+        ]
+      },
+      "StorageUserUsage": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          },
+          "group": {
+            "$ref": "#/components/schemas/StorageGroup"
+          },
+          "usedBytes": {
+            "type": "integer"
+          },
+          "quotaBytes": {
+            "type": ["integer", "null"]
+          },
+          "quotaOverridden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "group",
+          "usedBytes",
+          "quotaBytes",
+          "quotaOverridden"
+        ]
+      },
+      "AdminStorage": {
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "object",
+            "properties": {
+              "usedBytes": {
+                "type": "integer"
+              },
+              "fileCount": {
+                "type": "integer"
+              },
+              "quotaBytes": {
+                "type": ["integer", "null"],
+                "description": "S3_BUCKET_QUOTA_BYTES; uploads stop at 95 %."
+              }
+            },
+            "required": ["usedBytes", "fileCount", "quotaBytes"]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageGroupLimits"
+            }
+          },
+          "topUsers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StorageUserUsage"
+            }
+          }
+        },
+        "required": ["bucket", "groups", "topUsers"]
+      },
+      "BuzzerWindow": {
+        "type": "object",
+        "properties": {
+          "openedAt": {
+            "type": "number",
+            "description": "Epoch ms of the first press"
+          },
+          "presses": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Players who pressed inside the window, in arrival order"
+          }
+        },
+        "required": ["openedAt", "presses"]
+      },
+      "SocketIOBuzzerFalseStartEventPayload": {
+        "type": "object",
+        "description": "A player pressed before the buzzer opened and is locked out for a moment",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "lockMs": {
+            "type": "number",
+            "description": "How long the lock lasts (ms) from when the event is sent"
+          }
+        },
+        "required": ["playerId", "lockMs"]
+      },
+      "ButtonPressMode": {
+        "type": "string",
+        "enum": ["random_within_window", "first_wins"],
+        "default": "random_within_window",
+        "description": "How the answerer is chosen when several players press: random_within_window draws among presses that arrive within 300 ms of the first one; first_wins gives it to the first press the server receives",
+        "examples": ["random_within_window"]
+      },
+      "GameSettings": {
+        "type": "object",
+        "description": "Rules the host picks when creating a game. Missing fields use their defaults.",
+        "properties": {
+          "falseStart": {
+            "type": "boolean",
+            "default": true,
+            "description": "The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time"
+          },
+          "buttonPressMode": {
+            "$ref": "#/components/schemas/ButtonPressMode"
+          },
+          "wrongAnswerPenalty": {
+            "$ref": "#/components/schemas/WrongAnswerPenalty"
+          },
+          "timers": {
+            "$ref": "#/components/schemas/GameTimerSettings"
+          }
+        },
+        "required": [
+          "buttonPressMode",
+          "falseStart",
+          "timers",
+          "wrongAnswerPenalty"
+        ]
+      },
+      "GameSettingsInput": {
+        "type": "object",
+        "description": "Game settings on creation; omitted fields use their defaults",
+        "properties": {
+          "falseStart": {
+            "type": "boolean",
+            "default": true,
+            "description": "The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time"
+          },
+          "buttonPressMode": {
+            "$ref": "#/components/schemas/ButtonPressMode"
+          },
+          "wrongAnswerPenalty": {
+            "$ref": "#/components/schemas/WrongAnswerPenalty"
+          },
+          "timers": {
+            "$ref": "#/components/schemas/GameTimerSettingsInput"
+          }
+        }
+      },
+      "SecretPriceSelection": {
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "The player who received the question and picks its price"
+          },
+          "allowedPrices": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": ["playerId", "allowedPrices"]
+      },
+      "SocketIOSecretQuestionPriceInput": {
+        "type": "object",
+        "description": "The receiver of a customPrice secret question picks its price",
+        "properties": {
+          "price": {
+            "type": "integer",
+            "description": "One of the question's allowedPrices"
+          }
+        },
+        "required": ["price"]
+      },
+      "SocketIOSecretQuestionPriceEventPayload": {
+        "type": "object",
+        "description": "The receiver picked the price (or the 30 s ran out and the lowest price was taken); question-data follows",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "price": {
+            "type": "integer"
+          },
+          "questionId": {
+            "type": "integer"
+          }
+        },
+        "required": ["playerId", "price", "questionId"]
+      },
+      "AllPlayMode": {
+        "type": "string",
+        "enum": ["noRisk", "stake"],
+        "description": "noRisk: right wins price × multiplier, wrong costs nothing. stake: each player stakes; right wins the stake, wrong loses it",
+        "examples": ["stake"]
+      },
+      "AllPlayEntry": {
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "stake": {
+            "type": ["integer", "null"],
+            "description": "Stake mode: the amount staked; null until staked. Shown to players as 0 until the review"
+          },
+          "answer": {
+            "type": ["string", "null"],
+            "description": "Typed answer; null until submitted. Shown to players as an empty string until the review"
+          },
+          "submitted": {
+            "type": "boolean"
+          },
+          "isCorrect": {
+            "type": ["boolean", "null"],
+            "description": "The showman's ruling; null until reviewed"
+          },
+          "scoreChange": {
+            "type": ["integer", "null"]
+          }
+        },
+        "required": [
+          "playerId",
+          "stake",
+          "answer",
+          "submitted",
+          "isCorrect",
+          "scoreChange"
+        ]
+      },
+      "AllPlayData": {
+        "type": "object",
+        "description": "\"Everyone answers\" question (stake / no-risk with subType forEveryone). Phases follow questionState: bidding (stake mode) → media_downloading → showing (players type answers) → reviewing (showman rules on each) → showing_answer",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/AllPlayMode"
+          },
+          "questionId": {
+            "type": "integer"
+          },
+          "themeId": {
+            "type": "integer"
+          },
+          "price": {
+            "type": "integer"
+          },
+          "maxStake": {
+            "type": ["integer", "null"]
+          },
+          "priceMultiplier": {
+            "type": ["number", "null"]
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AllPlayEntry"
+            }
+          }
+        },
+        "required": [
+          "mode",
+          "questionId",
+          "themeId",
+          "price",
+          "maxStake",
+          "priceMultiplier",
+          "entries"
+        ]
+      },
+      "SocketIOAllPlayStartEventPayload": {
+        "type": "object",
+        "description": "An \"everyone answers\" question started: the stake phase (stake mode, with its timer) or straight to the question (timer null)",
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/AllPlayMode"
+          },
+          "questionId": {
+            "type": "integer"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "price": {
+            "type": "integer"
+          },
+          "maxStake": {
+            "type": ["integer", "null"]
+          },
+          "priceMultiplier": {
+            "type": ["number", "null"]
+          },
+          "timer": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "questionId",
+          "players",
+          "price",
+          "maxStake",
+          "priceMultiplier",
+          "timer"
+        ]
+      },
+      "SocketIOAllPlaySubmittedEventPayload": {
+        "type": "object",
+        "description": "all-play-stake / all-play-answer broadcast: a player sent their stake or answer (the value stays hidden until the review)",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          }
+        },
+        "required": ["playerId"]
+      },
+      "SocketIOAllPlayReviewingEventPayload": {
+        "type": "object",
+        "description": "Answers are in: every answer and stake is visible for the review",
+        "properties": {
+          "allPlay": {
+            "$ref": "#/components/schemas/AllPlayData"
+          }
+        },
+        "required": ["allPlay"]
+      },
+      "SocketIOAllPlayReviewEventPayload": {
+        "type": "object",
+        "description": "The showman ruled on one answer",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "isCorrect": {
+            "type": "boolean"
+          },
+          "scoreChange": {
+            "type": "integer"
+          },
+          "newScore": {
+            "type": "integer"
+          }
+        },
+        "required": ["playerId", "isCorrect", "scoreChange", "newScore"]
+      },
+      "SocketIOAllPlayStakeInput": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "integer",
+            "description": "Between 1 and the player's score (at least the price), capped by maxStake"
+          }
+        },
+        "required": ["amount"]
+      },
+      "SocketIOAllPlayAnswerInput": {
+        "type": "object",
+        "properties": {
+          "answerText": {
+            "type": "string",
+            "maxLength": 255
+          }
+        },
+        "required": ["answerText"]
+      },
+      "SocketIOAllPlayReviewInput": {
+        "type": "object",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "isCorrect": {
+            "type": "boolean"
+          }
+        },
+        "required": ["playerId", "isCorrect"]
+      },
+      "WrongAnswerPenalty": {
+        "type": "string",
+        "enum": ["subtract", "none"],
+        "default": "subtract",
+        "description": "What a wrong answer to a buzzer question (simple, choice, hidden) costs: the question's price, or nothing",
+        "examples": ["subtract"]
+      },
+      "GameTimerSettings": {
+        "type": "object",
+        "description": "How long each step may take, in milliseconds",
+        "properties": {
+          "answerMs": {
+            "type": "integer",
+            "description": "To press the buzzer once the question has played (3000–120000 ms)",
+            "default": 20500,
+            "minimum": 3000,
+            "maximum": 120000
+          },
+          "answerSubmitMs": {
+            "type": "integer",
+            "description": "To give the answer after pressing (5000–180000 ms)",
+            "default": 60000,
+            "minimum": 5000,
+            "maximum": 180000
+          },
+          "stakeMs": {
+            "type": "integer",
+            "description": "For each stake: auction bids and stakes for everyone (5000–120000 ms)",
+            "default": 30000,
+            "minimum": 5000,
+            "maximum": 120000
+          },
+          "secretTransferMs": {
+            "type": "integer",
+            "description": "To hand a secret question over, and to pick its price (5000–120000 ms)",
+            "default": 30000,
+            "minimum": 5000,
+            "maximum": 120000
+          },
+          "allPlayAnswerMs": {
+            "type": "integer",
+            "description": "To write the answer when everyone answers (10000–300000 ms)",
+            "default": 45000,
+            "minimum": 10000,
+            "maximum": 300000
+          },
+          "finalAnswerMs": {
+            "type": "integer",
+            "description": "To write the final answer (10000–300000 ms)",
+            "default": 75000,
+            "minimum": 10000,
+            "maximum": 300000
+          },
+          "roundMs": {
+            "type": "integer",
+            "default": 0,
+            "description": "Length of a regular round: 0 for no limit, otherwise 300000–10800000 ms. Once it has passed (not counting pauses), the round ends after the question in play, or on the next pick if the board is open"
+          }
+        },
+        "required": [
+          "answerMs",
+          "answerSubmitMs",
+          "stakeMs",
+          "secretTransferMs",
+          "allPlayAnswerMs",
+          "finalAnswerMs",
+          "roundMs"
+        ]
+      },
+      "GameTimerSettingsInput": {
+        "type": "object",
+        "description": "Timer settings on creation; omitted fields use their defaults",
+        "properties": {
+          "answerMs": {
+            "type": "integer",
+            "description": "To press the buzzer once the question has played (3000–120000 ms)",
+            "default": 20500,
+            "minimum": 3000,
+            "maximum": 120000
+          },
+          "answerSubmitMs": {
+            "type": "integer",
+            "description": "To give the answer after pressing (5000–180000 ms)",
+            "default": 60000,
+            "minimum": 5000,
+            "maximum": 180000
+          },
+          "stakeMs": {
+            "type": "integer",
+            "description": "For each stake: auction bids and stakes for everyone (5000–120000 ms)",
+            "default": 30000,
+            "minimum": 5000,
+            "maximum": 120000
+          },
+          "secretTransferMs": {
+            "type": "integer",
+            "description": "To hand a secret question over, and to pick its price (5000–120000 ms)",
+            "default": 30000,
+            "minimum": 5000,
+            "maximum": 120000
+          },
+          "allPlayAnswerMs": {
+            "type": "integer",
+            "description": "To write the answer when everyone answers (10000–300000 ms)",
+            "default": 45000,
+            "minimum": 10000,
+            "maximum": 300000
+          },
+          "finalAnswerMs": {
+            "type": "integer",
+            "description": "To write the final answer (10000–300000 ms)",
+            "default": 75000,
+            "minimum": 10000,
+            "maximum": 300000
+          },
+          "roundMs": {
+            "type": "integer",
+            "default": 0,
+            "description": "Length of a regular round: 0 for no limit, otherwise 300000–10800000 ms. Once it has passed (not counting pauses), the round ends after the question in play, or on the next pick if the board is open"
+          }
+        }
+      },
+      "AnswerType": {
+        "type": "string",
+        "enum": ["text", "number", "point"],
+        "default": "text",
+        "description": "How the answer is given and checked. text: the showman judges. number: checked against answerNumber within answerDeviation. point: the player clicks the question's picture; the answer is sent as \"x,y\" fractions of its width and height and checked against answerPoint within answerDeviation (a fraction of the width, 0.05 by default)",
+        "examples": ["number"]
+      },
+      "AnswerPoint": {
+        "type": "object",
+        "description": "A spot on a picture, as fractions (0–1) of its width and height",
+        "properties": {
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "required": ["x", "y"]
+      },
+      "GameJoinMode": {
+        "type": "string",
+        "enum": ["open", "spectators_only", "closed"],
+        "default": "open",
+        "description": "Who may join right now: everyone, spectators only, or nobody new. People already in the game can always come back",
+        "examples": ["open"]
+      },
+      "SocketIOQuestionRemoveRestoreInput": {
+        "type": "object",
+        "description": "Showman only, while a question is being picked: remove an unplayed question from the board, or put a removed one back",
+        "properties": {
+          "questionId": {
+            "type": "integer"
+          }
+        },
+        "required": ["questionId"]
+      },
+      "SocketIOQuestionRemoveRestoreEventPayload": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "integer"
+          },
+          "isPlayed": {
+            "type": "boolean",
+            "description": "True when the question is now off the board"
+          }
+        },
+        "required": ["questionId", "isPlayed"]
+      },
+      "SocketIOAnswerResultUndoEventPayload": {
+        "type": "object",
+        "description": "answer-result-undo (showman only, no input): the last ruling on the current question is taken back and its score change reverted. After a wrong answer the player may buzz again",
+        "properties": {
+          "playerId": {
+            "type": "integer"
+          },
+          "revertedResult": {
+            "type": "integer"
+          },
+          "newScore": {
+            "type": "integer"
+          },
+          "canAnswerAgain": {
+            "type": "boolean"
+          }
+        },
+        "required": ["playerId", "revertedResult", "newScore", "canAnswerAgain"]
+      },
+      "SocketIOGameJoinModeChangeInput": {
+        "type": "object",
+        "description": "Showman only",
+        "properties": {
+          "joinMode": {
+            "$ref": "#/components/schemas/GameJoinMode"
+          }
+        },
+        "required": ["joinMode"]
+      },
+      "SocketIOGameJoinModeChangeEventPayload": {
+        "type": "object",
+        "properties": {
+          "joinMode": {
+            "$ref": "#/components/schemas/GameJoinMode"
+          }
+        },
+        "required": ["joinMode"]
+      },
+      "UserRecentGame": {
+        "type": "object",
+        "required": [
+          "gameId",
+          "finishedAt",
+          "finalScore",
+          "placement",
+          "totalPlayers"
+        ],
+        "properties": {
+          "gameId": {
+            "type": "string"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finalScore": {
+            "type": "integer"
+          },
+          "placement": {
+            "type": ["integer", "null"],
+            "description": "1 = won"
+          },
+          "totalPlayers": {
+            "type": ["integer", "null"]
+          }
+        }
+      },
+      "UserStats": {
+        "type": "object",
+        "description": "Totals over every finished game the user played in",
+        "required": [
+          "userId",
+          "gamesPlayed",
+          "wins",
+          "totalScore",
+          "bestScore",
+          "questionsAnswered",
+          "correctAnswers",
+          "wrongAnswers",
+          "recentGames"
+        ],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "gamesPlayed": {
+            "type": "integer"
+          },
+          "wins": {
+            "type": "integer",
+            "description": "Games finished in first place"
+          },
+          "totalScore": {
+            "type": "integer"
+          },
+          "bestScore": {
+            "type": "integer"
+          },
+          "questionsAnswered": {
+            "type": "integer"
+          },
+          "correctAnswers": {
+            "type": "integer"
+          },
+          "wrongAnswers": {
+            "type": "integer"
+          },
+          "recentGames": {
+            "type": "array",
+            "description": "Up to 10, latest first",
+            "items": {
+              "$ref": "#/components/schemas/UserRecentGame"
+            }
+          }
+        }
+      },
+      "LeaderboardPeriod": {
+        "type": "string",
+        "enum": ["all", "month", "week"],
+        "description": "month and week cover the last 30 and 7 days"
+      },
+      "LeaderboardEntry": {
+        "type": "object",
+        "required": [
+          "rank",
+          "user",
+          "gamesPlayed",
+          "wins",
+          "totalScore",
+          "correctAnswers"
+        ],
+        "properties": {
+          "rank": {
+            "type": "integer"
+          },
+          "user": {
+            "$ref": "#/components/schemas/LeaderboardUser"
+          },
+          "gamesPlayed": {
+            "type": "integer"
+          },
+          "wins": {
+            "type": "integer"
+          },
+          "totalScore": {
+            "type": "integer"
+          },
+          "correctAnswers": {
+            "type": "integer"
+          }
+        }
+      },
+      "LeaderboardUser": {
+        "type": "object",
+        "description": "Player shown on the leaderboard",
+        "required": ["id", "username", "name", "avatar"],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          },
+          "name": {
+            "type": ["string", "null"],
+            "description": "Display name, when set"
+          },
+          "avatar": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "QuestionReportReason": {
+        "type": "string",
+        "enum": ["wrong_answer", "broken_media", "offensive", "other"]
+      },
+      "QuestionReportInput": {
+        "type": "object",
+        "required": ["questionId", "reason"],
+        "properties": {
+          "questionId": {
+            "type": "integer"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/QuestionReportReason"
+          },
+          "comment": {
+            "type": ["string", "null"],
+            "maxLength": 500
+          }
+        }
+      },
+      "QuestionReport": {
+        "type": "object",
+        "required": [
+          "id",
+          "packageId",
+          "questionId",
+          "questionText",
+          "reason",
+          "comment",
+          "resolved",
+          "reporter",
+          "gameId",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "packageId": {
+            "type": "integer"
+          },
+          "questionId": {
+            "type": "integer"
+          },
+          "questionText": {
+            "type": ["string", "null"],
+            "description": "The question's text when it was reported"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/QuestionReportReason"
+          },
+          "comment": {
+            "type": ["string", "null"]
+          },
+          "resolved": {
+            "type": "boolean"
+          },
+          "reporter": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuestionReporter"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gameId": {
+            "type": ["string", "null"]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "QuestionReportList": {
+        "type": "object",
+        "required": ["data", "open"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "description": "Open reports first, newest first; up to 200",
+            "items": {
+              "$ref": "#/components/schemas/QuestionReport"
+            }
+          },
+          "open": {
+            "type": "integer",
+            "description": "How many reports are still open"
+          }
+        }
+      },
+      "QuestionReporter": {
+        "type": "object",
+        "required": ["id", "username"],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "PackageUploadStatus": {
+        "type": "string",
+        "enum": ["uploading", "ready"],
+        "description": "`uploading` while storage lacks some of the package's media files; such a package can't be picked for a game. `ready` once every file is stored."
+      },
+      "PackageUploadProgress": {
+        "type": "object",
+        "description": "Where a package's media upload stands. Checking asks storage about every file not confirmed yet and marks the package ready once all are stored.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PackageUploadStatus"
+          },
+          "totalFiles": {
+            "type": "integer",
+            "description": "Distinct media files the package uses"
+          },
+          "uploadedFiles": {
+            "type": "integer",
+            "description": "Of those, how many storage holds"
+          },
+          "missing": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "MD5s storage doesn't have yet"
+          },
+          "uploadLinks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "A fresh presigned PUT link per missing MD5"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "totalFiles",
+          "uploadedFiles",
+          "missing",
+          "uploadLinks"
+        ]
+      },
+      "SocketIOChatSystemEntry": {
+        "type": "object",
+        "description": "Set on chat lines the server writes itself: a log of what the showman did (a ruling, a score change, a kick...). Clients that know `action` show it translated from `params`; others show the English `message`.",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "The game action that was logged, e.g. answer-result, player-kick, score-changed",
+            "examples": ["answer-result"]
+          },
+          "params": {
+            "type": "object",
+            "description": "Names, points and flags for the line, resolved when it was written",
+            "additionalProperties": {
+              "type": ["string", "number", "boolean", "null"]
+            },
+            "examples": [
+              {
+                "player": "Pat",
+                "points": 200,
+                "answerType": "correct"
+              }
+            ]
+          }
+        },
+        "required": ["action", "params"]
+      },
+      "SocketIOBuzzerOpenEventPayload": {
+        "type": "object",
+        "description": "buzzer-open (showman only, no input, SHOWING phase): opens the buzzer now instead of when the question finishes. Presses from here on are not false starts and running false-start locks are lifted. Broadcast to everyone with the new opening moment.",
+        "properties": {
+          "buzzerOpensAtMs": {
+            "type": "integer",
+            "description": "Elapsed time on the SHOWING timer at which the buzzer is open (unchanged when it already was)",
+            "examples": [4200]
+          }
+        },
+        "required": ["buzzerOpensAtMs"]
       }
     }
   }

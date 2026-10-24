@@ -1,6 +1,9 @@
 import { DataSource, Repository } from "typeorm";
 
 import { Permissions } from "domain/enums/Permissions";
+import { ContentPlacement } from "domain/enums/package/ContentPlacement";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PackageUploadResponse } from "domain/types/package/PackageUploadResponse";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
@@ -105,6 +108,23 @@ describe("PackageRestApiController", () => {
     await deleteAll(permRepo);
   });
 
+  it("allows credentialed cross-origin PUT preflight for package edits", async () => {
+    const origin = "http://localhost:5173";
+    const response = await http
+      .options("/v1/packages/1")
+      .set("Origin", origin)
+      .set("Access-Control-Request-Method", "PUT")
+      .set("Access-Control-Request-Headers", "content-type");
+
+    expect(response.status).toBe(204);
+    expect(response.headers["access-control-allow-origin"]).toBe(origin);
+    expect(response.headers["access-control-allow-credentials"]).toBe("true");
+    expect(response.headers["access-control-allow-methods"].split(",")).toContain("PUT");
+    expect(response.headers["access-control-allow-headers"].toLowerCase().split(",")).toContain(
+      "content-type"
+    );
+  });
+
   it("should create package successfully", async () => {
     const loginData = await testUtils.createAndLoginUser("testuser");
     const packageData = packageUtils.createTestPackageData(loginData.user, false);
@@ -158,6 +178,91 @@ describe("PackageRestApiController", () => {
     expect(result.description).toBe(packageData.description);
     expect(result.language).toBe(packageData.language);
     expect(result.ageRestriction).toBe(packageData.ageRestriction);
+  });
+
+  it("preserves background and nonblocking answer media through package storage and retrieval", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser("answer_media");
+    const content = packageUtils.createTestPackageData(user, false);
+    const question = content.rounds[0].themes[0].questions[0];
+    question.answerFiles = [
+      {
+        order: 0,
+        displayTime: 5000,
+        placement: ContentPlacement.BACKGROUND,
+        waitForFinish: false,
+        file: { md5: "1".repeat(32), type: PackageFileType.AUDIO }
+      },
+      {
+        order: 1,
+        displayTime: 1000,
+        placement: ContentPlacement.SCREEN,
+        waitForFinish: true,
+        file: { md5: "2".repeat(32), type: PackageFileType.IMAGE }
+      }
+    ];
+    const created = await http.post("/v1/packages").set("Cookie", cookie).send({ content });
+    expect(created.status).toBe(200);
+    const loaded = await http.get(`/v1/packages/${created.body.id}`).set("Cookie", cookie);
+    expect(loaded.status).toBe(200);
+    const saved = (loaded.body as PackageDTO).rounds
+      .flatMap((round) => round.themes)
+      .flatMap((theme) => theme.questions)
+      .find((item) => item.text === question.text)!;
+    expect([...(saved.answerFiles ?? [])].sort((a, b) => a.order - b.order)).toEqual(
+      question.answerFiles.map((file) =>
+        expect.objectContaining({
+          order: file.order,
+          placement: file.placement,
+          waitForFinish: file.waitForFinish
+        })
+      )
+    );
+    expect(ShowAnswerLogic.buildAnswerPlan(saved)).toMatchObject({
+      totalMs: 1000,
+      steps: [
+        {
+          startMs: 0,
+          durationMs: 1000,
+          items: [
+            { order: 0, placement: ContentPlacement.BACKGROUND, durationMs: 5000 },
+            { order: 1, placement: ContentPlacement.SCREEN, durationMs: 1000 }
+          ]
+        }
+      ]
+    });
+  });
+
+  it("keeps authors, sources and extra answers", async () => {
+    const loginData = await testUtils.createAndLoginUser("testuser");
+    const packageData = packageUtils.createTestPackageData(loginData.user, false);
+    packageData.authors = ["Ann", " "];
+    packageData.sources = ["Encyclopedia"];
+    const question = packageData.rounds[0].themes[0].questions[0];
+    question.rightAnswers = ["Alt answer"];
+    question.wrongAnswers = ["Common mistake"];
+    question.authors = ["Bob"];
+    question.sources = ["https://example.com"];
+
+    const createRes = await http
+      .post("/v1/packages")
+      .send({ content: packageData })
+      .set("Cookie", loginData.cookie);
+    const id = (createRes.body as unknown as PackageUploadResponse).id;
+    const result = (await http.get(`/v1/packages/${id}`).set("Cookie", loginData.cookie))
+      .body as PackageDTO;
+
+    expect(result.authors).toEqual(["Ann"]);
+    expect(result.sources).toEqual(["Encyclopedia"]);
+    const saved = result.rounds
+      .flatMap((r) => r.themes)
+      .flatMap((t) => t.questions)
+      .find((q) => q.text === question.text);
+    expect(saved).toMatchObject({
+      rightAnswers: ["Alt answer"],
+      wrongAnswers: ["Common mistake"],
+      authors: ["Bob"],
+      sources: ["https://example.com"]
+    });
   });
 
   it("should list packages", async () => {

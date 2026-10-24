@@ -27,6 +27,8 @@ Update the schema when any of these change:
 
 Do not update schema for purely internal server classes, private database models, or refactors that do not affect the public contract.
 
+Every schema name, and every inline object property (the Dart generator names it after the property, e.g. `user` becomes `User`), turns into a Dart class exported from `package:openapi`. Pick names that can't clash with classes in `client/` packages or their dependencies (`User`, `PackageUploadState` and similar broke `melos run analyze`): prefer specific names such as `LeaderboardUser`, and use `$ref` instead of inline objects.
+
 ## Generation workflow
 
 Backend validation from `server/`:

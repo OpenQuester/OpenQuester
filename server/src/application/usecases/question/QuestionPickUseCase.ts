@@ -1,3 +1,4 @@
+import { RoundProgressionService } from "application/services/game/RoundProgressionService";
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -49,7 +50,8 @@ export class QuestionPickUseCase
   constructor(
     private readonly packageStore: PackageStore,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
-    private readonly transitionResourceService: TransitionResourceService
+    private readonly transitionResourceService: TransitionResourceService,
+    private readonly roundProgressionService: RoundProgressionService
   ) {
     //
   }
@@ -65,6 +67,15 @@ export class QuestionPickUseCase
       currentPlayer,
       action: QuestionAction.PICK,
     });
+
+    // The round's time ran out while the board was open: the pick ends the
+    // round instead of starting a question, so the game can't get stuck
+    if (game.isRoundTimeUp()) {
+      const { data: _nextRound, ...roundEnd } =
+        await this.roundProgressionService.advanceRound(game);
+
+      return roundEnd;
+    }
 
     // Fetch question data from PackageStore
     const questionData = QuestionPickLogic.validateQuestionPick(

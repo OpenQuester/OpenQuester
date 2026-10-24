@@ -30,6 +30,10 @@ export enum GamePhase {
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
   STAKE_BIDDING = "stake-bidding",
 
+  // "Everyone answers" questions (stake / no-risk for everyone)
+  ALL_PLAY_BIDDING = "all-play-bidding",
+  ALL_PLAY_REVIEWING = "all-play-reviewing",
+
   // Final round
   FINAL_THEME_ELIMINATION = "final-theme-elimination",
   FINAL_BIDDING = "final-bidding",
@@ -37,7 +41,7 @@ export enum GamePhase {
   FINAL_REVIEWING = "final-reviewing",
 
   // End states
-  GAME_FINISHED = "game-finished",
+  GAME_FINISHED = "game-finished"
 }
 
 /**
@@ -58,7 +62,7 @@ export enum TransitionTrigger {
   PLAYER_DISCONNECTED = "player-disconnected",
 
   /** Automatic condition was met (all players answered, etc.) */
-  CONDITION_MET = "condition-met",
+  CONDITION_MET = "condition-met"
 }
 
 /**
@@ -111,6 +115,9 @@ export interface TransitionResources {
 
   /** Final round question data used when final bidding completes. */
   finalRoundQuestionData?: FinalRoundQuestionData | null;
+
+  /** The same final question with its answer; only the showman receives it. */
+  finalRoundFullQuestion?: PackageQuestionDTO | null;
 
   /** Prefetched next round metadata for round progression. */
   nextRound?: GameStateRoundDTO | null;
@@ -177,8 +184,7 @@ export interface TimerResult {
  * Centralizes the logic for determining which phase we're in.
  */
 export function getGamePhase(game: Game): GamePhase {
-  const { questionState, currentRound, stakeQuestionData, secretQuestionData } =
-    game.gameState;
+  const { questionState, currentRound, stakeQuestionData, secretQuestionData } = game.gameState;
 
   // Game not started or finished
   if (!game.startedAt) {
@@ -194,11 +200,22 @@ export function getGamePhase(game: Game): GamePhase {
     return GamePhase.STAKE_BIDDING;
   }
 
+  // Includes the receiver's price pick of a customPrice question
   if (
-    secretQuestionData?.transferDecisionPhase &&
+    (secretQuestionData?.transferDecisionPhase || secretQuestionData?.priceSelection) &&
     questionState === QuestionState.SECRET_TRANSFER
   ) {
     return GamePhase.SECRET_QUESTION_TRANSFER;
+  }
+
+  // "Everyone answers" questions bid and review in regular rounds
+  if (game.gameState.allPlay && currentRound?.type !== PackageRoundType.FINAL) {
+    switch (questionState) {
+      case QuestionState.BIDDING:
+        return GamePhase.ALL_PLAY_BIDDING;
+      case QuestionState.REVIEWING:
+        return GamePhase.ALL_PLAY_REVIEWING;
+    }
   }
 
   // Final round phases

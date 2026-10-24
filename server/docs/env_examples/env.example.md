@@ -14,9 +14,16 @@ SOCKET_IO_ADMIN_UI_USERNAME=
 SOCKET_IO_ADMIN_UI_PASSWORD=
 # Comma-separated list of admin emails that should receive all permissions on startup
 ADMIN_EMAILS=
+# Public Discord application id, served to clients in the provider list of
+# GET /v1/auth/settings. Empty turns Discord sign-in off
+DISCORD_CLIENT_ID=
 
 # Domain (full) to which cookie will be assigned
 API_DOMAIN=
+
+# Built web app (web/dist) to serve for every non-API path. The Docker image sets
+# /app/web. Hosts outside API_DOMAIN (e.g. dev.openquester.app) get a host-only cookie.
+WEB_APP_DIR=
 
 ## DB variables
 DB_TYPE=
