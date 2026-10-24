@@ -1528,7 +1528,8 @@
       "unsupported": "This browser cannot process the selected tracks. Try desktop Chrome or Edge, or use the file unchanged.",
       "unsupportedImage": "This image or browser cannot be edited here. Animated images and SVG are kept unchanged.",
       "blurUnsupported": "Blur is unavailable in this browser.",
-      "downloadFailed": "The source file could not be loaded or verified. Retry without changing the attachment.",
+      "downloadFailed": "The original file couldn't be downloaded from storage. Check your connection and retry; the attachment is unchanged.",
+      "downloadCorrupt": "The downloaded file doesn't match the one in this package. Retry; the attachment is unchanged.",
       "processingFailed": "Media processing failed. Your changes are still here; retry or use the file unchanged.",
       "trim": "Choose a start before the end within this file. Use minutes:seconds (for example, 01:23.50)."
     },

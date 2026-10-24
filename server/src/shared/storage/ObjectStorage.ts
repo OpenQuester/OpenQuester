@@ -30,6 +30,11 @@ export interface ObjectStorageItem {
   size?: number;
 }
 
+export interface ObjectStorageObject {
+  body: NodeJS.ReadableStream;
+  size?: number;
+}
+
 export interface ObjectStorage {
   getIgnoredCleanupFolder(): string;
   generatePresignedUrl(input: PresignedUrlRequest): Promise<string>;
@@ -37,6 +42,8 @@ export interface ObjectStorage {
   deleteObject(bucket: string, key: string): Promise<void>;
   /** Size of a stored object, or null when it doesn't exist. */
   headObject(bucket: string, key: string): Promise<{ size: number } | null>;
+  /** A stored object's bytes as a stream, or null when it doesn't exist. */
+  getObject(bucket: string, key: string): Promise<ObjectStorageObject | null>;
   deleteObjects(bucket: string, keys: string[]): Promise<ObjectStorageDeleteResult>;
   listObjectsInBatches(bucket: string, batchSize: number): AsyncGenerator<ObjectStorageItem[]>;
 }
