@@ -3,13 +3,18 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { type AddressInfo } from "node:net";
 import { text } from "node:stream/consumers";
 
-export interface FakeDiscordAccount {
-  clientId: string;
-  clientSecret: string;
-  /** The one code the token endpoint accepts */
+/** One Discord user the fake signs in: its code buys its token, the token its profile */
+export interface FakeDiscordMember {
   code: string;
   accessToken: string;
   user: Record<string, unknown>;
+}
+
+export interface FakeDiscordAccount extends FakeDiscordMember {
+  clientId: string;
+  clientSecret: string;
+  /** More people who can sign in, e.g. the rest of a voice call */
+  others?: FakeDiscordMember[];
 }
 
 /**
@@ -57,6 +62,7 @@ export class FakeDiscordApi {
       res.end(JSON.stringify(data));
     };
 
+    const members = [account, ...(account.others ?? [])];
     const appToken = `app-token-${account.clientId}`;
     const commandsPath = `/applications/${account.clientId}/commands`;
 
@@ -74,15 +80,16 @@ export class FakeDiscordApi {
           : reply(401, { error: "invalid_client" });
       }
 
+      const member = members.find((candidate) => candidate.code === form.get("code"));
       const valid =
         form.get("client_id") === account.clientId &&
         form.get("client_secret") === account.clientSecret &&
         form.get("grant_type") === "authorization_code" &&
-        form.get("code") === account.code;
+        member !== undefined;
 
       return valid
         ? reply(200, {
-            access_token: account.accessToken,
+            access_token: member.accessToken,
             token_type: "Bearer",
             expires_in: 604800,
             scope: "identify"
@@ -91,8 +98,12 @@ export class FakeDiscordApi {
     }
 
     if (req.method === "GET" && req.url === "/users/@me") {
-      return req.headers.authorization === `Bearer ${account.accessToken}`
-        ? reply(200, account.user)
+      const member = members.find(
+        (candidate) => req.headers.authorization === `Bearer ${candidate.accessToken}`
+      );
+
+      return member
+        ? reply(200, member.user)
         : reply(401, { message: "401: Unauthorized", code: 0 });
     }
 

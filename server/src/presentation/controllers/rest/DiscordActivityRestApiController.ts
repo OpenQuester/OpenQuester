@@ -2,7 +2,9 @@ import { Router, type Express, type Request, type Response } from "express";
 
 import { type DiscordActivityService } from "application/services/discord/DiscordActivityService";
 import { type UserService } from "application/services/user/UserService";
+import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
+import { ClientError } from "domain/errors/ClientError";
 import { type GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { discordInstanceIdScheme } from "presentation/schemes/discord/discordSchemes";
@@ -29,6 +31,8 @@ export class DiscordActivityRestApiController {
   }
 
   private getInstanceGame = async (req: Request, res: Response) => {
+    this._requireActivitySession(req);
+
     const { instanceId } = this._validateParams(req);
 
     const result = await this.discordActivityService.getInstanceGame(instanceId);
@@ -37,6 +41,8 @@ export class DiscordActivityRestApiController {
   };
 
   private getOrCreateInstanceGame = async (req: Request, res: Response) => {
+    this._requireActivitySession(req);
+
     const { instanceId } = this._validateParams(req);
 
     const gameData = new RequestDataValidator<GameCreateDTO>(
@@ -63,5 +69,15 @@ export class DiscordActivityRestApiController {
       { instanceId: req.params.instanceId },
       discordInstanceIdScheme()
     ).validate();
+  }
+
+  /**
+   * The lobby hands out its private password, so only people who opened the
+   * Activity (signed in through it) may ask, not any website or guest account
+   */
+  private _requireActivitySession(req: Request): void {
+    if (!req.session.discordActivity) {
+      throw new ClientError(ClientResponse.DISCORD_ACTIVITY_SESSION_REQUIRED, HttpStatus.FORBIDDEN);
+    }
   }
 }

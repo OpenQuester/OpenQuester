@@ -18,6 +18,10 @@ const GOOD_CODE = "good-code";
 const ACCESS_TOKEN = "discord-access-token";
 const DISCORD_USER = { id: "424242", username: "discord_pilot", avatar: null, email: null };
 const ACTIVITY_ORIGIN = `https://${CLIENT_ID}.discordsays.com`;
+/** Other people in the voice call; each signs in with the code `code-{name}` */
+const CALL_MEMBERS = ["listener", "host", "guest", "first", "second"] as const;
+
+type CallMember = (typeof CALL_MEMBERS)[number];
 
 const ENV_KEYS = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_API_URL"] as const;
 
@@ -51,7 +55,12 @@ describe("Discord Activity", () => {
       clientSecret: CLIENT_SECRET,
       code: GOOD_CODE,
       accessToken: ACCESS_TOKEN,
-      user: DISCORD_USER
+      user: DISCORD_USER,
+      others: CALL_MEMBERS.map((name, index) => ({
+        code: `code-${name}`,
+        accessToken: `token-${name}`,
+        user: { id: String(500 + index), username: name, avatar: null, email: null }
+      }))
     });
     process.env.DISCORD_CLIENT_ID = CLIENT_ID;
     process.env.DISCORD_CLIENT_SECRET = CLIENT_SECRET;
@@ -87,6 +96,17 @@ describe("Discord Activity", () => {
       .set("X-Forwarded-Proto", "https")
       .set("Origin", ACTIVITY_ORIGIN)
       .send({ code });
+  }
+
+  /** Signs a call member in through the Activity, like opening it in Discord */
+  async function joinCall(name: CallMember): Promise<LoggedInUser> {
+    const res = await activityLogin(`code-${name}`);
+
+    expect(res.status).toBe(200);
+
+    const user = await userRepo.findOneByOrFail({ id: res.body.user.id });
+
+    return { user, cookie: sessionCookie(res.headers["set-cookie"]).split(";")[0] };
   }
 
   async function loginAs(username: string): Promise<LoggedInUser> {
@@ -213,7 +233,7 @@ describe("Discord Activity", () => {
     const path = `/v1/discord/activity/instances/${instanceId}/game`;
 
     it("has no game until someone picks a package", async () => {
-      const { cookie } = await loginAs("listener");
+      const { cookie } = await joinCall("listener");
 
       const res = await http.get(path).set("Cookie", cookie);
 
@@ -222,8 +242,8 @@ describe("Discord Activity", () => {
     });
 
     it("makes the first person host and puts the rest of the call in the same private game", async () => {
-      const host = await loginAs("host");
-      const guest = await loginAs("guest");
+      const host = await joinCall("host");
+      const guest = await joinCall("guest");
       const packageId = await createPackage(host.user, host.cookie);
 
       const created = await http.post(path).set("Cookie", host.cookie).send(gameBody(packageId));
@@ -248,8 +268,8 @@ describe("Discord Activity", () => {
     });
 
     it("never makes two games when the call launches at once", async () => {
-      const a = await loginAs("first");
-      const b = await loginAs("second");
+      const a = await joinCall("first");
+      const b = await joinCall("second");
       const packageId = await createPackage(a.user, a.cookie);
 
       const results = await Promise.all([
@@ -265,7 +285,7 @@ describe("Discord Activity", () => {
     });
 
     it("frees the call for a new game once its game is gone", async () => {
-      const host = await loginAs("host");
+      const host = await joinCall("host");
       const packageId = await createPackage(host.user, host.cookie);
       const created = await http.post(path).set("Cookie", host.cookie).send(gameBody(packageId));
 
@@ -281,7 +301,7 @@ describe("Discord Activity", () => {
     });
 
     it("needs a session and a well-formed instance id", async () => {
-      const { cookie } = await loginAs("listener");
+      const { cookie } = await joinCall("listener");
 
       const anonymous = await http.get(path);
       const malformed = await http
@@ -290,6 +310,21 @@ describe("Discord Activity", () => {
 
       expect(anonymous.status).toBe(401);
       expect(malformed.status).toBe(400);
+    });
+
+    it("keeps the call's game and password from sessions not opened in the Activity", async () => {
+      const host = await joinCall("host");
+      const website = await loginAs("website");
+      const packageId = await createPackage(host.user, host.cookie);
+
+      await http.post(path).set("Cookie", host.cookie).send(gameBody(packageId));
+
+      const read = await http.get(path).set("Cookie", website.cookie);
+      const create = await http.post(path).set("Cookie", website.cookie).send(gameBody(packageId));
+
+      expect(read.status).toBe(403);
+      expect(read.body.password).toBeUndefined();
+      expect(create.status).toBe(403);
     });
   });
 });
