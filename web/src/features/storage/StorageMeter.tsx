@@ -1,3 +1,4 @@
+import { layoutStyles } from "@/ui/layoutStyles";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/cn";
@@ -11,11 +12,11 @@ export function StorageMeter({ className }: { className?: string }) {
   const storage = useMyStorage();
   if (!storage.data) return null;
   const { usedBytes, quotaBytes } = storage.data;
-  const ratio = quotaBytes ? usedBytes / quotaBytes : 0;
+  const ratio = quotaBytes === null ? 0 : quotaBytes === 0 ? 1 : usedBytes / quotaBytes;
   const pct = Math.min(100, Math.round(ratio * 100));
   return (
     <div className={cn("flex flex-col gap-2", className)} data-testid="storage-meter">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+      <div className={layoutStyles.meterHeading}>
         <span className="font-semibold">{t("storage.title")}</span>
         <span className="text-sm text-soft">
           {quotaBytes === null

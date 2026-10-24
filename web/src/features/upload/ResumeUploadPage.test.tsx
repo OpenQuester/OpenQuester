@@ -30,6 +30,36 @@ import { ResumeUploadPage } from "./ResumeUploadPage";
 
 afterEach(() => fetchMock.mockReset());
 
+it("shows a recoverable network error instead of a blank resume page", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  client.setQueryData(["me"], { id: 1, username: "Author" });
+  client.setQueryData(["package", 7], { id: 7, title: "Retry upload" });
+  fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+  render(
+    <QueryClientProvider client={client}>
+      <ResumeUploadPage />
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByTestId("resume-error")).toBeVisible();
+  fetchMock.mockResolvedValue(
+    new Response(
+      JSON.stringify({
+        status: "ready",
+        totalFiles: 0,
+        uploadedFiles: 0,
+        missing: [],
+        uploadLinks: {},
+      }),
+      { headers: { "content-type": "application/json" } },
+    ),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+  expect(await screen.findByTestId("resume-done")).toBeVisible();
+  client.clear();
+});
+
 it("explains why a same-title archive cannot replace the original upload", async () => {
   const state = {
     id: 7,

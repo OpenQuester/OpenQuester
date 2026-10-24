@@ -25,51 +25,77 @@ export interface MediaDuration {
  */
 export async function preloadQuestionMedia(
   question: Question | null | undefined,
+  signal?: AbortSignal,
 ): Promise<MediaDuration[] | null> {
+  if (signal?.aborted) return null;
   const files = (question?.questionFiles ?? []).filter((f) => f.file.link);
   if (files.length === 0) return [];
   const durations: MediaDuration[] = [];
-  let timeout: number | undefined;
-  const ready = await Promise.race([
-    Promise.all(files.map((f) => preloadFile(f, durations))).then((loaded) =>
-      loaded.every(Boolean),
-    ),
-    new Promise<boolean>((resolve) => {
-      timeout = window.setTimeout(() => resolve(false), PRELOAD_TIMEOUT_MS);
-    }),
-  ]).finally(() => window.clearTimeout(timeout));
-  return ready ? durations : null;
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  const timeout = window.setTimeout(abort, PRELOAD_TIMEOUT_MS);
+  try {
+    const loaded = await Promise.all(
+      files.map((f) => preloadFile(f, durations, controller.signal)),
+    );
+    return loaded.every(Boolean) && !controller.signal.aborted ? durations : null;
+  } finally {
+    window.clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
+    controller.abort();
+  }
 }
 
-function preloadFile(file: QuestionFile, durations: MediaDuration[]): Promise<boolean> {
+function preloadFile(
+  file: QuestionFile,
+  durations: MediaDuration[],
+  signal: AbortSignal,
+): Promise<boolean> {
   // Off-document elements: the Discord Activity's src patch doesn't reach them
   const url = mapUrl(file.file.link!);
   return new Promise<boolean>((resolve) => {
+    if (signal.aborted) return resolve(false);
+    const el =
+      file.file.type === "image"
+        ? new Image()
+        : document.createElement(file.file.type === "video" ? "video" : "audio");
+    let settled = false;
+    const abort = () => done(false);
+    const done = (loaded: boolean) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener("abort", abort);
+      el.onload = el.onerror = null;
+      if (el instanceof HTMLMediaElement) {
+        el.oncanplaythrough = null;
+        if (loaded && Number.isFinite(el.duration) && el.duration > 0) {
+          durations.push({ md5: file.file.md5, durationMs: Math.round(el.duration * 1000) });
+        }
+        el.removeAttribute("src");
+        el.load();
+      } else el.removeAttribute("src");
+      resolve(loaded);
+    };
+    signal.addEventListener("abort", abort, { once: true });
     if (file.file.type === "image") {
       // Decoded, not just downloaded: the picture paints the moment it shows.
-      const img = new Image();
+      const img = el as HTMLImageElement;
       img.onload = () =>
         void img.decode().then(
-          () => resolve(true),
-          () => resolve(false),
+          () => done(true),
+          () => done(false),
         );
-      img.onerror = () => resolve(false);
+      img.onerror = () => done(false);
       img.src = url;
       return;
     }
-    const el = document.createElement(file.file.type === "video" ? "video" : "audio");
-    el.preload = "auto";
-    el.muted = true;
-    const done = (loaded: boolean) => {
-      el.oncanplaythrough = el.onerror = null;
-      if (loaded && Number.isFinite(el.duration) && el.duration > 0) {
-        durations.push({ md5: file.file.md5, durationMs: Math.round(el.duration * 1000) });
-      }
-      resolve(loaded);
-    };
-    el.oncanplaythrough = () => done(true);
-    el.onerror = () => done(false);
-    el.src = url;
-    el.load();
+    const media = el as HTMLMediaElement;
+    media.preload = "auto";
+    media.muted = true;
+    media.oncanplaythrough = () => done(true);
+    media.onerror = () => done(false);
+    media.src = url;
+    media.load();
   });
 }

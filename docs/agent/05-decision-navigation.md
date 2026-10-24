@@ -10,7 +10,8 @@ Do not start with code for broad decisions. First collect context, read the righ
 
 - Product: `docs/product/00-north-star.md`, `docs/product/01-release-plan.md`.
 - Gameplay: `docs/specs/game-state-matrix.md`, `docs/specs/buzzer-state-machine.md`, relevant `server/docs/*`, relevant backend code.
-- Frontend: `client/AGENTS.md`, `.agents/skills/frontend-game-ui-state/SKILL.md`, Context7 docs for Flutter/Dart and touched packages.
+- React frontend: `web/AGENTS.md`, game-state and feature specs, web checks in `docs/agent/03-verification-matrix.md`.
+- Flutter frontend: `client/AGENTS.md`, `.agents/skills/frontend-game-ui-state/SKILL.md`, Context7 docs for Flutter/Dart and touched packages.
 - Backend architecture: `server/AGENTS.md`, `docs/architecture/adr/`, relevant backend skill.
 - API contract: `openapi/AGENTS.md`, `.agents/skills/openapi-sdk-change/SKILL.md`, `.agents/skills/backend-http-api/SKILL.md`.
 - Socket/game action: `.agents/skills/backend-socket-action/SKILL.md`, `server/docs/game-action-executor.md`.

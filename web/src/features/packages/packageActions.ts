@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { api, unwrap } from "@/api/client";
-import { draftFromPackage } from "@/features/editor/fromServer";
+import { draftFromPackage } from "@/features/package-editor/loadPublishedPackage";
 
 /** Loads a published package into an editor draft and opens it. */
 export function useOpenInEditor() {

@@ -28,7 +28,8 @@ Do not silently choose the convenient source. If the difference matters, update 
 |---|---|
 | Agent routing | `AGENTS.md` |
 | Backend architecture | `server/AGENTS.md` + `docs/architecture/adr/` |
-| Frontend architecture | `client/AGENTS.md` |
+| React browser architecture | `web/AGENTS.md` |
+| Flutter architecture | `client/AGENTS.md` |
 | Public API/schema | `openapi/AGENTS.md` + `openapi/schema.json` |
 | Generated Dart API package | `client/packages/openapi/` + `client/packages/openapi/swagger_parser.yaml` |
 | Product North Star | `docs/product/00-north-star.md` |
@@ -44,7 +45,8 @@ Do not silently choose the convenient source. If the difference matters, update 
 | Backend transport E2E writing/lifecycle | `.agents/skills/backend-e2e/SKILL.md` + `server/tests/e2e/README.md` |
 | Backend smoke-test workflow | `.agents/skills/backend-smoke-tests/SKILL.md` |
 | Media coordination and client gaps | `server/docs/media-download-sync.md` |
-| Frontend game UI workflow | `.agents/skills/frontend-game-ui-state/SKILL.md` |
+| React game UI workflow | `web/AGENTS.md` + `docs/specs/game-state-matrix.md` |
+| Flutter game UI workflow | `.agents/skills/frontend-game-ui-state/SKILL.md` |
 | Package editor workflow | `.agents/skills/package-editor-change/SKILL.md` |
 | Documentation upkeep | `.agents/skills/docs-upkeep/SKILL.md` |
 

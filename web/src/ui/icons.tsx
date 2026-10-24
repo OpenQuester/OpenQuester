@@ -72,6 +72,16 @@ export const PlayIcon = (p: { size?: number }) => (
     <path d="M7 4l13 8-13 8z" />
   </Icon>
 );
+export const TrimLeftIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M19 4v16M19 12H4M9 7l-5 5 5 5" />
+  </Icon>
+);
+export const TrimRightIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M5 4v16M5 12h15M15 7l5 5-5 5" />
+  </Icon>
+);
 export const LockIcon = (p: { size?: number }) => (
   <Icon {...p}>
     <rect x="5" y="11" width="14" height="10" rx="2" />
@@ -88,6 +98,11 @@ export const MoreIcon = (p: { size?: number }) => (
 export const VolumeIcon = (p: { size?: number }) => (
   <Icon {...p}>
     <path d="M11 5L6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" />
+  </Icon>
+);
+export const VolumeOffIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M11 5L6 9H3v6h3l5 4V5zM16 9l5 6M21 9l-5 6" />
   </Icon>
 );
 export const EyeIcon = (p: { size?: number }) => (

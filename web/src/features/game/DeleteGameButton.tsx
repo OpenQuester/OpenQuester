@@ -1,3 +1,4 @@
+import { layoutStyles } from "@/ui/layoutStyles";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -35,7 +36,7 @@ export function DeleteGameButton({ gameId }: { gameId: string }) {
     );
   }
   return (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("game.delete")}>
+    <div className={layoutStyles.actions} role="group" aria-label={t("game.delete")}>
       <span className="text-sm text-soft">{t("game.deleteConfirm")}</span>
       <Button
         variant="danger"

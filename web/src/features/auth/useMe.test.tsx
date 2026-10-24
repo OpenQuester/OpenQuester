@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -13,7 +13,7 @@ const fetchMock = vi.hoisted(() => {
   return mock;
 });
 
-import { meKey, useLogout } from "./useMe";
+import { meKey, useLogout, useMe } from "./useMe";
 
 function setup() {
   const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
@@ -64,5 +64,60 @@ describe("useLogout", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(qc.getQueryData(meKey)).toBeNull();
     expect(navigate).toHaveBeenCalledOnce();
+  });
+
+  it("forgets private cache and cancels old reads so they cannot populate the next account", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const { qc, result } = setup();
+    qc.setQueryData(["me", "storage"], { owner: 1 });
+    let finish!: (value: { owner: number }) => void;
+    const oldRead = qc
+      .fetchQuery({
+        queryKey: ["stats", "me"],
+        queryFn: () =>
+          new Promise<{ owner: number }>((resolve) => {
+            finish = resolve;
+          }),
+      })
+      .catch(() => undefined);
+    await act(async () => result.current.mutateAsync());
+    qc.setQueryData(meKey, { id: 2, username: "next" });
+    await act(async () => {
+      finish({ owner: 1 });
+      await oldRead;
+    });
+    expect(qc.getQueryData(["stats", "me"])).toBeUndefined();
+    expect(qc.getQueryData(["me", "storage"])).toBeUndefined();
+    expect(qc.getQueryData(meKey)).toMatchObject({ id: 2 });
+    qc.clear();
+  });
+
+  it("preserves a public package lookup overlapping the first auth response", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ id: 1, username: "author" }), {
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let finish!: (value: { title: string }) => void;
+    const queryFn = vi.fn(
+      () =>
+        new Promise<{ title: string }>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () => ({ me: useMe(), pkg: useQuery({ queryKey: ["package", 7], queryFn }) }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.me.data?.id).toBe(1));
+    await act(async () => finish({ title: "Original package" }));
+    await waitFor(() => expect(result.current.pkg.data?.title).toBe("Original package"));
+    expect(queryFn).toHaveBeenCalledOnce();
+    expect(qc.getQueryData(["package", 7])).toEqual({ title: "Original package" });
+    qc.clear();
   });
 });

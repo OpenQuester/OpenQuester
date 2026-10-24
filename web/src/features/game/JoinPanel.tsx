@@ -1,36 +1,44 @@
-import { Link } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { gameEntryStyles } from "./gameEntryStyles";
 import { useTranslation } from "react-i18next";
 
+import { Link } from "@tanstack/react-router";
 import type { GameListItem } from "@/api/types";
-import { displayName, useGuestLogin, useMe } from "@/features/auth/useMe";
+import { useMe } from "@/features/auth/useMe";
 import { gameStatus, playerCount } from "@/features/home/useGames";
 import type { JoinOptions } from "@/game/connection";
-import { Badge } from "@/ui/Badge";
-import { Button } from "@/ui/Button";
-import { FieldError, Label, TextInput } from "@/ui/Field";
-import { BackIcon, LockIcon } from "@/ui/icons";
+import { BackIcon } from "@/ui/icons";
 import { LogoMark } from "@/ui/Logo";
+import { Button } from "@/ui/Button";
+import { JoinForm } from "./join/JoinForm";
+import { JoinSummary } from "./join/JoinSummary";
+import { useJoinForm } from "./join/useJoinForm";
 
-/** What you see when you open a game link and are not in the game yet. */
 export function JoinPanel({
   gameId,
   game,
   loading,
   onJoin,
+  error,
+  onRetry,
 }: {
   gameId: string;
   game: GameListItem | null;
   loading: boolean;
   onJoin: (options: JoinOptions) => void;
+  error?: Error | null;
+  onRetry?: () => void;
 }) {
   const { t } = useTranslation();
   const me = useMe();
-  const guest = useGuestLogin();
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
+  const needsPassword = passwordNeeded(game, me.data?.id);
+  const form = useJoinForm(needsPassword, onJoin);
+  if (error && !game)
+    return (
+      <Frame>
+        <p role="alert">{error.message}</p>
+        <Button onClick={onRetry}>{t("game.tryAgain")}</Button>
+      </Frame>
+    );
   if (!loading && !game) {
     return (
       <Frame>
@@ -43,159 +51,50 @@ export function JoinPanel({
     );
   }
   if (!game) return null;
-
   const status = gameStatus(game);
   const full = playerCount(game) >= game.maxPlayers;
-  // Players may also join a game in progress; the server refuses only in the
-  // final round and names the reason.
   const canPlay = !full && status !== "finished";
-  // The server skips the password for the host and for anyone who already has
-  // a place in the game (a seat kept after leaving), so don't ask them for it.
-  const myId = me.data?.id;
-  const known =
-    myId != null && (game.createdBy.id === myId || game.players.some((p) => p.id === myId));
-  const needsPassword = game.isPrivate && !known;
-
-  async function go(role: JoinOptions["role"], e?: FormEvent) {
-    e?.preventDefault();
-    setError(null);
-    if (!me.data) {
-      const trimmed = name.trim().replace(/\s+/g, " ");
-      if (!trimmed) {
-        setError(t("login.nameRequired"));
-        return;
-      }
-      try {
-        await guest.mutateAsync(trimmed);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-        return;
-      }
-    }
-    if (needsPassword && !password.trim()) {
-      setError(t("join.passwordRequired"));
-      return;
-    }
-    onJoin({ role, targetSlot: null, password: needsPassword ? password.trim() : null });
-  }
-
   return (
     <Frame>
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={status === "lobby" ? "success" : "accent"}>
-            {status === "lobby"
-              ? t("home.status.lobby")
-              : status === "playing"
-                ? t("home.status.playing")
-                : t("join.finished")}
-          </Badge>
-          {game.isPrivate && (
-            <Badge>
-              <LockIcon size={14} /> {t("home.private")}
-            </Badge>
-          )}
-        </div>
-        <h1 className="m-0 font-display text-[clamp(28px,5vw,40px)] font-extrabold tracking-tight [overflow-wrap:anywhere]">
-          {game.title}
-        </h1>
-        <p className="m-0 text-muted">
-          {t("home.package", { title: game.package.title })} ·{" "}
-          {t("home.host", { name: game.createdBy.username })} ·{" "}
-          <span className="font-mono text-text">
-            {playerCount(game)}/{game.maxPlayers}
-          </span>{" "}
-          {t("home.players")}
-        </p>
-      </div>
+      <JoinSummary game={game} status={status} />
 
       {status === "finished" ? (
         <p className="m-0 text-soft">{t("join.finishedHelp")}</p>
       ) : (
-        <form
-          onSubmit={(e) => void go(canPlay ? "player" : "spectator", e)}
-          className="flex flex-col gap-4"
-          noValidate
-        >
-          {me.data ? (
-            <p className="m-0 text-soft">{t("join.signedInAs", { name: displayName(me.data) })}</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="join-name">{t("join.yourName")}</Label>
-              <TextInput
-                id="join-name"
-                autoComplete="nickname"
-                maxLength={50}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t("login.namePlaceholder")}
-                autoFocus
-              />
-              <p className="m-0 text-sm text-muted">
-                {t("join.guestHelp")}{" "}
-                <Link to="/login" search={{ redirect: `/games/${gameId}` }}>
-                  {t("join.otherSignIn")}
-                </Link>
-              </p>
-            </div>
-          )}
-          {needsPassword && (
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="join-pass">{t("join.password")}</Label>
-              <TextInput
-                id="join-pass"
-                value={password}
-                autoComplete="off"
-                maxLength={16}
-                onChange={(e) => setPassword(e.target.value)}
-                className="font-mono"
-              />
-            </div>
-          )}
-          <FieldError>{error}</FieldError>
-          <div className="flex flex-wrap gap-3">
-            {canPlay && (
-              <Button type="submit" variant="accent" size="lg" disabled={guest.isPending}>
-                {t("join.asPlayer")}
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant={canPlay ? "ghost" : "accent"}
-              size="lg"
-              disabled={guest.isPending}
-              onClick={() => void go("spectator")}
-            >
-              {t("join.watch")}
-            </Button>
-          </div>
-          <p className="m-0 text-sm text-muted">
-            {full
-              ? t("join.fullHelp")
-              : status === "playing"
-                ? t("join.playingHelp")
-                : t("join.lobbyHelp")}
-          </p>
-        </form>
+        <JoinForm
+          gameId={gameId}
+          model={form}
+          canPlay={canPlay}
+          needsPassword={needsPassword}
+          full={full}
+          status={status}
+        />
       )}
     </Frame>
   );
 }
-
 function Frame({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-4">
-        <Link to="/" className="inline-flex min-h-11 items-center gap-2 text-muted no-underline">
+        <Link to="/" className={gameEntryStyles.backLink}>
           <BackIcon /> {t("game.backHome")}
         </Link>
         <div className="flex-1" />
         <LogoMark />
       </div>
-      <section className="flex flex-col gap-6 rounded-lg border border-line bg-surface p-6 sm:p-8">
-        {children}
-      </section>
+      <section className={gameEntryStyles.joinForm}>{children}</section>
     </div>
   );
+}
+
+/**
+ * The server skips the password for the host and for anyone who already has a
+ * place in the game (a seat kept after leaving), so don't ask them for it.
+ */
+export function passwordNeeded(game: GameListItem | null, myId: number | undefined): boolean {
+  if (!game?.isPrivate) return false;
+  if (myId == null) return true;
+  return game.createdBy.id !== myId && !game.players.some((p) => p.id === myId);
 }
