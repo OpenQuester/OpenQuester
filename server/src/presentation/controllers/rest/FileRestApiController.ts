@@ -1,4 +1,6 @@
 import { Router, type Express, type Request, type Response } from "express";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 import { type FileStorageService } from "application/services/file/FileStorageService";
 import { TranslateService as ts } from "domain/utils/TranslateService";
@@ -19,6 +21,7 @@ export class FileRestApiController {
     this.app.use("/v1/files", router);
 
     router.get("/:filename", asyncHandler(this.getFile));
+    router.get("/:filename/content", asyncHandler(this.getFileContent));
     router.post("/:filename", asyncHandler(this.uploadFile));
     router.delete("/:filename", asyncHandler(this.deleteFile));
   }
@@ -28,6 +31,38 @@ export class FileRestApiController {
 
     const url = this.fileStorageService.getUrl(validatedData.filename);
     res.send({ url });
+  };
+
+  /**
+   * Streams a stored file from the API's own origin. The web media editor needs
+   * the bytes, and a cross-origin fetch of the public bucket link fails when the
+   * bucket (or a CDN cache in front of it) sends no CORS headers.
+   */
+  private getFileContent = async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      throw new ClientError(ClientResponse.STORAGE_SIGN_IN_TO_READ, HttpStatus.UNAUTHORIZED);
+    }
+
+    const validatedData = this._validateParamsFilename(req);
+
+    const object = await this.fileStorageService.getContent(validatedData.filename);
+    if (!object) {
+      throw new ClientError(ClientResponse.STORAGE_FILE_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+
+    // Uploads are user content served from the app's own origin: never let a
+    // browser render one (an SVG or HTML file would run as this site).
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", "attachment");
+    res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+    if (object.size !== undefined) {
+      res.setHeader("Content-Length", String(object.size));
+    }
+    // Files are content-addressed (md5), so a copy never goes stale.
+    res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+
+    await pipeline(object.body as Readable, res);
   };
 
   private uploadFile = async (req: Request, res: Response) => {

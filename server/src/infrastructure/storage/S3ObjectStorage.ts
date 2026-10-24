@@ -17,6 +17,7 @@ import {
   type ObjectStorage,
   type ObjectStorageDeleteResult,
   type ObjectStorageItem,
+  type ObjectStorageObject,
   type ObjectStoragePutRequest,
   type PresignedUrlRequest
 } from "shared/storage/ObjectStorage";
@@ -125,15 +126,40 @@ export class S3ObjectStorage implements ObjectStorage {
 
       return { size: Number(result.ContentLength ?? 0) };
     } catch (error) {
-      const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata
-        ?.httpStatusCode;
-      // Hetzner answers 403 rather than 404 for a missing key.
-      if (status === 404 || status === 403) {
+      if (this._isMissing(error)) {
         return null;
       }
 
       throw error;
     }
+  }
+
+  public async getObject(bucket: string, key: string): Promise<ObjectStorageObject | null> {
+    try {
+      const result = await this.client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+
+      if (!result.Body) {
+        return null;
+      }
+
+      return {
+        body: result.Body as NodeJS.ReadableStream,
+        size: result.ContentLength
+      };
+    } catch (error) {
+      if (this._isMissing(error)) {
+        return null;
+      }
+
+      throw error;
+    }
+  }
+
+  private _isMissing(error: unknown): boolean {
+    const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+
+    // Hetzner answers 403 rather than 404 for a missing key.
+    return status === 404 || status === 403;
   }
 
   public async deleteObjects(bucket: string, keys: string[]): Promise<ObjectStorageDeleteResult> {
