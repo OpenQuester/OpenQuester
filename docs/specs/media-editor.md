@@ -25,8 +25,10 @@ Mediabunny and image encoders already cover processing.
 ## Interface and interaction
 
 Media editing replaces the visible contents of the owning form's dialog while
-retaining its fields and scroll position. Use a large preview, labeled tools,
-contextual settings, and a persistent footer. On narrow screens, settings move
+retaining its fields and scroll position. Pause the owning form's audio/video
+attachments and question previews when entering the media editor; returning to
+the form keeps them paused until the author explicitly plays them again.
+Use a large preview, labeled tools, contextual settings, and a persistent footer. On narrow screens, settings move
 below the preview. Keep the filename, destination, dimensions/duration and
 processing state visible; codec names are not primary UI.
 

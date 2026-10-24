@@ -442,6 +442,59 @@ test("mixed ten-file queue, audio/video preview, unsupported and failed download
   expect(failures).toEqual([]);
 });
 
+test("opening media editing pauses retained question previews without losing the draft", async ({
+  page,
+}) => {
+  await seed(page);
+  const form = page.getByTestId("question-dialog");
+  await form
+    .locator('input[type="file"]')
+    .first()
+    .setInputFiles([
+      { name: "sound.wav", mimeType: "audio/wav", buffer: tone() },
+      {
+        name: "video.webm",
+        mimeType: "video/webm",
+        buffer: readFileSync("e2e/fixtures/clip.webm"),
+      },
+    ]);
+  const editor = page.getByTestId("media-editor");
+  await editor.getByRole("button", { name: "Add remaining unchanged" }).click();
+  await expect(editor).toBeHidden();
+  const question = form.getByLabel("Question text", { exact: true });
+  await question.fill("Unsaved question draft");
+  const questionElement = await question.elementHandle();
+  await expect(form.locator("audio").first()).toBeVisible();
+  await expect(form.locator("video").first()).toBeVisible();
+  const originals = await form.locator("audio, video").elementHandles();
+  for (const original of originals) {
+    await original.evaluate(async (element) => {
+      const media = element as HTMLMediaElement;
+      media.muted = true;
+      media.loop = true;
+      await media.play();
+    });
+    await expect.poll(() => original.evaluate((el) => (el as HTMLMediaElement).paused)).toBe(false);
+  }
+
+  await form.getByRole("button", { name: "Edit", exact: true }).nth(1).click();
+  await expect(editor).toBeVisible();
+  for (const original of originals)
+    await expect.poll(() => original.evaluate((el) => (el as HTMLMediaElement).paused)).toBe(true);
+  await editor.getByRole("button", { name: "Play preview" }).click();
+  await expect
+    .poll(() => editor.locator("audio").evaluate((el: HTMLAudioElement) => el.paused))
+    .toBe(false);
+  await editor.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(editor).toBeHidden();
+  await expect(question).toHaveValue("Unsaved question draft");
+  expect(await questionElement!.evaluate((el) => el.isConnected)).toBe(true);
+  for (const original of originals)
+    expect(await original.evaluate((el) => el.isConnected && (el as HTMLMediaElement).paused)).toBe(
+      true,
+    );
+});
+
 test("remote download failure does not replace a published attachment", async ({ page }) => {
   await page.route("**/source-image", (r) => r.fulfill({ status: 503, body: "Unavailable" }));
   const source = await seed(page, false, true);

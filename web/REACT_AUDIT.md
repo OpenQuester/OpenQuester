@@ -3,6 +3,34 @@
 Status: audit and React fixes complete; remaining integration/dependency limitations are documented below.
 Audit date: 2026-10-24. Scope: the React client in `web/` and its related documentation.
 
+## Follow-up after merging main (2026-10-24)
+
+PR #446 was squash-merged into `main` at `ecd145c8e`. Its complete tree is
+identical to the former PR base `b87d8f45f`; this was verified before resolving
+all 91 add/add and documentation conflicts. Merge commit `be8d3071e` preserves
+the reviewed `8a95542ca` tree exactly and includes current `main` as a parent.
+
+The repeat review checked account/query identity, draft and pending-answer
+lifetimes, modal/hotkey behavior, staged media, resource cleanup and the PR's
+review feedback. It confirmed one new issue: audio/video in the question form
+continued playing while the media editor hid that form. The owning form now
+pauses its attachment and question-preview elements on entry, preserving their
+DOM and the unsaved question. Returning leaves playback paused.
+
+A new native Chromium regression starts both audio and video, opens media editing,
+checks that the original elements pause while the editor can play its own preview,
+and confirms the same form elements and unsaved text survive Cancel. The test
+failed on the old implementation and passed after the fix.
+
+Fresh checks: 309 unit tests, 22 native browser tests, production build/typecheck,
+lint, formatting and API-type verification passed. React Doctor 0.9.18 still
+reports 0 errors / 62 warnings / score 74 with no new rule/file diagnostics.
+Full E2E: **123 passed, 1 failed, 14 existing skips** in 13.7 minutes. The only
+failure is the existing full-game `Ready to buzz` → `Answering` timeout (B1);
+there were no new failure signatures. The test API, previews and isolated
+`oq-web-e2e` containers were stopped; their ports have no listeners.
+Evidence: `C:/Users/diazo/AppData/Local/Temp/oq-pr476-sync-20261024-220725`.
+
 ## Baseline and evidence
 
 Work started on `claude/project-thread-0sywi1` at
@@ -90,7 +118,7 @@ The SIQ document distinguishes React's conversion from unchanged Flutter behavio
 - The existing lazy media codec chunk is about **693 kB** and still triggers the
   build size advisory. It is loaded for media work; no claim of reduced bundle size.
 
-## Verification
+## Original audit verification
 
 | Check                                    | Result on the updated working tree                                                                                                                            |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -10,10 +10,18 @@ import { QuestionContent } from "./QuestionContent";
 import { QuestionHeader, QuestionFooter } from "./QuestionFormChrome";
 import { QuestionTypeSettings } from "./QuestionTypeSettings";
 import { useQuestionForm } from "./useQuestionForm";
+import { useEffect, useRef } from "react";
 export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => void }) {
   const { t } = useTranslation();
   const form = useQuestionForm(at, onClose);
   const { q, set, final, media, requestClose, save } = form;
+  const fields = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (media.active)
+      fields.current
+        ?.querySelectorAll<HTMLMediaElement>("audio, video")
+        .forEach((el) => el.pause());
+  }, [media.active]);
   return (
     <StagedMediaContext.Provider value={media.pending}>
       <MediaSessionContext.Provider value={media.open}>
@@ -35,7 +43,7 @@ export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: (
               className={questionFormStyles.dialog}
             >
               {media.node}
-              <div className={media.active ? "hidden" : "contents"}>
+              <div ref={fields} className={media.active ? "hidden" : "contents"}>
                 <QuestionHeader at={at} form={form} />
 
                 <div className={questionFormStyles.body}>
