@@ -1,3 +1,6 @@
+import { packageBrowserStyles } from "./packageBrowserStyles";
+import { typographyStyles } from "@/ui/typographyStyles";
+import { linkStyles } from "@/ui/linkStyles";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 
@@ -20,10 +23,10 @@ export function UploadUnfinished({
   const { t } = useTranslation();
   return (
     <div
-      className={cn("flex flex-col gap-2 rounded-[12px] bg-warning-surface p-4", className)}
+      className={cn(packageBrowserStyles.unfinishedUpload, className)}
       data-testid="upload-unfinished"
     >
-      <p className="m-0 flex items-center gap-2 font-semibold text-warning">
+      <p className={typographyStyles.warningHeading}>
         <AlertIcon size={18} />
         {t("packages.uploadUnfinished")}
       </p>
@@ -34,7 +37,7 @@ export function UploadUnfinished({
         <Link
           to="/packages/$packageId/upload"
           params={{ packageId: String(packageId) }}
-          className="inline-flex min-h-11 items-center justify-center self-start rounded-[12px] bg-accent px-4 font-semibold text-on-accent no-underline hover:text-on-accent"
+          className={linkStyles.resume}
         >
           {t("packages.resumeUpload")}
         </Link>

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,7 +13,7 @@ import { FinalAnswerStage } from "./FinalStages";
 import { QuestionStage } from "./QuestionStage";
 
 function renderStage(s: GameSession, ui: ReactNode, myId = ALICE) {
-  const emit = vi.fn();
+  const emit = vi.fn((action: string) => useGameStore.getState().setPending(action));
   useGameStore.setState({ session: s, connection: "connected", pending: null });
   const connection = { emit, connected: true } as unknown as GameConnection;
   render(<GameContext.Provider value={{ connection, myId }}>{ui}</GameContext.Provider>);
@@ -26,7 +26,10 @@ describe("final answer stage", () => {
     vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue();
     vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
   });
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   it.each(["image", "audio", "video"] as const)(
     "shows a %s-only final question instead of 'no content'",
@@ -147,6 +150,24 @@ describe("choice options", () => {
   beforeEach(() => useGameStore.setState({ session: null, pending: null }));
   afterEach(() => vi.useRealTimers());
 
+  it("releases pending choice and stage timers when leaving the question", () => {
+    vi.useFakeTimers();
+    renderStage(
+      session({
+        currentRound: round(),
+        questionState: "showing",
+        currentQuestion: choice({ showDelay: 5000 }),
+        timer: timer(),
+      }),
+      <QuestionStage />,
+    );
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    cleanup();
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => vi.advanceTimersByTime(6000));
+    expect(screen.queryByRole("list", { name: "Answer options" })).toBeNull();
+  });
+
   it("sends the option number for a picture-only option", async () => {
     const emit = renderStage(
       session({
@@ -162,6 +183,26 @@ describe("choice options", () => {
     await userEvent.click(screen.getByRole("button", { name: "Option 2" }));
 
     expect(emit).toHaveBeenCalledWith("answer-submitted", { answerText: "2" });
+  });
+
+  it("keeps choices visible but prevents submission while paused or reconnecting", async () => {
+    const s = session({
+      currentRound: round(),
+      questionState: "answering",
+      answeringPlayer: ALICE,
+      currentQuestion: choice(),
+    });
+    const emit = renderStage(s, <QuestionStage />);
+    const option = screen.getByRole("button", { name: "Option 2" });
+    act(() => useGameStore.setState({ session: { ...s, state: { ...s.state, isPaused: true } } }));
+    await userEvent.click(option);
+    expect(emit).not.toHaveBeenCalled();
+    act(() => useGameStore.setState({ session: s, connection: "reconnecting" }));
+    await userEvent.click(option);
+    expect(emit).not.toHaveBeenCalled();
+    act(() => useGameStore.setState({ connection: "connected" }));
+    await userEvent.click(option);
+    expect(emit).toHaveBeenCalledExactlyOnceWith("answer-submitted", { answerText: "2" });
   });
 
   it("keeps a picture-only answer distinct from numeric and prefixed text options", async () => {
@@ -347,4 +388,50 @@ describe("choice options", () => {
     expect(useGameStore.getState().pending).toBeNull();
     expect(picture).toBeDisabled();
   });
+});
+
+it("keeps a pending point answer through updates, allows failed-send retry and resets for the next question", () => {
+  const first = session({
+    currentRound: round(),
+    questionState: "answering",
+    answeringPlayer: ALICE,
+    currentQuestion: question(100, {
+      answerType: "point",
+      questionFiles: [
+        {
+          order: 0,
+          displayTime: null,
+          file: { md5: "picture", type: "image", link: "https://x/p" },
+        },
+      ],
+    }),
+  });
+  const emit = renderStage(first, <QuestionStage />);
+  fireEvent.keyDown(screen.getByTestId("point-picker"), { key: "Enter" });
+  act(() =>
+    useGameStore.setState({ session: { ...first, state: { ...first.state, timer: timer() } } }),
+  );
+  fireEvent.keyDown(screen.getByTestId("point-picker"), { key: "Enter" });
+  expect(emit).toHaveBeenCalledOnce();
+  expect(emit).toHaveBeenCalledWith("answer-submitted", { answerText: "0.500,0.500" });
+  act(() => useGameStore.getState().setPending(null));
+  fireEvent.keyDown(screen.getByTestId("point-picker"), { key: "Enter" });
+  expect(emit).toHaveBeenCalledTimes(2);
+  act(() =>
+    useGameStore
+      .getState()
+      .dispatch({ type: "answer-submitted", payload: { answerText: "0.500,0.500" } }),
+  );
+  fireEvent.keyDown(screen.getByTestId("point-picker"), { key: "Enter" });
+  expect(emit).toHaveBeenCalledTimes(2);
+  act(() =>
+    useGameStore.setState({
+      session: {
+        ...first,
+        state: { ...first.state, currentQuestion: { ...first.state.currentQuestion!, id: 101 } },
+      },
+    }),
+  );
+  fireEvent.keyDown(screen.getByTestId("point-picker"), { key: "Enter" });
+  expect(emit).toHaveBeenCalledTimes(3);
 });

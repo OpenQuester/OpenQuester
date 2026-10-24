@@ -4,9 +4,12 @@ import { useTranslation } from "react-i18next";
 import { boardQuestionMeta, findPlayer, myRole, seatedPlayers, stakeInfo } from "@/game/selectors";
 import { formatScore } from "@/lib/format";
 import { Avatar } from "@/ui/Avatar";
+import { onChoiceKeyDown } from "@/ui/choiceNavigation";
 
 import { useGame, useSession } from "../GameContext";
-import { useSecretTarget } from "./secretTarget";
+import { useSecretTarget } from "./useSecretTarget";
+import { stageStyles } from "./stages/stageStyles";
+import type { SecretQuestionData } from "@/game/protocol";
 
 /** Secret question: the picker hands it to another player. */
 export function SecretStage() {
@@ -21,58 +24,21 @@ export function SecretStage() {
   const canChoose = isPicker || role === "showman";
   const [target, setTarget] = useSecretTarget();
   const selection = secret?.priceSelection;
-  if (selection) {
-    const chooser = findPlayer(session, selection.playerId);
-    return (
-      <section
-        className="mx-auto flex w-full max-w-[860px] flex-col gap-5 oq-pop"
-        aria-labelledby="secret-h"
-      >
-        <span className="text-sm font-semibold text-muted">
-          {t("questionTypes.secret")}
-          {meta && ` · ${meta.theme.name}`}
-        </span>
-        <h2
-          id="secret-h"
-          className="m-0 font-display text-[clamp(24px,3.4vw,36px)] font-extrabold leading-tight"
-        >
-          {selection.playerId === myId
-            ? t("secret.pickPriceYou")
-            : t("secret.pickPrice", { name: chooser?.meta.username ?? "" })}
-        </h2>
-        <p className="m-0 text-soft">{t("secret.priceRule")}</p>
-        <ul className="m-0 flex list-none flex-wrap gap-3 p-0" aria-label={t("secret.prices")}>
-          {selection.allowedPrices.map((p) => (
-            <li
-              key={p}
-              className="rounded-md border border-line-strong bg-surface px-5 py-3 font-mono text-2xl font-bold"
-            >
-              {formatScore(p)}
-            </li>
-          ))}
-        </ul>
-      </section>
-    );
-  }
+  if (selection) return <SecretPriceStage selection={selection} />;
   const options = seatedPlayers(session).filter(
     (p) =>
       p.status === "in-game" &&
       !(secret?.transferType === "exceptCurrent" && p.meta.id === secret.pickerPlayerId),
   );
+  const selectedTarget = options.some((p) => p.meta.id === target) ? target : null;
 
   return (
-    <section
-      className="mx-auto flex w-full max-w-[860px] flex-col gap-5 oq-pop"
-      aria-labelledby="secret-h"
-    >
+    <section className={stageStyles.secretLayout} aria-labelledby="secret-h">
       <span className="text-sm font-semibold text-muted">
         {t("questionTypes.secret")}
         {meta && ` · ${meta.theme.name} · ${meta.question.price ?? "?"}`}
       </span>
-      <h2
-        id="secret-h"
-        className="m-0 font-display text-[clamp(24px,3.4vw,36px)] font-extrabold leading-tight"
-      >
+      <h2 id="secret-h" className={stageStyles.secretHeading}>
         {isPicker
           ? t("secret.youPicked")
           : t("secret.picked", { name: picker?.meta.username ?? "" })}
@@ -90,12 +56,16 @@ export function SecretStage() {
             key={p.meta.id}
             type="button"
             role="radio"
-            aria-checked={target === p.meta.id}
+            aria-checked={selectedTarget === p.meta.id}
+            tabIndex={
+              selectedTarget === p.meta.id || (selectedTarget === null && p === options[0]) ? 0 : -1
+            }
+            onKeyDown={onChoiceKeyDown}
             disabled={!canChoose}
             onClick={() => setTarget(p.meta.id)}
             className={cn(
-              "flex min-h-16 items-center gap-3 rounded-md border px-4 py-3 text-left text-text",
-              target === p.meta.id
+              stageStyles.secretRecipient,
+              selectedTarget === p.meta.id
                 ? "border-2 border-accent bg-accent-surface"
                 : "border-line-strong bg-surface",
               !canChoose && "cursor-default",
@@ -125,12 +95,10 @@ export function StakeStage() {
   if (!info) return null;
   const meta = boardQuestionMeta(session, info.stake.questionId);
   return (
-    <section className="mx-auto flex w-full max-w-[920px] flex-wrap items-start gap-6 oq-pop">
-      <div className="flex min-w-[260px] flex-[1_1_320px] flex-col gap-3">
+    <section className={stageStyles.secretPrice}>
+      <div className={stageStyles.questionColumn}>
         <span className="text-sm font-semibold text-muted">{t("stake.kicker")}</span>
-        <h2 className="m-0 font-display text-[clamp(26px,3.6vw,40px)] font-extrabold leading-tight">
-          {meta?.theme.name ?? t("questionTypes.stake")}
-        </h2>
+        <h2 className={stageStyles.secretTitle}>{meta?.theme.name ?? t("questionTypes.stake")}</h2>
         <p className="m-0 text-soft">
           {t("stake.rules", {
             start: formatScore(info.price ?? 0),
@@ -139,7 +107,7 @@ export function StakeStage() {
           })}
         </p>
       </div>
-      <div className="flex flex-[1_1_300px] flex-col gap-2" aria-label={t("stake.bids")}>
+      <div className={stageStyles.secretRecipientColumn} aria-label={t("stake.bids")}>
         <span className="text-sm text-muted">{t("stake.bids")}</span>
         {info.stake.biddingOrder.map((id) => {
           const p = findPlayer(session, id);
@@ -150,7 +118,7 @@ export function StakeStage() {
             <div
               key={id}
               className={cn(
-                "flex items-center gap-3 rounded-md border px-4 py-3",
+                stageStyles.selectedRecipient,
                 turn ? "border-accent-line bg-accent-surface" : "border-line",
                 passed && "opacity-60",
               )}
@@ -177,6 +145,40 @@ export function StakeStage() {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+function SecretPriceStage({
+  selection,
+}: {
+  selection: NonNullable<SecretQuestionData["priceSelection"]>;
+}) {
+  const { t } = useTranslation();
+  const session = useSession();
+  const { myId } = useGame();
+  const meta = boardQuestionMeta(session, session.state.secretQuestionData?.questionId);
+
+  const chooser = findPlayer(session, selection.playerId);
+  return (
+    <section className={stageStyles.secretLayout} aria-labelledby="secret-h">
+      <span className="text-sm font-semibold text-muted">
+        {t("questionTypes.secret")}
+        {meta && ` · ${meta.theme.name}`}
+      </span>
+      <h2 id="secret-h" className={stageStyles.secretHeading}>
+        {selection.playerId === myId
+          ? t("secret.pickPriceYou")
+          : t("secret.pickPrice", { name: chooser?.meta.username ?? "" })}
+      </h2>
+      <p className="m-0 text-soft">{t("secret.priceRule")}</p>
+      <ul className={stageStyles.stakeBids} aria-label={t("secret.prices")}>
+        {selection.allowedPrices.map((p) => (
+          <li key={p} className={stageStyles.stakeBid}>
+            {formatScore(p)}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

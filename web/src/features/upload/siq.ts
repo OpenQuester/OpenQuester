@@ -83,12 +83,15 @@ class SiqReader {
       .map((t) => text(t))
       .filter(Boolean)
       .map((tag) => ({ tag }));
-    const rounds = [...children(child(pkg, "rounds"), "round")].map((r, i) => this.round(r, i));
-    // OpenQuester allows one final round and it must come last.
-    const finals = rounds.filter((r) => r.type === "final");
-    for (const extra of finals.slice(0, -1)) extra.type = "simple";
-    const last = finals.at(-1);
-    if (last && rounds.at(-1) !== last) last.type = "simple";
+    const nodes = [...children(child(pkg, "rounds"), "round")];
+    // Normalize before parsing themes so converted rounds keep all their questions.
+    const rounds = nodes.map((r, i) => {
+      const final = r.getAttribute("type") === "final";
+      const type = final && i === nodes.length - 1 ? "final" : "simple";
+      if (final && type === "simple")
+        this.warnings.push({ code: "finalAsSimple", where: r.getAttribute("name") ?? "" });
+      return this.round(r, i, type);
+    });
     return {
       title: pkg.getAttribute("name")?.trim() || "Untitled package",
       description: nonEmpty(pkg.getAttribute("description")) ?? comment(pkg),
@@ -109,9 +112,8 @@ class SiqReader {
     };
   }
 
-  private round(round: Element, order: number): UploadRound {
+  private round(round: Element, order: number, type: "simple" | "final"): UploadRound {
     const name = round.getAttribute("name")?.trim() || "-";
-    const type = round.getAttribute("type") === "final" ? "final" : "simple";
     const themes = [...children(child(round, "themes"), "theme")]
       .map((t, i) => this.theme(t, i, name, type))
       .filter((t): t is UploadTheme => t != null);
@@ -137,6 +139,12 @@ class SiqReader {
     if (roundType === "final") {
       // A final theme holds exactly one question; a theme without one can't be played.
       if (questions.length === 0) return null;
+      if (questions.length > 1)
+        this.warnings.push({
+          code: "extraFinalQuestions",
+          where: `${roundName} › ${name}`,
+          detail: String(questions.length - 1),
+        });
       questions = questions.slice(0, 1);
     }
     return {

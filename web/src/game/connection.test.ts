@@ -44,7 +44,7 @@ beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(function (
     this: HTMLMediaElement,
   ) {
-    media.push(this);
+    if (this.hasAttribute("src")) media.push(this);
   });
   connection = new GameConnection("ABCD", ALICE, { role: "player" });
   connection.connect();
@@ -58,7 +58,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function file(type: FileType, md5 = type): QuestionFile {
+function file(type: FileType, md5: string = type): QuestionFile {
   return { order: 0, displayTime: null, file: { type, md5, link: `https://media.example/${md5}` } };
 }
 
@@ -99,6 +99,27 @@ describe("answer submission retries", () => {
 });
 
 describe("question media readiness", () => {
+  it.each(["close", "timeout", "replace", "disconnect"])(
+    "releases stalled media on %s without acknowledging it",
+    async (ending) => {
+      receiveQuestion([file("image"), file("video")]);
+      const image = images[0]!,
+        video = media[0]!;
+      if (ending === "close") connection.close();
+      else if (ending === "disconnect") listeners.get("disconnect")?.("transport close");
+      else if (ending === "replace") receiveQuestion([file("image", "next-image")]);
+      else await vi.advanceTimersByTimeAsync(45_000);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(image.hasAttribute("src")).toBe(false);
+      expect(video.hasAttribute("src")).toBe(false);
+      expect(image.onload).toBeNull();
+      expect(video.oncanplaythrough).toBeNull();
+      image.dispatchEvent(new Event("load"));
+      video.dispatchEvent(new Event("canplaythrough"));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(socket.emit).not.toHaveBeenCalled();
+    },
+  );
   it.each(["image load", "image decode", "audio", "video", "stalled"])(
     "does not acknowledge a failed %s before or after the local timeout",
     async (failure) => {

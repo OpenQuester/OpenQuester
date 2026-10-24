@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
-import { detectLanguage, i18n, type LanguageId } from "@/i18n";
+import { detectLanguage, i18n, type LanguageId } from "@/i18n/index";
 import { safeStorage } from "@/lib/storage";
-import { applyTheme, DEFAULT_THEME } from "@/theme/themes";
+import { applyTheme, DEFAULT_THEME, THEMES } from "@/theme/themes";
 
 export interface Settings {
   theme: string;
@@ -24,18 +24,28 @@ const KEY = "oq.settings";
 function load(): Settings {
   let saved: Partial<Settings> = {};
   try {
-    saved = JSON.parse(safeStorage.get(KEY) ?? "{}") as Partial<Settings>;
+    const value: unknown = JSON.parse(safeStorage.get(KEY) ?? "{}");
+    if (value && typeof value === "object" && !Array.isArray(value)) saved = value;
   } catch {
     saved = {};
   }
   return {
-    theme: saved.theme ?? DEFAULT_THEME,
-    language: detectLanguage(saved.language),
-    sound: saved.sound ?? true,
-    reduceMotion: saved.reduceMotion ?? false,
-    volume: typeof saved.volume === "number" ? saved.volume : 0.7,
-    pins: saved.pins && typeof saved.pins === "object" ? saved.pins : {},
-    compressMedia: saved.compressMedia ?? true,
+    theme: THEMES.some((theme) => theme.available && theme.id === saved.theme)
+      ? saved.theme!
+      : DEFAULT_THEME,
+    language: detectLanguage(typeof saved.language === "string" ? saved.language : undefined),
+    sound: typeof saved.sound === "boolean" ? saved.sound : true,
+    reduceMotion: saved.reduceMotion === true,
+    volume:
+      typeof saved.volume === "number" && Number.isFinite(saved.volume)
+        ? Math.max(0, Math.min(1, saved.volume))
+        : 0.7,
+    pins: {
+      host: saved.pins?.host === true,
+      players: saved.pins?.players === true,
+      chat: saved.pins?.chat === true,
+    },
+    compressMedia: typeof saved.compressMedia === "boolean" ? saved.compressMedia : true,
   };
 }
 

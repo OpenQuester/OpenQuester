@@ -61,7 +61,7 @@ This matrix should be updated as parser/editor/game support evolves.
 | Secret/transfer question | Supported or Partial | Preserve transfer behavior if game support exists; warn on unsupported variants. |
 | No Risk question | Supported | Preserve no-negative-score behavior. |
 | Hidden/unknown price modes | Partial or UnsupportedWithFallback | Use safe fallback and warn; do not silently change strategy. |
-| Final round | Partial | Preserve themes/questions; warn on unsupported final-specific metadata. |
+| Final round | Partial | React importer converts a non-last final round to a simple round before parsing questions, preserving all its questions and warning `finalAsSimple`. The valid last final keeps one question per theme and reports the number omitted with `extraFinalQuestions`; creators must review the source for additional questions. Other final metadata remains partial. Flutter currently preserves the source rounds/questions directly; this normalization is React-specific. |
 | Authors/sources/comments | Partial | Package and question authors and sources are kept (`authors`, `sources`) and shown with the answer and on the package page; round and theme authors/sources are dropped. Comments go to descriptions / `questionComment`. |
 | Multiple right answers / wrong answers | Supported | The first right answer is `answerText`, the rest go to `rightAnswers`; wrong answers go to `wrongAnswers`. The showman sees both; extra right answers are revealed with the answer and count for choice auto-check. |
 | Complex scenario/scripted behavior | UnsupportedCritical | Block publish until manually resolved or removed. |

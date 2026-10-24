@@ -9,7 +9,7 @@ Use this skill when changing package editor screens/controllers, `.oq` import/ex
 
 ## Read first
 
-1. `client/AGENTS.md`
+1. `web/AGENTS.md` for React; `client/AGENTS.md` for Flutter
 2. `docs/product/00-north-star.md`
 3. `docs/specs/package-validation-spec.md`
 4. `docs/specs/siq-compatibility-matrix.md`
@@ -17,9 +17,12 @@ Use this skill when changing package editor screens/controllers, `.oq` import/ex
 
 ## Context7 requirement
 
-Before frontend/editor code changes, use Context7 for current Flutter/Dart docs and every touched third-party package. If Context7 is unavailable, state that and follow existing project code patterns instead of inventing APIs from memory.
+Before Flutter/editor code changes, use Context7 for current Flutter/Dart docs and every touched third-party package. For React, follow `web/AGENTS.md` and inspect installed APIs. If Context7 is unavailable, state that and follow existing project code patterns instead of inventing APIs from memory.
 
 ## Files to inspect
+
+For React, use `web/src/features/package-editor/`, `web/src/features/upload/`,
+`web/AGENTS.md` and `docs/specs/media-editor.md`. The paths below are Flutter-specific.
 
 - `client/packages/oq_editor/lib/controllers/oq_editor_controller.dart`
 - `client/packages/oq_editor/lib/utils/siq_import_helper.dart`
@@ -49,7 +52,7 @@ Every validation/import/export change should answer:
 ## Implementation steps
 
 1. Identify whether change affects editor state, import/export, validation, media, or backend contract.
-2. Inspect existing `OqEditorController` flow before adding parallel state.
+2. Inspect the existing owning flow (`packageEditorStore` for React, `OqEditorController` for Flutter) before adding parallel state.
 3. Preserve media reference-by-hash behavior.
 4. Preserve compression/encoding progress behavior.
 5. For SIQ import, classify compatibility status in `docs/specs/siq-compatibility-matrix.md`.
@@ -76,6 +79,10 @@ feature/validation gaps rather than describing product targets as implemented.
 - Generated API models are not updated after contract changes.
 
 ## Verification
+
+For React, run the web checks in `docs/agent/03-verification-matrix.md`, including
+native browser media/storage tests for those boundaries and relevant backend-backed
+Playwright flows. The commands below apply to Flutter/backend changes only.
 
 From `client/`:
 

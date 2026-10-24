@@ -26,8 +26,3 @@ export function recordServerDate(
 export function serverNow(): number {
   return Date.now() + offsetMs;
 }
-
-export function resetClock(): void {
-  offsetMs = 0;
-  samples = 0;
-}

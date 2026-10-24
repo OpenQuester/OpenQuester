@@ -17,6 +17,24 @@ async function siq(xml: string, media: Record<string, Uint8Array> = {}) {
   return parseSiq(await readZip(zip));
 }
 
+it("warns about final conversions and retained-first-question fallback without truncating converted rounds", async () => {
+  const questions =
+    '<question price="100"><scenario><atom>First</atom></scenario><right><answer>A</answer></right></question><question price="200"><scenario><atom>Second</atom></scenario><right><answer>B</answer></right></question>';
+  const theme = `<themes><theme name="Theme"><questions>${questions}</questions></theme></themes>`;
+  const parsed = await siq(
+    `<package name="Finals"><rounds><round name="Early final" type="final">${theme}</round><round name="Actual final" type="final">${theme}</round></rounds></package>`,
+  );
+  expect(parsed.content.rounds[0]?.type).toBe("simple");
+  expect(parsed.content.rounds[0]?.themes[0]?.questions).toHaveLength(2);
+  expect(parsed.content.rounds[1]?.themes[0]?.questions).toHaveLength(1);
+  expect(parsed.warnings).toEqual(
+    expect.arrayContaining([
+      { code: "finalAsSimple", where: "Early final" },
+      { code: "extraFinalQuestions", where: "Actual final › Theme", detail: "1" },
+    ]),
+  );
+});
+
 const V5 = `<?xml version="1.0" encoding="utf-8"?>
 <package name="Pub quiz" version="5" language="en" restriction="16+" logo="@logo.png"
   xmlns="https://github.com/VladimirKhil/SI/blob/master/assets/siq_5.xsd">

@@ -60,6 +60,13 @@ protocol semantics. Backend transport tests do not establish this UI target.
 
 ### Per-phase checks
 
+React answer/bid drafts survive pause and temporary reconnect, while controls
+remain unavailable until the game resumes. Pending/accepted answers prevent
+duplicate sends; rejection or timeout allows a manual retry. Timed final/all-play
+answers make at most one automatic attempt and never auto-send while paused/offline.
+Space preserves the native action of a focused control; modal dialogs suppress
+game shortcuts. Another-tab takeover uses a native modal with explicit choices.
+
 When changing gameplay UI, make sure the affected phase has:
 
 1. Role-aware primary action.

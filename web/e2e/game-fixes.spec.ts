@@ -82,6 +82,13 @@ test.describe("game fixes", () => {
     await expect(page.getByTestId("open-buzzer")).toHaveCount(0);
 
     // While Pat answers, the others read who answers and what happens next
+    const menuButton = pat.page.getByRole("button", { name: "Game menu" });
+    await menuButton.focus();
+    await pat.page.keyboard.press("Space");
+    await expect(pat.page.getByRole("dialog", { name: "Game menu" })).toBeVisible();
+    await expect(dockPhase(kim.page)).toHaveText("Ready to buzz");
+    await pat.page.keyboard.press("Escape");
+    await expect(menuButton).toBeFocused();
     await pat.page.getByTestId("buzz").click();
     await expect(dockPhase(kim.page)).toHaveText("Answering");
     await expect(kim.page.getByTestId("dock")).toContainText("If Pat is wrong");
@@ -144,6 +151,15 @@ test.describe("game fixes", () => {
     await buzz(pat.page);
     await expect(dockStatus(pat.page)).toHaveText("You're answering!");
 
+    const draft = pat.page.locator("#answer-text");
+    await draft.fill("Preserve this answer");
+    await page.getByRole("button", { name: "Pause", exact: true }).click();
+    await expect(dockPhase(pat.page)).toHaveText("Paused");
+    await expect(draft).toBeHidden();
+    await page.getByRole("button", { name: "Resume", exact: true }).click();
+    await expect(draft).toBeVisible();
+    await expect(draft).toHaveValue("Preserve this answer");
+
     // Kim drops out and comes back while Pat answers: Pat keeps answering
     await kim.page.reload();
     await expect(dockPhase(kim.page)).toHaveText("Answering", { timeout: 15_000 });
@@ -191,6 +207,27 @@ test.describe("game fixes", () => {
     await second.goto(`/games/${code}`);
     await expect(second.getByText("You are")).toContainText("Player");
     await expect(pat.page.getByTestId("taken-over")).toBeVisible();
+    await expect(pat.page.getByRole("alertdialog")).toBeVisible();
+    await expect(pat.page.getByTestId("take-over")).toBeFocused();
+    for (let i = 0; i < 5; i++) {
+      await pat.page.keyboard.press("Tab");
+      // Native dialogs allow Tab to visit browser chrome (BODY is then active),
+      // but never the underlying page. Keep the browser's standard modal behavior.
+      await expect
+        .poll(() =>
+          pat.page
+            .getByTestId("taken-over")
+            .evaluate(
+              (dialog) =>
+                dialog.matches(":modal") &&
+                (document.activeElement === document.body ||
+                  dialog.contains(document.activeElement)),
+            ),
+        )
+        .toBe(true);
+    }
+    await pat.page.keyboard.press("Escape");
+    await expect(pat.page.getByTestId("taken-over")).toBeVisible();
     // Nothing flips back by itself
     await pat.page.waitForTimeout(3_000);
     await expect(pat.page.getByTestId("taken-over")).toBeVisible();
@@ -209,6 +246,9 @@ test.describe("game fixes", () => {
     const code = await hostGame(host.page, "Resume", {
       packageId: mediaPackageId(),
       falseStarts: false,
+      // Isolate playback from the random draw's asynchronous server timer.
+      // Otherwise the six-second fixture can end before the answer is accepted.
+      fastestPress: true,
     });
     await joinByLink(page, code, "Pat", "player");
     const sam = await person(browser, "Sam", laptop);
@@ -229,6 +269,10 @@ test.describe("game fixes", () => {
     await expect(dockPhase(sam.page)).toHaveText("Answering");
     await expect.poll(async () => (await video(sam.page)).paused).toBe(true);
     const stopped = (await video(sam.page)).time;
+    const duration = await sam.page
+      .getByTestId("media-video")
+      .evaluate((el: HTMLMediaElement) => el.duration);
+    expect(stopped, "the answer must interrupt the clip before it ends").toBeLessThan(duration);
 
     await host.page.getByTestId("judge-wrong").click();
     await expect(dockPhase(sam.page)).toHaveText("Ready to buzz");

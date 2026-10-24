@@ -1,3 +1,4 @@
+import { layoutStyles } from "@/ui/layoutStyles";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,7 +28,7 @@ export function ImportWarnings({
           {t("upload.warningsTitle", { count: warnings.length })}
         </p>
         <p className="m-0 text-sm text-soft">{t("upload.warningsHelp")}</p>
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+        <ul className={layoutStyles.list}>
           {shown.map((w, i) => (
             <li key={i} className="text-sm [overflow-wrap:anywhere]">
               {w.where && <span className="text-muted">{w.where} · </span>}

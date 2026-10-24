@@ -18,9 +18,10 @@ export function useHotkeys({ onChat, onMenu }: { onChat: () => void; onMenu: () 
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.defaultPrevented || e.isComposing || e.repeat || e.metaKey || e.ctrlKey || e.altKey)
+        return;
       if (isTyping(e.target)) return;
-      if (document.querySelector("[role=dialog]")) return;
+      if (document.querySelector("[role=dialog], [role=alertdialog], dialog[open]")) return;
       const session = useGameStore.getState().session;
       if (!session) return;
       const role = myRole(session, myId);
@@ -28,6 +29,13 @@ export function useHotkeys({ onChat, onMenu }: { onChat: () => void; onMenu: () 
       const key = e.key.toLowerCase();
 
       if (e.code === "Space" || key === " ") {
+        if (
+          e.target instanceof HTMLElement &&
+          e.target.closest(
+            "button, a[href], summary, [role=button], [role=radio], [role=tab], [role=slider]",
+          )
+        )
+          return;
         if (
           canBuzz(session, myId, connection.connected).ok &&
           useGameStore.getState().pending?.action !== "question-answer"
