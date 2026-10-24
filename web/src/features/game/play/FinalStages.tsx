@@ -1,3 +1,5 @@
+import { layoutStyles } from "@/ui/layoutStyles";
+import type { FinalAnswer } from "@/game/protocol";
 import { cn } from "@/lib/cn";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +8,8 @@ import { formatScore, formatSigned } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
 
 import { useGame, useSession } from "../GameContext";
+import { AnswerReviewActions, ReviewedCorrectAnswer } from "./stages/AnswerReview";
+import { stageStyles } from "./stages/stageStyles";
 import { QuestionMedia } from "./QuestionMedia";
 
 /** Players take turns removing themes; the last one left is the final question. */
@@ -21,18 +25,12 @@ export function FinalThemesStage() {
   const remaining = remainingFinalThemes(session).length;
 
   return (
-    <section
-      className="mx-auto flex w-full max-w-[880px] flex-col gap-4 oq-pop"
-      aria-labelledby="final-themes-h"
-    >
-      <h2
-        id="final-themes-h"
-        className="m-0 font-display text-[clamp(26px,3.6vw,36px)] font-extrabold"
-      >
+    <section className={stageStyles.promptLayout} aria-labelledby="final-themes-h">
+      <h2 id="final-themes-h" className={stageStyles.finalTitle}>
         {t("final.themesTitle")}
       </h2>
       <p className="m-0 text-soft">{t("final.themesHelp")}</p>
-      <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] gap-3 p-0">
+      <ul className={stageStyles.finalThemes}>
         {(s.currentRound?.themes ?? []).map((theme) => {
           const out = eliminated.has(theme.id);
           const disabled = out || !canRemove || remaining <= 1;
@@ -44,7 +42,7 @@ export function FinalThemesStage() {
                 onClick={() => connection.emit("theme-eliminate", { themeId: theme.id })}
                 data-testid="final-theme"
                 className={cn(
-                  "flex min-h-16 w-full flex-col items-start gap-1 rounded-md border px-4 py-3 text-left",
+                  stageStyles.finalTheme,
                   out && "border-line bg-transparent text-ghost line-through",
                   !out &&
                     !disabled &&
@@ -100,7 +98,7 @@ function FinalStatuses({ mode }: { mode: "bids" | "answers" }) {
   const session = useSession();
   const { myId } = useGame();
   return (
-    <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
+    <ul className={stageStyles.submittedPlayers}>
       {finalPlayers(session).map((p) => {
         const done =
           mode === "bids"
@@ -129,11 +127,9 @@ function FinalStatuses({ mode }: { mode: "bids" | "answers" }) {
 export function FinalBidStage() {
   const { t } = useTranslation();
   return (
-    <section className="mx-auto flex w-full max-w-[880px] flex-col gap-4 oq-pop">
+    <section className={stageStyles.promptLayout}>
       <ThemeLine />
-      <p className="m-0 font-display text-[clamp(24px,3.4vw,36px)] font-semibold leading-tight">
-        {t("final.bidPrompt")}
-      </p>
+      <p className={stageStyles.promptText}>{t("final.bidPrompt")}</p>
       <FinalStatuses mode="bids" />
     </section>
   );
@@ -145,15 +141,12 @@ export function FinalAnswerStage() {
   const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
   const hasMedia = (q?.questionFiles?.length ?? 0) > 0;
   return (
-    <section className="mx-auto flex w-full max-w-[920px] flex-col gap-4 oq-pop">
+    <section className={stageStyles.finalQuestion}>
       <ThemeLine />
       {/* Final questions skip the regular stage, so their media is shown here */}
       {hasMedia && <QuestionMedia files={q!.questionFiles!} playing={!session.state.isPaused} />}
       {(q?.text || !hasMedia) && (
-        <p
-          className="m-0 font-display text-[clamp(24px,3.4vw,38px)] font-semibold leading-tight [overflow-wrap:anywhere]"
-          data-testid="question-text"
-        >
+        <p className={stageStyles.finalQuestionText} data-testid="question-text">
           {q?.text || t("question.noContent")}
         </p>
       )}
@@ -165,97 +158,79 @@ export function FinalAnswerStage() {
 export function FinalReviewStage() {
   const { t } = useTranslation();
   const session = useSession();
-  const { connection, myId } = useGame();
+  const { myId } = useGame();
   const s = session.state;
   const final = s.finalRoundData;
   const isShowman = myRole(session, myId) === "showman";
   const q = final?.questionData?.question ?? s.currentQuestion;
   const reveal = s.answerShowData?.answerText;
   return (
-    <section className="mx-auto flex w-full max-w-[1000px] flex-wrap items-start gap-6 oq-pop">
-      <div className="flex min-w-[260px] flex-[1_1_320px] flex-col gap-3">
+    <section className={stageStyles.reviewLayout}>
+      <div className={stageStyles.questionColumn}>
         <ThemeLine />
-        <p className="m-0 font-display text-[clamp(22px,3vw,32px)] font-semibold leading-tight [overflow-wrap:anywhere]">
-          {q?.text}
-        </p>
+        <p className={stageStyles.reviewQuestion}>{q?.text}</p>
         {(reveal || (isShowman && q?.answerText)) && (
-          <div className="flex flex-col gap-1 rounded-md border border-success-line bg-success-surface p-4">
-            <span className="text-sm text-muted">{t("reveal.answer")}</span>
-            <span className="text-xl font-semibold text-success">{reveal ?? q?.answerText}</span>
-          </div>
+          <ReviewedCorrectAnswer answer={reveal ?? q?.answerText} />
         )}
       </div>
-      <ul
-        className="m-0 flex flex-[1_1_360px] list-none flex-col gap-2 p-0"
-        aria-label={t("final.answers")}
-      >
-        {(final?.answers ?? []).map((a) => {
-          const p = findPlayer(session, a.playerId);
-          const bid = finalBid(session, a.playerId) ?? 0;
-          const pending = a.isCorrect == null && !a.autoLoss;
-          return (
-            <li
-              key={a.id}
-              className={cn(
-                "flex flex-wrap items-center gap-3 rounded-md border px-4 py-3",
-                pending ? "border-accent-line bg-accent-surface" : "border-line",
-              )}
-              data-testid="final-answer"
-            >
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-sm text-muted">
-                  {p?.meta.username} · {t("final.bid")}{" "}
-                  <b className="font-mono text-text">{formatScore(bid)}</b>
-                </span>
-                <span className="text-lg [overflow-wrap:anywhere]">
-                  {a.answer ? `“${a.answer}”` : t("final.noAnswer")}
-                </span>
-              </div>
-              {pending ? (
-                isShowman ? (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="min-h-11 rounded-[12px] border border-success-line bg-success-surface px-4 font-semibold text-success"
-                      onClick={() =>
-                        connection.emit("final-answer-review", { answerId: a.id, isCorrect: true })
-                      }
-                    >
-                      {t("judge.correct")} {formatSigned(bid)}
-                    </button>
-                    <button
-                      type="button"
-                      className="min-h-11 rounded-[12px] border border-danger/40 bg-danger-surface px-4 font-semibold text-danger"
-                      onClick={() =>
-                        connection.emit("final-answer-review", { answerId: a.id, isCorrect: false })
-                      }
-                    >
-                      {t("judge.wrong")} {formatSigned(-bid)}
-                    </button>
-                  </div>
-                ) : (
-                  <span className="text-sm font-semibold text-accent-strong">
-                    {t("final.judging")}
-                  </span>
-                )
-              ) : (
-                <span
-                  className={cn(
-                    "text-sm font-semibold",
-                    a.isCorrect ? "text-success" : "text-danger",
-                  )}
-                >
-                  {a.autoLoss
-                    ? t("final.autoLoss", { points: formatSigned(-bid) })
-                    : a.isCorrect
-                      ? `${t("judge.correct")} · ${formatSigned(bid)}`
-                      : `${t("judge.wrong")} · ${formatSigned(-bid)}`}
-                </span>
-              )}
-            </li>
-          );
-        })}
+      <ul className={stageStyles.answerList} aria-label={t("final.answers")}>
+        {(final?.answers ?? []).map((a) => (
+          <FinalReviewAnswer key={a.id} answer={a} />
+        ))}
       </ul>
     </section>
+  );
+}
+
+function FinalReviewAnswer({ answer }: { answer: FinalAnswer }) {
+  const { t } = useTranslation();
+  const session = useSession();
+  const { connection, myId } = useGame();
+  const isShowman = myRole(session, myId) === "showman";
+
+  const p = findPlayer(session, answer.playerId);
+  const bid = finalBid(session, answer.playerId) ?? 0;
+  const pending = answer.isCorrect == null && !answer.autoLoss;
+  return (
+    <li
+      className={cn(
+        stageStyles.answerRow,
+        pending ? "border-accent-line bg-accent-surface" : "border-line",
+      )}
+      data-testid="final-answer"
+    >
+      <div className={layoutStyles.summaryColumn}>
+        <span className="text-sm text-muted">
+          {p?.meta.username} · {t("final.bid")}{" "}
+          <b className="font-mono text-text">{formatScore(bid)}</b>
+        </span>
+        <span className="text-lg [overflow-wrap:anywhere]">
+          {answer.answer ? `“${answer.answer}”` : t("final.noAnswer")}
+        </span>
+      </div>
+      {pending ? (
+        isShowman ? (
+          <AnswerReviewActions
+            correct={formatSigned(bid)}
+            wrong={formatSigned(-bid)}
+            onReview={(isCorrect) =>
+              connection.emit("final-answer-review", { answerId: answer.id, isCorrect })
+            }
+          />
+        ) : (
+          <span className="text-sm font-semibold text-accent-strong">{t("final.judging")}</span>
+        )
+      ) : (
+        <span
+          className={cn("text-sm font-semibold", answer.isCorrect ? "text-success" : "text-danger")}
+        >
+          {answer.autoLoss
+            ? t("final.autoLoss", { points: formatSigned(-bid) })
+            : answer.isCorrect
+              ? `${t("judge.correct")} · ${formatSigned(bid)}`
+              : `${t("judge.wrong")} · ${formatSigned(-bid)}`}
+        </span>
+      )}
+    </li>
   );
 }

@@ -66,8 +66,7 @@ const MB = 1024 * 1024;
 /** Megabytes for an input field; empty means no limit. */
 export function toMbInput(bytes: number | null): string {
   if (bytes === null) return "";
-  const mb = bytes / MB;
-  return String(Number.isInteger(mb) ? mb : Number(mb.toFixed(2)));
+  return String(bytes / MB);
 }
 
 /** Bytes from an input field; empty means no limit, anything else invalid is undefined. */

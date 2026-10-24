@@ -2,7 +2,7 @@ import { io, type Socket } from "socket.io-client";
 
 import { api } from "@/api/client";
 import { API_URL } from "@/api/config";
-import { i18n } from "@/i18n";
+import { i18n } from "@/i18n/index";
 import { translateServerError } from "@/i18n/serverErrors";
 import { formatScore } from "@/lib/format";
 
@@ -37,7 +37,7 @@ export class GameConnection {
   private joinOptions: JoinOptions;
   private closed = false;
   private pendingTimer: number | undefined;
-  private mediaToken = 0;
+  private mediaAbort: AbortController | null = null;
   /** Seat a spectator asked for: the server seats them first, then they move. */
   private wantedSlot: number | null = null;
 
@@ -71,6 +71,7 @@ export class GameConnection {
 
     socket.on("connect", () => void this.onConnect());
     socket.on("disconnect", (reason) => {
+      this.mediaAbort?.abort();
       if (this.closed) return;
       // The server drops a socket on purpose when the same account connects
       // again (another tab or device). Reconnecting here would drop that one in
@@ -119,6 +120,8 @@ export class GameConnection {
   /** Drop the connection without leaving (page unmount); the seat is kept. */
   close(): void {
     this.closed = true;
+    this.mediaAbort?.abort();
+    this.mediaAbort = null;
     window.clearTimeout(this.pendingTimer);
     this.socket?.removeAllListeners();
     this.socket?.disconnect();
@@ -213,6 +216,12 @@ export class GameConnection {
 
     const before = store.session;
     store.dispatch(event);
+    const current = useGameStore.getState().session;
+    if (
+      current?.state.questionState !== "media_downloading" ||
+      current.players.find((p) => p.meta.id === this.myId)?.role !== "player"
+    )
+      this.mediaAbort?.abort();
     this.announce(event, before);
 
     switch (event.type) {
@@ -313,18 +322,23 @@ export class GameConnection {
 
   /** Players preload question media, then tell the server they are ready. */
   private maybeReportMedia(): void {
+    this.mediaAbort?.abort();
+    this.mediaAbort = null;
     const session = useGameStore.getState().session;
     if (!session || session.state.questionState !== "media_downloading") return;
     const meNow = session.players.find((p) => p.meta.id === this.myId);
     if (meNow?.role !== "player") return;
-    const token = ++this.mediaToken;
-    void preloadQuestionMedia(session.state.currentQuestion).then((mediaDurations) => {
-      if (mediaDurations === null) return;
-      if (token !== this.mediaToken || this.closed) return;
-      const latest = useGameStore.getState().session;
-      if (latest?.state.questionState !== "media_downloading") return;
-      if (mediaDurations.length > 0) this.socket?.emit("media-downloaded", { mediaDurations });
-      else this.socket?.emit("media-downloaded");
-    });
+    const controller = new AbortController();
+    this.mediaAbort = controller;
+    void preloadQuestionMedia(session.state.currentQuestion, controller.signal).then(
+      (mediaDurations) => {
+        if (mediaDurations === null) return;
+        if (controller.signal.aborted || this.closed) return;
+        const latest = useGameStore.getState().session;
+        if (latest?.state.questionState !== "media_downloading") return;
+        if (mediaDurations.length > 0) this.socket?.emit("media-downloaded", { mediaDurations });
+        else this.socket?.emit("media-downloaded");
+      },
+    );
   }
 }

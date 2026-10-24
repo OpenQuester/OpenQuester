@@ -32,6 +32,9 @@ test.describe("layout on this device", () => {
   });
 
   test("a player can join, ready up and buzz", async ({ browser, page }) => {
+    if (test.info().project.name === "phone") {
+      await page.setViewportSize({ width: 375, height: 812 });
+    }
     const host = await person(browser, "Host", { viewport: { width: 1280, height: 800 } });
     await signInAsGuest(host.page, "Host");
     const code = await hostGame(host.page, "Layout check");

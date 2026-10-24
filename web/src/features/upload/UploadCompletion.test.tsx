@@ -4,14 +4,30 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { emptyPackage, newQuestion, newRound, newTheme, toUpload } from "@/features/editor/model";
-import { PublishDialog } from "@/features/editor/PublishDialog";
-import { createEditorStore, EditorContext } from "@/features/editor/store";
-import { validate } from "@/features/editor/validate";
+import {
+  emptyPackage,
+  newQuestion,
+  newRound,
+  newTheme,
+  toUpload,
+} from "@/features/package-editor/packageDraft";
+import { PublishPackageDialog } from "@/features/package-editor/PublishPackageDialog";
+import {
+  createPackageEditorStore,
+  PackageEditorContext,
+} from "@/features/package-editor/packageEditorStore";
+import { validatePackage } from "@/features/package-editor/validatePackage";
 import { useSettings } from "@/features/settings/settingsStore";
 import type { MediaFile, ParsedPackage } from "./types";
 import type * as Upload from "./upload";
+import { uploadPackage } from "./upload";
 import { UploadPackagePage } from "./UploadPackagePage";
+import { draftFromParsed } from "@/features/package-editor/createDraft";
+
+vi.mock("@/features/package-editor/createDraft", () => ({ draftFromParsed: vi.fn() }));
+vi.mock("./optimize/index", () => ({
+  optimizePackage: () => Promise.reject(new Error("encoder failed")),
+}));
 
 vi.mock("@/api/config", () => ({ API_URL: "http://api.test" }));
 const { fetchMock, readFile } = vi.hoisted(() => {
@@ -39,6 +55,73 @@ vi.mock("@tanstack/react-router", () => ({
 afterEach(() => {
   fetchMock.mockReset();
   readFile.mockReset();
+  vi.mocked(draftFromParsed).mockReset();
+});
+
+it("reports a busy upload synchronously before loading or running the encoders", async () => {
+  const progress = vi.fn();
+  const file: MediaFile = {
+    md5: "image",
+    type: "image",
+    name: "image.png",
+    bytes: new Uint8Array([1]),
+  };
+  const job = uploadPackage(
+    {
+      format: "oq",
+      content: toUpload(emptyPackage("Busy")),
+      warnings: [],
+      files: new Map([[file.md5, file]]),
+    },
+    progress,
+    undefined,
+    true,
+  );
+  expect(progress).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({ phase: "optimizing" }),
+  );
+  await expect(job).rejects.toThrow("encoder failed");
+});
+
+it("keeps an imported package review retryable when creating a local draft fails", async () => {
+  const parsed: ParsedPackage = {
+    format: "oq",
+    content: toUpload(emptyPackage("Recover me")),
+    files: new Map(),
+    warnings: [],
+  };
+  readFile.mockResolvedValue(parsed);
+  vi.mocked(draftFromParsed)
+    .mockRejectedValueOnce(new Error("Storage full"))
+    .mockResolvedValueOnce("retry-draft");
+  fetchMock.mockResolvedValue(
+    new Response(JSON.stringify({ data: [], pageInfo: { total: 0 } }), {
+      headers: { "content-type": "application/json" },
+    }),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  client.setQueryData(["me"], { id: 1, username: "Author", isGuest: false });
+  client.setQueryData(["auth-settings"], { oauthProviders: [] });
+  const view = render(
+    <QueryClientProvider client={client}>
+      <UploadPackagePage />
+    </QueryClientProvider>,
+  );
+  const user = userEvent.setup();
+  await user.upload(
+    view.container.querySelector<HTMLInputElement>("input[type=file]")!,
+    new File(["archive"], "recover.oq"),
+  );
+  await user.click(await screen.findByTestId("upload-edit"));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Storage full");
+  expect(screen.getByTestId("upload-review")).toHaveTextContent("Recover me");
+  expect(screen.getByTestId("upload-edit")).toBeEnabled();
+  await user.click(screen.getByTestId("upload-edit"));
+  expect(draftFromParsed).toHaveBeenCalledTimes(2);
+  expect(draftFromParsed).toHaveBeenLastCalledWith(parsed);
+  client.clear();
 });
 
 it.each([
@@ -112,20 +195,20 @@ it.each([
         },
       ],
     ]);
-    const store = createEditorStore({ draftId: "completion", pkg, media, savedAt: null });
+    const store = createPackageEditorStore({ draftId: "completion", pkg, media, savedAt: null });
     const { container } = render(
       <QueryClientProvider client={client}>
         {surface === "upload" ? (
           <UploadPackagePage />
         ) : (
-          <EditorContext.Provider value={store}>
-            <PublishDialog
+          <PackageEditorContext.Provider value={store}>
+            <PublishPackageDialog
               open
               onClose={() => {}}
-              report={validate(pkg, (hash) => media.has(hash))}
+              report={validatePackage(pkg, (hash) => media.has(hash))}
               onJump={() => {}}
             />
-          </EditorContext.Provider>
+          </PackageEditorContext.Provider>
         )}
       </QueryClientProvider>,
     );

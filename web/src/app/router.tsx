@@ -3,27 +3,16 @@ import {
   createRoute,
   createRouter,
   lazyRouteComponent,
-  Link,
   Outlet,
 } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
 
 import { LoginPage } from "@/features/auth/LoginPage";
 import { HomePage } from "@/features/home/HomePage";
 
-import { AppShell, PageContainer } from "./AppShell";
+import { AppShell } from "./AppShell";
+import { NotFoundPage } from "./NotFoundPage";
 
-function NotFound() {
-  const { t } = useTranslation();
-  return (
-    <PageContainer width={640}>
-      <h1 className="font-display text-3xl font-extrabold">{t("notFound.title")}</h1>
-      <Link to="/">{t("game.backHome")}</Link>
-    </PageContainer>
-  );
-}
-
-const rootRoute = createRootRoute({ component: Outlet, notFoundComponent: NotFound });
+const rootRoute = createRootRoute({ component: Outlet, notFoundComponent: NotFoundPage });
 
 /** Pages with the regular site header. */
 const shell = createRoute({ getParentRoute: () => rootRoute, id: "shell", component: AppShell });
@@ -88,7 +77,10 @@ const resumeUploadRoute = createRoute({
 const editorHomeRoute = createRoute({
   getParentRoute: () => shell,
   path: "/packages/editor",
-  component: lazyRouteComponent(() => import("@/features/editor/EditorHomePage"), "EditorHomePage"),
+  component: lazyRouteComponent(
+    () => import("@/features/package-editor/PackageDraftsPage"),
+    "PackageDraftsPage",
+  ),
 });
 const createGameRoute = createRoute({
   getParentRoute: () => shell,
@@ -119,7 +111,10 @@ const settingsRoute = createRoute({
 const editorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/packages/editor/$draftId",
-  component: lazyRouteComponent(() => import("@/features/editor/EditorPage"), "EditorPage"),
+  component: lazyRouteComponent(
+    () => import("@/features/package-editor/PackageEditorPage"),
+    "PackageEditorPage",
+  ),
 });
 
 const myPackagesRoute = createRoute({
@@ -140,7 +135,7 @@ const previewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/packages/$packageId/preview",
   component: lazyRouteComponent(
-    () => import("@/features/editor/PackagePreviewPage"),
+    () => import("@/features/package-editor/PackagePreviewPage"),
     "PackagePreviewPage",
   ),
 });

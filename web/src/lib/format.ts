@@ -1,4 +1,4 @@
-import { i18n } from "@/i18n";
+import { i18n } from "@/i18n/index";
 
 export function formatScore(n: number): string {
   return new Intl.NumberFormat(i18n.language).format(n).replace(/^-/, "−");

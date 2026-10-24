@@ -9,3 +9,5 @@ e2e/.auth
 .e2e-stack
 screenshots
 .wrangler
+.ui-audit
+logs

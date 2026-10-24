@@ -1,7 +1,7 @@
-import { md5Hex, mimeFor } from "../archive";
+import { md5Hex, mimeFor, detectMediaMime, isStillImage } from "../archive";
 import type { MediaFile, ParsedPackage } from "../types";
 
-import { encodeAv } from "./av";
+import { encodeAudioVideo } from "./audioVideo";
 import type { ImageJob, ImageResult } from "./image.worker";
 import { MIN_SAVING } from "./limits";
 
@@ -34,10 +34,10 @@ const cache = new Map<string, MediaFile | null>();
  * sharp. Sniffed from the bytes: .oq archives name files by MD5 alone.
  */
 function encodable(f: MediaFile): boolean {
+  if (f.preserveEncoding) return false;
   if (f.bytes.byteLength < MIN_BYTES) return false;
   if (f.type !== "image") return true;
-  const head = new TextDecoder().decode(f.bytes.subarray(0, 256)).trimStart();
-  return !head.startsWith("GIF8") && !head.startsWith("<");
+  return isStillImage(f.bytes, detectMediaMime(f.bytes, f.type, f.name));
 }
 
 /**
@@ -115,7 +115,7 @@ async function encodeOne(
       const r = await encodeImage(file.bytes, mime);
       if (r) ({ bytes, ext } = r);
     } else {
-      const r = await encodeAv(file.bytes, mime, file.type, onProgress, signal);
+      const r = await encodeAudioVideo(file.bytes, mime, file.type, onProgress, signal);
       bytes = r?.bytes ?? null;
       required = r?.required ?? false;
       ext = file.type === "audio" ? "m4a" : "webm";

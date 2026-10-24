@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
-import type * as Drafts from "../src/features/editor/drafts";
-import type * as EditorHome from "../src/features/editor/EditorHomePage";
-import type * as Model from "../src/features/editor/model";
+import type * as Drafts from "../src/features/package-editor/draftStorage";
+import type * as CreateDraft from "../src/features/package-editor/createDraft";
+import type * as Model from "../src/features/package-editor/packageDraft";
 
 declare global {
   interface Window {
@@ -41,8 +41,8 @@ async function gateCompletion(page: Page, scope: "media" | "drafts") {
 
 async function startImport(page: Page) {
   await page.evaluate(async (md5) => {
-    const path = "/src/features/editor/EditorHomePage.tsx";
-    const { draftFromParsed } = (await import(path)) as typeof EditorHome;
+    const path = "/src/features/package-editor/createDraft.ts";
+    const { draftFromParsed } = (await import(path)) as typeof CreateDraft;
     window.storageTask = draftFromParsed({
       format: "oq",
       content: {
@@ -62,7 +62,7 @@ async function startImport(page: Page) {
 
 async function startCleanup(page: Page) {
   await page.evaluate(async () => {
-    const path = "/src/features/editor/drafts.ts";
+    const path = "/src/features/package-editor/draftStorage.ts";
     const { collectMedia } = (await import(path)) as typeof Drafts;
     window.storageTask = collectMedia();
   });
@@ -90,7 +90,7 @@ test("cleanup in another tab cannot delete media while import completes", async 
   });
   const saved = await cleanup.evaluate(
     async ({ id, md5 }) => {
-      const path = "/src/features/editor/drafts.ts";
+      const path = "/src/features/package-editor/draftStorage.ts";
       const { loadDraft, loadMedia } = (await import(path)) as typeof Drafts;
       return {
         draft: await loadDraft(id as string),
@@ -119,7 +119,7 @@ test("cleanup cannot use an old draft snapshot to delete a newly saved file", as
     await window.storageTask;
   });
   const bytes = await page.evaluate(async (md5) => {
-    const path = "/src/features/editor/drafts.ts";
+    const path = "/src/features/package-editor/draftStorage.ts";
     const { loadMedia } = (await import(path)) as typeof Drafts;
     return [...((await loadMedia([md5])).get(md5)?.bytes ?? [])];
   }, md5);
@@ -130,9 +130,9 @@ test("a failed media write rolls back the draft and earlier queued media", async
   await page.goto("/");
   await startImport(page);
   const result = await page.evaluate(async (md5) => {
-    const path = "/src/features/editor/drafts.ts";
+    const path = "/src/features/package-editor/draftStorage.ts";
     const { loadDraft, loadMedia, saveDraft } = (await import(path)) as typeof Drafts;
-    const modelPath = "/src/features/editor/model.ts";
+    const modelPath = "/src/features/package-editor/packageDraft.ts";
     const { newQuestion } = (await import(modelPath)) as typeof Model;
     const id = (await window.storageTask) as string;
     const original = (await loadDraft(id))!;
@@ -202,7 +202,7 @@ test("collection preserves shared files and a later save restores collected undo
   await page.goto("/");
   await startImport(page);
   const result = await page.evaluate(async (md5) => {
-    const path = "/src/features/editor/drafts.ts";
+    const path = "/src/features/package-editor/draftStorage.ts";
     const { loadDraft, loadMedia, saveDraft, deleteDraft, collectMedia } = (await import(
       path
     )) as typeof Drafts;

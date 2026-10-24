@@ -53,7 +53,8 @@ For gameplay changes, do not treat UI text, disabled states, timers, role-specif
 
 - Product direction: `docs/product/00-north-star.md` and `docs/product/01-release-plan.md`.
 - Backend architecture: `server/AGENTS.md` and `docs/architecture/adr/`.
-- Frontend architecture and UI patterns: `client/AGENTS.md`.
+- React architecture and UI patterns: `web/AGENTS.md`.
+- Flutter architecture and UI patterns: `client/AGENTS.md`.
 - API schema and contract metadata: `openapi/AGENTS.md` and `openapi/schema.json`.
 - Generated Dart API package: `client/packages/openapi/`.
 - Game state/product behavior: `docs/specs/game-state-matrix.md` and feature-specific specs.

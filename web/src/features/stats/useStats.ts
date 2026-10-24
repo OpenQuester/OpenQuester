@@ -41,9 +41,11 @@ export function accuracy(stats: Pick<UserStats, "correctAnswers" | "wrongAnswers
 }
 
 export function useReportQuestion(gameId: string) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { questionId: number; reason: QuestionReportReason; comment?: string }) =>
       unwrap(api.POST("/v1/games/{gameId}/reports", { params: { path: { gameId } }, body })),
+    onSuccess: (report) => void qc.invalidateQueries({ queryKey: reportsKey(report.packageId) }),
   });
 }
 

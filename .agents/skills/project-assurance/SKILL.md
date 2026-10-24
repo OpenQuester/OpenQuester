@@ -11,7 +11,7 @@ Use this skill for changes to validation or confidence-building structure, espec
 
 1. `docs/agent/03-verification-matrix.md`
 2. `server/AGENTS.md` for backend behavior
-3. `client/AGENTS.md` for frontend behavior
+3. `web/AGENTS.md` for React or `client/AGENTS.md` for Flutter behavior
 4. Relevant product/spec docs for the behavior under validation
 
 ## Planning rule

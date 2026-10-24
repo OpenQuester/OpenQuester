@@ -9,7 +9,7 @@ import { useGameStore } from "@/game/store";
 import { GameContext } from "../GameContext";
 import { GameScreen } from "./GameScreen";
 
-vi.mock("@/features/stats/ReportQuestion", () => ({ ReportQuestionDialog: () => null }));
+vi.mock("@/features/stats/QuestionReporting", () => ({ ReportQuestionDialog: () => null }));
 
 afterEach(() => {
   vi.restoreAllMocks();

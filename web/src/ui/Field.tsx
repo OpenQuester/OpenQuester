@@ -40,3 +40,24 @@ export function FieldError({ children, id }: { children?: React.ReactNode; id?: 
     </p>
   );
 }
+
+/** A label, its control, and optional supporting text with consistent spacing. */
+export function FieldGroup({
+  htmlFor,
+  label,
+  help,
+  children,
+}: {
+  htmlFor: string;
+  label: React.ReactNode;
+  help?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+      {help && <span className="text-sm text-faint">{help}</span>}
+    </div>
+  );
+}
