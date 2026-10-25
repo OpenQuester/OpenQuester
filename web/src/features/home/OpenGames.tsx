@@ -46,7 +46,7 @@ export function OpenGames({
             role="search"
             aria-label={t("home.search")}
             onSubmit={onSearchSubmit}
-            className="w-full sm:w-72"
+            className="w-full sm:w-94"
           >
             <div className="relative">
               <TextInput
