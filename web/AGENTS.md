@@ -88,7 +88,12 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   listener cleanup on close/unmount. Existing small UI primitives, theme tokens
   and shared browser hooks remain cohesive modules; do not split by line count.
 - Home (`features/home/`) composes join/host, rejoin and open-game views;
-  `useHomePage` owns route search, filters and hidden rejoin state. Keep the
+  `useHomePage` owns route search, debounced title-prefix search, status filters
+  and hidden rejoin state. `useGames` sends the trimmed, case-insensitive prefix
+  to the server before its 50-result limit; query keys include the prefix.
+  Rejoin uses the unfiltered query independently of search and status filters.
+  Clear search resets the prefix immediately and returns focus to the input.
+  Keep pending searches distinct from empty results and retain the
   existing distinction between a retained seat and the connected-player count.
   Create-game keeps form state and request completion in `useCreateGame`;
   setup fields, package preview and timers are presentation components.

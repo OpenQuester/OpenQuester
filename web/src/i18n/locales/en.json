@@ -56,6 +56,10 @@
     "hostSubtitle": "Pick a package, set the room, share the link. You're the showman.",
     "createGame": "Create game",
     "openGames": "Open games",
+    "search": "Search games",
+    "searchHelp": "Match the start of a game title.",
+    "clearSearch": "Clear search",
+    "noMatches": "No games match your search and filters.",
     "filter": "Filter games",
     "filters": {
       "all": "All",

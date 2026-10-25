@@ -5,14 +5,24 @@ import type { GameListItem } from "@/api/types";
 
 export const gamesKey = ["games"] as const;
 
-export function useGames() {
+export function useGames(titlePrefix = "") {
+  const prefix = titlePrefix.trim().toLowerCase();
   return useQuery({
-    queryKey: gamesKey,
-    queryFn: async () =>
+    queryKey: [...gamesKey, prefix],
+    queryFn: async ({ signal }) =>
       (
         await unwrap(
           api.GET("/v1/games", {
-            params: { query: { limit: 50, offset: 0, sortBy: "createdAt", order: "desc" } },
+            params: {
+              query: {
+                limit: 50,
+                offset: 0,
+                sortBy: "createdAt",
+                order: "desc",
+                ...(prefix ? { titlePrefix: prefix } : {}),
+              },
+            },
+            signal,
           }),
         )
       ).data,

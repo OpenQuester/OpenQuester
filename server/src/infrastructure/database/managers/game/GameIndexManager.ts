@@ -217,44 +217,14 @@ export class GameIndexManager {
       titlePrefix?: string;
     }
   ) {
-    const indexKeys: string[] = [];
-    const anyFilterApplied = this._isAnyFilterApplied(filters);
-
-    if (!anyFilterApplied) {
-      return this._applyDefaultFilter(tempKey, indexKeys);
-    }
+    // Keep creation timestamps as the score source for every combination of filters.
+    const indexKeys = [this._createdAtIndexKey];
 
     await this._applyPrivacyFilter(filters, indexKeys);
     await this._applyTitleFilter(filters, tempKey, indexKeys);
     await this._applyDateRangeFilter(filters, tempKey, indexKeys);
 
-    if (indexKeys.length < 1) {
-      return [];
-    }
-
     await this.redisRepository.zinterstore(tempKey, indexKeys.length, [
-      ...indexKeys,
-      "WEIGHTS",
-      ...indexKeys.map((_, i) => (i === 0 ? 1 : 0))
-    ]);
-  }
-
-  private _isAnyFilterApplied(filters: {
-    createdAt: { min?: Date; max?: Date };
-    isPrivate?: boolean;
-    titlePrefix?: string;
-  }): boolean {
-    return (
-      !!filters.createdAt.max ||
-      !!filters.createdAt.min ||
-      ValueUtils.isBoolean(filters.isPrivate) ||
-      ValueUtils.isString(filters.titlePrefix)
-    );
-  }
-
-  private async _applyDefaultFilter(tempKey: string, indexKeys: string[]) {
-    indexKeys.push(this._createdAtIndexKey);
-    return this.redisRepository.zinterstore(tempKey, indexKeys.length, [
       ...indexKeys,
       "WEIGHTS",
       ...indexKeys.map((_, i) => (i === 0 ? 1 : 0))
@@ -274,7 +244,7 @@ export class GameIndexManager {
   ) {
     if (filters.titlePrefix) {
       const titleKey = await this._prepareTitleFilter(filters.titlePrefix, tempKey);
-      if (titleKey) indexKeys.push(titleKey);
+      indexKeys.push(titleKey);
     }
   }
 
@@ -304,19 +274,20 @@ export class GameIndexManager {
     const titleMatches = await this.redisRepository.zrangebylex(
       this._titleIndexKey,
       `[${normalizedPrefix}`,
-      `[${normalizedPrefix}\xff`
+      // Redis compares bytes; a JS "\xff" is UTF-8 C3 BF, below Cyrillic and emoji.
+      Buffer.concat([Buffer.from(`[${normalizedPrefix}`), Buffer.from([0xff])])
     );
 
-    if (titleMatches.length > 0) {
-      const titleFilterKey = `${tempKey}:title`;
-      await this.redisRepository.sadd(
-        titleFilterKey,
-        titleMatches.map((m) => m.split(":")[1])
-      );
+    const gameIds = titleMatches
+      .filter((member) => member.slice(0, member.lastIndexOf(":")).startsWith(normalizedPrefix))
+      .map((member) => member.slice(member.lastIndexOf(":") + 1));
+    const titleFilterKey = `${tempKey}:title`;
+    if (gameIds.length > 0) {
+      await this.redisRepository.sadd(titleFilterKey, gameIds);
       await this.redisRepository.expire(titleFilterKey, this.TEMP_KEY_TTL);
-      return titleFilterKey;
     }
-    return null;
+    // A missing key gives an empty intersection, so no matches cannot drop this filter.
+    return titleFilterKey;
   }
 
   private async _paginateResults<T>(tempKey: string, pagination: PaginationOptsBase<T>) {

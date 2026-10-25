@@ -361,7 +361,7 @@ export class RedisRepository {
     );
   }
 
-  public async zrangebylex(key: string, min: string, max: string) {
+  public async zrangebylex(key: string, min: string | Buffer, max: string | Buffer) {
     return this.executeWithLogging("Redis ZRANGEBYLEX", { key, min, max }, async () => {
       return this._client.zrangebylex(key, min, max);
     });
