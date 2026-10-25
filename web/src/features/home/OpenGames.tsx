@@ -9,16 +9,7 @@ import { Spinner } from "@/ui/Spinner";
 import { GameCard } from "./GameCard";
 import type { HomeModel } from "./useHomePage";
 
-export function OpenGames({
-  games,
-  visible,
-  filter,
-  setFilter,
-  search,
-  changeSearch,
-  isSearching,
-  hasSearch,
-}: Pick<
+type OpenGamesProps = Pick<
   HomeModel,
   | "games"
   | "visible"
@@ -28,7 +19,18 @@ export function OpenGames({
   | "changeSearch"
   | "isSearching"
   | "hasSearch"
->) {
+>;
+
+export function OpenGames({
+  games,
+  visible,
+  filter,
+  setFilter,
+  search,
+  changeSearch,
+  isSearching,
+  hasSearch,
+}: OpenGamesProps) {
   const { t } = useTranslation();
   const input = useRef<HTMLInputElement>(null);
   return (

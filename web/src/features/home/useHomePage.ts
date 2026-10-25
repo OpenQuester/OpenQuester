@@ -1,6 +1,7 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
+import type { GameListItem } from "@/api/types";
 import { useMe } from "@/features/auth/useMe";
 import { leftGames, rememberLeftGame } from "@/game/store";
 import { gameStatus, parseGameCode, useGames } from "./useGames";
@@ -15,8 +16,11 @@ export function useHomePage() {
   const [search, setSearch] = useState("");
   const [titlePrefix, setTitlePrefix] = useState("");
   const normalizedSearch = search.trim().toLowerCase();
-  const games = useGames(titlePrefix);
-  const allGames = useGames();
+  const hasSearch = titlePrefix !== "";
+  const needsUnfilteredGames = !hasSearch || me.data != null;
+  const allGames = useGames("", { enabled: needsUnfilteredGames });
+  const searchedGames = useGames(titlePrefix, { enabled: hasSearch });
+  const games = hasSearch ? searchedGames : allGames;
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
@@ -33,14 +37,15 @@ export function useHomePage() {
     [games.data],
   );
   // Games you are still seated in, except ones you left on purpose from this browser.
-  const mine = me.data
-    ? allGames.data?.find(
-        (g) =>
-          gameStatus(g) !== "finished" &&
-          !hidden.includes(g.id) &&
-          g.players.some((p) => p.id === me.data!.id),
-      )
-    : undefined;
+  const userId = me.data?.id;
+  let mine: GameListItem | undefined;
+  if (userId !== undefined) {
+    mine = allGames.data?.find((game) => {
+      if (gameStatus(game) === "finished") return false;
+      if (hidden.includes(game.id)) return false;
+      return game.players.some((player) => player.id === userId);
+    });
+  }
   const visible = list.filter((g) => filter === "all" || gameStatus(g) === filter);
 
   function onJoin(e: FormEvent) {
@@ -70,7 +75,7 @@ export function useHomePage() {
     search,
     changeSearch,
     isSearching: normalizedSearch !== titlePrefix,
-    hasSearch: titlePrefix !== "",
+    hasSearch,
     code,
     setCode,
     codeError,

@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -9,8 +9,18 @@ const fetchMock = vi.hoisted(() => {
   globalThis.fetch = mock;
   return mock;
 });
+const auth = vi.hoisted(() => ({ userId: 1 as number | null }));
+
+vi.mock("@tanstack/react-router", () => ({
+  useSearch: () => ({}),
+  useNavigate: () => vi.fn(),
+}));
+vi.mock("@/features/auth/useMe", () => ({
+  useMe: () => ({ data: auth.userId === null ? null : { id: auth.userId } }),
+}));
 
 import { gamesKey, useGames } from "./useGames";
+import { useHomePage } from "./useHomePage";
 
 const clients: QueryClient[] = [];
 
@@ -36,9 +46,49 @@ afterEach(() => {
   for (const client of clients) client.clear();
   clients.length = 0;
   fetchMock.mockReset();
+  focusManager.setFocused(undefined);
+  vi.useRealTimers();
+  auth.userId = 1;
 });
 
 describe("game list queries", () => {
+  it.each([false, true])(
+    "polls only the needed Home lists when authenticated=%s and restores the default list on clear",
+    async (authenticated) => {
+      vi.useFakeTimers();
+      focusManager.setFocused(true);
+      auth.userId = authenticated ? 1 : null;
+      fetchMock.mockImplementation(async () => response([]));
+      const { wrapper } = setup();
+      const { result } = renderHook(() => useHomePage(), { wrapper });
+      const requestedPrefixes = () =>
+        fetchMock.mock.calls.map(([input]) => {
+          const url = new URL((input as Request).url);
+          return url.searchParams.get("titlePrefix") ?? "";
+        });
+
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(requestedPrefixes()).toEqual([""]);
+      await act(async () => vi.advanceTimersByTimeAsync(5000));
+      expect(requestedPrefixes()).toEqual(["", ""]);
+
+      act(() => result.current.changeSearch("quiz"));
+      expect(requestedPrefixes()).toEqual(["", ""]);
+      await act(async () => vi.advanceTimersByTimeAsync(300));
+      expect(requestedPrefixes()).toEqual(["", "", "quiz"]);
+      await act(async () => vi.advanceTimersByTimeAsync(5000));
+      const expectedSearchPolls = authenticated ? ["", "quiz"] : ["quiz"];
+      expect(requestedPrefixes().slice(3)).toEqual(expectedSearchPolls);
+
+      const requestsBeforeClear = fetchMock.mock.calls.length;
+      act(() => result.current.changeSearch(""));
+      expect(result.current.hasSearch).toBe(false);
+      expect(result.current.games.data).toEqual([]);
+      await act(async () => vi.advanceTimersByTimeAsync(5000));
+      expect(requestedPrefixes().slice(requestsBeforeClear)).toEqual([""]);
+    },
+  );
+
   it("requests the server prefix beyond the initial 50 and shares normalized query caches", async () => {
     fetchMock.mockImplementation(async (input) => {
       const query = new URL((input as Request).url).searchParams;

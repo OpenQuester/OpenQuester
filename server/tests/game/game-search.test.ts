@@ -1,5 +1,6 @@
 import { container } from "tsyringe";
 
+import { GAME_INDEX_CREATED_AT_KEY } from "domain/constants/game";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { type GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import { type GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
@@ -59,6 +60,111 @@ describe("Game title search", () => {
     limit: 10,
     offset: 0
   };
+
+  it("paginates the permanent creation index directly when no filter is applied", async () => {
+    await addToIndex([
+      { id: "ZZZZ", title: "Oldest game", isPrivate: false, createdAt: new Date(1000) },
+      { id: "AAAA", title: "Newest game", isPrivate: true, createdAt: new Date(2000) }
+    ]);
+    const copyIndex = jest.spyOn(redis, "zinterstore");
+    const removeKeys = jest.spyOn(redis, "delMultiple");
+
+    try {
+      expect(await index.findGamesByIndex({}, { ...pagination, limit: 1 })).toEqual({
+        ids: ["ZZZZ"],
+        total: 2
+      });
+      expect(
+        await index.findGamesByIndex(
+          { titlePrefix: "" },
+          { ...pagination, order: PaginationOrder.DESC, limit: 1 }
+        )
+      ).toEqual({ ids: ["AAAA"], total: 2 });
+      expect(copyIndex).not.toHaveBeenCalled();
+      expect(removeKeys).not.toHaveBeenCalled();
+      expect(await redis.pipeline().ttl(GAME_INDEX_CREATED_AT_KEY).exec()).toEqual([[null, -1]]);
+    } finally {
+      copyIndex.mockRestore();
+      removeKeys.mockRestore();
+    }
+  });
+
+  it.each([false, true])(
+    "removes temporary indexes after pagination settles (failure: %s)",
+    async (failPagination) => {
+      await addToIndex([
+        { id: "TEST", title: "Match game", isPrivate: false, createdAt: new Date(2000) }
+      ]);
+      const paginationError = new Error("Controlled pagination failure");
+      const originalRange = redis.zrange.bind(redis);
+      const readPage = jest.spyOn(redis, "zrange");
+      const removeKeys = jest.spyOn(redis, "delMultiple");
+
+      if (failPagination) {
+        readPage.mockRejectedValueOnce(paginationError);
+      } else {
+        readPage.mockImplementationOnce(async (key, start, stop) => {
+          // A real Redis round trip exposes cleanup that runs before pagination finishes.
+          const temporaryKeys = [key, `${key}:title`, `${key}:createdAt`];
+          const state = await redis.pipeline().exists(...temporaryKeys).ttl(key).exec();
+          expect(state?.[0]).toEqual([null, 3]);
+          expect(state?.[1][1]).toBeGreaterThan(0);
+          return originalRange(key, start, stop);
+        });
+      }
+
+      try {
+        const result = index.findGamesByIndex(
+          {
+            titlePrefix: "Match",
+            isPrivate: false,
+            createdAtMin: new Date(1000),
+            createdAtMax: new Date(3000)
+          },
+          pagination
+        );
+
+        if (failPagination) {
+          await expect(result).rejects.toBe(paginationError);
+        } else {
+          await expect(result).resolves.toEqual({ ids: ["TEST"], total: 1 });
+        }
+
+        expect(removeKeys).toHaveBeenCalledTimes(1);
+        const temporaryKeys = removeKeys.mock.calls[0][0];
+        const state = await redis
+          .pipeline()
+          .exists(...temporaryKeys)
+          .ttl(GAME_INDEX_CREATED_AT_KEY)
+          .exec();
+        expect(state).toEqual([[null, 0], [null, -1]]);
+      } finally {
+        readPage.mockRestore();
+        removeKeys.mockRestore();
+      }
+    }
+  );
+
+  it("cleans a partially prepared title filter when its expiry command fails", async () => {
+    await addToIndex([
+      { id: "TEST", title: "Match game", isPrivate: false, createdAt: new Date(2000) }
+    ]);
+    const expiryError = new Error("Controlled filter expiry failure");
+    const expireKey = jest.spyOn(redis, "expire").mockRejectedValueOnce(expiryError);
+    const removeKeys = jest.spyOn(redis, "delMultiple");
+
+    try {
+      await expect(index.findGamesByIndex({ titlePrefix: "Match" }, pagination)).rejects.toBe(
+        expiryError
+      );
+      expect(removeKeys).toHaveBeenCalledTimes(1);
+      const temporaryKeys = removeKeys.mock.calls[0][0];
+      expect(await redis.pipeline().exists(...temporaryKeys).exec()).toEqual([[null, 0]]);
+    } finally {
+      expireKey.mockRestore();
+      removeKeys.mockRestore();
+    }
+  });
 
   it.each([
     { title: "ГраКиїв", prefix: "гРа" },

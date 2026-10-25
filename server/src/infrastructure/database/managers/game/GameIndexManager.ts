@@ -192,6 +192,16 @@ export class GameIndexManager {
     },
     pagination: PaginationOptsBase<T>
   ): Promise<{ ids: string[]; total: number }> {
+    const hasFilters =
+      !!filters.createdAtMin ||
+      !!filters.createdAtMax ||
+      ValueUtils.isBoolean(filters.isPrivate) ||
+      !!filters.titlePrefix;
+
+    if (!hasFilters) {
+      return this._paginateResults(this._createdAtIndexKey, pagination);
+    }
+
     const tempKey = `${GAME_INDEX_PREFIX}:temp:${Date.now()}:${ValueUtils.generateUUID()}`;
 
     try {
@@ -203,9 +213,10 @@ export class GameIndexManager {
         isPrivate: filters.isPrivate,
         titlePrefix: filters.titlePrefix
       });
-      return this._paginateResults<T>(tempKey, pagination);
-    } finally {
       await this.redisRepository.expire(tempKey, this.TEMP_KEY_TTL);
+      return await this._paginateResults<T>(tempKey, pagination);
+    } finally {
+      await this.redisRepository.delMultiple([tempKey, `${tempKey}:title`, `${tempKey}:createdAt`]);
     }
   }
 
@@ -241,10 +252,12 @@ export class GameIndexManager {
     filters: { titlePrefix?: string },
     tempKey: string,
     indexKeys: string[]
-  ) {
+  ): Promise<void> {
     if (filters.titlePrefix) {
-      const titleKey = await this._prepareTitleFilter(filters.titlePrefix, tempKey);
-      indexKeys.push(titleKey);
+      const titleFilterKey = `${tempKey}:title`;
+      await this._prepareTitleFilter(filters.titlePrefix, titleFilterKey);
+      // A missing key still represents an empty filter; never drop it from the intersection.
+      indexKeys.push(titleFilterKey);
     }
   }
 
@@ -269,41 +282,51 @@ export class GameIndexManager {
     }
   }
 
-  private async _prepareTitleFilter(prefix: string, tempKey: string) {
+  private async _prepareTitleFilter(prefix: string, titleFilterKey: string): Promise<void> {
     const normalizedPrefix = prefix.toLowerCase();
+    const lowerBound = `[${normalizedPrefix}`;
+    // Redis compares bytes; UTF-8 title suffixes sort below the raw FF sentinel.
+    const upperBound = Buffer.concat([Buffer.from(lowerBound), Buffer.from([0xff])]);
     const titleMatches = await this.redisRepository.zrangebylex(
       this._titleIndexKey,
-      `[${normalizedPrefix}`,
-      // Redis compares bytes; a JS "\xff" is UTF-8 C3 BF, below Cyrillic and emoji.
-      Buffer.concat([Buffer.from(`[${normalizedPrefix}`), Buffer.from([0xff])])
+      lowerBound,
+      upperBound
     );
 
-    const gameIds = titleMatches
-      .filter((member) => member.slice(0, member.lastIndexOf(":")).startsWith(normalizedPrefix))
-      .map((member) => member.slice(member.lastIndexOf(":") + 1));
-    const titleFilterKey = `${tempKey}:title`;
+    const gameIds: string[] = [];
+    for (const member of titleMatches) {
+      const separatorIndex = member.lastIndexOf(":");
+      const title = member.slice(0, separatorIndex);
+
+      // Search the title only: its separator and game ID must not complete the prefix.
+      if (!title.startsWith(normalizedPrefix)) {
+        continue;
+      }
+
+      const gameId = member.slice(separatorIndex + 1);
+      gameIds.push(gameId);
+    }
+
     if (gameIds.length > 0) {
       await this.redisRepository.sadd(titleFilterKey, gameIds);
       await this.redisRepository.expire(titleFilterKey, this.TEMP_KEY_TTL);
     }
-    // A missing key gives an empty intersection, so no matches cannot drop this filter.
-    return titleFilterKey;
   }
 
-  private async _paginateResults<T>(tempKey: string, pagination: PaginationOptsBase<T>) {
+  private async _paginateResults<T>(indexKey: string, pagination: PaginationOptsBase<T>) {
     const [ids, total] = await Promise.all([
       pagination.order === PaginationOrder.DESC
         ? this.redisRepository.zrevrange(
-            tempKey,
+            indexKey,
             pagination.offset,
             pagination.offset + pagination.limit - 1
           )
         : this.redisRepository.zrange(
-            tempKey,
+            indexKey,
             pagination.offset,
             pagination.offset + pagination.limit - 1
           ),
-      this.redisRepository.zcard(tempKey)
+      this.redisRepository.zcard(indexKey)
     ]);
 
     return { ids, total };
