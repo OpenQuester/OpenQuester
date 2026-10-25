@@ -33,7 +33,8 @@ export function HomePage() {
           setFilter={home.setFilter}
           search={home.search}
           changeSearch={home.changeSearch}
-          isSearching={home.isSearching}
+          onSearchSubmit={home.onSearchSubmit}
+          setSearchComposing={home.setSearchComposing}
           hasSearch={home.hasSearch}
         />
       </div>

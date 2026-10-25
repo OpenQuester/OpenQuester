@@ -81,7 +81,7 @@ test("search finds a case-insensitive Ukrainian prefix beyond the first 50 games
   }
 });
 
-test("search combines with status filters, clears and preserves the retained seat", async ({
+test("Enter search respects status filters and preserves the retained seat", async ({
   page: host,
 }) => {
   const errors: string[] = [];
@@ -111,11 +111,17 @@ test("search combines with status filters, clears and preserves the retained sea
     const openGames = page.getByRole("region", { name: "Open games" });
     const search = openGames.getByRole("searchbox", { name: "Search games" });
     await expect(search).toBeVisible();
+    await expect(search).toHaveAttribute("placeholder", "Search games");
+    const clear = openGames.getByRole("button", { name: "Clear search" });
+    await expect(clear).toHaveCount(0);
     await expectNoHorizontalScroll(page);
     const searched = page.waitForResponse((response) =>
       isSearchResponse(response, prefix.toLowerCase()),
     );
     await search.fill(prefix);
+    await expect(clear).toBeVisible();
+    await expect(clear).toHaveText("");
+    await search.press("Enter");
     expect((await searched).ok()).toBeTruthy();
     await expect(openGames.getByTestId("game-card")).toHaveCount(1);
     await expect(openGames.getByRole("heading", { name: title, exact: true })).toBeVisible();
@@ -143,9 +149,10 @@ test("search combines with status filters, clears and preserves the retained sea
     await expect(openGames.getByTestId("game-card")).toHaveCount(0);
     await expect(openGames.getByText("No games match your search and filters.")).toBeVisible();
 
-    await openGames.getByRole("button", { name: "Clear search" }).click();
+    await clear.click();
     await expect(search).toHaveValue("");
     await expect(search).toBeFocused();
+    await expect(clear).toHaveCount(0);
     await expect(openGames.getByRole("heading", { name: title, exact: true })).toBeVisible();
     await expect(
       openGames.getByRole("heading", { name: retainedTitle, exact: true }),

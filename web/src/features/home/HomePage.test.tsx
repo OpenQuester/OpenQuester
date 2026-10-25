@@ -79,16 +79,21 @@ describe("open game search", () => {
     ["en", "Search games", "Clear search", "Match the start of a game title."],
     ["uk", "Пошук ігор", "Очистити пошук", "Пошук за початком назви гри."],
     ["ru", "Поиск игр", "Очистить поиск", "Поиск по началу названия игры."],
-  ])("labels the search and clear controls in %s", (lang, label, clear, help) => {
+  ])("names the compact search and inline clear controls in %s", (lang, label, clear, help) => {
     void i18n.changeLanguage(lang);
     render(<HomePage />);
     const input = screen.getByRole("searchbox", { name: label });
+    expect(input).toHaveAttribute("placeholder", label);
     expect(input).toHaveAccessibleDescription(help);
     expect(input).toHaveAttribute("maxlength", "70");
-    expect(screen.getByRole("button", { name: clear })).toBeDisabled();
+    expect(screen.queryByText(label)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: clear })).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "quiz" } });
+    expect(screen.getByRole("button", { name: clear })).toBeVisible();
+    expect(screen.queryByText(clear)).not.toBeInTheDocument();
   });
 
-  it("debounces the latest trimmed, case-insensitive prefix without showing stale results", () => {
+  it("waits one idle second after every raw edit while keeping committed results visible", () => {
     vi.useFakeTimers();
     queries.set("", { data: [game("RECENT", "Recent game")] });
     queries.set("quiz", { data: [game("OLDER", "Quiz beyond the initial page")] });
@@ -96,21 +101,63 @@ describe("open game search", () => {
     const input = screen.getByRole("searchbox", { name: "Search games" });
     expect(screen.getByText("Recent game")).toBeVisible();
     fireEvent.change(input, { target: { value: "  Qu  " } });
-    act(() => vi.advanceTimersByTime(200));
+    act(() => vi.advanceTimersByTime(900));
     fireEvent.change(input, { target: { value: "  QuIz  " } });
-    act(() => vi.advanceTimersByTime(249));
-    expect(screen.getByRole("status")).toHaveTextContent("Loading");
-    expect(screen.queryByText("Recent game")).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(900));
+    fireEvent.change(input, { target: { value: "  QUIZ  " } });
+    act(() => vi.advanceTimersByTime(900));
+    fireEvent.change(input, { target: { value: "  QUIZ   " } });
+    act(() => vi.advanceTimersByTime(999));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText("Recent game")).toBeVisible();
     expect(screen.queryByText("No games match your search and filters.")).not.toBeInTheDocument();
     act(() => vi.advanceTimersByTime(1));
     expect(screen.getByText("Quiz beyond the initial page")).toBeVisible();
-    expect(input).toHaveValue("  QuIz  ");
+    expect(input).toHaveValue("  QUIZ   ");
     fireEvent.change(input, { target: { value: "QUIZ" } });
     expect(screen.getByText("Quiz beyond the initial page")).toBeVisible();
     expect(vi.getTimerCount()).toBe(0);
     fireEvent.change(input, { target: { value: "pending" } });
     expect(vi.getTimerCount()).toBe(1);
     view.unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("commits a submitted search immediately and cancels the pending idle commit", () => {
+    vi.useFakeTimers();
+    queries.set("", { data: [game("RECENT", "Recent game")] });
+    queries.set("quiz", { data: [game("MATCH", "Quiz match")] });
+    render(<HomePage />);
+    const input = screen.getByRole("searchbox", { name: "Search games" });
+    fireEvent.change(input, { target: { value: "  QuIz  " } });
+    act(() => vi.advanceTimersByTime(200));
+    fireEvent.submit(screen.getByRole("search", { name: "Search games" }));
+    expect(screen.getByText("Quiz match")).toBeVisible();
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.getByText("Quiz match")).toBeVisible();
+  });
+
+  it("does not submit or auto-commit an IME composition, including the Safari Enter key", () => {
+    vi.useFakeTimers();
+    queries.set("", { data: [game("RECENT", "Recent game")] });
+    queries.set("київ", { data: [game("MATCH", "Київ: вечір")] });
+    render(<HomePage />);
+    const input = screen.getByRole("searchbox", { name: "Search games" });
+    const form = screen.getByRole("search", { name: "Search games" });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "Київ" } });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(fireEvent.keyDown(input, { key: "Enter", isComposing: true })).toBe(false);
+    fireEvent.submit(form);
+    expect(screen.getByText("Recent game")).toBeVisible();
+    expect(vi.getTimerCount()).toBe(0);
+
+    fireEvent.compositionEnd(input);
+    expect(fireEvent.keyDown(input, { key: "Enter", keyCode: 229 })).toBe(false);
+    expect(screen.getByText("Recent game")).toBeVisible();
+    fireEvent.submit(form);
+    expect(screen.getByText("Київ: вечір")).toBeVisible();
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -137,7 +184,7 @@ describe("open game search", () => {
     const playing = within(filters).getByRole("button", { name: "In progress" });
     fireEvent.click(playing);
     fireEvent.change(input, { target: { value: "quiz" } });
-    act(() => vi.advanceTimersByTime(250));
+    act(() => vi.advanceTimersByTime(1000));
     expect(screen.getByText("Quiz running")).toBeVisible();
     expect(screen.queryByText("Quiz lobby")).not.toBeInTheDocument();
     expect(screen.queryByText("Quiz finished")).not.toBeInTheDocument();
@@ -154,9 +201,14 @@ describe("open game search", () => {
     expect(screen.getByText("Default running game")).toBeVisible();
     expect(screen.queryByText("Quiz running")).not.toBeInTheDocument();
 
+    // jsdom queues a selectionchange task when clear returns focus to the input.
+    act(() => vi.advanceTimersByTime(0));
+    expect(vi.getTimerCount()).toBe(0);
     fireEvent.change(input, { target: { value: "pending" } });
+    expect(vi.getTimerCount()).toBe(1);
     fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
-    act(() => vi.advanceTimersByTime(250));
+    expect(vi.getTimerCount()).toBe(0);
+    act(() => vi.advanceTimersByTime(1000));
     expect(screen.getByText("Default running game")).toBeVisible();
     expect(screen.getByText("You're still in “My retained game”")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Hide" }));
@@ -170,12 +222,20 @@ describe("open game search", () => {
     expect(screen.getByText("No open games right now. Host one and share the link!")).toBeVisible();
     queries.set("quiz", { isLoading: true, isFetching: true });
     fireEvent.change(input, { target: { value: "quiz" } });
-    act(() => vi.advanceTimersByTime(250));
+    act(() => vi.advanceTimersByTime(1000));
     expect(screen.getByRole("status")).toHaveTextContent("Loading");
     expect(screen.queryByText("No games match your search and filters.")).not.toBeInTheDocument();
     queries.set("quiz", { data: [] });
     view.rerender(<HomePage />);
     expect(screen.getByText("No games match your search and filters.")).toBeVisible();
+    queries.set("quiz", { data: [game("MATCH", "Quiz match")], isFetching: true });
+    view.rerender(<HomePage />);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText("Quiz match")).toBeVisible();
+    expect(screen.getByText("Quiz match").closest("[aria-live]")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
     queries.set("quiz", { isError: true });
     view.rerender(<HomePage />);
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load games");

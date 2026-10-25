@@ -74,7 +74,7 @@ describe("game list queries", () => {
 
       act(() => result.current.changeSearch("quiz"));
       expect(requestedPrefixes()).toEqual(["", ""]);
-      await act(async () => vi.advanceTimersByTimeAsync(300));
+      await act(async () => vi.advanceTimersByTimeAsync(1100));
       expect(requestedPrefixes()).toEqual(["", "", "quiz"]);
       await act(async () => vi.advanceTimersByTimeAsync(5000));
       const expectedSearchPolls = authenticated ? ["", "quiz"] : ["quiz"];

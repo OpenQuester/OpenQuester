@@ -15,7 +15,7 @@ export function useHomePage() {
   const me = useMe();
   const [search, setSearch] = useState("");
   const [titlePrefix, setTitlePrefix] = useState("");
-  const normalizedSearch = search.trim().toLowerCase();
+  const [searchComposing, setSearchComposing] = useState(false);
   const hasSearch = titlePrefix !== "";
   const needsUnfilteredGames = !hasSearch || me.data != null;
   const allGames = useGames("", { enabled: needsUnfilteredGames });
@@ -27,10 +27,12 @@ export function useHomePage() {
   const [hidden, setHidden] = useState<string[]>(() => leftGames());
 
   useEffect(() => {
-    if (normalizedSearch === titlePrefix) return;
-    const timer = window.setTimeout(() => setTitlePrefix(normalizedSearch), 250);
+    if (searchComposing) return;
+    const nextTitlePrefix = search.trim().toLowerCase();
+    if (nextTitlePrefix === titlePrefix) return;
+    const timer = window.setTimeout(() => setTitlePrefix(nextTitlePrefix), 1000);
     return () => window.clearTimeout(timer);
-  }, [normalizedSearch, titlePrefix]);
+  }, [search, searchComposing, titlePrefix]);
 
   const list = useMemo(
     () => (games.data ?? []).filter((g) => gameStatus(g) !== "finished"),
@@ -67,6 +69,13 @@ export function useHomePage() {
     setSearch(value);
     if (!value.trim()) setTitlePrefix("");
   }
+
+  function onSearchSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (searchComposing) return;
+    setTitlePrefix(search.trim().toLowerCase());
+  }
+
   return {
     notice,
     games,
@@ -74,7 +83,8 @@ export function useHomePage() {
     visible,
     search,
     changeSearch,
-    isSearching: normalizedSearch !== titlePrefix,
+    onSearchSubmit,
+    setSearchComposing,
     hasSearch,
     code,
     setCode,

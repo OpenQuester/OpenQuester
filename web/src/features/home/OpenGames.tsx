@@ -3,8 +3,8 @@ import { layoutStyles } from "@/ui/layoutStyles";
 import { useTranslation } from "react-i18next";
 import { useRef } from "react";
 import { cn } from "@/lib/cn";
-import { Button } from "@/ui/Button";
-import { Label, TextInput } from "@/ui/Field";
+import { TextInput } from "@/ui/Field";
+import { CloseIcon } from "@/ui/icons";
 import { Spinner } from "@/ui/Spinner";
 import { GameCard } from "./GameCard";
 import type { HomeModel } from "./useHomePage";
@@ -17,7 +17,8 @@ type OpenGamesProps = Pick<
   | "setFilter"
   | "search"
   | "changeSearch"
-  | "isSearching"
+  | "onSearchSubmit"
+  | "setSearchComposing"
   | "hasSearch"
 >;
 
@@ -28,67 +29,90 @@ export function OpenGames({
   setFilter,
   search,
   changeSearch,
-  isSearching,
+  onSearchSubmit,
+  setSearchComposing,
   hasSearch,
 }: OpenGamesProps) {
   const { t } = useTranslation();
   const input = useRef<HTMLInputElement>(null);
   return (
-    <section className="flex flex-col gap-5" aria-labelledby="open-games">
-      <div className="flex flex-wrap items-center gap-4">
+    <section className="flex flex-col gap-4" aria-labelledby="open-games">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <h2 id="open-games" className={homeStyles.gamesTitle}>
           {t("home.openGames")}
         </h2>
-        <div className="flex-1" />
-        <div role="group" aria-label={t("home.filter")} className="flex flex-wrap gap-2">
-          {(["all", "lobby", "playing"] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              aria-pressed={filter === f}
-              onClick={() => setFilter(f)}
-              className={cn(
-                homeStyles.gameFilter,
-                filter === f
-                  ? "border-info bg-surface-3 text-text"
-                  : "border-line-strong text-muted",
-              )}
-            >
-              {t(`home.filters.${f}`)}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="game-search">{t("home.search")}</Label>
-        <div className="flex flex-wrap gap-2">
-          <TextInput
-            ref={input}
-            id="game-search"
-            type="search"
-            value={search}
-            onChange={(e) => changeSearch(e.target.value)}
-            maxLength={70}
-            aria-describedby="game-search-help"
-            className="flex-[1_1_240px] bg-surface"
-          />
-          <Button
-            variant="ghost"
-            disabled={!search}
-            onClick={() => {
-              changeSearch("");
-              input.current?.focus();
-            }}
+        <div className="ml-auto flex w-full flex-col items-end gap-2 sm:w-auto">
+          <div
+            role="group"
+            aria-label={t("home.filter")}
+            className="flex flex-wrap justify-end gap-2"
           >
-            {t("home.clearSearch")}
-          </Button>
+            {(["all", "lobby", "playing"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                aria-pressed={filter === f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  homeStyles.gameFilter,
+                  filter === f
+                    ? "border-info bg-surface-3 text-text"
+                    : "border-line-strong text-muted",
+                )}
+              >
+                {t(`home.filters.${f}`)}
+              </button>
+            ))}
+          </div>
+          <form
+            role="search"
+            aria-label={t("home.search")}
+            onSubmit={onSearchSubmit}
+            className="w-full sm:w-72"
+          >
+            <div className="relative">
+              <TextInput
+                ref={input}
+                id="game-search"
+                type="search"
+                value={search}
+                onChange={(e) => changeSearch(e.target.value)}
+                onCompositionStart={() => setSearchComposing(true)}
+                onCompositionEnd={() => setSearchComposing(false)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  const composing =
+                    event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+                  if (composing) event.preventDefault();
+                }}
+                maxLength={70}
+                placeholder={t("home.search")}
+                aria-label={t("home.search")}
+                aria-describedby="game-search-help"
+                className="min-h-11 bg-surface pr-11 [&::-webkit-search-cancel-button]:appearance-none"
+              />
+              {search !== "" && (
+                <button
+                  type="button"
+                  aria-label={t("home.clearSearch")}
+                  className="absolute top-1/2 right-1 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-sm text-muted hover:bg-surface-2 hover:text-text focus-visible:outline-2 focus-visible:outline-info"
+                  onClick={() => {
+                    changeSearch("");
+                    input.current?.focus();
+                  }}
+                >
+                  <CloseIcon size={16} />
+                </button>
+              )}
+            </div>
+            <p id="game-search-help" className="mt-1 mb-0 text-xs text-muted">
+              {t("home.searchHelp")}
+            </p>
+          </form>
         </div>
-        <p id="game-search-help" className="m-0 text-sm text-muted">
-          {t("home.searchHelp")}
-        </p>
       </div>
-      <div aria-live="polite" aria-busy={isSearching || games.isFetching}>
-        {isSearching || games.isLoading ? (
+      <div aria-live="polite" aria-busy={games.isFetching}>
+        {games.isLoading ? (
           <Spinner label={t("common.loading")} />
         ) : games.isError ? (
           <p role="alert" className="text-danger">
