@@ -42,28 +42,6 @@ export function OpenGames({
           {t("home.openGames")}
         </h2>
         <div className="ml-auto flex w-full flex-col items-end gap-2 sm:w-auto">
-          <div
-            role="group"
-            aria-label={t("home.filter")}
-            className="flex flex-wrap justify-end gap-2"
-          >
-            {(["all", "lobby", "playing"] as const).map((f) => (
-              <button
-                key={f}
-                type="button"
-                aria-pressed={filter === f}
-                onClick={() => setFilter(f)}
-                className={cn(
-                  homeStyles.gameFilter,
-                  filter === f
-                    ? "border-info bg-surface-3 text-text"
-                    : "border-line-strong text-muted",
-                )}
-              >
-                {t(`home.filters.${f}`)}
-              </button>
-            ))}
-          </div>
           <form
             role="search"
             aria-label={t("home.search")}
@@ -109,6 +87,28 @@ export function OpenGames({
               {t("home.searchHelp")}
             </p>
           </form>
+          <div
+            role="group"
+            aria-label={t("home.filter")}
+            className="flex flex-wrap justify-end gap-2"
+          >
+            {(["all", "lobby", "playing"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                aria-pressed={filter === f}
+                onClick={() => setFilter(f)}
+                className={cn(
+                  homeStyles.gameFilter,
+                  filter === f
+                    ? "border-info bg-surface-3 text-text"
+                    : "border-line-strong text-muted",
+                )}
+              >
+                {t(`home.filters.${f}`)}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       <div aria-live="polite" aria-busy={games.isFetching}>

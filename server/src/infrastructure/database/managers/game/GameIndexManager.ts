@@ -1,9 +1,12 @@
 import { ChainableCommander } from "ioredis";
 
 import { GAME_INDEX_CREATED_AT_KEY, GAME_INDEX_PREFIX } from "domain/constants/game";
+import { gameKey } from "domain/constants/redisKeys";
 import { REDIS_LOCK_GAMES_CLEANUP_ORPHANED } from "domain/constants/redis";
+import { ServerError } from "domain/errors/ServerError";
 import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import { PaginationOptsBase, PaginationOrder } from "domain/types/pagination/PaginationOpts";
+import { type GameStatusFilter } from "domain/types/pagination/game/GamePaginationOpts";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { ValueUtils } from "domain/utils/ValueUtils";
@@ -11,6 +14,7 @@ import { RedisRepository } from "infrastructure/database/repositories/RedisRepos
 
 export class GameIndexManager {
   private readonly TEMP_KEY_TTL = 30; // seconds
+  private readonly STATUS_FILTER_BATCH_SIZE = 200;
 
   constructor(
     private readonly redisRepository: RedisRepository,
@@ -189,6 +193,7 @@ export class GameIndexManager {
       createdAtMax?: Date;
       isPrivate?: boolean;
       titlePrefix?: string;
+      status?: GameStatusFilter;
     },
     pagination: PaginationOptsBase<T>
   ): Promise<{ ids: string[]; total: number }> {
@@ -196,7 +201,8 @@ export class GameIndexManager {
       !!filters.createdAtMin ||
       !!filters.createdAtMax ||
       ValueUtils.isBoolean(filters.isPrivate) ||
-      !!filters.titlePrefix;
+      !!filters.titlePrefix ||
+      !!filters.status;
 
     if (!hasFilters) {
       return this._paginateResults(this._createdAtIndexKey, pagination);
@@ -214,6 +220,9 @@ export class GameIndexManager {
         titlePrefix: filters.titlePrefix
       });
       await this.redisRepository.expire(tempKey, this.TEMP_KEY_TTL);
+      if (filters.status) {
+        await this._applyStatusFilter(tempKey, filters.status);
+      }
       return await this._paginateResults<T>(tempKey, pagination);
     } finally {
       await this.redisRepository.delMultiple([tempKey, `${tempKey}:title`, `${tempKey}:createdAt`]);
@@ -330,6 +339,60 @@ export class GameIndexManager {
     ]);
 
     return { ids, total };
+  }
+
+  private async _applyStatusFilter(indexKey: string, status: GameStatusFilter): Promise<void> {
+    let offset = 0;
+
+    // ponytail: read two fields per candidate; maintain a status index only if lobby size warrants it.
+    while (true) {
+      const gameIds = await this.redisRepository.zrange(
+        indexKey,
+        offset,
+        offset + this.STATUS_FILTER_BATCH_SIZE - 1
+      );
+      if (gameIds.length === 0) {
+        return;
+      }
+
+      await this.redisRepository.expire(indexKey, this.TEMP_KEY_TTL);
+      const pipeline = this.redisRepository.pipeline();
+      for (const gameId of gameIds) {
+        pipeline.hmget(gameKey(gameId), "startedAt", "finishedAt");
+      }
+      const results = await pipeline.exec();
+      if (!results || results.length !== gameIds.length) {
+        throw new ServerError("Game status pipeline returned an unexpected number of results");
+      }
+
+      const excludedIds: string[] = [];
+      for (let index = 0; index < gameIds.length; index++) {
+        const [error, fields] = results[index];
+        if (error) {
+          throw error;
+        }
+        if (!Array.isArray(fields) || fields.length !== 2) {
+          throw new ServerError("Game status pipeline returned invalid lifecycle fields");
+        }
+
+        const [startedAt, finishedAt] = fields as [string | null, string | null];
+        const isLobby = startedAt === "" && finishedAt === "";
+        const isPlaying = startedAt !== null && startedAt !== "" && finishedAt === "";
+        const matchesStatus = status === "lobby" ? isLobby : isPlaying;
+        if (!matchesStatus) {
+          excludedIds.push(gameIds[index]);
+        }
+      }
+
+      if (excludedIds.length > 0) {
+        await this.redisRepository.zrem(indexKey, excludedIds);
+      }
+      // Removed members shift the next batch left; skip only already checked matches.
+      offset += gameIds.length - excludedIds.length;
+      if (gameIds.length < this.STATUS_FILTER_BATCH_SIZE) {
+        return;
+      }
+    }
   }
 
   private get _createdAtIndexKey() {

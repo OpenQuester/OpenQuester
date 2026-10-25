@@ -87,6 +87,9 @@ describe("open game search", () => {
     expect(input).toHaveAccessibleDescription(help);
     expect(input).toHaveAttribute("maxlength", "70");
     expect(screen.queryByText(label)).not.toBeInTheDocument();
+    const form = screen.getByRole("search", { name: label });
+    const filters = screen.getByRole("group", { name: i18n.t("home.filter") });
+    expect(form.compareDocumentPosition(filters)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.queryByRole("button", { name: clear })).not.toBeInTheDocument();
     fireEvent.change(input, { target: { value: "quiz" } });
     expect(screen.getByRole("button", { name: clear })).toBeVisible();

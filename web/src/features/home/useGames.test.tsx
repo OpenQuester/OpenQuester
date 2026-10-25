@@ -53,6 +53,88 @@ afterEach(() => {
 
 describe("game list queries", () => {
   it.each([false, true])(
+    "combines server status and title filters before the page limit when authenticated=%s",
+    async (authenticated) => {
+      vi.useFakeTimers();
+      auth.userId = authenticated ? 1 : null;
+      const retained = {
+        id: "MINE",
+        title: "Retained game",
+        players: [{ id: 1, role: "player" }],
+      };
+      const recentLobbies = Array.from({ length: 49 }, (_, index) => ({
+        id: `RECENT${index}`,
+        title: `Recent lobby ${index}`,
+        players: [],
+      }));
+      const playing = {
+        id: "OLDER",
+        title: "Quiz playing beyond the first page",
+        startedAt: "2026-10-25T12:00:00Z",
+        players: [],
+      };
+      const lobby = { id: "LOBBY", title: "Quiz lobby", players: [] };
+      fetchMock.mockImplementation(async (input) => {
+        const status = new URL((input as Request).url).searchParams.get("status");
+        if (status === "playing") return response([playing]);
+        if (status === "lobby") return response([lobby]);
+        return response([retained, ...recentLobbies]);
+      });
+      const { client, wrapper } = setup();
+      const { result } = renderHook(() => useHomePage(), { wrapper });
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(result.current.visible).toHaveLength(50);
+      expect(result.current.visible.some((game) => game.id === playing.id)).toBe(false);
+      expect(fetchMock).toHaveBeenCalledOnce();
+
+      act(() => result.current.setFilter("playing"));
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(result.current.visible.map((game) => game.id)).toEqual([playing.id]);
+      act(() => result.current.changeSearch("  QuIz  "));
+      await act(async () => vi.advanceTimersByTimeAsync(1000));
+      // The debounce commits React state before the new query can notify its observer.
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(result.current.visible.map((game) => game.id)).toEqual([playing.id]);
+      const combinedQuery = new URL((fetchMock.mock.calls[2]![0] as Request).url).searchParams;
+      expect(Object.fromEntries(combinedQuery)).toEqual({
+        limit: "50",
+        offset: "0",
+        sortBy: "createdAt",
+        order: "desc",
+        titlePrefix: "quiz",
+        status: "playing",
+      });
+      expect(result.current.mine?.id).toBe(authenticated ? retained.id : undefined);
+
+      act(() => result.current.setFilter("lobby"));
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(result.current.visible.map((game) => game.id)).toEqual([lobby.id]);
+      act(() => result.current.setFilter("playing"));
+      expect(result.current.visible.map((game) => game.id)).toEqual([playing.id]);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      expect(client.getQueryData([...gamesKey, "quiz", "playing"])).toEqual([playing]);
+      expect(client.getQueryData([...gamesKey, "quiz", "lobby"])).toEqual([lobby]);
+
+      act(() => result.current.changeSearch(""));
+      expect(result.current.filter).toBe("playing");
+      expect(result.current.visible.map((game) => game.id)).toEqual([playing.id]);
+      expect(result.current.mine?.id).toBe(authenticated ? retained.id : undefined);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      const requestsBeforeRefresh = fetchMock.mock.calls.length;
+      await act(async () => client.invalidateQueries({ queryKey: gamesKey }));
+      const refreshedQueries = fetchMock.mock.calls.slice(requestsBeforeRefresh).map(([input]) => {
+        const query = new URL((input as Request).url).searchParams;
+        return { prefix: query.get("titlePrefix"), status: query.get("status") };
+      });
+      const expectedRefreshes: { prefix: string | null; status: string | null }[] = [
+        { prefix: null, status: "playing" },
+      ];
+      if (authenticated) expectedRefreshes.unshift({ prefix: null, status: null });
+      expect(refreshedQueries).toEqual(expectedRefreshes);
+    },
+  );
+
+  it.each([false, true])(
     "polls only the needed Home lists when authenticated=%s and restores the default list on clear",
     async (authenticated) => {
       vi.useFakeTimers();
@@ -156,7 +238,7 @@ describe("game list queries", () => {
     await act(async () => finishOld(response([{ id: "old", title: "Obsolete result" }])));
     expect(result.current.searched.data?.[0]?.id).toBe("new");
     expect(result.current.rejoin.data?.[0]?.id).toBe("ALL");
-    expect(client.getQueryData([...gamesKey, "old"])).toBeUndefined();
+    expect(client.getQueryData([...gamesKey, "old", "all"])).toBeUndefined();
   });
 
   it("keeps a failed search separate from the unfiltered rejoin query", async () => {

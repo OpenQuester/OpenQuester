@@ -1,6 +1,13 @@
 import { expect, test, type Page, type Response } from "@playwright/test";
 
-import { expectNoHorizontalScroll, hostGame, packageId, signInAsGuest } from "./support/game";
+import {
+  expectNoHorizontalScroll,
+  hostGame,
+  joinByLink,
+  packageId,
+  person,
+  signInAsGuest,
+} from "./support/game";
 
 async function createGame(page: Page, title: string, created: string[]): Promise<string> {
   const response = await page.request.post("/v1/games", {
@@ -26,27 +33,40 @@ async function deleteGames(page: Page, ids: string[]): Promise<void> {
   }
 }
 
-function isSearchResponse(response: Response, prefix: string): boolean {
+function isSearchResponse(
+  response: Response,
+  prefix: string,
+  status?: "lobby" | "playing",
+): boolean {
   const url = new URL(response.url());
-  return url.pathname === "/v1/games" && url.searchParams.get("titlePrefix") === prefix;
+  const matchesPrefix = (url.searchParams.get("titlePrefix") ?? "") === prefix;
+  const matchesStatus = url.searchParams.get("status") === (status ?? null);
+  return url.pathname === "/v1/games" && matchesPrefix && matchesStatus;
 }
 
-test("search finds a case-insensitive Ukrainian prefix beyond the first 50 games", async ({
+test("search and selected status find a Ukrainian title beyond the first 50 games", async ({
   page,
+  browser,
 }) => {
   test.skip(test.info().project.name !== "desktop", "pagination is independent of the viewport");
   const created: string[] = [];
   const stamp = Date.now();
   // The Cyrillic continuation and colon exercise the real Redis title index.
   const title = `Пошук ${stamp}Київ: вечір`;
-  const prefix = `пОшУк ${stamp}`;
+  const prefix = `пОшУк ${stamp}Київ`;
+  const sharedPrefix = `пОшУк ${stamp}`;
 
   await signInAsGuest(page, "Search host");
+  const player = await person(browser, "Search player", { viewport: { width: 1440, height: 900 } });
   try {
-    const id = await createGame(page, title, created);
-    // Exactly 50 newer fixtures put the target beyond Home's unfiltered page.
+    const id = await hostGame(page, title);
+    created.push(id);
+    await joinByLink(player.page, id, "Search player", "player");
+    await player.page.getByRole("button", { name: "I'm ready" }).click();
+    await expect(page.getByTestId("dock-phase")).toHaveText("Choosing");
+    // Newer matching lobbies hide the playing target in both unfiltered and title-only pages.
     for (let i = 0; i < 50; i++) {
-      await createGame(page, `Newer ${stamp} ${i}`, created);
+      await createGame(page, `Пошук ${stamp} newer ${i}`, created);
     }
     const firstPage = await page.request.get("/v1/games", {
       params: { limit: 50, offset: 0, sortBy: "createdAt", order: "desc" },
@@ -62,22 +82,50 @@ test("search finds a case-insensitive Ukrainian prefix beyond the first 50 games
     const matching = (await mixedCase.json()) as { data: { id: string }[] };
     expect(matching.data.map((game) => game.id)).toEqual([id]);
 
-    await page.reload();
-    const openGames = page.getByRole("region", { name: "Open games" });
+    const listPage = await page.context().newPage();
+    await listPage.goto("/");
+    const openGames = listPage.getByRole("region", { name: "Open games" });
     await expect(openGames.getByTestId("game-card")).toHaveCount(50);
-    const searched = page.waitForResponse((response) =>
+    const searched = listPage.waitForResponse((response) =>
       isSearchResponse(response, prefix.toLowerCase()),
     );
-    await openGames.getByRole("searchbox", { name: "Search games" }).fill(`  ${prefix}  `);
+    const search = openGames.getByRole("searchbox", { name: "Search games" });
+    await search.fill(`  ${prefix}  `);
     const response = await searched;
     expect(response.ok()).toBeTruthy();
     const filtered = (await response.json()) as { data: { id: string }[] };
     expect(filtered.data.map((game) => game.id)).toEqual([id]);
     await expect(openGames.getByTestId("game-card")).toHaveCount(1);
     await expect(openGames.getByRole("heading", { name: title, exact: true })).toBeVisible();
-    await expectNoHorizontalScroll(page);
+    const shared = listPage.waitForResponse((response) =>
+      isSearchResponse(response, sharedPrefix.toLowerCase()),
+    );
+    await search.fill(sharedPrefix);
+    await search.press("Enter");
+    expect((await shared).ok()).toBeTruthy();
+    await expect(openGames.getByTestId("game-card")).toHaveCount(50);
+    await expect(openGames.getByRole("heading", { name: title, exact: true })).toHaveCount(0);
+
+    const playing = listPage.waitForResponse((response) =>
+      isSearchResponse(response, sharedPrefix.toLowerCase(), "playing"),
+    );
+    const filters = openGames.getByRole("group", { name: "Filter games" });
+    await filters.getByRole("button", { name: "In progress", exact: true }).click();
+    const playingResponse = await playing;
+    expect(playingResponse.ok()).toBeTruthy();
+    expect((await playingResponse.json()).data.map((game: { id: string }) => game.id)).toEqual([
+      id,
+    ]);
+    await expect(openGames.getByTestId("game-card")).toHaveCount(1);
+    await expect(openGames.getByRole("heading", { name: title, exact: true })).toBeVisible();
+    await expect(search).toHaveValue(sharedPrefix);
+    await expectNoHorizontalScroll(listPage);
   } finally {
-    await deleteGames(page, created);
+    try {
+      await deleteGames(page, created);
+    } finally {
+      await player.context.close();
+    }
   }
 });
 
@@ -129,9 +177,17 @@ test("Enter search respects status filters and preserves the retained seat", asy
     await page.screenshot({ path: test.info().outputPath("games-search.png"), fullPage: true });
 
     const filters = openGames.getByRole("group", { name: "Filter games" });
+    const lobbyResponse = page.waitForResponse((response) =>
+      isSearchResponse(response, prefix.toLowerCase(), "lobby"),
+    );
     await filters.getByRole("button", { name: "In lobby", exact: true }).click();
+    expect((await lobbyResponse).ok()).toBeTruthy();
     await expect(openGames.getByTestId("game-card")).toHaveCount(1);
+    const playingResponse = page.waitForResponse((response) =>
+      isSearchResponse(response, prefix.toLowerCase(), "playing"),
+    );
     await filters.getByRole("button", { name: "In progress", exact: true }).click();
+    expect((await playingResponse).ok()).toBeTruthy();
     await expect(openGames.getByTestId("game-card")).toHaveCount(0);
     await expect(openGames.getByText("No games match your search and filters.")).toBeVisible();
     await expect(search).toHaveValue(prefix);
@@ -149,10 +205,21 @@ test("Enter search respects status filters and preserves the retained seat", asy
     await expect(openGames.getByTestId("game-card")).toHaveCount(0);
     await expect(openGames.getByText("No games match your search and filters.")).toBeVisible();
 
+    const selectedLobby = page.waitForResponse((response) =>
+      isSearchResponse(response, missingPrefix.toLowerCase(), "lobby"),
+    );
+    await filters.getByRole("button", { name: "In lobby", exact: true }).click();
+    expect((await selectedLobby).ok()).toBeTruthy();
+    const cleared = page.waitForResponse((response) => isSearchResponse(response, "", "lobby"));
     await clear.click();
+    expect((await cleared).ok()).toBeTruthy();
     await expect(search).toHaveValue("");
     await expect(search).toBeFocused();
     await expect(clear).toHaveCount(0);
+    await expect(filters.getByRole("button", { name: "In lobby", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     await expect(openGames.getByRole("heading", { name: title, exact: true })).toBeVisible();
     await expect(
       openGames.getByRole("heading", { name: retainedTitle, exact: true }),

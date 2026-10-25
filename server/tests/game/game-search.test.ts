@@ -1,6 +1,7 @@
 import { container } from "tsyringe";
 
 import { GAME_INDEX_CREATED_AT_KEY } from "domain/constants/game";
+import { gameKey } from "domain/constants/redisKeys";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { type GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import { type GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
@@ -106,7 +107,11 @@ describe("Game title search", () => {
         readPage.mockImplementationOnce(async (key, start, stop) => {
           // A real Redis round trip exposes cleanup that runs before pagination finishes.
           const temporaryKeys = [key, `${key}:title`, `${key}:createdAt`];
-          const state = await redis.pipeline().exists(...temporaryKeys).ttl(key).exec();
+          const state = await redis
+            .pipeline()
+            .exists(...temporaryKeys)
+            .ttl(key)
+            .exec();
           expect(state?.[0]).toEqual([null, 3]);
           expect(state?.[1][1]).toBeGreaterThan(0);
           return originalRange(key, start, stop);
@@ -137,7 +142,10 @@ describe("Game title search", () => {
           .exists(...temporaryKeys)
           .ttl(GAME_INDEX_CREATED_AT_KEY)
           .exec();
-        expect(state).toEqual([[null, 0], [null, -1]]);
+        expect(state).toEqual([
+          [null, 0],
+          [null, -1]
+        ]);
       } finally {
         readPage.mockRestore();
         removeKeys.mockRestore();
@@ -159,7 +167,12 @@ describe("Game title search", () => {
       );
       expect(removeKeys).toHaveBeenCalledTimes(1);
       const temporaryKeys = removeKeys.mock.calls[0][0];
-      expect(await redis.pipeline().exists(...temporaryKeys).exec()).toEqual([[null, 0]]);
+      expect(
+        await redis
+          .pipeline()
+          .exists(...temporaryKeys)
+          .exec()
+      ).toEqual([[null, 0]]);
     } finally {
       expireKey.mockRestore();
       removeKeys.mockRestore();
@@ -205,6 +218,100 @@ describe("Game title search", () => {
     expect(await index.findGamesByIndex(filters, pagination)).toEqual({ ids: [], total: 0 });
   });
 
+  it("combines status and indexed filters before pagination across candidate batches", async () => {
+    const lobbyIds = new Set(["G000", "G201", "G203"]);
+    const playingIds = new Set(["G001", "G202", "G204"]);
+    const games = Array.from({ length: 205 }, (_, index) => ({
+      id: `G${String(index).padStart(3, "0")}`,
+      title: index === 204 ? "Different game" : "ПошукКиїв: test",
+      isPrivate: index === 203,
+      createdAt: new Date(1000 + index)
+    }));
+    await addToIndex(games);
+    const lifecycle = redis.pipeline();
+    for (const game of games) {
+      lifecycle.hset(gameKey(game.id), {
+        startedAt: lobbyIds.has(game.id) ? "" : "1000",
+        finishedAt: lobbyIds.has(game.id) || playingIds.has(game.id) ? "" : "2000"
+      });
+    }
+    await lifecycle.exec();
+    const newestFirst = { ...pagination, order: PaginationOrder.DESC, limit: 50 };
+    const firstPage = await index.findGamesByIndex({}, newestFirst);
+    expect(firstPage.ids).not.toContain("G000");
+    expect(firstPage.ids).not.toContain("G001");
+
+    for (const status of ["lobby", "playing"] as const) {
+      const filters = {
+        titlePrefix: "пОшУк",
+        isPrivate: false,
+        createdAtMin: new Date(500),
+        createdAtMax: new Date(2000),
+        status
+      };
+      const expectedIds = status === "lobby" ? ["G201", "G000"] : ["G202", "G001"];
+      expect(await index.findGamesByIndex(filters, newestFirst)).toEqual({
+        ids: expectedIds,
+        total: 2
+      });
+      expect(
+        await index.findGamesByIndex(filters, { ...newestFirst, limit: 1, offset: 1 })
+      ).toEqual({ ids: [expectedIds[1]], total: 2 });
+      expect(
+        await index.findGamesByIndex({ status }, { ...newestFirst, limit: 1, offset: 1 })
+      ).toEqual({ ids: [expectedIds[0]], total: 3 });
+    }
+  });
+
+  it("reads current lifecycle fields on every status query and excludes missing game hashes", async () => {
+    await addToIndex([
+      { id: "LIVE", title: "Match game", isPrivate: false, createdAt: new Date(1000) },
+      { id: "LOST", title: "Match deleted", isPrivate: false, createdAt: new Date(2000) }
+    ]);
+    await redis.hset(gameKey("LIVE"), { startedAt: "", finishedAt: "" });
+    const lobby = { titlePrefix: "Match", status: "lobby" as const };
+    const playing = { titlePrefix: "Match", status: "playing" as const };
+    expect(await index.findGamesByIndex(lobby, pagination)).toEqual({ ids: ["LIVE"], total: 1 });
+    expect(await index.findGamesByIndex(playing, pagination)).toEqual({ ids: [], total: 0 });
+
+    await redis.hset(gameKey("LIVE"), { startedAt: "1000" });
+    expect(await index.findGamesByIndex(lobby, pagination)).toEqual({ ids: [], total: 0 });
+    expect(await index.findGamesByIndex(playing, pagination)).toEqual({ ids: ["LIVE"], total: 1 });
+
+    await redis.hset(gameKey("LIVE"), { finishedAt: "2000" });
+    expect(await index.findGamesByIndex(lobby, pagination)).toEqual({ ids: [], total: 0 });
+    expect(await index.findGamesByIndex(playing, pagination)).toEqual({ ids: [], total: 0 });
+    expect(await index.findGamesByIndex({ titlePrefix: "Match" }, pagination)).toEqual({
+      ids: ["LIVE", "LOST"],
+      total: 2
+    });
+  });
+
+  it("propagates status pipeline command errors and removes its temporary index", async () => {
+    await addToIndex([
+      { id: "TEST", title: "Match game", isPrivate: false, createdAt: new Date(1000) }
+    ]);
+    await redis.pipeline().set(gameKey("TEST"), "not a game hash").exec();
+    const removeKeys = jest.spyOn(redis, "delMultiple");
+
+    try {
+      await expect(
+        index.findGamesByIndex({ titlePrefix: "Match", status: "lobby" }, pagination)
+      ).rejects.toThrow("WRONGTYPE");
+      expect(removeKeys).toHaveBeenCalledTimes(1);
+      const temporaryKeys = removeKeys.mock.calls[0][0];
+      expect(
+        await redis
+          .pipeline()
+          .exists(...temporaryKeys)
+          .exec()
+      ).toEqual([[null, 0]]);
+      expect(await redis.zcard(GAME_INDEX_CREATED_AT_KEY)).toBe(1);
+    } finally {
+      removeKeys.mockRestore();
+    }
+  });
+
   it("keeps an unmatched title filter when combined with privacy and dates", async () => {
     await addToIndex([
       { id: "TEST", title: "Existing game", isPrivate: false, createdAt: new Date(2000) }
@@ -213,6 +320,7 @@ describe("Game title search", () => {
     for (const filters of [
       { titlePrefix: "Missing" },
       { titlePrefix: "Missing", isPrivate: false },
+      { titlePrefix: "Missing", status: "lobby" as const },
       { titlePrefix: "Missing", createdAtMin: new Date(1000), createdAtMax: new Date(3000) },
       { titlePrefix: "Missing", isPrivate: false, createdAtMin: new Date(1000) }
     ]) {
@@ -284,7 +392,11 @@ describe("Game title search", () => {
     });
   });
 
-  it("lists literal Unicode and colon titles through HTTP and removes deleted matches", async () => {
+  it("combines title and status before HTTP pagination and removes deleted matches", async () => {
+    await http
+      .get("/v1/games")
+      .query({ ...pagination, status: "finished" })
+      .expect(400);
     const users = harness.dataSource.getRepository(User);
     const user = await users.save(
       users.create({ username: "search_host", email: "search@test.com", is_deleted: false })
@@ -318,6 +430,33 @@ describe("Game title search", () => {
     expect(list.body.data[0].title).toBe(matching.title);
     expect(list.body.pageInfo.total).toBe(1);
 
+    const playing = await createGame("ПошукКиїв: playing");
+    await redis.hset(gameKey(playing.id), { startedAt: "1000" });
+    for (let index = 0; index < 51; index++) {
+      const finished = await createGame(`ПошукКиїв: finished ${index}`);
+      await redis.hset(gameKey(finished.id), { startedAt: "1000", finishedAt: "2000" });
+    }
+
+    const firstPage = await http
+      .get("/v1/games")
+      .query({ ...query, order: PaginationOrder.DESC, limit: 50 })
+      .expect(200);
+    const firstPageIds = firstPage.body.data.map((game: GameListItemDTO) => game.id);
+    expect(firstPageIds).not.toContain(matching.id);
+    expect(firstPageIds).not.toContain(playing.id);
+    expect(firstPage.body.pageInfo.total).toBe(53);
+
+    for (const status of ["lobby", "playing"] as const) {
+      const filtered = await http
+        .get("/v1/games")
+        .query({ ...query, status, order: PaginationOrder.DESC, limit: 50 })
+        .expect(200);
+      expect(filtered.body.data.map((game: GameListItemDTO) => game.id)).toEqual([
+        status === "lobby" ? matching.id : playing.id
+      ]);
+      expect(filtered.body.pageInfo.total).toBe(1);
+    }
+
     const missing = await http
       .get("/v1/games")
       .query({ ...query, titlePrefix: "Відсутня" })
@@ -325,7 +464,10 @@ describe("Game title search", () => {
     expect(missing.body).toEqual({ data: [], pageInfo: { total: 0 } });
 
     await http.delete(`/v1/games/${matching.id}`).set("Cookie", cookie).expect(204);
-    const deleted = await http.get("/v1/games").query(query).expect(200);
+    const deleted = await http
+      .get("/v1/games")
+      .query({ ...query, status: "lobby" })
+      .expect(200);
     expect(deleted.body).toEqual({ data: [], pageInfo: { total: 0 } });
   });
 });

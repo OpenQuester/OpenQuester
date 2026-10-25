@@ -1184,7 +1184,7 @@
     "/v1/games": {
       "get": {
         "summary": "Get all games",
-        "description": "Returns lobby games from Redis-backed indexes. Games deleted by REST or by empty-game cleanup are removed from these indexes before they disappear from the listing.",
+        "description": "Returns games from Redis-backed indexes. Optional title, privacy, date and status filters apply together before pagination and the returned total. Omitting status includes every lifecycle status. Games deleted by REST or by empty-game cleanup are removed from these indexes before they disappear from the listing.",
         "tags": ["Games"],
         "parameters": [
           {
@@ -1249,6 +1249,14 @@
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/PaginationTitlePrefix"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/GameStatusFilter"
             }
           }
         ],
@@ -3983,6 +3991,11 @@
       "FilterIsPrivate": {
         "type": "boolean",
         "examples": [false]
+      },
+      "GameStatusFilter": {
+        "type": "string",
+        "enum": ["lobby", "playing"],
+        "description": "Filter before pagination: lobby means neither started nor finished; playing means started and not finished. Omit to include all statuses, including finished games."
       },
       "PaginationTitlePrefix": {
         "type": "string",

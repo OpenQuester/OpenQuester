@@ -1,14 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { api, unwrap } from "@/api/client";
-import type { GameListItem } from "@/api/types";
+import type { GameListItem, GameStatusFilter } from "@/api/types";
 
 export const gamesKey = ["games"] as const;
 
-export function useGames(titlePrefix = "", options: { enabled?: boolean } = {}) {
+interface GamesOptions {
+  enabled?: boolean;
+  status?: GameStatusFilter;
+}
+
+export function useGames(titlePrefix = "", options: GamesOptions = {}) {
   const prefix = titlePrefix.trim().toLowerCase();
+  const status = options.status;
   return useQuery({
-    queryKey: [...gamesKey, prefix],
+    queryKey: [...gamesKey, prefix, status ?? "all"],
     queryFn: async ({ signal }) => {
       const result = await unwrap(
         api.GET("/v1/games", {
@@ -19,6 +25,7 @@ export function useGames(titlePrefix = "", options: { enabled?: boolean } = {}) 
               sortBy: "createdAt",
               order: "desc",
               ...(prefix ? { titlePrefix: prefix } : {}),
+              ...(status ? { status } : {}),
             },
           },
           signal,

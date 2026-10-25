@@ -90,5 +90,6 @@ export const gamePaginationScheme = () =>
     createdAtMax: Joi.date().optional(),
     createdAtMin: Joi.date().optional(),
     isPrivate: Joi.boolean().optional(),
-    titlePrefix: Joi.string().optional()
+    titlePrefix: Joi.string().optional(),
+    status: Joi.string().valid("lobby", "playing").optional()
   });

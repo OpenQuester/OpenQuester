@@ -16,14 +16,16 @@ export function useHomePage() {
   const [search, setSearch] = useState("");
   const [titlePrefix, setTitlePrefix] = useState("");
   const [searchComposing, setSearchComposing] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
   const hasSearch = titlePrefix !== "";
-  const needsUnfilteredGames = !hasSearch || me.data != null;
+  const hasListFilters = hasSearch || filter !== "all";
+  const status = filter === "all" ? undefined : filter;
+  const needsUnfilteredGames = !hasListFilters || me.data != null;
   const allGames = useGames("", { enabled: needsUnfilteredGames });
-  const searchedGames = useGames(titlePrefix, { enabled: hasSearch });
-  const games = hasSearch ? searchedGames : allGames;
+  const filteredGames = useGames(titlePrefix, { enabled: hasListFilters, status });
+  const games = hasListFilters ? filteredGames : allGames;
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Filter>("all");
   const [hidden, setHidden] = useState<string[]>(() => leftGames());
 
   useEffect(() => {
