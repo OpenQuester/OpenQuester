@@ -66,7 +66,6 @@ export function OpenGames({
                 maxLength={70}
                 placeholder={t("home.search")}
                 aria-label={t("home.search")}
-                aria-describedby="game-search-help"
                 className="min-h-11 bg-surface pr-11 [&::-webkit-search-cancel-button]:appearance-none"
               />
               {search !== "" && (
@@ -83,9 +82,6 @@ export function OpenGames({
                 </button>
               )}
             </div>
-            <p id="game-search-help" className="mt-1 mb-0 text-xs text-muted">
-              {t("home.searchHelp")}
-            </p>
           </form>
           <div
             role="group"

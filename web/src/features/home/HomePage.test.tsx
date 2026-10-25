@@ -76,15 +76,15 @@ afterEach(() => {
 
 describe("open game search", () => {
   it.each([
-    ["en", "Search games", "Clear search", "Match the start of a game title."],
-    ["uk", "Пошук ігор", "Очистити пошук", "Пошук за початком назви гри."],
-    ["ru", "Поиск игр", "Очистить поиск", "Поиск по началу названия игры."],
-  ])("names the compact search and inline clear controls in %s", (lang, label, clear, help) => {
+    ["en", "Search games", "Clear search"],
+    ["uk", "Пошук ігор", "Очистити пошук"],
+    ["ru", "Поиск игр", "Очистить поиск"],
+  ])("names the compact search and inline clear controls in %s", (lang, label, clear) => {
     void i18n.changeLanguage(lang);
     render(<HomePage />);
     const input = screen.getByRole("searchbox", { name: label });
     expect(input).toHaveAttribute("placeholder", label);
-    expect(input).toHaveAccessibleDescription(help);
+    expect(input).not.toHaveAttribute("aria-describedby");
     expect(input).toHaveAttribute("maxlength", "70");
     expect(screen.queryByText(label)).not.toBeInTheDocument();
     const form = screen.getByRole("search", { name: label });
