@@ -7,7 +7,9 @@
     "dismiss": "Dismiss",
     "you": "you",
     "youCap": "You",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "nav": {
     "main": "Main",
@@ -245,7 +247,8 @@
     "watch": "Spectate",
     "lobbyHelp": "Players buzz and score. Spectators watch everything but can't answer.",
     "playingHelp": "The game is in progress. Take a free seat and play from the next question, or watch.",
-    "fullHelp": "All seats are taken. You can watch and take a seat if one frees up."
+    "fullHelp": "All seats are taken. You can watch and take a seat if one frees up.",
+    "passwordInvalid": "Use 1–16 Latin letters, digits, - or _."
   },
   "game": {
     "joining": "Joining the game…",
@@ -1463,7 +1466,8 @@
   },
   "roundTransition": {
     "title": "Next round",
-    "description": "Round {{n}} — {{name}}"
+    "description": "Round {{n}} — {{name}}",
+    "firstTitle": "First round"
   },
   "skipRound": {
     "title": "Skip to the next round?",

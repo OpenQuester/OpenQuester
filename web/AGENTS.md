@@ -61,6 +61,8 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   never hard-code a colour in a component. A new theme is a `[data-theme]`
   block plus an entry in `themes.ts`.
 - All user-facing text goes through i18next keys in `src/i18n/locales/*.json`.
+  Server errors are already resolved to display text by the backend; show them
+  as received instead of mapping server error codes or rewriting their messages.
 - Use `cn()` from `src/lib/cn.ts` for class names so later utilities win.
 - Name files and exports by their actual responsibility: `PackageEditorPage`
   edits a package, `MediaEditor` owns an attachment session, and
@@ -289,9 +291,13 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   so these controls do not import the settings route component.
 - Game entry (`features/game/`) separates route join/rejoin decisions in
   `useGameEntry`, connection ownership in `connection/useGameConnection`, and
-  form state in `join/useJoinForm`. Keep the connection keyed by game and account ID and
+  form state in `join/useJoinForm`. `GamePage` keeps the join form visible with
+  busy submit buttons until acceptance; rejected passwords can be corrected inline.
+  `ConnectedGame` keeps the round interlude mounted across lobby and play.
+  Keep the connection keyed by game and account ID and
   create it once per mount; cleanup closes it without leaving its seat. A failed
-  join retry disables automatic rejoin. Ignore leave events for another game.
+  join disables automatic rejoin for the current visit; leaving the page clears
+  that failure so the next visit can rejoin. Ignore leave events for another game.
   Keep join drafts in `JoinPanel` even when its form is temporarily hidden.
   `lobby/` separates header, seats, role actions and invite views from `useLobby`;
   `getLobbySeats` preserves missing-slot fallback and the two-empty-seat limit.

@@ -5,6 +5,8 @@ import { displayName } from "@/features/auth/useMe";
 import type { GameStatus } from "@/features/home/useGames";
 import { Button } from "@/ui/Button";
 import { FieldError, Label, TextInput } from "@/ui/Field";
+import { PasswordInput } from "@/ui/PasswordInput";
+import { Spinner } from "@/ui/Spinner";
 import type { useJoinForm } from "./useJoinForm";
 
 export function JoinForm({
@@ -23,7 +25,14 @@ export function JoinForm({
   status: GameStatus;
 }) {
   const { t } = useTranslation();
-  const { me, guest, name, setName, password, setPassword, error, go } = model;
+  const { me, name, setName, password, setPassword, error, busy, submittedRole, go } = model;
+  const joiningAsPlayer = busy && submittedRole === "player";
+  const joiningAsSpectator = busy && submittedRole === "spectator";
+  const spinner = (
+    <span aria-hidden="true" className="absolute top-1/2 left-1.5 -translate-y-1/2">
+      <Spinner size={16} />
+    </span>
+  );
   return (
     <form
       onSubmit={(e) => void go(canPlay ? "player" : "spectator", e)}
@@ -55,7 +64,7 @@ export function JoinForm({
       {needsPassword && (
         <div className="flex flex-col gap-2">
           <Label htmlFor="join-pass">{t("join.password")}</Label>
-          <TextInput
+          <PasswordInput
             id="join-pass"
             value={password}
             autoComplete="off"
@@ -68,7 +77,16 @@ export function JoinForm({
       <FieldError>{error}</FieldError>
       <div className="flex flex-wrap gap-3">
         {canPlay && (
-          <Button type="submit" variant="accent" size="lg" disabled={guest.isPending}>
+          <Button
+            type="submit"
+            variant="accent"
+            size="lg"
+            disabled={busy}
+            className="relative border-2"
+            icon={joiningAsPlayer && spinner}
+            aria-label={t("join.asPlayer")}
+            aria-busy={joiningAsPlayer}
+          >
             {t("join.asPlayer")}
           </Button>
         )}
@@ -76,7 +94,11 @@ export function JoinForm({
           type="button"
           variant={canPlay ? "ghost" : "accent"}
           size="lg"
-          disabled={guest.isPending}
+          disabled={busy}
+          className="relative border-2"
+          icon={joiningAsSpectator && spinner}
+          aria-label={t("join.watch")}
+          aria-busy={joiningAsSpectator}
           onClick={() => void go("spectator")}
         >
           {t("join.watch")}

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type * as Fixture from "./round-transition.fixture";
 
-async function mount(page: Page, order = 0, reducedMotion = false) {
+async function mount(page: Page, order: number | null = 0, reducedMotion = false) {
   await page.evaluate(
     async ({ order, reducedMotion }) => {
       const path = "/browser-tests/round-transition.fixture.tsx";
@@ -10,7 +10,9 @@ async function mount(page: Page, order = 0, reducedMotion = false) {
     },
     { order, reducedMotion },
   );
-  await expect(page.getByTestId("round-name")).toBeVisible();
+  if (order == null)
+    await expect(page.getByRole("heading", { name: "Test game", exact: true })).toBeVisible();
+  else await expect(page.getByTestId("round-name")).toBeVisible();
 }
 
 async function advance(page: Page) {
@@ -26,6 +28,33 @@ for (const viewport of [
   { width: 1440, height: 900 },
   { width: 375, height: 812 },
 ]) {
+  test(`first round opens on game start but not on reload at ${viewport.width}px`, async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize(viewport);
+    await context.route("**/v1/**", (route) => route.fulfill({ status: 401, body: "{}" }));
+    await page.goto("/");
+    await mount(page, null);
+    await expect(page.getByTestId("round-transition")).toHaveCount(0);
+    await page.clock.install();
+    await page.clock.pauseAt(new Date());
+    await page.evaluate(async () => {
+      const path = "/browser-tests/round-transition.fixture.tsx";
+      ((await import(path)) as typeof Fixture).startGame();
+    });
+    const overlay = page.getByRole("dialog", { name: "First round" });
+    await expect(overlay).toHaveAttribute("open", "");
+    await expect(overlay).toContainText("Round 1 — Round 1");
+    await page.clock.runFor(3499);
+    await expect(overlay).toHaveCount(1);
+    await page.clock.runFor(1);
+    await expect(overlay).toHaveCount(0);
+    await page.reload();
+    await mount(page);
+    await expect(page.getByTestId("round-transition")).toHaveCount(0);
+  });
+
   test(`round interlude blocks input and survives live updates at ${viewport.width}px`, async ({
     page,
     context,

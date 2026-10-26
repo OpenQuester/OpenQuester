@@ -1,7 +1,6 @@
 const messageCard = "flex flex-col gap-4 rounded-lg border p-6";
 
 export const gameEntryStyles = {
-  failure: `${messageCard} border-danger/40 bg-danger-surface`,
   takeoverOverlay: "fixed inset-0 z-50 flex items-center justify-center bg-scrim/80 p-4",
   takeoverMessage: `${messageCard} w-full max-w-[460px] border-line-strong bg-surface shadow-2xl`,
   title:
