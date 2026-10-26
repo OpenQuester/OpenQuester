@@ -1,12 +1,14 @@
 import { ChainableCommander } from "ioredis";
+import { performance } from "node:perf_hooks";
 
 import { GAME_INDEX_CREATED_AT_KEY, GAME_INDEX_PREFIX } from "domain/constants/game";
 import { gameKey } from "domain/constants/redisKeys";
 import { REDIS_LOCK_GAMES_CLEANUP_ORPHANED } from "domain/constants/redis";
+import { SECOND_MS } from "domain/constants/time";
+import { GameStatusFilter } from "domain/enums/game/GameStatusFilter";
 import { ServerError } from "domain/errors/ServerError";
 import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import { PaginationOptsBase, PaginationOrder } from "domain/types/pagination/PaginationOpts";
-import { type GameStatusFilter } from "domain/types/pagination/game/GamePaginationOpts";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { ValueUtils } from "domain/utils/ValueUtils";
@@ -211,7 +213,7 @@ export class GameIndexManager {
     const tempKey = `${GAME_INDEX_PREFIX}:temp:${Date.now()}:${ValueUtils.generateUUID()}`;
 
     try {
-      await this._buildCompositeIndex(tempKey, {
+      const candidateCount = await this._buildCompositeIndex(tempKey, {
         createdAt: {
           max: filters.createdAtMax,
           min: filters.createdAtMin
@@ -221,7 +223,7 @@ export class GameIndexManager {
       });
       await this.redisRepository.expire(tempKey, this.TEMP_KEY_TTL);
       if (filters.status) {
-        await this._applyStatusFilter(tempKey, filters.status);
+        await this._applyStatusFilter(tempKey, filters.status, candidateCount);
       }
       return await this._paginateResults<T>(tempKey, pagination);
     } finally {
@@ -236,7 +238,7 @@ export class GameIndexManager {
       isPrivate?: boolean;
       titlePrefix?: string;
     }
-  ) {
+  ): Promise<number> {
     // Keep creation timestamps as the score source for every combination of filters.
     const indexKeys = [this._createdAtIndexKey];
 
@@ -244,7 +246,7 @@ export class GameIndexManager {
     await this._applyTitleFilter(filters, tempKey, indexKeys);
     await this._applyDateRangeFilter(filters, tempKey, indexKeys);
 
-    await this.redisRepository.zinterstore(tempKey, indexKeys.length, [
+    return this.redisRepository.zinterstore(tempKey, indexKeys.length, [
       ...indexKeys,
       "WEIGHTS",
       ...indexKeys.map((_, i) => (i === 0 ? 1 : 0))
@@ -341,21 +343,42 @@ export class GameIndexManager {
     return { ids, total };
   }
 
-  private async _applyStatusFilter(indexKey: string, status: GameStatusFilter): Promise<void> {
+  private async _applyStatusFilter(
+    indexKey: string,
+    status: GameStatusFilter,
+    candidateCount: number
+  ): Promise<void> {
     let offset = 0;
+    const ttlRefreshIntervalMs = (this.TEMP_KEY_TTL * SECOND_MS) / 2;
+    let nextTtlRefreshAt = performance.now() + ttlRefreshIntervalMs;
 
-    // ponytail: read two fields per candidate; maintain a status index only if lobby size warrants it.
-    while (true) {
+    // The private snapshot can only shrink as this query removes nonmatching members.
+    for (
+      let checkedCount = 0;
+      checkedCount < candidateCount;
+      checkedCount += this.STATUS_FILTER_BATCH_SIZE
+    ) {
+      if (performance.now() >= nextTtlRefreshAt) {
+        const renewed = await this.redisRepository.expire(indexKey, this.TEMP_KEY_TTL);
+        if (renewed === 0) {
+          throw new ServerError("Game status filter temporary index expired before completion");
+        }
+        nextTtlRefreshAt = performance.now() + ttlRefreshIntervalMs;
+      }
+
+      const expectedBatchSize = Math.min(
+        this.STATUS_FILTER_BATCH_SIZE,
+        candidateCount - checkedCount
+      );
       const gameIds = await this.redisRepository.zrange(
         indexKey,
         offset,
-        offset + this.STATUS_FILTER_BATCH_SIZE - 1
+        offset + expectedBatchSize - 1
       );
-      if (gameIds.length === 0) {
-        return;
+      if (gameIds.length !== expectedBatchSize) {
+        throw new ServerError("Game status filter temporary index is missing candidates");
       }
 
-      await this.redisRepository.expire(indexKey, this.TEMP_KEY_TTL);
       const pipeline = this.redisRepository.pipeline();
       for (const gameId of gameIds) {
         pipeline.hmget(gameKey(gameId), "startedAt", "finishedAt");
@@ -378,7 +401,7 @@ export class GameIndexManager {
         const [startedAt, finishedAt] = fields as [string | null, string | null];
         const isLobby = startedAt === "" && finishedAt === "";
         const isPlaying = startedAt !== null && startedAt !== "" && finishedAt === "";
-        const matchesStatus = status === "lobby" ? isLobby : isPlaying;
+        const matchesStatus = status === GameStatusFilter.LOBBY ? isLobby : isPlaying;
         if (!matchesStatus) {
           excludedIds.push(gameIds[index]);
         }
@@ -389,9 +412,6 @@ export class GameIndexManager {
       }
       // Removed members shift the next batch left; skip only already checked matches.
       offset += gameIds.length - excludedIds.length;
-      if (gameIds.length < this.STATUS_FILTER_BATCH_SIZE) {
-        return;
-      }
     }
   }
 

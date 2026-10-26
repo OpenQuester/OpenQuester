@@ -1,8 +1,10 @@
+import { performance } from "node:perf_hooks";
 import { container } from "tsyringe";
 
 import { GAME_INDEX_CREATED_AT_KEY } from "domain/constants/game";
 import { gameKey } from "domain/constants/redisKeys";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { GameStatusFilter } from "domain/enums/game/GameStatusFilter";
 import { type GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import { type GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { type GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
@@ -241,7 +243,7 @@ describe("Game title search", () => {
     expect(firstPage.ids).not.toContain("G000");
     expect(firstPage.ids).not.toContain("G001");
 
-    for (const status of ["lobby", "playing"] as const) {
+    for (const status of Object.values(GameStatusFilter)) {
       const filters = {
         titlePrefix: "пОшУк",
         isPrivate: false,
@@ -249,7 +251,7 @@ describe("Game title search", () => {
         createdAtMax: new Date(2000),
         status
       };
-      const expectedIds = status === "lobby" ? ["G201", "G000"] : ["G202", "G001"];
+      const expectedIds = status === GameStatusFilter.LOBBY ? ["G201", "G000"] : ["G202", "G001"];
       expect(await index.findGamesByIndex(filters, newestFirst)).toEqual({
         ids: expectedIds,
         total: 2
@@ -269,8 +271,8 @@ describe("Game title search", () => {
       { id: "LOST", title: "Match deleted", isPrivate: false, createdAt: new Date(2000) }
     ]);
     await redis.hset(gameKey("LIVE"), { startedAt: "", finishedAt: "" });
-    const lobby = { titlePrefix: "Match", status: "lobby" as const };
-    const playing = { titlePrefix: "Match", status: "playing" as const };
+    const lobby = { titlePrefix: "Match", status: GameStatusFilter.LOBBY };
+    const playing = { titlePrefix: "Match", status: GameStatusFilter.PLAYING };
     expect(await index.findGamesByIndex(lobby, pagination)).toEqual({ ids: ["LIVE"], total: 1 });
     expect(await index.findGamesByIndex(playing, pagination)).toEqual({ ids: [], total: 0 });
 
@@ -287,6 +289,110 @@ describe("Game title search", () => {
     });
   });
 
+  it.each([0, 16_000])(
+    "bounds exact candidate batches and renews the snapshot only when due (batch time: %s ms)",
+    async (batchTimeMs) => {
+      const games = Array.from({ length: 400 }, (_, gameIndex) => ({
+        id: `G${String(gameIndex).padStart(3, "0")}`,
+        title: "Match game",
+        isPrivate: false,
+        createdAt: new Date(1000 + gameIndex)
+      }));
+      await addToIndex(games);
+      const lifecycle = redis.pipeline();
+      for (const game of games) {
+        lifecycle.hset(gameKey(game.id), { startedAt: "", finishedAt: "" });
+      }
+      await lifecycle.exec();
+
+      let elapsedMs = 0;
+      let expiresAtMs = Infinity;
+      const clock = jest.spyOn(performance, "now").mockImplementation(() => elapsedMs);
+      const originalExpire = redis.expire.bind(redis);
+      const expireKey = jest.spyOn(redis, "expire").mockImplementation(async (key, ttlSeconds) => {
+        expiresAtMs = elapsedMs + ttlSeconds * 1000;
+        return originalExpire(key, ttlSeconds);
+      });
+      const originalRange = redis.zrange.bind(redis);
+      const readRange = jest.spyOn(redis, "zrange").mockImplementation(async (key, start, stop) => {
+        // Model Redis expiry against the controlled clock without sleeping.
+        if (elapsedMs >= expiresAtMs) {
+          await redis.del(key);
+        }
+        const ids = await originalRange(key, start, stop);
+        if (stop - start + 1 === 200) {
+          elapsedMs += batchTimeMs;
+        }
+        return ids;
+      });
+
+      try {
+        expect(
+          await index.findGamesByIndex(
+            { status: GameStatusFilter.LOBBY },
+            { ...pagination, offset: 399, limit: 1 }
+          )
+        ).toEqual({ ids: ["G399"], total: 400 });
+        expect(readRange).toHaveBeenCalledTimes(3); // Two candidate batches and one page.
+        expect(expireKey).toHaveBeenCalledTimes(batchTimeMs === 0 ? 1 : 2);
+      } finally {
+        readRange.mockRestore();
+        expireKey.mockRestore();
+        clock.mockRestore();
+      }
+    }
+  );
+
+  it("rejects a disappeared status snapshot instead of returning an empty result", async () => {
+    await addToIndex([
+      { id: "TEST", title: "Match game", isPrivate: false, createdAt: new Date(1000) }
+    ]);
+    const originalRange = redis.zrange.bind(redis);
+    const readCandidates = jest
+      .spyOn(redis, "zrange")
+      .mockImplementationOnce(async (key, start, stop) => {
+        await redis.del(key);
+        return originalRange(key, start, stop);
+      });
+
+    try {
+      await expect(
+        index.findGamesByIndex({ status: GameStatusFilter.LOBBY }, pagination)
+      ).rejects.toThrow("temporary index is missing candidates");
+      expect(await redis.zcard(GAME_INDEX_CREATED_AT_KEY)).toBe(1);
+    } finally {
+      readCandidates.mockRestore();
+    }
+  });
+
+  it("excludes a game deleted between reading candidates and lifecycle fields", async () => {
+    await addToIndex([
+      { id: "LIVE", title: "Match game", isPrivate: false, createdAt: new Date(1000) },
+      { id: "LOST", title: "Match deleted", isPrivate: false, createdAt: new Date(2000) }
+    ]);
+    await redis.hset(gameKey("LIVE"), { startedAt: "", finishedAt: "" });
+    await redis.hset(gameKey("LOST"), { startedAt: "", finishedAt: "" });
+    const originalRange = redis.zrange.bind(redis);
+    const readCandidates = jest
+      .spyOn(redis, "zrange")
+      .mockImplementationOnce(async (key, start, stop) => {
+        const ids = await originalRange(key, start, stop);
+        expect(ids).toEqual(["LIVE", "LOST"]);
+        await redis.del(gameKey("LOST"));
+        return ids;
+      });
+
+    try {
+      expect(await index.findGamesByIndex({ status: GameStatusFilter.LOBBY }, pagination)).toEqual({
+        ids: ["LIVE"],
+        total: 1
+      });
+      expect(await redis.hmget(gameKey("LOST"), ["startedAt", "finishedAt"])).toEqual([null, null]);
+    } finally {
+      readCandidates.mockRestore();
+    }
+  });
+
   it("propagates status pipeline command errors and removes its temporary index", async () => {
     await addToIndex([
       { id: "TEST", title: "Match game", isPrivate: false, createdAt: new Date(1000) }
@@ -296,7 +402,7 @@ describe("Game title search", () => {
 
     try {
       await expect(
-        index.findGamesByIndex({ titlePrefix: "Match", status: "lobby" }, pagination)
+        index.findGamesByIndex({ titlePrefix: "Match", status: GameStatusFilter.LOBBY }, pagination)
       ).rejects.toThrow("WRONGTYPE");
       expect(removeKeys).toHaveBeenCalledTimes(1);
       const temporaryKeys = removeKeys.mock.calls[0][0];
@@ -320,7 +426,7 @@ describe("Game title search", () => {
     for (const filters of [
       { titlePrefix: "Missing" },
       { titlePrefix: "Missing", isPrivate: false },
-      { titlePrefix: "Missing", status: "lobby" as const },
+      { titlePrefix: "Missing", status: GameStatusFilter.LOBBY },
       { titlePrefix: "Missing", createdAtMin: new Date(1000), createdAtMax: new Date(3000) },
       { titlePrefix: "Missing", isPrivate: false, createdAtMin: new Date(1000) }
     ]) {
