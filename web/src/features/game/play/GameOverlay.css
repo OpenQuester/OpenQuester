@@ -5,8 +5,16 @@
     oq-round-transition-out 200ms ease-in 3300ms forwards;
 }
 
+.oq-game-overlay-backdrop,
 .oq-round-transition::backdrop {
   background: color-mix(in srgb, var(--oq-scrim) 75%, transparent);
+}
+
+.oq-game-overlay-backdrop {
+  backdrop-filter: blur(4px);
+}
+
+.oq-round-transition::backdrop {
   backdrop-filter: blur(12px);
   /* Blur immediately; fading it in would briefly reveal the new board. */
   animation: oq-round-transition-out 200ms ease-in 3300ms forwards;

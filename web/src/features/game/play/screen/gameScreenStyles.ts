@@ -3,7 +3,9 @@ export const gameWidth = "max-w-[1320px] 3xl:max-w-[1760px] 4xl:max-w-[2240px]";
 const panelButton = "inline-flex h-9 w-9 items-center justify-center rounded-sm border";
 
 export const gameScreenStyles = {
-  stage: "mx-auto flex w-full flex-1 flex-col px-3 py-4 transition-opacity sm:px-6 sm:py-6",
+  stage: "mx-auto flex w-full flex-1 flex-col px-3 py-4 sm:px-6 sm:py-6",
+  overlayContent: "flex min-h-full flex-col items-center justify-center gap-4",
+  overlayTitle: "m-0 font-display text-[clamp(32px,6vw,64px)] font-extrabold tracking-tight",
   header: "mx-auto flex flex-wrap items-center gap-2.5 px-3 py-2.5 sm:px-6",
   phaseBadge: "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-bold",
   unreadCount: "rounded-full bg-accent px-1.5 font-mono text-xs text-on-accent",
@@ -23,6 +25,5 @@ export const gameScreenStyles = {
   dismissToast:
     "inline-flex h-8 w-8 items-center justify-center rounded-sm text-current hover:bg-white/10",
   offlineBanner: "border-b border-danger/40 bg-danger-surface text-on-danger-surface",
-  retryBanner: "border-b border-warning/30 bg-warning-surface text-on-warning-surface",
   roundName: "mr-1 max-w-[26ch] truncate text-sm text-muted",
 } as const;

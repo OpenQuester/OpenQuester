@@ -2,8 +2,9 @@ import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Round } from "@/game/protocol";
+import { gameScreenStyles } from "./screen/gameScreenStyles";
 
-import "./RoundTransition.css";
+import "./GameOverlay.css";
 
 /** A local interlude; the authoritative game keeps running underneath. */
 export function RoundTransition({ round }: { round: Round | null }) {
@@ -49,21 +50,18 @@ export function RoundTransition({ round }: { round: Round | null }) {
       key={roundKey}
       ref={dialogRef}
       onCancel={(event) => event.preventDefault()}
-      className="oq-round-transition pointer-events-auto fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-6 text-center text-text outline-none"
+      className="oq-round-transition pointer-events-auto fixed inset-0 m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-6 text-center text-on-scrim outline-none"
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       data-testid="round-transition"
     >
-      <div className="flex min-h-full flex-col items-center justify-center gap-4">
-        <h2
-          id={titleId}
-          className="m-0 font-display text-[clamp(32px,6vw,64px)] font-extrabold tracking-tight"
-        >
+      <div className={gameScreenStyles.overlayContent}>
+        <h2 id={titleId} className={gameScreenStyles.overlayTitle}>
           {t(round.order === 0 ? "roundTransition.firstTitle" : "roundTransition.title")}
         </h2>
         <p
           id={descriptionId}
-          className="m-0 max-w-3xl text-xl text-soft [overflow-wrap:anywhere] sm:text-2xl"
+          className="m-0 max-w-3xl text-xl text-on-scrim-soft [overflow-wrap:anywhere] sm:text-2xl"
         >
           {t("roundTransition.description", { n: round.order + 1, name: round.name })}
         </p>

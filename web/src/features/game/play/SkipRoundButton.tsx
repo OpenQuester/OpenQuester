@@ -19,6 +19,13 @@ export function SkipRoundButton({
   const session = useSession();
   const { connection } = useGame();
   const pending = useGameStore((s) => s.pending);
+  const online = useGameStore((s) => s.connection === "connected");
+  const disabled = session.state.isPaused || !online || pending?.action === "next-round";
+  const reason = session.state.isPaused
+    ? t("reasons.paused")
+    : !online
+      ? t("reasons.connection_lost")
+      : undefined;
   const [open, setOpen] = useState(false);
   const round = session.state.currentRound;
   const left =
@@ -27,7 +34,13 @@ export function SkipRoundButton({
 
   return (
     <>
-      <Button {...button} onClick={() => setOpen(true)} data-testid="skip-round">
+      <Button
+        {...button}
+        disabled={button.disabled || disabled}
+        title={reason ?? button.title}
+        onClick={() => setOpen(true)}
+        data-testid="skip-round"
+      >
         {label}
       </Button>
       <Dialog
@@ -38,11 +51,13 @@ export function SkipRoundButton({
         closeLabel={t("common.close")}
       >
         <div className="flex flex-wrap gap-3 p-5">
+          {reason && <p className="m-0 basis-full text-sm text-muted">{reason}</p>}
           <Button
             variant="accent"
             size="lg"
-            disabled={pending?.action === "next-round"}
+            disabled={disabled}
             onClick={() => {
+              if (disabled) return;
               connection.emit("next-round");
               setOpen(false);
             }}

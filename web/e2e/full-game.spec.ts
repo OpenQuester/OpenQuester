@@ -141,10 +141,10 @@ test.describe("full game", () => {
 
     // ── Pause freezes everyone; chat works for every role ──────────────────
     await host.page.getByRole("button", { name: "Pause" }).click();
-    await expect(alice.page.getByTestId("paused-banner")).toContainText("Paused by Hana");
+    await expect(alice.page.getByTestId("pause-overlay")).toContainText("Game paused");
     await expect(dockPhase(alice.page)).toHaveText("Paused");
-    await host.page.getByRole("button", { name: "Resume" }).click();
-    await expect(alice.page.getByTestId("paused-banner")).toHaveCount(0);
+    await host.page.locator("header").getByRole("button", { name: "Resume" }).click();
+    await expect(alice.page.getByTestId("pause-overlay")).toHaveCount(0);
     await sam.page.getByRole("button", { name: "Chat" }).click();
     await sam.page.getByLabel("Message").fill("good luck everyone");
     await sam.page.getByRole("button", { name: "Send" }).click();

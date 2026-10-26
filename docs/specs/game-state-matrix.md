@@ -62,6 +62,16 @@ protocol semantics. Backend transport tests do not establish this UI target.
 
 React shows a non-dismissible 3.5-second transition at game start and between rounds, including the final.
 It skips joining/reloading an active game, respects reduced motion and does not pause play.
+React pause uses the same heading and blurred backdrop over only the game field.
+The field stays mounted but inert; the pause message lasts until server-confirmed
+resume, including after join/reconnect. The showman sees only the pause icon and
+heading; players and spectators also see a message to wait for the showman,
+including in the action dock. The showman can resume from the header or host tools;
+both controls wait for the same request and disable while disconnected. Chat and
+permitted host management remain accessible.
+Skip question/reveal, next round (including an open confirmation) and board editing
+are disabled with a pause reason. An existing board-edit mode survives pause;
+this is a UI restriction only, without changing backend editing permissions.
 Join retries preserve drafts and errors with busy buttons; masked passwords have a visibility toggle.
 
 React answer/bid drafts survive pause and temporary reconnect, while controls
