@@ -60,15 +60,8 @@ protocol semantics. Backend transport tests do not establish this UI target.
 
 ### Per-phase checks
 
-React shows a local 3.5-second full-screen round interlude when an already
-displayed round changes, including entry into the final round. The modal opens
-before paint with an immediately blurred, dimmed backdrop so the new board never
-flashes uncovered. The round number and name fade in over 200 ms, stay for
-3100 ms, then fade out with the backdrop over 200 ms.
-It blocks local pointer/keyboard actions without a dismiss
-control. Reduced motion keeps the same duration with no animation. Initial
-entry/reload does not replay it. Server events, timers and answer reveals keep
-their existing behavior; the interlude does not pause the game.
+React shows a non-dismissible 3.5-second round transition, including the final.
+It skips initial entry/reload, respects reduced motion and does not pause the game.
 
 React answer/bid drafts survive pause and temporary reconnect, while controls
 remain unavailable until the game resumes. Pending/accepted answers prevent
