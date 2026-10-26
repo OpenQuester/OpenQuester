@@ -79,6 +79,14 @@ When changing gameplay UI, make sure the affected phase has:
 
 ## Required backend behavior
 
+`GET /v1/games` accepts optional `status=lobby|playing`, combined with title,
+privacy and date filters before pagination and the reported total. Lobby means
+neither `startedAt` nor `finishedAt` is set; playing means `startedAt` is set and
+`finishedAt` is absent, including paused games. Finished games match neither.
+Omitting `status` retains the existing listing of every status. The filter reads
+current lifecycle fields in bounded batches, without a persistent status index
+or additional writes on gameplay saves.
+
 When changing gameplay state, make sure:
 
 1. Game-changing actions go through the queued `GameActionExecutor` path.
