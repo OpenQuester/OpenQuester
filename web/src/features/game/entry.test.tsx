@@ -6,6 +6,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
@@ -111,13 +112,14 @@ it("preserves masked join drafts and lets a guest correct local and server passw
     },
   };
   const onJoin = vi.fn();
-  const view = (preview: GameListItem | null, joinError: string | null = null) => (
+  const view = (preview: GameListItem | null, joinError: string | null = null, joining = false) => (
     <JoinPanel
       gameId="ABCD"
       game={preview}
       loading={preview === null}
       onJoin={onJoin}
       joinError={joinError}
+      joining={joining}
     />
   );
   const { rerender } = render(view(game));
@@ -160,7 +162,21 @@ it("preserves masked join drafts and lets a guest correct local and server passw
   await waitFor(() => expect(onJoin).toHaveBeenCalledTimes(1));
   expect(auth.login).toHaveBeenCalledTimes(2);
   const beforeError = screen.getByLabelText("Game password");
+  rerender(view(game, null, true));
+  const player = screen.getByRole("button", { name: "Join as player" });
+  const spectator = screen.getByRole("button", { name: "Spectate" });
+  expect(beforeError).toBeVisible();
+  expect(player).toBeDisabled();
+  expect(spectator).toBeDisabled();
+  expect(player).toHaveAttribute("aria-busy", "true");
+  expect(within(player).getByRole("status", { hidden: true })).toBeVisible();
+  expect(screen.getByRole("alert")).toHaveTextContent("Try the connection again");
+  fireEvent.submit(beforeError.closest("form")!);
+  expect(onJoin).toHaveBeenCalledTimes(1);
   rerender(view(game, "Password is incorrect"));
+  expect(player).toBeEnabled();
+  expect(spectator).toBeEnabled();
+  expect(screen.queryByRole("status")).toBeNull();
   expect(screen.getByRole("alert")).toHaveTextContent("Incorrect password. Try again.");
   expect(screen.getByLabelText("Game password")).toBe(beforeError);
   expect(beforeError).toHaveValue("wrong");
@@ -173,6 +189,11 @@ it("preserves masked join drafts and lets a guest correct local and server passw
     password: "QUIZ",
   });
   expect(auth.login).toHaveBeenCalledTimes(2);
+  rerender(view(game, null, true));
+  expect(spectator).toHaveAttribute("aria-busy", "true");
+  expect(within(spectator).getByRole("status", { hidden: true })).toBeVisible();
+  expect(within(player).queryByRole("status", { hidden: true })).toBeNull();
+  expect(screen.getByRole("alert")).toHaveTextContent("Incorrect password. Try again.");
 });
 
 it("retains offline and unnumbered players while limiting empty seat cards", () => {

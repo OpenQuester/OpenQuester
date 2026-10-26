@@ -13,8 +13,9 @@ export function useGameEntry() {
   const me = useMe();
   const preview = useGamePreview(gameId);
   const [intent] = useState(() => takeJoinIntent(gameId));
-  const [chosen, setChosen] = useState<JoinOptions | null>(intent ?? null);
+  const [chosen, setChosen] = useState<JoinOptions | null>(null);
   const joinError = useGameStore((s) => (s.gameId === gameId ? s.joinError : null));
+  const joined = useGameStore((s) => s.gameId === gameId && s.session !== null);
   const myListing = useMemo(
     () =>
       me.data && preview.data ? preview.data.players.find((p) => p.id === me.data!.id) : undefined,
@@ -22,12 +23,14 @@ export function useGameEntry() {
   );
   const join: JoinOptions | null =
     chosen ??
+    intent ??
     (myListing && !preview.data?.finishedAt
       ? { role: myListing.role, targetSlot: myListing.slot ?? null }
       : null);
   function beginJoin(options: JoinOptions) {
-    useGameStore.getState().setJoinError(null);
+    useGameStore.getState().begin(gameId);
     setChosen(options);
   }
-  return { gameId, me, preview, join, joinError, beginJoin };
+  const joining = !!(chosen && me.data && !joinError && !joined);
+  return { gameId, me, preview, join, joinError, joining, beginJoin };
 }

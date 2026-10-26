@@ -15,10 +15,12 @@ export function ConnectedGame({
   gameId,
   myId,
   join,
+  showLoader = true,
 }: {
   gameId: string;
   myId: number;
   join: JoinOptions;
+  showLoader?: boolean;
 }) {
   const { t } = useTranslation();
   const { connection, session, joinError, replaced, value } = useGameConnection(gameId, myId, join);
@@ -27,7 +29,7 @@ export function ConnectedGame({
   if (!session) {
     return (
       <>
-        <PageLoader label={t("game.joining")} />
+        {showLoader && <PageLoader label={t("game.joining")} />}
         {takenOver}
       </>
     );

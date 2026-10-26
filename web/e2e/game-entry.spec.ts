@@ -39,8 +39,51 @@ test("private game retries stay in the form and game start introduces the first 
     await expect(password).toHaveValue("фівфів");
 
     await password.fill("wrong");
-    await page.getByRole("button", { name: "Join as player" }).click();
-    await expect(page.getByRole("alert")).toHaveText("Incorrect password. Try again.");
+    const playerButton = page.getByRole("button", { name: "Join as player" });
+    const spectatorButton = page.getByRole("button", { name: "Spectate", exact: true });
+    // Hold the real join before password validation to make pending UI observable.
+    for (const button of [playerButton, spectatorButton]) {
+      const previousError = await page.getByRole("alert").innerText();
+      const beforeRetry = await button.boundingBox();
+      let resume!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+      await page.route("**/v1/auth/socket", async (route) => {
+        await gate;
+        await route.continue();
+      });
+      try {
+        const authenticating = page.waitForRequest("**/v1/auth/socket");
+        await button.click();
+        await authenticating;
+        await expect(password).toBeVisible();
+        await expect(playerButton).toBeDisabled();
+        await expect(spectatorButton).toBeDisabled();
+        await expect(button).toHaveAttribute("aria-busy", "true");
+        await expect(button.getByRole("status", { includeHidden: true })).toBeVisible();
+        await expect(page.getByText("Joining the game…")).toHaveCount(0);
+        await expect(page.getByRole("alert")).toHaveText(previousError);
+        // Once signed in, a retry must not shift or resize the button.
+        if (button === spectatorButton) expect(await button.boundingBox()).toEqual(beforeRetry);
+        await password.press("Enter");
+        await expect(password).toBeVisible();
+        await expect(button.getByRole("status", { includeHidden: true })).toBeVisible();
+        await expectNoHorizontalScroll(page);
+        await page.screenshot({
+          path: testInfo.outputPath("password-pending.png"),
+          fullPage: true,
+        });
+      } finally {
+        resume();
+      }
+      await expect(page.getByRole("alert")).toHaveText("Incorrect password. Try again.");
+      await expect(password).toBeVisible();
+      await expect(playerButton).toBeEnabled();
+      await expect(spectatorButton).toBeEnabled();
+      if (button === spectatorButton) expect(await button.boundingBox()).toEqual(beforeRetry);
+      await page.unroute("**/v1/auth/socket");
+    }
     await expect(password).toHaveValue("wrong");
     await expect(password).toHaveAttribute("type", "password");
     await expectNoHorizontalScroll(page);

@@ -289,8 +289,8 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   so these controls do not import the settings route component.
 - Game entry (`features/game/`) separates route join/rejoin decisions in
   `useGameEntry`, connection ownership in `connection/useGameConnection`, and
-  form state in `join/useJoinForm`. `GamePage` retains the join form through
-  connection attempts so rejected passwords can be corrected inline.
+  form state in `join/useJoinForm`. `GamePage` keeps the join form visible with
+  busy submit buttons until acceptance; rejected passwords can be corrected inline.
   `ConnectedGame` keeps the round interlude mounted across lobby and play.
   Keep the connection keyed by game and account ID and
   create it once per mount; cleanup closes it without leaving its seat. A failed

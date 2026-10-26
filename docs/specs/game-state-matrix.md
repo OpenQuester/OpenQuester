@@ -62,7 +62,7 @@ protocol semantics. Backend transport tests do not establish this UI target.
 
 React shows a non-dismissible 3.5-second transition at game start and between rounds, including the final.
 It skips joining/reloading an active game, respects reduced motion and does not pause play.
-Join errors stay in the entry form with drafts preserved; passwords are masked with a visibility toggle.
+Join retries preserve drafts and errors with busy buttons; masked passwords have a visibility toggle.
 
 React answer/bid drafts survive pause and temporary reconnect, while controls
 remain unavailable until the game resumes. Pending/accepted answers prevent

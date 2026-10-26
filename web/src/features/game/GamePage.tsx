@@ -8,15 +8,15 @@ import { useGameEntry } from "./useGameEntry";
 
 export function GamePage() {
   const { t } = useTranslation();
-  const { gameId, me, preview, join, joinError, beginJoin } = useGameEntry();
+  const { gameId, me, preview, join, joinError, joining, beginJoin } = useGameEntry();
   if (me.isLoading || (preview.isLoading && !join)) {
     return <PageLoader label={t("common.loading")} />;
   }
   const connecting = !!(join && me.data && !joinError);
   return (
     <>
-      {/* Keep drafts mounted while the server accepts or rejects the join. */}
-      <div hidden={connecting}>
+      {/* Keep the form visible until the server accepts a manual join. */}
+      <div hidden={connecting && !joining}>
         <PageContainer width={720}>
           <JoinPanel
             gameId={gameId}
@@ -26,6 +26,7 @@ export function GamePage() {
             onRetry={() => void preview.refetch()}
             onJoin={beginJoin}
             joinError={joinError}
+            joining={joining}
           />
         </PageContainer>
       </div>
@@ -35,6 +36,7 @@ export function GamePage() {
           gameId={gameId}
           myId={me.data.id}
           join={join}
+          showLoader={!joining}
         />
       )}
     </>
