@@ -19,6 +19,7 @@ export function JoinPanel({
   onJoin,
   error,
   onRetry,
+  joinError,
 }: {
   gameId: string;
   game: GameListItem | null;
@@ -26,6 +27,7 @@ export function JoinPanel({
   onJoin: (options: JoinOptions) => void;
   error?: Error | null;
   onRetry?: () => void;
+  joinError?: string | null;
 }) {
   const { t } = useTranslation();
   const form = useJoinForm(!!game?.isPrivate, onJoin);
@@ -66,6 +68,7 @@ export function JoinPanel({
           needsPassword={needsPassword}
           full={full}
           status={status}
+          joinError={joinError}
         />
       )}
     </Frame>

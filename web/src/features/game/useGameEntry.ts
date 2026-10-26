@@ -2,6 +2,7 @@ import { useParams } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMe } from "@/features/auth/useMe";
 import type { JoinOptions } from "@/game/connection";
+import { useGameStore } from "@/game/store";
 import { takeJoinIntent } from "./joinIntent";
 import { useGamePreview } from "./useGamePreview";
 
@@ -13,7 +14,7 @@ export function useGameEntry() {
   const preview = useGamePreview(gameId);
   const [intent] = useState(() => takeJoinIntent(gameId));
   const [chosen, setChosen] = useState<JoinOptions | null>(intent ?? null);
-  const [autoRejoin, setAutoRejoin] = useState(true);
+  const joinError = useGameStore((s) => (s.gameId === gameId ? s.joinError : null));
   const myListing = useMemo(
     () =>
       me.data && preview.data ? preview.data.players.find((p) => p.id === me.data!.id) : undefined,
@@ -21,12 +22,12 @@ export function useGameEntry() {
   );
   const join: JoinOptions | null =
     chosen ??
-    (autoRejoin && myListing && !preview.data?.finishedAt
+    (myListing && !preview.data?.finishedAt
       ? { role: myListing.role, targetSlot: myListing.slot ?? null }
       : null);
-  function reset() {
-    setChosen(null);
-    setAutoRejoin(false);
+  function beginJoin(options: JoinOptions) {
+    useGameStore.getState().setJoinError(null);
+    setChosen(options);
   }
-  return { gameId, me, preview, join, setChosen, reset };
+  return { gameId, me, preview, join, joinError, beginJoin };
 }

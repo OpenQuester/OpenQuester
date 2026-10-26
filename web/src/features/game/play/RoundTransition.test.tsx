@@ -25,9 +25,19 @@ afterEach(() => {
   void i18n.changeLanguage("en");
 });
 
-it("does not play on initial entry, the first round, or a remount", () => {
+it("plays when the lobby starts the first round", () => {
   const view = render(<RoundTransition round={null} />);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   view.rerender(<RoundTransition round={first} />);
+  expect(screen.getByRole("dialog", { name: "First round" })).toHaveTextContent(
+    "Round 1 — Round 1",
+  );
+  act(() => vi.advanceTimersByTime(3500));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+it("does not play when entering or reloading an already started game", () => {
+  const view = render(<RoundTransition round={first} />);
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   view.unmount();
   render(<RoundTransition round={second} />);

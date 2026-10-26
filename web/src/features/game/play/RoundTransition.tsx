@@ -17,7 +17,7 @@ export function RoundTransition({ round }: { round: Round | null }) {
 
   if (previousKey !== roundKey) {
     setPreviousKey(roundKey);
-    setVisible(previousKey != null && roundKey != null);
+    setVisible(roundKey != null);
   }
 
   // Open before paint so the updated board never appears without its backdrop.
@@ -59,7 +59,7 @@ export function RoundTransition({ round }: { round: Round | null }) {
           id={titleId}
           className="m-0 font-display text-[clamp(32px,6vw,64px)] font-extrabold tracking-tight"
         >
-          {t("roundTransition.title")}
+          {t(round.order === 0 ? "roundTransition.firstTitle" : "roundTransition.title")}
         </h2>
         <p
           id={descriptionId}

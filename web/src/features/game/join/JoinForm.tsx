@@ -5,6 +5,8 @@ import { displayName } from "@/features/auth/useMe";
 import type { GameStatus } from "@/features/home/useGames";
 import { Button } from "@/ui/Button";
 import { FieldError, Label, TextInput } from "@/ui/Field";
+import { PasswordInput } from "@/ui/PasswordInput";
+import { translateServerError } from "@/i18n/serverErrors";
 import type { useJoinForm } from "./useJoinForm";
 
 export function JoinForm({
@@ -14,6 +16,7 @@ export function JoinForm({
   needsPassword,
   full,
   status,
+  joinError,
 }: {
   gameId: string;
   model: ReturnType<typeof useJoinForm>;
@@ -21,6 +24,7 @@ export function JoinForm({
   needsPassword: boolean;
   full: boolean;
   status: GameStatus;
+  joinError?: string | null;
 }) {
   const { t } = useTranslation();
   const { me, guest, name, setName, password, setPassword, error, go } = model;
@@ -55,7 +59,7 @@ export function JoinForm({
       {needsPassword && (
         <div className="flex flex-col gap-2">
           <Label htmlFor="join-pass">{t("join.password")}</Label>
-          <TextInput
+          <PasswordInput
             id="join-pass"
             value={password}
             autoComplete="off"
@@ -65,7 +69,11 @@ export function JoinForm({
           />
         </div>
       )}
-      <FieldError>{error}</FieldError>
+      <FieldError>
+        {error ??
+          (joinError &&
+            translateServerError(joinError === "auth_failed" ? t("game.authFailed") : joinError))}
+      </FieldError>
       <div className="flex flex-wrap gap-3">
         {canPlay && (
           <Button type="submit" variant="accent" size="lg" disabled={guest.isPending}>

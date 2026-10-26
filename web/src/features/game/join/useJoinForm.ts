@@ -15,6 +15,14 @@ export function useJoinForm(needsPassword: boolean, onJoin: (options: JoinOption
   async function go(role: JoinOptions["role"], e?: FormEvent) {
     e?.preventDefault();
     setError(null);
+    if (needsPassword && !password.trim()) {
+      setError(t("join.passwordRequired"));
+      return;
+    }
+    if (needsPassword && !/^[A-Za-z0-9_-]{1,16}$/.test(password.trim())) {
+      setError(t("join.passwordInvalid"));
+      return;
+    }
     if (!me.data) {
       const trimmed = name.trim().replace(/\s+/g, " ");
       if (!trimmed) {
@@ -27,10 +35,6 @@ export function useJoinForm(needsPassword: boolean, onJoin: (options: JoinOption
         setError(err instanceof Error ? err.message : String(err));
         return;
       }
-    }
-    if (needsPassword && !password.trim()) {
-      setError(t("join.passwordRequired"));
-      return;
     }
     onJoin({ role, targetSlot: null, password: needsPassword ? password.trim() : null });
   }

@@ -88,7 +88,7 @@ it("keeps one mounted connection through updates and closes it on StrictMode rep
   expect(close.mock.contexts).toEqual([connection, connection]);
 });
 
-it("preserves join drafts while the preview disappears and lets a guest retry before password validation", async () => {
+it("preserves masked join drafts and lets a guest correct local and server password errors", async () => {
   const game: GameListItem = {
     id: "ABCD",
     title: "Friday quiz",
@@ -111,10 +111,23 @@ it("preserves join drafts while the preview disappears and lets a guest retry be
     },
   };
   const onJoin = vi.fn();
-  const view = (preview: GameListItem | null) => (
-    <JoinPanel gameId="ABCD" game={preview} loading={preview === null} onJoin={onJoin} />
+  const view = (preview: GameListItem | null, joinError: string | null = null) => (
+    <JoinPanel
+      gameId="ABCD"
+      game={preview}
+      loading={preview === null}
+      onJoin={onJoin}
+      joinError={joinError}
+    />
   );
   const { rerender } = render(view(game));
+  const password = screen.getByLabelText("Game password");
+  expect(password).toHaveAttribute("type", "password");
+  fireEvent.click(screen.getByRole("button", { name: "Show password" }));
+  expect(password).toHaveAttribute("type", "text");
+  expect(onJoin).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Hide password" }));
+  expect(password).toHaveAttribute("type", "password");
   fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "  Pat   Smith  " } });
   fireEvent.change(screen.getByLabelText("Game password"), { target: { value: "  draft  " } });
   rerender(view(null));
@@ -123,6 +136,17 @@ it("preserves join drafts while the preview disappears and lets a guest retry be
   expect(screen.getByLabelText("Your name")).toHaveValue("  Pat   Smith  ");
   expect(screen.getByLabelText("Game password")).toHaveValue("  draft  ");
   fireEvent.change(screen.getByLabelText("Game password"), { target: { value: " " } });
+  fireEvent.click(screen.getByRole("button", { name: "Join as player" }));
+  expect(screen.getByRole("alert")).toHaveTextContent("This game needs a password.");
+  expect(auth.login).not.toHaveBeenCalled();
+  for (const invalid of ["фівфів", "has space", "x".repeat(17)]) {
+    fireEvent.change(screen.getByLabelText("Game password"), { target: { value: invalid } });
+    fireEvent.click(screen.getByRole("button", { name: "Spectate" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Use 1–16 Latin letters, digits, - or _.");
+  }
+  expect(auth.login).not.toHaveBeenCalled();
+  expect(onJoin).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("Game password"), { target: { value: "wrong" } });
   auth.login.mockRejectedValueOnce(new Error("Try the connection again"));
   fireEvent.click(screen.getByRole("button", { name: "Join as player" }));
   await screen.findByText("Try the connection again");
@@ -133,11 +157,14 @@ it("preserves join drafts while the preview disappears and lets a guest retry be
     auth.me = { id: 2, username: "Pat Smith" } as User;
   });
   fireEvent.click(screen.getByRole("button", { name: "Join as player" }));
-  await waitFor(() =>
-    expect(screen.getByRole("alert")).toHaveTextContent("This game needs a password."),
-  );
+  await waitFor(() => expect(onJoin).toHaveBeenCalledTimes(1));
   expect(auth.login).toHaveBeenCalledTimes(2);
-  expect(onJoin).not.toHaveBeenCalled();
+  const beforeError = screen.getByLabelText("Game password");
+  rerender(view(game, "Password is incorrect"));
+  expect(screen.getByRole("alert")).toHaveTextContent("Incorrect password. Try again.");
+  expect(screen.getByLabelText("Game password")).toBe(beforeError);
+  expect(beforeError).toHaveValue("wrong");
+  onJoin.mockClear();
   fireEvent.change(screen.getByLabelText("Game password"), { target: { value: "  QUIZ  " } });
   fireEvent.click(screen.getByRole("button", { name: "Spectate" }));
   expect(onJoin).toHaveBeenCalledExactlyOnceWith({
