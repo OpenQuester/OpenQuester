@@ -1461,6 +1461,10 @@
     "uploadStashed_other": "Upload {{count}} files",
     "pickHelp": "Pick the same .siq or .oq file again. Only the media that's missing is uploaded."
   },
+  "roundTransition": {
+    "title": "Next round",
+    "description": "Round {{n}} — {{name}}"
+  },
   "skipRound": {
     "title": "Skip to the next round?",
     "help_one": "{{count}} question is still on the board. It won't be played.",

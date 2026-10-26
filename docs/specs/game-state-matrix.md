@@ -60,6 +60,9 @@ protocol semantics. Backend transport tests do not establish this UI target.
 
 ### Per-phase checks
 
+React shows a non-dismissible 3.5-second round transition, including the final.
+It skips initial entry/reload, respects reduced motion and does not pause the game.
+
 React answer/bid drafts survive pause and temporary reconnect, while controls
 remain unavailable until the game resumes. Pending/accepted answers prevent
 duplicate sends; rejection or timeout allows a manual retry. Timed final/all-play
