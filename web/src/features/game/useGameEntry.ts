@@ -1,5 +1,5 @@
 import { useParams } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMe } from "@/features/auth/useMe";
 import type { JoinOptions } from "@/game/connection";
 import { useGameStore } from "@/game/store";
@@ -16,6 +16,14 @@ export function useGameEntry() {
   const [chosen, setChosen] = useState<JoinOptions | null>(null);
   const joinError = useGameStore((s) => (s.gameId === gameId ? s.joinError : null));
   const joined = useGameStore((s) => s.gameId === gameId && s.session !== null);
+  useEffect(
+    () => () => {
+      // Keep failures during retries, but let the next visit rejoin automatically.
+      const store = useGameStore.getState();
+      if (store.gameId === gameId) store.setJoinError(null);
+    },
+    [gameId],
+  );
   const myListing = useMemo(
     () =>
       me.data && preview.data ? preview.data.players.find((p) => p.id === me.data!.id) : undefined,

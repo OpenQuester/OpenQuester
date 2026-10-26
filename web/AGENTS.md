@@ -294,7 +294,8 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   `ConnectedGame` keeps the round interlude mounted across lobby and play.
   Keep the connection keyed by game and account ID and
   create it once per mount; cleanup closes it without leaving its seat. A failed
-  join retry disables automatic rejoin. Ignore leave events for another game.
+  join disables automatic rejoin for the current visit; leaving the page clears
+  that failure so the next visit can rejoin. Ignore leave events for another game.
   Keep join drafts in `JoinPanel` even when its form is temporarily hidden.
   `lobby/` separates header, seats, role actions and invite views from `useLobby`;
   `getLobbySeats` preserves missing-slot fallback and the two-empty-seat limit.

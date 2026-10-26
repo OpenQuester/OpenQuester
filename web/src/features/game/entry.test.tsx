@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   act,
   cleanup,
@@ -11,6 +12,7 @@ import {
 import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 
+import { api } from "@/api/client";
 import type { GameListItem, User } from "@/api/types";
 import type * as AuthQueries from "@/features/auth/useMe";
 import { DEFAULT_GAME_SETTINGS } from "@/features/create-game/gameSettings";
@@ -18,6 +20,7 @@ import { GameConnection, type JoinOptions } from "@/game/connection";
 import { choosing } from "@/game/fixtures";
 import { useGameStore } from "@/game/store";
 import { useGameConnection } from "./connection/useGameConnection";
+import { GamePage } from "./GamePage";
 import { JoinPanel } from "./JoinPanel";
 import { getLobbySeats } from "./lobby/getLobbySeats";
 import { InviteCard } from "./lobby/InviteCard";
@@ -26,8 +29,23 @@ const { navigate, auth } = vi.hoisted(() => ({
   navigate: vi.fn(),
   auth: { me: null as User | null, login: vi.fn() },
 }));
+const { socket, listeners } = vi.hoisted(() => {
+  const listeners = new Map<string, () => void>();
+  return {
+    listeners,
+    socket: {
+      id: "game-entry-socket",
+      on: vi.fn((name: string, listener: () => void) => listeners.set(name, listener)),
+      emit: vi.fn(),
+      removeAllListeners: vi.fn(() => listeners.clear()),
+      disconnect: vi.fn(),
+    },
+  };
+});
+vi.mock("socket.io-client", () => ({ io: () => socket }));
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => navigate,
+  useParams: () => ({ gameId: "ABCD" }),
   Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
 }));
 vi.mock("@/features/auth/useMe", async (original) => ({
@@ -89,28 +107,75 @@ it("keeps one mounted connection through updates and closes it on StrictMode rep
   expect(close.mock.contexts).toEqual([connection, connection]);
 });
 
-it("preserves masked join drafts and lets a guest correct local and server password errors", async () => {
-  const game: GameListItem = {
-    id: "ABCD",
-    title: "Friday quiz",
-    isPrivate: true,
-    maxPlayers: 8,
-    players: [],
-    createdBy: { id: 1, username: "Host" },
+const game: GameListItem = {
+  id: "ABCD",
+  title: "Friday quiz",
+  isPrivate: true,
+  maxPlayers: 8,
+  players: [],
+  createdBy: { id: 1, username: "Host" },
+  createdAt: "2026-10-21T12:00:00Z",
+  ageRestriction: "NONE",
+  settings: DEFAULT_GAME_SETTINGS,
+  package: {
+    id: 1,
+    title: "Cities",
     createdAt: "2026-10-21T12:00:00Z",
+    author: { id: 1, username: "Host" },
     ageRestriction: "NONE",
-    settings: DEFAULT_GAME_SETTINGS,
-    package: {
-      id: 1,
-      title: "Cities",
-      createdAt: "2026-10-21T12:00:00Z",
-      author: { id: 1, username: "Host" },
-      ageRestriction: "NONE",
-      roundsCount: 1,
-      questionsCount: 10,
-      tags: [],
-    },
-  };
+    roundsCount: 1,
+    questionsCount: 10,
+    tags: [],
+  },
+};
+
+it.each(["player", "showman", "spectator"] as const)(
+  "retries a private-game rejoin as %s after leaving a failed visit",
+  async (role) => {
+    auth.me = { id: 2, username: "Pat Smith" } as User;
+    useGameStore.getState().begin(game.id);
+    const authenticate = vi
+      .spyOn(api, "POST")
+      .mockRejectedValueOnce(new Error("Temporary authentication failure"))
+      .mockResolvedValue({ response: new Response(), data: undefined });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    client.setQueryData(["game", game.id], {
+      ...game,
+      players: [{ id: auth.me.id, role, slot: role === "player" ? 3 : null }],
+    });
+    const page = () => (
+      <QueryClientProvider client={client}>
+        <GamePage />
+      </QueryClientProvider>
+    );
+    const firstVisit = render(page(), { reactStrictMode: true });
+    await act(async () => listeners.get("connect")?.());
+    expect(authenticate).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(useGameStore.getState().joinError).toBe("auth_failed");
+    expect(socket.emit).not.toHaveBeenCalled();
+    firstVisit.rerender(page());
+    expect(screen.getByRole("alert")).toBeVisible();
+    expect(listeners.has("connect")).toBe(false);
+
+    firstVisit.unmount();
+    render(page());
+    await act(async () => listeners.get("connect")?.());
+    expect(authenticate).toHaveBeenCalledTimes(2);
+    expect(socket.emit).toHaveBeenCalledExactlyOnceWith("join", {
+      gameId: game.id,
+      role,
+      targetSlot: role === "player" ? 3 : null,
+      password: null,
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByLabelText("Game password")).not.toBeVisible();
+  },
+);
+
+it("preserves masked join drafts and lets a guest correct local and server password errors", async () => {
   const onJoin = vi.fn();
   const view = (preview: GameListItem | null, joinError: string | null = null, joining = false) => (
     <JoinPanel
