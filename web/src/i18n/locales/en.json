@@ -755,8 +755,7 @@
     }
   },
   "errors": {
-    "connection_lost": "You're offline. Reconnecting…",
-    "game_join_password_invalid": "Incorrect password. Try again."
+    "connection_lost": "You're offline. Reconnecting…"
   },
   "notices": {
     "joined": "{{name}} joined",

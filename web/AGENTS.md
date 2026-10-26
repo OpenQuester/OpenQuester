@@ -61,6 +61,8 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   never hard-code a colour in a component. A new theme is a `[data-theme]`
   block plus an entry in `themes.ts`.
 - All user-facing text goes through i18next keys in `src/i18n/locales/*.json`.
+  Server errors are already resolved to display text by the backend; show them
+  as received instead of mapping server error codes or rewriting their messages.
 - Use `cn()` from `src/lib/cn.ts` for class names so later utilities win.
 - Name files and exports by their actual responsibility: `PackageEditorPage`
   edits a package, `MediaEditor` owns an attachment session, and

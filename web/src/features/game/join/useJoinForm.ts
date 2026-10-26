@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useState, type FormEvent } from "react";
 import { useGuestLogin, useMe } from "@/features/auth/useMe";
 import type { JoinOptions } from "@/game/connection";
-import { translateServerError } from "@/i18n/serverErrors";
 
 /** The owning panel keeps drafts even while preview loading temporarily hides the form. */
 export function useJoinForm(
@@ -25,9 +24,7 @@ export function useJoinForm(
   if (joinError !== previousJoinError) {
     setPreviousJoinError(joinError);
     if (joinError) {
-      setError(
-        translateServerError(joinError === "auth_failed" ? t("game.authFailed") : joinError),
-      );
+      setError(joinError === "auth_failed" ? t("game.authFailed") : joinError);
     }
   }
   async function go(role: JoinOptions["role"], e?: FormEvent) {

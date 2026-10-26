@@ -769,8 +769,7 @@
     }
   },
   "errors": {
-    "connection_lost": "Вы офлайн. Переподключаемся…",
-    "game_join_password_invalid": "Неверный пароль. Попробуйте ещё раз."
+    "connection_lost": "Вы офлайн. Переподключаемся…"
   },
   "notices": {
     "joined": "{{name}} присоединяется",

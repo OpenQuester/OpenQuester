@@ -77,7 +77,7 @@ test("private game retries stay in the form and game start introduces the first 
       } finally {
         resume();
       }
-      await expect(page.getByRole("alert")).toHaveText("Incorrect password. Try again.");
+      await expect(page.getByRole("alert")).toHaveText("Password is incorrect");
       await expect(password).toBeVisible();
       await expect(playerButton).toBeEnabled();
       await expect(spectatorButton).toBeEnabled();

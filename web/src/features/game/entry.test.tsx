@@ -242,7 +242,7 @@ it("preserves masked join drafts and lets a guest correct local and server passw
   expect(player).toBeEnabled();
   expect(spectator).toBeEnabled();
   expect(screen.queryByRole("status")).toBeNull();
-  expect(screen.getByRole("alert")).toHaveTextContent("Incorrect password. Try again.");
+  expect(screen.getByRole("alert")).toHaveTextContent("Password is incorrect");
   expect(screen.getByLabelText("Game password")).toBe(beforeError);
   expect(beforeError).toHaveValue("wrong");
   onJoin.mockClear();
@@ -258,7 +258,7 @@ it("preserves masked join drafts and lets a guest correct local and server passw
   expect(spectator).toHaveAttribute("aria-busy", "true");
   expect(within(spectator).getByRole("status", { hidden: true })).toBeVisible();
   expect(within(player).queryByRole("status", { hidden: true })).toBeNull();
-  expect(screen.getByRole("alert")).toHaveTextContent("Incorrect password. Try again.");
+  expect(screen.getByRole("alert")).toHaveTextContent("Password is incorrect");
 });
 
 it("retains offline and unnumbered players while limiting empty seat cards", () => {
