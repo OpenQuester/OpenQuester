@@ -1,0 +1,43 @@
+.oq-round-transition {
+  /* 200ms in, 3100ms held, 200ms out; matches the component's 3.5-second lifetime. */
+  animation:
+    oq-round-transition-in 200ms ease-out both,
+    oq-round-transition-out 200ms ease-in 3300ms forwards;
+}
+
+.oq-round-transition::backdrop {
+  background: color-mix(in srgb, var(--oq-scrim) 75%, transparent);
+  backdrop-filter: blur(12px);
+  /* Blur immediately; fading it in would briefly reveal the new board. */
+  animation: oq-round-transition-out 200ms ease-in 3300ms forwards;
+}
+
+@keyframes oq-round-transition-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes oq-round-transition-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .oq-round-transition,
+  .oq-round-transition::backdrop {
+    animation: none;
+  }
+}
+
+html[data-motion="reduced"] .oq-round-transition,
+html[data-motion="reduced"] .oq-round-transition::backdrop {
+  animation: none;
+}

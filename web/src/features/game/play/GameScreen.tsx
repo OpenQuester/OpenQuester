@@ -8,6 +8,7 @@ import { ConnectionBanner } from "./ConnectionBanner";
 import { GameActionDock } from "./GameActionDock";
 import { GameMenu } from "./GameMenu";
 import { GameStage } from "./GameStage";
+import { RoundTransition } from "./RoundTransition";
 import { GameHeader } from "./screen/GameHeader";
 import { GamePanels } from "./screen/GamePanels";
 import { useGameScreen } from "./screen/useGameScreen";
@@ -42,6 +43,7 @@ export function GameScreen() {
         onOpenChange={setMenuOpen}
         onHostTools={() => setPanel("host", true)}
       />
+      <RoundTransition round={session.state.currentRound} />
       {seatedPlayers(session).length === 0 && role === "showman" && phase === "choosing" && (
         <span className="sr-only">{t("game.noPlayers")}</span>
       )}
