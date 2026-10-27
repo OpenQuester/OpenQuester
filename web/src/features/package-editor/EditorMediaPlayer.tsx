@@ -19,6 +19,7 @@ export function EditorMediaPlayer({
   const { t } = useTranslation();
   const ref = useRef<HTMLMediaElement>(null);
   const container = useRef<HTMLDivElement>(null);
+  const lastVolume = useRef(1);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -27,6 +28,7 @@ export function EditorMediaPlayer({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [fullscreenError, setFullscreenError] = useState(false);
+  const effectivelyMuted = muted || volume === 0;
 
   useEffect(() => {
     const media = ref.current;
@@ -119,15 +121,22 @@ export function EditorMediaPlayer({
         <button
           type="button"
           className={buttonClass}
-          aria-label={t(muted ? "editor.player.unmute" : "editor.player.mute")}
+          aria-label={t(effectivelyMuted ? "editor.player.unmute" : "editor.player.mute")}
           onClick={() => {
             if (ref.current) {
-              ref.current.muted = !ref.current.muted;
-              setMuted(ref.current.muted);
+              if (effectivelyMuted) {
+                ref.current.muted = false;
+                ref.current.volume = lastVolume.current;
+                setVolume(lastVolume.current);
+                setMuted(false);
+              } else {
+                ref.current.muted = true;
+                setMuted(true);
+              }
             }
           }}
         >
-          {muted || volume === 0 ? <VolumeOffIcon size={16} /> : <VolumeIcon size={16} />}
+          {effectivelyMuted ? <VolumeOffIcon size={16} /> : <VolumeIcon size={16} />}
         </button>
         <input
           type="range"
@@ -139,6 +148,7 @@ export function EditorMediaPlayer({
           value={muted ? 0 : volume}
           onChange={(event) => {
             const value = Number(event.target.value);
+            if (value > 0) lastVolume.current = value;
             if (ref.current) {
               ref.current.volume = value;
               ref.current.muted = false;

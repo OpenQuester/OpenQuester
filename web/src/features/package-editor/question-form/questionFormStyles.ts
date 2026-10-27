@@ -16,7 +16,7 @@ export const questionFormStyles = {
   actions: "flex flex-1 justify-end gap-3 sm:flex-none",
   previewLabel: "text-xs font-bold tracking-[0.08em] text-faint uppercase",
   attachment:
-    "flex w-full min-w-0 flex-col gap-2 rounded-sm border border-line bg-surface-2 p-2 sm:w-[220px]",
+    "flex w-full min-w-0 flex-col gap-2 self-start rounded-sm border border-line bg-surface-2 p-2 sm:w-[220px]",
   attachmentTime: "min-h-8 w-14 rounded-[8px] border border-line-strong bg-bg px-2 text-text",
   attachmentRemove:
     "inline-flex size-9 items-center justify-center rounded-sm text-muted hover:bg-surface-3 hover:text-danger",

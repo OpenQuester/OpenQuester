@@ -20,3 +20,20 @@ it("allows retry after playback is rejected", async () => {
   fireEvent.click(button);
   await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
 });
+
+it("restores the last audible volume after zero or mute", () => {
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  const view = render(<EditorMediaPlayer src="file.mp3" type="audio" onDuration={() => {}} />);
+  const media = view.container.querySelector("audio")!;
+  const slider = screen.getByRole("slider", { name: "Volume" });
+  fireEvent.change(slider, { target: { value: "0.4" } });
+  fireEvent.change(slider, { target: { value: "0" } });
+  expect(screen.getByRole("button", { name: "Unmute" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Unmute" }));
+  expect(media.volume).toBeCloseTo(0.4);
+  fireEvent.click(screen.getByRole("button", { name: "Mute" }));
+  expect(media.muted).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Unmute" }));
+  expect(media.muted).toBe(false);
+  expect(media.volume).toBeCloseTo(0.4);
+});

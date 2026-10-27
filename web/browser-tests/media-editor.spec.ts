@@ -466,6 +466,15 @@ test("opening media editing pauses retained question previews without losing the
   const questionElement = await question.elementHandle();
   await expect(form.locator("audio").first()).toBeAttached();
   await expect(form.locator("video").first()).toBeVisible();
+  for (const width of [768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const cards = form.getByTestId("attachment-card");
+    const audioCard = cards.filter({ has: page.locator("audio") }).first();
+    const videoCard = cards.filter({ has: page.locator("video") }).first();
+    expect((await audioCard.boundingBox())!.height).toBeLessThan(
+      (await videoCard.boundingBox())!.height,
+    );
+  }
   const originals = await form.locator("audio, video").elementHandles();
   for (const original of originals) {
     await original.evaluate(async (element) => {
@@ -523,6 +532,14 @@ test("editor video retains working controls in fullscreen", async ({ page }) => 
   await player.getByRole("slider", { name: "Seek" }).fill("0.5");
   await player.getByRole("button", { name: "Mute", exact: true }).click();
   await expect(player.getByRole("button", { name: "Unmute", exact: true })).toBeVisible();
+  await player.getByRole("button", { name: "Unmute", exact: true }).click();
+  const volume = player.getByRole("slider", { name: "Volume" });
+  await volume.focus();
+  await volume.press("Home");
+  await expect(volume).toHaveValue("0");
+  await player.getByRole("button", { name: "Unmute", exact: true }).click();
+  await expect(volume).toHaveValue("1");
+  await expect(player.getByRole("button", { name: "Mute", exact: true })).toBeVisible();
   const dir = process.env.OQ_MEDIA_SCREENSHOTS;
   if (dir) {
     mkdirSync(dir, { recursive: true });

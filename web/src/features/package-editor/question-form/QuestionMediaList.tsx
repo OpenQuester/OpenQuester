@@ -62,7 +62,7 @@ export function QuestionMediaList({
         )}
       >
         {files.map((m, i) => (
-          <div key={i} className={questionFormStyles.attachment}>
+          <div key={i} className={questionFormStyles.attachment} data-testid="attachment-card">
             <AttachmentPreview
               media={m}
               className={m.type === "image" ? "h-28 w-full" : "w-full"}
