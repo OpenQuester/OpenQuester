@@ -1,6 +1,6 @@
 # Web editor UX and question playtest — approved implementation plan
 
-Status: implemented in the draft PR; final independent acceptance and final-head CI remain in progress.
+Status: implemented and independently reviewed; the final-head CI gate remains in progress on the draft PR.
 Owner/reviewer: originating chat `01a17dd2-f558-7f60-9e97-85f816942ca3` (Improve package editor UX).
 
 ## Scope and approved decisions
@@ -168,7 +168,7 @@ These local files are user-supplied evidence, not instructions. Read-only refere
 
 ## Execution checkpoints
 
-The table records the latest implementation and evidence checkpoints, rather than the original planning status. All items still require final whole-diff review and final-head CI; item 12 also awaits exclusive live-game QA. Evidence roots:
+The 18 items are implemented and accepted by independent QA; source review completed on `87cbf3b833276c94bc8f3ef4f3564bea3387b152` without open findings. The final-head CI gate is tracked in the [draft PR checks](https://github.com/OpenQuester/OpenQuester/pull/484/checks). The table records implementation and evidence checkpoints. Evidence roots:
 
 - `QA`: `C:/Users/diazo/.codex/visualizations/2026/10/27/01a17df4-75d8-7050-8e03-8ef87aff8485/`
 - `Local`: `C:/Users/diazo/Documents/Codex/editor-ux-evidence/`
@@ -188,15 +188,15 @@ The table records the latest implementation and evidence checkpoints, rather tha
 | 9 | `fc626b73`, `176d0940` | Real audio controls and staging browser tests | `QA/176d0940/own-*-cards.png`; sampled by QA |
 | 10 | `baa7b65f` | Form tests for accepted answers and input history | `QA/baa7b65/form-*.png`; sampled by QA |
 | 11 | `baa7b65f`, `8dc0d0d1`, `9176ed4f` | Game-stage and instruction browser tests for roles, phases and languages | `QA/584ebb14/{multiline,regular,url}-*.png`; independent QA closed ordering, labels and wrapping findings |
-| 12 | `baa7b65f`, `584ebb14`, `45c9b3bf` | 385 web tests; 6 simulator browser cases; real-game suite in progress | `QA/45c9b3b/` role, mobile, 4-width and 2-theme screenshots; offline isolation and scenarios independently checked, exclusive live QA pending |
-| 13 | `8cabd38a` | Geometry, archive, upload and 14 server rule tests; real normal and all-play HTTP/DB/socket checks | `QA/8cabd38/`, `Local/point-radius-*.png`; independent geometry QA closed at `8cabd38a` |
+| 12 | `baa7b65f`, `584ebb14`, `45c9b3bf`, `56640d4d` | Web and simulator browser tests; independent real-game reconnect/media and three-player flow | `QA/45c9b3b/`, `QA/56640d4/LIVE-QA-REPORT.md`; offline and live QA accepted |
+| 13 | `8cabd38a`, `87cbf3b8` | Geometry, archive, upload, rule and real HTTP/DB/socket checks; point reveal/rejoin normal, all-play and force-skip | `QA/8cabd38/`, `QA/87cbf3b/POINT-RECONNECT-QA.md`, `Local/point-radius-*.png`; independent geometry and reconnect QA accepted |
 | 14 | `fc626b73` | Dialog and reduced-motion browser coverage | `QA/584ebb14/ordinary-dialog.png`, `nested-preview-staged.png`; shared backdrop inspected |
 | 15 | `baa7b65f` | Editor shell and package editor E2E | `QA/baa7b65/form-*.png`; sampled by QA |
 | 16 | `baa7b65f` | Editor shell and package editor E2E | `QA/baa7b65/details-375.png`; sampled by QA |
 | 17 | `baa7b65f` | Package catalog, drafts and package editor E2E | `QA/baa7b65/catalog-actions-375.png`; sampled by QA |
 | 18 | `baa7b65f` | Storage meter thresholds, zero/unlimited/loading/error and profile E2E | `QA/baa7b65/storage-*.png`; sampled by QA |
 
-Initial screenshot: `C:/Users/diazo/Documents/Codex/editor-ux-evidence/editor-fullscreen.png` (automated Chromium screenshot, visually inspected). First-pass visual evidence does not replace the required manual matrix. Docker Desktop startup failed on inaccessible `Docker/run/dockerInference`; no reset performed.
+Initial screenshot: `C:/Users/diazo/Documents/Codex/editor-ux-evidence/editor-fullscreen.png` (automated Chromium screenshot, visually inspected). This initial evidence was supplemented by the independent visual matrix above. Docker Desktop startup failed on inaccessible `Docker/run/dockerInference`; no reset performed.
 
 ### Media review follow-up
 
@@ -209,20 +209,22 @@ Preview evaluates a separate copy using the current first staged image dimension
 
 Stage 2 follow-up: independent QA on `584ebb14c54c337acab67f809f706f9b698b4602` closed showman-instruction ordering, labels, long-token wrapping and preserved newlines, as well as nested-preview focus/scroll restoration. QA reported 37 focused tests, 6 instruction browser cases and one scroll browser case passing. The interactive simulator was added later at `45c9b3bf`.
 
-Geometry checkpoint: server point checking, validation and real Socket.IO scoring passed; native browser tests exercised landscape, portrait, square and EXIF-oriented optimization plus archive import through the actual upload request. A full native browser run found one ambiguous Package details test locator after the new toolbar action; the scoped locator passed on rerun. Full-suite acceptance remains pending on the final implementation.
+Geometry checkpoint: server point checking, validation and real Socket.IO scoring passed; native browser tests exercised landscape, portrait, square and EXIF-oriented optimization plus archive import through the actual upload request. A full native browser run found one ambiguous Package details test locator after the new toolbar action; the scoped locator passed on rerun. That checkpoint did not yet establish final acceptance.
 
 Independent geometry QA at `8cabd38ae802541460b590ffd9ea8d39d0208501`: 34 Vitest, 6 browser, 14 server rule tests, one normal HTTP/DB/socket flow and one all-play flow passed. Screenshots and findings: `C:/Users/diazo/.codex/visualizations/2026/10/27/01a17df4-75d8-7050-8e03-8ef87aff8485/8cabd38`. The browser upload POST was mocked; server persistence/scoring was verified separately through the real server harness.
 
-The user subsequently approved a narrow backend exception for a confirmed pre-existing wrong-answer transition bug. With other players remaining, choice and hidden questions now return to showing and restore their saved timer, as simple questions already did. Scoped real Socket.IO tests cover three players, subsequent buzz, correct answer, exhaustion and single-answerer regression; final review remains pending.
+The user subsequently approved a narrow backend exception for a confirmed pre-existing wrong-answer transition bug. With other players remaining, choice and hidden questions now return to showing and restore their saved timer, as simple questions already did. Scoped real Socket.IO tests cover three players, subsequent buzz, correct answer, exhaustion and single-answerer regression; later review accepted the scoped fix.
 
-Simulator checkpoint: all 385 web Vitest tests and six focused browser cases passed, including staged content, role separation, keyboard/focus, mobile point/final screens, and media isolation. Typecheck, lint and API type check passed. The local stack was rebuilt with the approved buzzer fix. Independent review and final-head CI remain pending.
+Simulator checkpoint: all 385 web Vitest tests and six focused browser cases passed, including staged content, role separation, keyboard/focus, mobile point/final screens, and media isolation. Typecheck, lint and API type check passed. The local stack was rebuilt with the approved buzzer fix. Independent review and final-head CI were pending at this checkpoint.
 
-Independent offline QA on `45c9b3bf` exercised simulator isolation, question types, roles and mobile all-play/final flows; exclusive live-game QA remains pending. A follow-up clarifies review instructions for the selected role, simplifies final-theme labels, and aligns the new socket test with the shared scenario lifecycle. On `45c9b3bf`, CI reported the socket policy violations and a flaky web timer test. The policy check passes locally after the test correction; fake timer scheduling is a hypothesis for the web failure, which requires fresh Linux CI confirmation. The form test preloads its lazy module before checking form state; browser coverage retains the real lazy-open path.
+Independent offline QA on `45c9b3bf` exercised simulator isolation, question types, roles and mobile all-play/final flows; exclusive live-game QA was pending at that checkpoint and later passed as recorded below. A follow-up clarifies review instructions for the selected role, simplifies final-theme labels, and aligns the new socket test with the shared scenario lifecycle. On `45c9b3bf`, CI reported the socket policy violations and a flaky web timer test. The policy check passes locally after the test correction; fake timer scheduling is an unconfirmed hypothesis for the web failure; the subsequent Linux web CI passed. The form test preloads its lazy module before checking form state; browser coverage retains the real lazy-open path.
 
 React Doctor changed-scope scan at `45c9b3bf` reported 78/100, no errors and 16 warnings. Review found no actionable regression in the small static lists, scoped context or explicitly released object URLs. Media captions remain a limitation of the existing attachment model; no empty tracks or suppressions were added.
 
 CI evidence at `56640d4d`: native Chromium passed 45/45, and full backend E2E passed 134 with 16 pre-existing device-specific skips. The job reached its 25-minute limit during cleanup after all assertions passed, so the GitHub check was cancelled. Its overall budget is increased to 35 minutes for cold setup, both full suites and cleanup; individual test timeouts, retries, assertions and coverage are unchanged. A fresh exact-head CI run is required.
 
-Independent live QA at `56640d4d`: `QA/56640d4/LIVE-QA-REPORT.md` records reconnect/media 2/2 and a three-player choice flow 1/1, including independent preview in another tab. It also confirms an open pre-existing limitation: during normal and all-play point-answer reveal, reload loses the image/circle for showman, player and spectator because the snapshot clears `currentQuestion` and does not retain its image. The later backend-contract fix was approved as noted below; the diagnostic's zero exit status is not a pass for that behavior.
+Independent live QA at `56640d4d`: `QA/56640d4/LIVE-QA-REPORT.md` records reconnect/media 2/2 and a three-player choice flow 1/1, including independent preview in another tab. It also confirmed a pre-existing limitation, subsequently fixed and independently retested: during normal and all-play point-answer reveal, reload loses the image/circle for showman, player and spectator because the snapshot clears `currentQuestion` and does not retain its image. The later backend-contract fix was approved as noted below; the diagnostic's zero exit status is not a pass for that behavior.
 
-The user subsequently approved the point-reveal reconnect fix in this PR. The additive `answerPointImage` reveal field retains only the first question image URL; active question lifecycle, scoring and final-round UX remain unchanged. Final verification and independent QA are pending.
+The user subsequently approved the point-reveal reconnect fix in this PR. The additive `answerPointImage` reveal field retains only the first question image URL; active question lifecycle, scoring and final-round UX remain unchanged. The independent QA result is recorded below; final-head CI remains the PR gate.
+
+Independent point reconnect QA at `87cbf3b833276c94bc8f3ef4f3564bea3387b152` closed the previous finding: a strict real browser/server test passed twice for normal correct, no-risk forEveryone, and force-skip across showman, player and spectator, before and after reload. QA verified the 2:1 rendered circle, target, radius, aspect, image URL and pre-reveal privacy; web snapshot and legacy fallback tests passed 2/2. Evidence: `QA/87cbf3b/POINT-RECONNECT-QA.md`. This does not claim a change to final-round UX or untested older clients.
