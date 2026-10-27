@@ -1,5 +1,5 @@
 import { questionFormStyles } from "./questionFormStyles";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { FieldError, inputClass, Label } from "@/ui/Field";
 import { LinesField } from "../LinesField";
@@ -8,6 +8,7 @@ import { MAX_PRICE } from "../validatePackage";
 import { QuestionCheckbox, NumberField, OptionalTextField } from "./QuestionFields";
 import { QuestionChoiceFields } from "./QuestionChoiceFields";
 import { QuestionMediaList } from "./QuestionMediaList";
+import { AnswerCheckSettings, QuestionTypeSettings } from "./QuestionTypeSettings";
 import { changeQuestionType } from "./questionUpdates";
 import type { QuestionFieldsProps } from "./questionUpdates";
 import type { QuestionFormState } from "./useQuestionForm";
@@ -17,7 +18,31 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
   return (
     <>
       {!final && <QuestionTypePicker q={q} set={set} />}
-      <QuestionTextFields q={q} set={set} final={final} />
+      {!final && (
+        <NumberField
+          id="qf-price"
+          integer
+          label={t("editor.form.price")}
+          value={q.price}
+          onChange={(price) => set({ price })}
+          error={
+            q.price == null
+              ? t("editor.issues.noPrice")
+              : q.price < 0 || q.price > MAX_PRICE
+                ? t("editor.issues.priceRange", { max: MAX_PRICE })
+                : undefined
+          }
+        />
+      )}
+      <QuestionTypeSettings q={q} set={set} final={final} />
+      <OptionalTextField
+        id="qf-comment"
+        label={t("editor.form.comment")}
+        help={t("editor.form.commentHelp")}
+        value={q.questionComment}
+        onChange={(value) => set({ questionComment: value })}
+      />
+      <QuestionTextFields q={q} set={set} />
       <QuestionMediaList
         label={t("editor.form.questionMedia")}
         help={t("editor.form.questionMediaHelp")}
@@ -38,6 +63,7 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
         />
       )}
       {!final && q.type === "choice" && <QuestionChoiceFields q={q} set={set} />}
+      {(final || q.type !== "choice") && <AnswerCheckSettings q={q} set={set} />}
       <QuestionAnswerFields q={q} set={set} final={final} />
       <QuestionMediaList
         label={t("editor.form.answerMedia")}
@@ -45,6 +71,7 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
         files={q.answerFiles}
         onChange={(update) => setQ((prev) => ({ ...prev, answerFiles: update(prev.answerFiles) }))}
       />
+      <QuestionTiming form={form} />
       <QuestionMetadataFields q={q} set={set} />
     </>
   );
@@ -84,27 +111,11 @@ function QuestionTypePicker({ q, set }: QuestionFieldsProps) {
   );
 }
 
-function QuestionTextFields({ q, set, final }: QuestionFieldsProps & { final: boolean }) {
+function QuestionTextFields({ q, set }: QuestionFieldsProps) {
   const { t } = useTranslation();
   return (
     <>
-      <div className={cn("grid gap-4", !final && "sm:grid-cols-[160px_1fr]")}>
-        {!final && (
-          <NumberField
-            id="qf-price"
-            integer
-            label={t("editor.form.price")}
-            value={q.price}
-            onChange={(price) => set({ price })}
-            error={
-              q.price == null
-                ? t("editor.issues.noPrice")
-                : q.price < 0 || q.price > MAX_PRICE
-                  ? t("editor.issues.priceRange", { max: MAX_PRICE })
-                  : undefined
-            }
-          />
-        )}
+      <div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="qf-text">{t("editor.form.text")}</Label>
           <textarea
@@ -131,7 +142,12 @@ function QuestionAnswerFields({ q, set, final }: QuestionFieldsProps & { final: 
           <LinesField
             id="qf-answer"
             label={t("editor.form.answer")}
-            help={t("editor.form.answerHelp")}
+            help={
+              <Trans
+                i18nKey="editor.form.answerHelp"
+                components={{ strong: <strong className="font-semibold" /> }}
+              />
+            }
             optional={false}
             value={[q.answerText, ...q.rightAnswers].filter(Boolean)}
             onChange={([answerText = "", ...rightAnswers]) => set({ answerText, rightAnswers })}
@@ -150,7 +166,12 @@ function QuestionAnswerFields({ q, set, final }: QuestionFieldsProps & { final: 
           <LinesField
             id="qf-right"
             label={t("editor.form.rightAnswers")}
-            help={t("editor.form.rightAnswersHelp")}
+            help={
+              <Trans
+                i18nKey="editor.form.rightAnswersHelp"
+                components={{ strong: <strong className="font-semibold" /> }}
+              />
+            }
             value={q.rightAnswers}
             onChange={(rightAnswers) => set({ rightAnswers })}
           />
@@ -158,7 +179,12 @@ function QuestionAnswerFields({ q, set, final }: QuestionFieldsProps & { final: 
         <LinesField
           id="qf-wrong"
           label={t("editor.form.wrongAnswers")}
-          help={t("editor.form.wrongAnswersHelp")}
+          help={
+            <Trans
+              i18nKey="editor.form.wrongAnswersHelp"
+              components={{ strong: <strong className="font-semibold" /> }}
+            />
+          }
           value={q.wrongAnswers}
           onChange={(wrongAnswers) => set({ wrongAnswers })}
         />
@@ -171,13 +197,6 @@ function QuestionMetadataFields({ q, set }: QuestionFieldsProps) {
   const { t } = useTranslation();
   return (
     <>
-      <OptionalTextField
-        id="qf-comment"
-        label={t("editor.form.comment")}
-        help={t("editor.form.commentHelp")}
-        value={q.questionComment}
-        onChange={(value) => set({ questionComment: value })}
-      />
       <div className="grid gap-4 sm:grid-cols-2">
         <LinesField
           id="qf-authors"
@@ -194,5 +213,34 @@ function QuestionMetadataFields({ q, set }: QuestionFieldsProps) {
         />
       </div>
     </>
+  );
+}
+
+function QuestionTiming({ form }: { form: QuestionFormState }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col gap-2">
+      <span className={questionFormStyles.previewLabel}>{t("editor.form.timing")}</span>
+      <Label htmlFor="qf-reveal">{t("editor.form.showAnswer")}</Label>
+      <div className="flex items-center gap-2">
+        <input
+          id="qf-reveal"
+          inputMode="decimal"
+          value={form.revealText}
+          disabled={form.q.answerFiles.length > 0}
+          aria-invalid={!form.canSave}
+          aria-describedby="qf-reveal-help"
+          onChange={(e) => form.changeReveal(e.target.value)}
+          className={cn(inputClass, "w-24")}
+        />
+        <span className="text-sm text-muted">{t("editor.form.secondsUnit")}</span>
+      </div>
+      <span id="qf-reveal-help" className="text-sm text-faint">
+        {form.q.answerFiles.length
+          ? t("editor.form.revealMediaHelp")
+          : t("editor.form.revealRange")}
+      </span>
+      {!form.canSave && <FieldError>{t("editor.form.revealRange")}</FieldError>}
+    </div>
   );
 }

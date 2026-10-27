@@ -7,15 +7,13 @@ import type { DraftQuestion } from "./packageDraft";
 import { MediaIcon, AttachmentPreview } from "./AttachmentPreview";
 import { questionTypeDetail } from "./questionPresentation";
 
-/** Everything a question shows, read-only: used on hover, in the side panel and in big cards. */
+/** Everything a question shows, read-only: used in the inspector and full previews. */
 export function QuestionPreview({
   question: q,
   final,
-  compact,
 }: {
   question: DraftQuestion;
   final?: boolean;
-  compact?: boolean;
 }) {
   const { t } = useTranslation();
   const type = final ? "simple" : q.type;
@@ -29,20 +27,14 @@ export function QuestionPreview({
         {type !== "simple" && <Badge tone="accent">{t(`questionTypes.${type}`)}</Badge>}
       </div>
       {q.text.trim() ? (
-        <p className={cn(packageEditorStyles.questionPreviewText, !compact && "text-lg")}>
-          {q.text}
-        </p>
+        <p className={cn(packageEditorStyles.questionPreviewText, "text-lg")}>{q.text}</p>
       ) : q.questionFiles.length === 0 ? (
         <p className="m-0 text-sm text-danger">{t("editor.preview.noQuestion")}</p>
       ) : null}
       {q.questionFiles.length > 0 && (
         <div className="flex flex-col gap-2">
           {q.questionFiles.map((m, i) => (
-            <AttachmentPreview
-              key={`${m.md5}-${i}`}
-              media={m}
-              className={compact ? "max-h-40 w-full" : "max-h-64 w-full"}
-            />
+            <AttachmentPreview key={`${m.md5}-${i}`} media={m} className="max-h-64 w-full" />
           ))}
         </div>
       )}

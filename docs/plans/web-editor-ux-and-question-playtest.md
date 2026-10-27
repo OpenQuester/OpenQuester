@@ -177,19 +177,25 @@ To be maintained in the isolated implementation worktree. Initial state: all ite
 | 2 | In progress | Remote size and stale source component check | Pending | Pending |
 | 3 | In progress | Pending | Desktop form inspected | Pending |
 | 4 | In progress | Chromium fullscreen playback/seek/mute and media editor pause | Fullscreen screenshot inspected; other viewports pending | Initial findings addressed; follow-up pending |
-| 5 | Pending | Pending | Pending | Pending |
+| 5 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
 | 6 | In progress | Pending | Pending | Pending |
-| 7 | Pending | Pending | Pending | Pending |
+| 7 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
 | 8 | In progress | Existing question-form checks | Pending | Pending |
 | 9 | In progress | Chromium media editor pause | Pending | Pending |
-| 10 | Pending | Pending | Pending | Pending |
-| 11 | Pending | Pending | Pending | Pending |
-| 12 | Pending | Pending | Pending | Pending |
+| 10 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
+| 11 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
+| 12 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
 | 13 | Pending | Pending | Pending | Pending |
 | 14 | In progress | Pending | Desktop backdrop inspected; animation-start and nested dialogs pending | Pending |
-| 15 | Pending | Pending | Pending | Pending |
-| 16 | Pending | Pending | Pending | Pending |
-| 17 | Pending | Pending | Pending | Pending |
-| 18 | Pending | Pending | Pending | Pending |
+| 15 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
+| 16 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
+| 17 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
+| 18 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
 
 Initial screenshot: `C:/Users/diazo/Documents/Codex/editor-ux-evidence/editor-fullscreen.png` (automated Chromium screenshot, visually inspected). First-pass visual evidence does not replace the required manual matrix. Docker Desktop startup failed on inaccessible `Docker/run/dockerInference`; no reset performed.
+
+### Media review follow-up
+
+At `176d0940a3afbb1538ec72332f9b4c21f8969ad6`, independent QA closed both volume-zero restore and mixed-card stretching findings. Evidence: `C:/Users/diazo/.codex/visualizations/2026/10/27/01a17df4-75d8-7050-8e03-8ef87aff8485/176d0940/own-{midnight,daylight}-{375,768,1440}-cards.png`. QA reported 15 focused Vitest and four browser cases passing. These findings are resolved; the full item acceptance remains pending.
+
+Stage 2 working tree: desktop package-editor E2E 7/7 and profile/storage/package E2E 7/7 passed against the owned backend stack. Full web Vitest passed 353/353 with two workers; default worker count had timeouts under local load. The modal currently retains the old static preview until the interactive simulator replaces it; item 12 remains incomplete.

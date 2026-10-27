@@ -1,6 +1,6 @@
 import { packageOutlineStyles } from "./outline/packageOutlineStyles";
 import { useTranslation } from "react-i18next";
-import { PlusIcon } from "@/ui/icons";
+import { EditIcon, PlusIcon } from "@/ui/icons";
 import { usePackageEditor } from "./packageEditorStore";
 import type { PackageValidationReport } from "./validatePackage";
 import { OutlineRoundItem } from "./outline/OutlineRoundItem";
@@ -32,6 +32,7 @@ export function PackageOutline({
     >
       {!readOnly && (
         <button type="button" onClick={onDetails} className={packageOutlineStyles.details}>
+          <EditIcon size={18} />
           {t("editor.outline.details")}
         </button>
       )}

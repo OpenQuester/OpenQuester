@@ -56,6 +56,7 @@ function setup(children: ReactNode) {
   });
   clients.push(client);
   client.setQueryData(["me"], me);
+  client.setQueryData(["me", "storage"], { usedBytes: 0, quotaBytes: 1024 });
   client.setQueryData(["stats", "me"], { gamesPlayed: 0, correctAnswers: 0, wrongAnswers: 0 });
   client.setQueryData(["auth-settings"], {
     oauthProviders: [{ provider: "discord", clientId: "fixture" }],

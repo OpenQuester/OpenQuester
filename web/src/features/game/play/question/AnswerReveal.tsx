@@ -60,9 +60,6 @@ export function AnswerReveal() {
             .join(" · ")}
         </p>
       )}
-      {s.currentQuestion?.questionComment && (
-        <p className={questionStyles.answerComment}>{s.currentQuestion.questionComment}</p>
-      )}
       {s.currentQuestion?.id != null && <ReportQuestionButton questionId={s.currentQuestion.id} />}
     </div>
   );

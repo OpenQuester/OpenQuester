@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/cn";
@@ -15,7 +15,7 @@ export function LinesField({
 }: {
   id: string;
   label: string;
-  help?: string;
+  help?: ReactNode;
   value: string[];
   onChange: (next: string[]) => void;
   optional?: boolean;

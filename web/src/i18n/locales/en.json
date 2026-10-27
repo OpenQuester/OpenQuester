@@ -984,6 +984,9 @@
       "label": "Selected question"
     },
     "preview": {
+      "mediaCount": "Media files: {{count}}",
+      "mediaOnly": "Media answer",
+      "openFull": "Select the question for the full preview.",
       "answer": "Answer",
       "noAnswer": "No answer yet",
       "noQuestion": "No question text or media yet",
@@ -1031,13 +1034,13 @@
       "questionMediaHelp": "Drop images, audio or video here. A question needs text or media.",
       "textFirst": "Show the text first, then each file one at a time",
       "answer": "Correct answers",
-      "answerHelp": "One accepted answer per line. Players see them after the answer is judged.",
+      "answerHelp": "<strong>One accepted answer per line.</strong> Players see them after the answer is judged.",
       "hint": "Hint for the showman",
       "hintHelp": "Only the showman sees it, to judge close answers.",
       "answerMedia": "Shown with the answer",
       "answerMediaHelp": "Optional media revealed with the answer.",
       "comment": "Comment",
-      "commentHelp": "Read out by the showman after the answer.",
+      "commentHelp": "Instruction for the showman before reading the question.",
       "options": "Options",
       "optionsHelp": "Two to eight options. Mark the correct one.",
       "option": "Option {{letter}}",
@@ -1059,7 +1062,10 @@
       "allowedPricesHelp": "Optional: 2 to 5 prices separated by commas. Empty keeps the board price.",
       "showDelay": "Options appear after (s)",
       "timing": "Timing",
-      "showAnswer": "Answer shows (s)",
+      "showAnswer": "Answer reveal duration",
+      "secondsUnit": "seconds",
+      "revealRange": "Enter a duration from 2 to 30 seconds.",
+      "revealMediaHelp": "Answer media determines the reveal timeline; this fallback duration does not apply.",
       "preview": "Preview",
       "save": "Save",
       "saveShortcut": "Ctrl+Enter saves",
@@ -1067,17 +1073,22 @@
       "discard": "Discard changes",
       "keepEditing": "Keep editing",
       "rightAnswers": "Also accept",
-      "rightAnswersHelp": "One per line. An option matching any of these answers also counts as correct.",
+      "rightAnswersHelp": "<strong>One per line.</strong> An option matching any of these answers also counts as correct.",
       "wrongAnswers": "Wrong answers",
-      "wrongAnswersHelp": "One per line. Common mistakes, so the showman can judge faster. Players never see them.",
+      "wrongAnswersHelp": "<strong>One per line.</strong> Common mistakes, so the showman can judge faster. Players never see them.",
       "authors": "Authors",
       "sources": "Sources",
       "sourcesHelp": "One per line: links or books. Shown with the answer.",
       "answerType": "How players answer",
       "answerTypes": {
-        "text": "Say or type it (the showman judges)",
-        "number": "A number (checked automatically)",
-        "point": "A spot on the picture (checked automatically)"
+        "text": "Text",
+        "number": "Number",
+        "point": "Point on image"
+      },
+      "answerTypeHelp": {
+        "text": "The showman judges the answer.",
+        "number": "The answer is checked automatically against the number.",
+        "point": "The answer is checked automatically against a point on the image."
       },
       "answerNumber": "Right number",
       "answerNumberMissing": "Enter the right number",
@@ -1358,6 +1369,7 @@
     "link": "My packages"
   },
   "storage": {
+    "loadFailed": "Could not load storage usage.",
     "title": "Storage",
     "used": "{{used}} of {{quota}} used",
     "usedNoLimit": "{{used}} used, no limit",

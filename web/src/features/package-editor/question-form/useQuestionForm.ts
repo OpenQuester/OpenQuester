@@ -7,13 +7,27 @@ export function useQuestionForm(at: ops.QuestionPath, onClose: () => void) {
   const apply = usePackageEditor((s) => s.apply);
   const final = at.round.type === "final";
   const [q, setQ] = useState<DraftQuestion>(at.question);
+  const [revealText, setRevealText] = useState(() => String(at.question.showAnswerDuration / 1000));
   const [confirmClose, setConfirmClose] = useState(false);
   const media = useStagedMedia();
-  const dirty = q !== at.question;
+  const dirty = q !== at.question || revealText !== String(at.question.showAnswerDuration / 1000);
   const set = (patch: Partial<DraftQuestion>) => setQ((prev) => ({ ...prev, ...patch }));
+  const revealSeconds = Number(revealText.replace(",", "."));
+  const revealValid =
+    revealText.trim() !== "" &&
+    Number.isFinite(revealSeconds) &&
+    revealSeconds >= 2 &&
+    revealSeconds <= 30;
+  const canSave = q.answerFiles.length > 0 || revealValid;
+  const changeReveal = (value: string) => {
+    setRevealText(value);
+    const number = Number(value.replace(",", "."));
+    if (value.trim() !== "" && Number.isFinite(number))
+      set({ showAnswerDuration: Math.round(number * 1000) });
+  };
 
   const save = () => {
-    if (media.active) return;
+    if (media.active || !canSave) return;
     if (dirty)
       apply(
         (p) => ops.updateQuestion(p, q.id, q),
@@ -40,6 +54,10 @@ export function useQuestionForm(at: ops.QuestionPath, onClose: () => void) {
     confirmClose,
     setConfirmClose,
     media,
+    revealText,
+    revealValid,
+    canSave,
+    changeReveal,
     save,
     requestClose,
     onGeometryChange,

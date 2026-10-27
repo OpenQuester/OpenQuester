@@ -44,6 +44,79 @@ it("keeps a fractional media duration while typing and clears the point target w
   expect(saved.answerPoint).toBeNull();
 });
 
+it("keeps incomplete reveal input and permits only durations from 2 to 30 seconds", async () => {
+  const { store } = setup(newQuestion(100));
+  const input = screen.getByLabelText("Answer reveal duration");
+  const save = screen.getByTestId("question-save");
+  fireEvent.change(input, { target: { value: "" } });
+  expect(input).toHaveValue("");
+  expect(save).toBeDisabled();
+  fireEvent.change(input, { target: { value: "1.9" } });
+  expect(save).toBeDisabled();
+  fireEvent.change(input, { target: { value: "2" } });
+  expect(save).toBeEnabled();
+  fireEvent.change(input, { target: { value: "30" } });
+  expect(save).toBeEnabled();
+  fireEvent.change(input, { target: { value: "30.1" } });
+  expect(save).toBeDisabled();
+  fireEvent.change(input, { target: { value: "2.5" } });
+  await userEvent.click(save);
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.showAnswerDuration).toBe(2500);
+});
+
+it("connects the selected answer mode to its explanation", async () => {
+  setup(newQuestion(100));
+  const select = screen.getByRole("combobox", { name: "How players answer" });
+  expect(select).toHaveAccessibleDescription("The showman judges the answer.");
+  await userEvent.selectOptions(select, "number");
+  expect(select).toHaveAccessibleDescription(
+    "The answer is checked automatically against the number.",
+  );
+});
+
+it("keeps the unsaved question mounted when the preview closes and does not save through it", async () => {
+  const q = newQuestion(100, { text: "Original" });
+  const { store } = setup(q);
+  const text = screen.getByLabelText("Question text");
+  fireEvent.change(text, { target: { value: "Unsaved" } });
+  const opener = screen.getByRole("button", { name: "Preview" });
+  await userEvent.click(opener);
+  expect(screen.getByRole("dialog", { name: "Preview" })).toHaveTextContent("Unsaved");
+  await userEvent.keyboard("{Control>}{Enter}{/Control}");
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.text).toBe("Original");
+  await userEvent.keyboard("{Escape}");
+  expect(screen.queryByRole("dialog", { name: "Preview" })).toBeNull();
+  expect(screen.getByLabelText("Question text")).toBe(text);
+  expect(text).toHaveValue("Unsaved");
+  expect(opener).toHaveFocus();
+});
+
+it("does not rewrite an imported reveal duration merely by opening the question", () => {
+  const { store } = setup(newQuestion(100, { showAnswerDuration: 1234 }));
+  expect(screen.getByLabelText("Answer reveal duration")).toHaveValue("1.234");
+  expect(screen.getByTestId("question-save")).toBeDisabled();
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.showAnswerDuration).toBe(1234);
+});
+
+it("keeps a legacy reveal duration while answer media controls the timeline, then validates it on removal", async () => {
+  const q = newQuestion(100, {
+    showAnswerDuration: 60_000,
+    answerFiles: [{ md5: "missing", type: "image", displayTime: 5000 }],
+  });
+  const { store } = setup(q);
+  const duration = screen.getByLabelText("Answer reveal duration");
+  expect(duration).toBeDisabled();
+  expect(screen.getByTestId("question-save")).toBeEnabled();
+  fireEvent.change(screen.getByLabelText("Question text"), { target: { value: "Edited" } });
+  await userEvent.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.showAnswerDuration).toBe(60_000);
+  act(() => store.getState().edit(q.id));
+  await userEvent.click(screen.getByRole("button", { name: "Remove file" }));
+  expect(screen.getByLabelText("Answer reveal duration")).toBeEnabled();
+  expect(screen.getByTestId("question-save")).toBeDisabled();
+  expect(screen.getByRole("alert")).toHaveTextContent("2 to 30 seconds");
+});
+
 it("reads duration from the visible media and clears it when the attachment changes", () => {
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   vi.spyOn(URL, "createObjectURL")

@@ -40,7 +40,7 @@ export function QuestionFooter({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const { confirmClose, setConfirmClose, requestClose, save } = form;
+  const { confirmClose, setConfirmClose, requestClose, save, canSave } = form;
   return (
     <footer className={questionFormStyles.footer}>
       {confirmClose ? (
@@ -68,6 +68,7 @@ export function QuestionFooter({
               variant="accent"
               size="lg"
               onClick={save}
+              disabled={!canSave}
               icon={<CheckIcon size={18} />}
               data-testid="question-save"
             >

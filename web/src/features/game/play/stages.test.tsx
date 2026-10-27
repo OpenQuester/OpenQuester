@@ -4,13 +4,15 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GameConnection } from "@/game/connection";
-import { ALICE, question, round, session, timer } from "@/game/fixtures";
+import { ALICE, SHOWMAN, question, round, session, timer } from "@/game/fixtures";
 import type { GameSession } from "@/game/reducer";
 import { useGameStore } from "@/game/store";
 
 import { GameContext } from "../GameContext";
 import { FinalAnswerStage } from "./FinalStages";
 import { QuestionStage } from "./QuestionStage";
+import { ShowmanPanel } from "./question/ShowmanPanel";
+import { AnswerReveal } from "./question/AnswerReveal";
 
 function renderStage(s: GameSession, ui: ReactNode, myId = ALICE) {
   const emit = vi.fn((action: string) => useGameStore.getState().setPending(action));
@@ -19,6 +21,27 @@ function renderStage(s: GameSession, ui: ReactNode, myId = ALICE) {
   render(<GameContext.Provider value={{ connection, myId }}>{ui}</GameContext.Provider>);
   return emit;
 }
+
+it("shows the instruction openly to the showman and omits it from public reveal", () => {
+  const game = session({ currentQuestion: question(100, { questionComment: "Read slowly" }) });
+  renderStage(game, <ShowmanPanel />, SHOWMAN);
+  expect(screen.getByText("Read slowly")).toBeVisible();
+  cleanup();
+  renderStage(game, <AnswerReveal />, ALICE);
+  expect(screen.queryByText("Read slowly")).not.toBeInTheDocument();
+});
+
+it("shows final question instructions to the showman and not to a player", () => {
+  const game = session({
+    currentRound: round("final"),
+    currentQuestion: question(100, { questionComment: "Final instruction" }),
+  });
+  renderStage(game, <FinalAnswerStage />, SHOWMAN);
+  expect(screen.getByText("Final instruction")).toBeVisible();
+  cleanup();
+  renderStage(game, <FinalAnswerStage />, ALICE);
+  expect(screen.queryByText("Final instruction")).not.toBeInTheDocument();
+});
 
 describe("final answer stage", () => {
   beforeEach(() => {

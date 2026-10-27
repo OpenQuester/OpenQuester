@@ -81,18 +81,6 @@ export function QuestionTypeSettings({ q, set, final }: QuestionFieldsProps & { 
           onChange={(showDelay) => set({ showDelay })}
         />
       )}
-      {type !== "choice" && !final && <AnswerCheckSettings q={q} set={set} />}
-      <span className={questionFormStyles.previewLabel}>{t("editor.form.timing")}</span>
-      {/* No "answer window" here: games time answers with the game's own timer
-          settings, so a per-question value would have no effect */}
-      <div className="grid grid-cols-2 gap-3">
-        <SecondsField
-          id="qf-reveal"
-          label={t("editor.form.showAnswer")}
-          ms={q.showAnswerDuration}
-          onChange={(showAnswerDuration) => set({ showAnswerDuration })}
-        />
-      </div>
     </div>
   );
 }
@@ -108,6 +96,7 @@ export function AnswerCheckSettings({ q, set }: QuestionFieldsProps) {
       <Label htmlFor="qf-answer-type">{t("editor.form.answerType")}</Label>
       <select
         id="qf-answer-type"
+        aria-describedby="qf-answer-type-help"
         value={q.answerType}
         onChange={(e) =>
           set({ answerType: e.target.value as DraftQuestion["answerType"], answerDeviation: null })
@@ -120,6 +109,9 @@ export function AnswerCheckSettings({ q, set }: QuestionFieldsProps) {
           </option>
         ))}
       </select>
+      <span id="qf-answer-type-help" className="text-sm text-faint">
+        {t(`editor.form.answerTypeHelp.${q.answerType}`)}
+      </span>
       {q.answerType === "number" && (
         <div className="grid grid-cols-2 gap-3">
           <NumberField

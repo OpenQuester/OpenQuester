@@ -44,6 +44,11 @@ export const CheckIcon = (p: { size?: number }) => (
     <path d="M5 12l5 5L20 7" />
   </Icon>
 );
+export const SaveIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M5 3h12l4 4v14H3V3h2zM7 3v6h9V3M7 21v-8h10v8" />
+  </Icon>
+);
 export const CopyIcon = (p: { size?: number }) => (
   <Icon {...p}>
     <rect x="9" y="9" width="11" height="11" rx="2" />

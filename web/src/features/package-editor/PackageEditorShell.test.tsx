@@ -55,6 +55,9 @@ it("keeps a hidden import report available in the publish check", async () => {
     </QueryClientProvider>,
   );
   const user = userEvent.setup();
+  expect(screen.getByTestId("save-status").tagName).toBe("SPAN");
+  expect(screen.getByTestId("save-status")).not.toHaveAttribute("tabindex");
+  expect(screen.getAllByRole("button", { name: "Package details" }).length).toBeGreaterThan(0);
   expect(within(screen.getByTestId("upload-warnings")).getAllByRole("listitem")).toHaveLength(3);
   await user.click(screen.getByRole("button", { name: "Hide this report" }));
   expect(screen.queryByTestId("upload-warnings")).not.toBeInTheDocument();

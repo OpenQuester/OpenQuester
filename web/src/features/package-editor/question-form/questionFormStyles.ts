@@ -7,11 +7,8 @@ export const questionFormStyles = {
   dialog: `${dialogStyles.surface} inset-0 md:inset-auto md:top-1/2 md:left-1/2 md:h-[min(860px,calc(100dvh-48px))] md:w-[min(1120px,calc(100vw-48px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg md:border`,
   header: `flex items-center gap-3 border-b border-line ${formSpacing}`,
   footer: `${layoutStyles.spacedActions} border-t border-line ${formSpacing}`,
-  body: "grid min-h-0 flex-1 grid-cols-1 content-start overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:content-stretch lg:overflow-hidden",
-  content: `${layoutStyles.contentColumn} gap-5 px-4 py-5 sm:px-6 lg:overflow-y-auto`,
-  settings:
-    "flex min-w-0 flex-col gap-5 px-4 pb-5 sm:px-6 lg:overflow-y-auto lg:border-l lg:border-line lg:bg-bg/40 lg:p-5",
-  preview: "hidden flex-col gap-5 lg:flex",
+  body: "min-h-0 flex-1 overflow-y-auto",
+  content: `${layoutStyles.contentColumn} gap-5 px-4 py-5 sm:px-6`,
   title: "m-0 font-display text-xl font-extrabold sm:text-2xl",
   actions: "flex flex-1 justify-end gap-3 sm:flex-none",
   previewLabel: "text-xs font-bold tracking-[0.08em] text-faint uppercase",

@@ -127,8 +127,8 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   cancellation and shortcuts; `useStagedMedia.tsx` owns the form's queue and
   pending files. Shared controls and types stay in `media-editor/`.
   `QuestionDialog.tsx` chooses read-only or editable presentation. Its keyed
-  `question-form/QuestionForm.tsx` composes the fields and keeps one responsive
-  settings panel in a CSS grid; resizing must not remount its fields.
+  `question-form/QuestionForm.tsx` composes one column of fields; resizing and
+  opening a preview must not remount the form or lose staged media.
   `useQuestionForm.ts` owns staging/save/discard;
   `useQuestionMedia.ts` applies changes to one attachment occurrence using the
   latest list. `questionUpdates.ts` holds pure type/choice transformations.

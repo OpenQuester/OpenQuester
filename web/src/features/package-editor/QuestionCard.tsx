@@ -2,7 +2,7 @@ import { packageBoardStyles } from "./board/packageBoardStyles";
 import { cn } from "@/lib/cn";
 import { dragSource } from "./packageDragDrop";
 import type { DraftQuestion } from "./packageDraft";
-import { QuestionPreview } from "./QuestionPreview";
+import { QuestionHoverSummary } from "./board/QuestionHoverSummary";
 import type { ValidationSeverity } from "./validatePackage";
 import { QuestionHoverPreview } from "./board/QuestionHoverPreview";
 import { QuestionCardContent, QuestionCardMenu } from "./board/QuestionCardContent";
@@ -49,7 +49,7 @@ export function QuestionCard(props: QuestionCardProps) {
       {cards || drag ? (
         body
       ) : (
-        <QuestionHoverPreview preview={<QuestionPreview question={q} final={final} compact />}>
+        <QuestionHoverPreview preview={<QuestionHoverSummary question={q} final={final} />}>
           {body}
         </QuestionHoverPreview>
       )}

@@ -25,7 +25,8 @@ export const packageEditorShellStyles = {
     "inline-flex size-11 shrink-0 items-center justify-center rounded-[12px] border disabled:cursor-not-allowed disabled:text-ghost",
   densityToggle: "flex rounded-[12px] border border-line-strong p-0.5 sm:ml-1",
   densityOption: "hidden size-10 items-center justify-center rounded-[10px] sm:inline-flex",
-  packageSubtitle: "self-start px-1.5 text-left text-xs text-faint hover:text-text",
+  packageSubtitle:
+    "inline-flex self-start items-center gap-1.5 px-1.5 text-left text-xs text-faint",
   historyActions: "flex w-full flex-wrap items-center gap-1.5 sm:w-auto",
   publishActions: "flex flex-1 items-center justify-end gap-2 sm:ml-1.5",
   issueCount: "rounded-full bg-danger-strong px-1.5 text-xs font-bold text-on-primary",
