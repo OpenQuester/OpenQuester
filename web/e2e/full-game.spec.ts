@@ -142,9 +142,9 @@ test.describe("full game", () => {
     // ── Pause freezes everyone; chat works for every role ──────────────────
     await host.page.getByRole("button", { name: "Pause" }).click();
     await expect(alice.page.getByTestId("pause-overlay")).toContainText("Game paused");
+    await expect(sam.page.getByTestId("pause-overlay")).toContainText("Waiting for the showman");
+    await expect(host.page.getByTestId("game-stage")).toHaveAttribute("inert", "");
     await expect(dockPhase(alice.page)).toHaveText("Paused");
-    await host.page.locator("header").getByRole("button", { name: "Resume" }).click();
-    await expect(alice.page.getByTestId("pause-overlay")).toHaveCount(0);
     await sam.page.getByRole("button", { name: "Chat" }).click();
     await sam.page.getByLabel("Message").fill("good luck everyone");
     await sam.page.getByRole("button", { name: "Send" }).click();
@@ -152,6 +152,8 @@ test.describe("full game", () => {
     await alice.page.getByRole("button", { name: "Chat" }).click();
     await expect(alice.page.getByRole("dialog")).toContainText("good luck everyone");
     await alice.page.keyboard.press("Escape");
+    await host.page.locator("header").getByRole("button", { name: "Resume" }).click();
+    await expect(alice.page.getByTestId("pause-overlay")).toHaveCount(0);
 
     // ── No-risk question: a wrong answer costs nothing ─────────────────────
     // Played questions keep their price on the board, but can't be picked.
