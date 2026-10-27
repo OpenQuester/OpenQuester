@@ -170,6 +170,6 @@ html[data-motion="reduced"] *::after {
   padding: 1rem;
 }
 .editor-media-player:fullscreen video {
-  max-height: calc(100dvh - 6rem);
+  max-height: calc(100dvh - 11rem);
   object-fit: contain;
 }

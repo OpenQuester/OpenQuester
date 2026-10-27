@@ -907,6 +907,7 @@
       "volume": "Volume",
       "fullscreen": "Fullscreen",
       "fullscreenError": "Fullscreen is unavailable.",
+      "exitFullscreen": "Exit fullscreen",
       "loading": "Loading media…",
       "error": "Unable to play this media."
     },

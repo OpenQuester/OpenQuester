@@ -522,6 +522,31 @@ test("editor video retains working controls in fullscreen", async ({ page }) => 
     .filter({ has: page.locator("video") })
     .first();
   await expect(player.getByRole("slider", { name: "Seek" })).toBeEnabled();
+  const assertLayout = async (target: typeof player) => {
+    const video = (await target.locator("video").boundingBox())!;
+    const fullscreen = (await target.getByRole("button", { name: "Fullscreen" }).boundingBox())!;
+    const play = (await target.getByRole("button", { name: "Play", exact: true }).boundingBox())!;
+    const seek = (await target.getByRole("slider", { name: "Seek" }).boundingBox())!;
+    const mute = (await target.getByRole("button", { name: "Mute", exact: true }).boundingBox())!;
+    const volume = (await target.getByRole("slider", { name: "Volume" }).boundingBox())!;
+    const bounds = (await target.boundingBox())!;
+    expect(fullscreen.x).toBeGreaterThanOrEqual(video.x);
+    expect(fullscreen.x + fullscreen.width).toBeLessThanOrEqual(video.x + video.width + 1);
+    expect(fullscreen.y + fullscreen.height).toBeLessThanOrEqual(video.y + video.height + 1);
+    expect(seek.y).toBeGreaterThanOrEqual(play.y + play.height);
+    expect(mute.y).toBeGreaterThanOrEqual(seek.y + seek.height);
+    expect(volume.x + volume.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+    expect(seek.width).toBeGreaterThan(bounds.width - 20);
+  };
+  const dir = process.env.OQ_MEDIA_SCREENSHOTS;
+  for (const width of [1304, 1366]) {
+    await page.setViewportSize({ width, height: 884 });
+    await assertLayout(player);
+    if (dir) {
+      mkdirSync(dir, { recursive: true });
+      await player.screenshot({ path: join(dir, `editor-card-${width}.png`) });
+    }
+  }
   await player.getByRole("button", { name: "Fullscreen" }).click();
   await expect
     .poll(() =>
@@ -541,12 +566,22 @@ test("editor video retains working controls in fullscreen", async ({ page }) => 
   await player.getByRole("button", { name: "Unmute", exact: true }).click();
   await expect(volume).toHaveValue("1");
   await expect(player.getByRole("button", { name: "Mute", exact: true })).toBeVisible();
-  const dir = process.env.OQ_MEDIA_SCREENSHOTS;
   if (dir) {
     mkdirSync(dir, { recursive: true });
     await page.screenshot({ path: join(dir, "editor-fullscreen.png") });
   }
-  await page.evaluate(() => document.exitFullscreen());
+  await player.getByRole("button", { name: "Exit fullscreen" }).click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBeNull();
+  await expect(player.getByRole("button", { name: "Fullscreen" })).toBeFocused();
+  await page.getByTestId("question-save").click();
+  const inspector = page
+    .locator("aside")
+    .locator(".editor-media-player")
+    .filter({ has: page.locator("video") })
+    .first();
+  await expect(inspector).toBeVisible();
+  await assertLayout(inspector);
+  if (dir) await inspector.screenshot({ path: join(dir, "editor-inspector.png") });
 });
 
 test("closing nested preview restores focus without scrolling the question form", async ({
