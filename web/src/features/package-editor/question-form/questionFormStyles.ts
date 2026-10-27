@@ -16,7 +16,7 @@ export const questionFormStyles = {
     "flex w-full min-w-0 flex-col gap-2 self-start rounded-sm border border-line bg-surface-2 p-2 sm:w-[220px]",
   attachmentTime: "min-h-8 w-14 rounded-[8px] border border-line-strong bg-bg px-2 text-text",
   attachmentRemove:
-    "inline-flex size-9 items-center justify-center rounded-sm text-muted hover:bg-surface-3 hover:text-danger",
+    "inline-flex size-11 shrink-0 items-center justify-center rounded-sm text-muted hover:bg-surface-3 hover:text-danger",
   attachmentHint:
     "flex min-h-12 flex-1 items-center justify-center px-2 text-center text-sm text-faint",
   choiceRemove:

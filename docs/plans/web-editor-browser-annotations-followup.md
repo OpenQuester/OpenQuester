@@ -208,7 +208,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | ID | Owning files | Reproduce / smallest change / verification | Status / root / commit |
 |---|---|---|---|
 | 1 | `EditorMediaPlayer.tsx`, `AttachmentPreview.tsx`, `EditorMediaPlayer.test.tsx` | B: real video in question card, inspector and fullscreen; put fullscreen on video overlay, preserve container fullscreen controls/focus/exit, play/time then width-aware seek and volume. U: loading/error, keys, seek/mute; B: 1296/1366 and small width. Inspect all callers. | Accepted; root and independent QA approved |
-| 2 | `question-form/QuestionMediaList.tsx`, `questionFormStyles.ts` | B: video mixed card; remove standalone type row, edit + icon delete with accessible name/hit target; preserve metadata. U/B: focus, delete, geometry and staged data. | Planned; not released |
+| 2 | `question-form/QuestionMediaList.tsx`, `questionFormStyles.ts` | B: video mixed card; remove standalone type row, edit + icon delete with accessible name/hit target; preserve metadata. U/B: focus, delete, geometry and staged data. | Accepted; root and independent QA approved |
 | 3 | `QuestionMediaList.tsx`, `AttachmentPreview.tsx` | B: mixed audio/video/image; same action row without duplicate icon, preserve compact audio player and metadata. U/B: accessible remove and no overflow. | Planned; not released |
 | 4 | `QuestionMediaList.tsx` | B: image card; same edit/delete row followed directly by show duration; U/B: fractional duration, removal and point invalidation. | Planned; not released |
 | 5 | `playtest/PlaytestSession.tsx`, `ui/Dialog.tsx`, `game/play/GameScreen.tsx`, `question/questionStyles.ts`, `dock/actionDockStyles.ts` | B/L: image/video + long content and dock at 1296–1366×884 and short screens; measure shared scroll/flex root, choose minimal non-clipping fix, test stage containment/dock overlap and complete scroll reachability in preview and live. | Planned; not released |
@@ -267,3 +267,7 @@ This is a proposed contract, not a proven final design or authorization. First c
 ### Annotation 1 acceptance
 
 Root approved the six-file diff SHA-256 `0BF94FC34128773C4FC2A707B53EC34247F84FE633AFC2D6C94C880516A5BCED`. Typecheck, lint, focused unit and native-browser tests, changed-file Prettier and diff check passed. Independent QA: `C:/Users/diazo/.codex/visualizations/2026/10/27/01a17df4-75d8-7050-8e03-8ef87aff8485/annotations-71a6eab/ITEM-01-QA.md`. Explicit fullscreen exit and focus passed in card and inspector; Escape was inconsistent in headless Chromium, so cross-browser Escape behavior is not established. Items 7 and 8 remain pending separate acceptance.
+
+### Annotation 2 acceptance
+
+Root approved final patch SHA-256 `5CA2666409979642FC104FEEB2348032804C4BC31E26AA708C067177C220F671`. Independent QA approved the same runtime with the earlier test-only revision: `C:/Users/diazo/.codex/visualizations/2026/10/27/01a17df4-75d8-7050-8e03-8ef87aff8485/annotations-71a6eab/ITEM-02-QA.md`. Focused native-browser geometry at all three widths, staged deletion, Ukrainian labels and 44px target passed; typecheck, lint, Prettier and diff checks passed. Audio and image rows remain separate acceptance items.

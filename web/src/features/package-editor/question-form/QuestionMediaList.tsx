@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
 import { TrashIcon, UploadIcon } from "@/ui/icons";
-import { AttachmentPreview, MediaIcon } from "../AttachmentPreview";
+import { AttachmentPreview } from "../AttachmentPreview";
 import { useState } from "react";
 export function QuestionMediaList({
   label,
@@ -67,17 +67,14 @@ export function QuestionMediaList({
               media={m}
               className={m.type === "image" ? "h-28 w-full" : "w-full"}
             />
-            <Button onClick={() => edit(m, i)} disabled={!canEdit(m)}>
-              {t("mediaEditor.edit")}
-            </Button>
-            <div className="flex min-w-0 items-center gap-2 text-sm">
-              <span
-                className="flex min-w-0 flex-1 items-center gap-2 text-soft"
-                role="img"
-                aria-label={t(`editor.media.${m.type}`)}
+            <div className="flex min-w-0 items-center gap-2">
+              <Button
+                className="min-w-0 flex-1 [overflow-wrap:anywhere]"
+                onClick={() => edit(m, i)}
+                disabled={!canEdit(m)}
               >
-                <MediaIcon type={m.type} />
-              </span>
+                {t("mediaEditor.edit")}
+              </Button>
               <button
                 type="button"
                 aria-label={t("editor.media.remove")}
@@ -85,7 +82,7 @@ export function QuestionMediaList({
                   onGeometryChange?.(i);
                   onChange((current) => current.filter((_, j) => j !== i));
                 }}
-                className={cn(questionFormStyles.attachmentRemove, "shrink-0")}
+                className={questionFormStyles.attachmentRemove}
               >
                 <TrashIcon size={16} />
               </button>

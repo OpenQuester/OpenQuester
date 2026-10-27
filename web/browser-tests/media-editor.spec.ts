@@ -584,6 +584,76 @@ test("editor video retains working controls in fullscreen", async ({ page }) => 
   if (dir) await inspector.screenshot({ path: join(dir, "editor-inspector.png") });
 });
 
+test("video attachment actions are compact and removal stays staged", async ({ page }) => {
+  const source = await seed(page);
+  const form = page.getByTestId("question-dialog");
+  await form
+    .locator('input[type="file"]')
+    .first()
+    .setInputFiles({
+      name: "video.webm",
+      mimeType: "video/webm",
+      buffer: readFileSync("e2e/fixtures/clip.webm"),
+    });
+  await page.getByTestId("media-editor").getByRole("button", { name: "Use unchanged" }).click();
+  await page.getByTestId("question-save").click();
+  await expect
+    .poll(async () => (await readDraft(page, source.id)).questions[0]!.questionFiles.length)
+    .toBe(2);
+  await page.getByTestId("question-card").first().press("Control+Enter");
+  const card = form.getByTestId("attachment-card").filter({ has: page.locator("video") });
+  const edit = card.getByRole("button", { name: "Edit", exact: true });
+  const remove = card.getByRole("button", { name: "Remove file" });
+  for (const width of [1304, 1366, 375]) {
+    await page.setViewportSize({ width, height: 884 });
+    await card.scrollIntoViewIfNeeded();
+    const editBox = (await edit.boundingBox())!;
+    const removeBox = (await remove.boundingBox())!;
+    const cardBox = (await card.boundingBox())!;
+    expect(
+      Math.abs(editBox.y + editBox.height / 2 - (removeBox.y + removeBox.height / 2)),
+    ).toBeLessThan(2);
+    expect(removeBox.x).toBeGreaterThanOrEqual(editBox.x + editBox.width);
+    expect(removeBox.x + removeBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width);
+    const dir = process.env.OQ_ITEM2_SCREENSHOTS;
+    if (dir) {
+      mkdirSync(dir, { recursive: true });
+      await card.screenshot({ path: join(dir, `video-card-${width}.png`) });
+    }
+  }
+  await page.evaluate(async () => {
+    const path = "/src/i18n/index.ts";
+    const { i18n } = await import(path);
+    await i18n.changeLanguage("uk");
+  });
+  const ukrainianEdit = card.getByRole("button", { name: "Редагувати", exact: true });
+  const ukrainianRemove = card.getByRole("button", { name: "Прибрати файл" });
+  const ukEditBox = (await ukrainianEdit.boundingBox())!;
+  const ukRemoveBox = (await ukrainianRemove.boundingBox())!;
+  const ukCardBox = (await card.boundingBox())!;
+  expect(ukRemoveBox.width).toBeGreaterThanOrEqual(44);
+  expect(ukRemoveBox.height).toBeGreaterThanOrEqual(44);
+  expect(ukRemoveBox.x + ukRemoveBox.width).toBeLessThanOrEqual(ukCardBox.x + ukCardBox.width);
+  expect(
+    Math.abs(ukEditBox.y + ukEditBox.height / 2 - (ukRemoveBox.y + ukRemoveBox.height / 2)),
+  ).toBeLessThan(2);
+  await page.evaluate(async () => {
+    const path = "/src/i18n/index.ts";
+    const { i18n } = await import(path);
+    await i18n.changeLanguage("en");
+  });
+  await expect(card.getByRole("img", { name: "Video" })).toHaveCount(0);
+  await remove.focus();
+  await expect(remove).toBeFocused();
+  await remove.press("Enter");
+  await expect(card).toHaveCount(0);
+  expect((await readDraft(page, source.id)).questions[0]!.questionFiles).toHaveLength(2);
+  await page.getByTestId("question-save").click();
+  await expect
+    .poll(async () => (await readDraft(page, source.id)).questions[0]!.questionFiles.length)
+    .toBe(1);
+});
+
 test("closing nested preview restores focus without scrolling the question form", async ({
   page,
 }) => {
