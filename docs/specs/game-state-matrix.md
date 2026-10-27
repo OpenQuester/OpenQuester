@@ -107,6 +107,10 @@ When changing gameplay state, make sure:
 - A question ends as soon as nobody can still buzz: every eligible player has
   either answered or passed. A pass after someone else's wrong answer reveals
   the answer immediately instead of waiting for the timer.
+- For simple, choice, and hidden-price buzzer questions, a wrong or skipped
+  answer returns to showing with the saved question timer when other eligible
+  players remain. A correct answer or exhaustion reveals the answer; secret,
+  stake, and single-player no-risk questions remain single-answerer.
 - When the showman picks a stake or secret question, it belongs to the player
   whose turn it was: they make the opening bid or choose the recipient. The
   showman never bids, receives or answers.
