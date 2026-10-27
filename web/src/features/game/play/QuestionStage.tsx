@@ -9,6 +9,7 @@ import { AnswerChoices } from "./question/AnswerChoices";
 import { PointAnswer } from "./question/PointAnswer";
 import { BuzzerCue, MediaWait } from "./question/QuestionStatus";
 import { ShowmanPanel } from "./question/ShowmanPanel";
+import { ShowmanInstruction } from "./question/ShowmanInstruction";
 import { useQuestionStage } from "./question/useQuestionStage";
 
 /** Question content, the reveal, and the showman's private answer panel. */
@@ -43,6 +44,8 @@ export function QuestionStage() {
           {q && q.type !== "simple" && <Badge tone="info">{t(`questionTypes.${q.type}`)}</Badge>}
           {q?.type === "noRisk" && <span className="text-sm">{t("question.noRiskHelp")}</span>}
         </div>
+
+        {role === "showman" && !reveal && <ShowmanInstruction comment={q?.questionComment} />}
 
         {gated ? (
           <MediaWait />

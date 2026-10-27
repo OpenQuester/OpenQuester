@@ -19,12 +19,6 @@ export function ShowmanPanel() {
       data-testid="showman-panel"
     >
       <span className={questionStyles.showmanLabel}>{t("showman.onlyYou")}</span>
-      {q?.questionComment && (
-        <div className="text-sm">
-          <span className="font-semibold">{t("showman.comment")}</span>
-          <p className="mb-0 mt-2 text-soft">{q.questionComment}</p>
-        </div>
-      )}
       <div className="flex flex-col gap-1">
         <span className="text-sm text-muted">{t("showman.answer")}</span>
         <span className={questionStyles.showmanAnswer} data-testid="showman-answer">

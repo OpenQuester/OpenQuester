@@ -494,7 +494,7 @@
       "player": "Know it? Buzz now with the button below or Space.",
       "showman": "Waiting for a player to buzz. With no buzz, the answer is revealed when time runs out.",
       "spectator": "Players can buzz now.",
-      "timeLeft": "{{seconds}} s left"
+      "timeLeft": "{{seconds}} sec. left"
     },
     "optionNumber": "Option {{n}}"
   },
@@ -507,7 +507,7 @@
     "answering": "{{name}} answers:",
     "sayingOutLoud": "Answering out loud",
     "alreadyAnswered": "Already answered",
-    "comment": "Comment for players",
+    "comment": "Instruction for the showman",
     "alsoRight": "Also right: {{answers}}",
     "notRight": "Not right: {{answers}}",
     "number": "Right number: {{number}}{{deviation}}",
@@ -654,7 +654,7 @@
       "wait": "Buzzer opens after the question",
       "waitButton": "Wait for it…",
       "earlyHint": "Pressing before the buzzer opens locks you out for 3 seconds.",
-      "locked": "Too early! You can press again in {{seconds}} s",
+      "locked": "Too early! You can press again in {{seconds}} sec.",
       "nextWindow": "Everyone who presses within a split second of the first has an equal chance. Right: +{{points}}. {{wrong}}.",
       "showmanWait": "The question is playing — the buzzer opens after it",
       "openBuzzer": "Open buzzer now",
@@ -1060,7 +1060,7 @@
       },
       "allowedPrices": "Prices the receiver picks from",
       "allowedPricesHelp": "Optional: 2 to 5 prices separated by commas. Empty keeps the board price.",
-      "showDelay": "Options appear after (s)",
+      "showDelay": "Options appear after (sec.)",
       "timing": "Timing",
       "showAnswer": "Answer reveal duration",
       "secondsUnit": "seconds",

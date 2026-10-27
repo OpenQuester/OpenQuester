@@ -11,6 +11,7 @@ import { useGame, useSession } from "../GameContext";
 import { AnswerReviewActions, ReviewedCorrectAnswer } from "./stages/AnswerReview";
 import { stageStyles } from "./stages/stageStyles";
 import { QuestionMedia } from "./QuestionMedia";
+import { ShowmanInstruction } from "./question/ShowmanInstruction";
 
 /** Players take turns removing themes; the last one left is the final question. */
 export function FinalThemesStage() {
@@ -144,12 +145,7 @@ export function FinalAnswerStage() {
   return (
     <section className={stageStyles.finalQuestion}>
       <ThemeLine />
-      {myRole(session, myId) === "showman" && q?.questionComment && (
-        <p className="text-sm text-soft">
-          <strong>{t("showman.comment")}: </strong>
-          {q.questionComment}
-        </p>
-      )}
+      {myRole(session, myId) === "showman" && <ShowmanInstruction comment={q?.questionComment} />}
       {/* Final questions skip the regular stage, so their media is shown here */}
       {hasMedia && <QuestionMedia files={q!.questionFiles!} playing={!session.state.isPaused} />}
       {(q?.text || !hasMedia) && (
@@ -175,12 +171,7 @@ export function FinalReviewStage() {
     <section className={stageStyles.reviewLayout}>
       <div className={stageStyles.questionColumn}>
         <ThemeLine />
-        {isShowman && q?.questionComment && (
-          <p className="text-sm text-soft">
-            <strong>{t("showman.comment")}: </strong>
-            {q.questionComment}
-          </p>
-        )}
+        {isShowman && <ShowmanInstruction comment={q?.questionComment} />}
         <p className={stageStyles.reviewQuestion}>{q?.text}</p>
         {(reveal || (isShowman && q?.answerText)) && (
           <ReviewedCorrectAnswer answer={reveal ?? q?.answerText} />
