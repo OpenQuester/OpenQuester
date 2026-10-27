@@ -56,6 +56,15 @@
 }
 
 @layer base {
+  @media (forced-colors: none) {
+    * {
+      scrollbar-color: color-mix(in srgb, var(--oq-info) 55%, var(--oq-surface-3))
+        var(--oq-surface-2);
+    }
+    *:hover {
+      scrollbar-color: var(--oq-info) var(--oq-surface-2);
+    }
+  }
   html,
   body,
   #root {
@@ -154,4 +163,13 @@ html[data-motion="reduced"] *::after {
   height: 1px;
   overflow: hidden;
   clip: rect(0 0 0 0);
+}
+
+.editor-media-player:fullscreen {
+  justify-content: center;
+  padding: 1rem;
+}
+.editor-media-player:fullscreen video {
+  max-height: calc(100dvh - 6rem);
+  object-fit: contain;
 }

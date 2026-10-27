@@ -105,6 +105,11 @@ export const VolumeOffIcon = (p: { size?: number }) => (
     <path d="M11 5L6 9H3v6h3l5 4V5zM16 9l5 6M21 9l-5 6" />
   </Icon>
 );
+export const FullscreenIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
+  </Icon>
+);
 export const EyeIcon = (p: { size?: number }) => (
   <Icon {...p}>
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />

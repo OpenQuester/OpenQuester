@@ -186,7 +186,7 @@
       "roundLimitHelp": "When time is up, the round ends after the question being played, even if questions are left.",
       "noLimit": "No limit",
       "minutes": "{{count}} min",
-      "seconds": "{{count}} s",
+      "seconds": "{{count}} sec.",
       "timers": "Timers",
       "timer": {
         "answerMs": "Time to press the buzzer",
@@ -891,9 +891,21 @@
     "notSaved": "Not saved yet",
     "missing": "This draft isn't in this browser",
     "missingHelp": "Drafts are kept in the browser they were made in. It may have been deleted, or made on another device.",
-    "seconds_one": "{{count}} s",
-    "seconds_other": "{{count}} s",
-    "secondsShort": "s",
+    "seconds_one": "{{count}} sec.",
+    "seconds_other": "{{count}} sec.",
+    "secondsShort": "sec.",
+    "player": {
+      "play": "Play",
+      "pause": "Pause",
+      "seek": "Seek",
+      "mute": "Mute",
+      "unmute": "Unmute",
+      "volume": "Volume",
+      "fullscreen": "Fullscreen",
+      "fullscreenError": "Fullscreen is unavailable.",
+      "loading": "Loading media…",
+      "error": "Unable to play this media."
+    },
     "defaults": {
       "title": "New package",
       "round": "Round {{n}}",
@@ -984,6 +996,7 @@
       "readOnly": "Preview · {{rounds}} rounds · {{questions}} questions · read only"
     },
     "media": {
+      "sizeUnknown": "Size unknown",
       "image": "Image",
       "audio": "Audio",
       "video": "Video",

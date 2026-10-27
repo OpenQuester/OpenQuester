@@ -464,7 +464,7 @@ test("opening media editing pauses retained question previews without losing the
   const question = form.getByLabel("Question text", { exact: true });
   await question.fill("Unsaved question draft");
   const questionElement = await question.elementHandle();
-  await expect(form.locator("audio").first()).toBeVisible();
+  await expect(form.locator("audio").first()).toBeAttached();
   await expect(form.locator("video").first()).toBeVisible();
   const originals = await form.locator("audio, video").elementHandles();
   for (const original of originals) {
@@ -493,6 +493,42 @@ test("opening media editing pauses retained question previews without losing the
     expect(await original.evaluate((el) => el.isConnected && (el as HTMLMediaElement).paused)).toBe(
       true,
     );
+});
+
+test("editor video retains working controls in fullscreen", async ({ page }) => {
+  await seed(page);
+  const form = page.getByTestId("question-dialog");
+  await form
+    .locator('input[type="file"]')
+    .first()
+    .setInputFiles({
+      name: "video.webm",
+      mimeType: "video/webm",
+      buffer: readFileSync("e2e/fixtures/clip.webm"),
+    });
+  await page.getByTestId("media-editor").getByRole("button", { name: "Use unchanged" }).click();
+  const player = form
+    .locator(".editor-media-player")
+    .filter({ has: page.locator("video") })
+    .first();
+  await expect(player.getByRole("slider", { name: "Seek" })).toBeEnabled();
+  await player.getByRole("button", { name: "Fullscreen" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.fullscreenElement?.classList.contains("editor-media-player")),
+    )
+    .toBe(true);
+  await player.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(player.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await player.getByRole("slider", { name: "Seek" }).fill("0.5");
+  await player.getByRole("button", { name: "Mute", exact: true }).click();
+  await expect(player.getByRole("button", { name: "Unmute", exact: true })).toBeVisible();
+  const dir = process.env.OQ_MEDIA_SCREENSHOTS;
+  if (dir) {
+    mkdirSync(dir, { recursive: true });
+    await page.screenshot({ path: join(dir, "editor-fullscreen.png") });
+  }
+  await page.evaluate(() => document.exitFullscreen());
 });
 
 test("remote download failure does not replace a published attachment", async ({ page }) => {

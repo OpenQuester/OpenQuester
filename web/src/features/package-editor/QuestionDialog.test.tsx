@@ -45,6 +45,7 @@ it("keeps a fractional media duration while typing and clears the point target w
 });
 
 it("reads duration from the visible media and clears it when the attachment changes", () => {
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   vi.spyOn(URL, "createObjectURL")
     .mockReturnValueOnce("blob:first")
     .mockReturnValueOnce("blob:second");
@@ -76,9 +77,55 @@ it("reads duration from the visible media and clears it when the attachment chan
   expect(view.container.textContent).toContain("17");
   view.rerender(preview(second));
   expect(view.container.textContent).not.toContain("17");
-  Object.defineProperty(audio, "duration", { value: 23, configurable: true });
-  fireEvent.durationChange(audio);
+  const replacement = view.container.querySelector("audio")!;
+  Object.defineProperty(replacement, "duration", { value: 23, configurable: true });
+  fireEvent.durationChange(replacement);
   expect(view.container.textContent).toContain("23");
+});
+
+it("keeps a remote size unknown until HEAD completes and ignores a stale source", async () => {
+  let resolveFirst: (response: Response) => void = () => {};
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((url: string) =>
+      url.endsWith("first")
+        ? new Promise<Response>((resolve) => {
+            resolveFirst = resolve;
+          })
+        : Promise.resolve(new Response(null, { headers: { "Content-Length": "2048" } })),
+    ),
+  );
+  const first = {
+    md5: "first",
+    type: "audio" as const,
+    name: "first.mp3",
+    bytes: new Uint8Array(),
+    url: "https://media.test/first",
+  };
+  const second = { ...first, md5: "second", url: "https://media.test/second" };
+  const store = createPackageEditorStore({
+    draftId: "size",
+    pkg: emptyPackage("Audio"),
+    savedAt: null,
+    media: new Map([
+      [first.md5, first],
+      [second.md5, second],
+    ]),
+  });
+  const preview = (media: typeof first) => (
+    <PackageEditorContext.Provider value={store}>
+      <AttachmentPreview media={media} />
+    </PackageEditorContext.Provider>
+  );
+  const view = render(preview(first));
+  expect(view.container.textContent).toContain("Size unknown");
+  expect(view.container.textContent).not.toContain("0 B");
+  view.rerender(preview(second));
+  await waitFor(() => expect(view.container.textContent).toContain("2 KB"));
+  await act(async () => resolveFirst(new Response(null, { headers: { "Content-Length": "17" } })));
+  expect(view.container.textContent).toContain("2 KB");
+  expect(view.container.textContent).not.toContain("17 B");
 });
 
 it("edits all accepted answers in one field and preserves them through save and reopen", async () => {

@@ -186,7 +186,7 @@
       "roundLimitHelp": "Коли час вийде, раунд закінчиться після поточного питання, навіть якщо питання залишилися.",
       "noLimit": "Без обмеження",
       "minutes": "{{count}} хв",
-      "seconds": "{{count}} с",
+      "seconds": "{{count}} сек.",
       "timers": "Таймери",
       "timer": {
         "answerMs": "Час, щоб натиснути кнопку",
@@ -917,11 +917,23 @@
     "notSaved": "Ще не збережено",
     "missing": "Цієї чернетки немає в цьому браузері",
     "missingHelp": "Чернетки зберігаються в браузері, де їх створили. Можливо, її видалили або створили на іншому пристрої.",
-    "seconds_one": "{{count}} с",
-    "seconds_few": "{{count}} с",
-    "seconds_many": "{{count}} с",
-    "seconds_other": "{{count}} с",
-    "secondsShort": "с",
+    "seconds_one": "{{count}} сек.",
+    "seconds_few": "{{count}} сек.",
+    "seconds_many": "{{count}} сек.",
+    "seconds_other": "{{count}} сек.",
+    "secondsShort": "сек.",
+    "player": {
+      "play": "Відтворити",
+      "pause": "Пауза",
+      "seek": "Позиція відтворення",
+      "mute": "Вимкнути звук",
+      "unmute": "Увімкнути звук",
+      "volume": "Гучність",
+      "fullscreen": "На весь екран",
+      "fullscreenError": "Повноекранний режим недоступний.",
+      "loading": "Завантаження медіа…",
+      "error": "Не вдалося відтворити медіа."
+    },
     "defaults": {
       "title": "Новий пакет",
       "round": "Раунд {{n}}",
@@ -1014,6 +1026,7 @@
       "readOnly": "Перегляд · раундів: {{rounds}} · питань: {{questions}} · лише читання"
     },
     "media": {
+      "sizeUnknown": "Розмір невідомий",
       "image": "Зображення",
       "audio": "Аудіо",
       "video": "Відео",

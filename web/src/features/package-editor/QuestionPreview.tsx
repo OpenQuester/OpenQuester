@@ -21,7 +21,7 @@ export function QuestionPreview({
   const type = final ? "simple" : q.type;
   const detail = final ? "" : questionTypeDetail(q, t);
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className={layoutStyles.actions}>
         {!final && (
           <span className="font-display text-xl font-extrabold text-accent">{q.price ?? "—"}</span>

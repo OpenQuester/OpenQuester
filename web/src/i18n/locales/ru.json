@@ -186,7 +186,7 @@
       "roundLimitHelp": "Когда время выйдет, раунд закончится после текущего вопроса, даже если вопросы остались.",
       "noLimit": "Без ограничения",
       "minutes": "{{count}} мин",
-      "seconds": "{{count}} с",
+      "seconds": "{{count}} сек.",
       "timers": "Таймеры",
       "timer": {
         "answerMs": "Время, чтобы нажать кнопку",
@@ -917,11 +917,23 @@
     "notSaved": "Ещё не сохранено",
     "missing": "Этого черновика нет в этом браузере",
     "missingHelp": "Черновики хранятся в браузере, где их создали. Возможно, его удалили или создали на другом устройстве.",
-    "seconds_one": "{{count}} с",
-    "seconds_few": "{{count}} с",
-    "seconds_many": "{{count}} с",
-    "seconds_other": "{{count}} с",
-    "secondsShort": "с",
+    "seconds_one": "{{count}} сек.",
+    "seconds_few": "{{count}} сек.",
+    "seconds_many": "{{count}} сек.",
+    "seconds_other": "{{count}} сек.",
+    "secondsShort": "сек.",
+    "player": {
+      "play": "Воспроизвести",
+      "pause": "Пауза",
+      "seek": "Позиция воспроизведения",
+      "mute": "Выключить звук",
+      "unmute": "Включить звук",
+      "volume": "Громкость",
+      "fullscreen": "На весь экран",
+      "fullscreenError": "Полноэкранный режим недоступен.",
+      "loading": "Загрузка медиа…",
+      "error": "Не удалось воспроизвести медиа."
+    },
     "defaults": {
       "title": "Новый пакет",
       "round": "Раунд {{n}}",
@@ -1014,6 +1026,7 @@
       "readOnly": "Просмотр · раундов: {{rounds}} · вопросов: {{questions}} · только чтение"
     },
     "media": {
+      "sizeUnknown": "Размер неизвестен",
       "image": "Изображение",
       "audio": "Аудио",
       "video": "Видео",

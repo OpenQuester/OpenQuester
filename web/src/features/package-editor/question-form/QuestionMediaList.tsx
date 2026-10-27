@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
 import { TrashIcon, UploadIcon } from "@/ui/icons";
-import { AttachmentPreview } from "../AttachmentPreview";
+import { AttachmentPreview, MediaIcon } from "../AttachmentPreview";
 import { useState } from "react";
 export function QuestionMediaList({
   label,
@@ -70,15 +70,14 @@ export function QuestionMediaList({
             <Button onClick={() => edit(m, i)} disabled={!canEdit(m)}>
               {t("mediaEditor.edit")}
             </Button>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="flex-1 text-soft">{t(`editor.media.${m.type}`)}</span>
-              {m.type === "image" && (
-                <DurationInput
-                  key={m.md5}
-                  value={m.displayTime}
-                  onChange={(value) => setDisplayTime(i, value)}
-                />
-              )}
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <span
+                className="flex min-w-0 flex-1 items-center gap-2 text-soft"
+                role="img"
+                aria-label={t(`editor.media.${m.type}`)}
+              >
+                <MediaIcon type={m.type} />
+              </span>
               <button
                 type="button"
                 aria-label={t("editor.media.remove")}
@@ -86,11 +85,18 @@ export function QuestionMediaList({
                   onGeometryChange?.(i);
                   onChange((current) => current.filter((_, j) => j !== i));
                 }}
-                className={questionFormStyles.attachmentRemove}
+                className={cn(questionFormStyles.attachmentRemove, "shrink-0")}
               >
                 <TrashIcon size={16} />
               </button>
             </div>
+            {m.type === "image" && (
+              <DurationInput
+                key={m.md5}
+                value={m.displayTime}
+                onChange={(value) => setDisplayTime(i, value)}
+              />
+            )}
           </div>
         ))}
         <span className={questionFormStyles.attachmentHint}>
