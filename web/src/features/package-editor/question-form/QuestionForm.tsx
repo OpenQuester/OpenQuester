@@ -48,7 +48,7 @@ export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: (
               <div ref={fields} className={media.active ? "hidden" : "contents"}>
                 <QuestionHeader at={at} form={form} />
 
-                <div className={questionFormStyles.body}>
+                <div className={questionFormStyles.body} data-testid="question-form-body">
                   <div className={questionFormStyles.content}>
                     <Button variant="primary" onClick={() => setPreview(true)}>
                       {t("editor.form.preview")}

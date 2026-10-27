@@ -548,6 +548,27 @@ test("editor video retains working controls in fullscreen", async ({ page }) => 
   await page.evaluate(() => document.exitFullscreen());
 });
 
+test("closing nested preview restores focus without scrolling the question form", async ({
+  page,
+}) => {
+  await seed(page);
+  await page.setViewportSize({ width: 375, height: 812 });
+  const form = page.getByTestId("question-dialog");
+  const body = form.getByTestId("question-form-body");
+  const opener = form.getByRole("button", { name: "Preview", exact: true });
+  await opener.focus();
+  const bounds = (await body.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.wheel(0, 500);
+  await expect.poll(() => body.evaluate((node) => node.scrollTop)).toBeGreaterThan(100);
+  const before = await body.evaluate((node) => node.scrollTop);
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Preview" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(opener).toBeFocused();
+  expect(await body.evaluate((node) => node.scrollTop)).toBe(before);
+});
+
 test("remote download failure does not replace a published attachment", async ({ page }) => {
   await page.route("**/source-image", (r) => r.fulfill({ status: 503, body: "Unavailable" }));
   const source = await seed(page, false, true);

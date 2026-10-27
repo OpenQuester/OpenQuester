@@ -37,7 +37,7 @@ export function Dialog({
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            if (opener.current?.isConnected) opener.current.focus();
+            if (opener.current?.isConnected) opener.current.focus({ preventScroll: true });
           }}
           className={cn(
             dialogStyles.standardSurface,
