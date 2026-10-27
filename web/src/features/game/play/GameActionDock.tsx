@@ -9,7 +9,7 @@ import { useSession } from "../GameContext";
 export function GameActionDock() {
   const { t } = useTranslation();
   const session = useSession();
-  const { model, phase, paused, offline, fraction, left, ringLabel, ringColor } =
+  const { model, phase, paused, offline, fraction, left, ringLabel, ringColor, isShowman } =
     useDockPresentation();
 
   return (
@@ -40,8 +40,8 @@ export function GameActionDock() {
         <div className={actionDockStyles.action}>
           {offline ? (
             <DockInfo>{t("dock.offlineInfo")}</DockInfo>
-          ) : paused ? (
-            <DockInfo>{t("dock.pausedInfo")}</DockInfo>
+          ) : paused && !isShowman ? (
+            <DockInfo>{t("pause.waiting")}</DockInfo>
           ) : null}
           <fieldset
             disabled={paused || offline}

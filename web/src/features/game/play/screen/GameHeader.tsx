@@ -5,16 +5,16 @@ import { roundTimeLeft } from "@/game/selectors";
 import { formatSeconds } from "@/lib/timer";
 import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
-import { ChatIcon, EyeIcon, MenuIcon, PauseIcon, PlayIcon, UsersIcon } from "@/ui/icons";
+import { ChatIcon, EyeIcon, MenuIcon, UsersIcon } from "@/ui/icons";
 import { useSession } from "../../GameContext";
 import { PlayerChips } from "../PlayerChips";
+import { GamePauseButton } from "../GamePauseButton";
 import type { GameScreenModel } from "./useGameScreen";
 
 export function GameHeader({ game }: { game: GameScreenModel }) {
   const { t } = useTranslation();
   const {
     session,
-    connection,
     role,
     phase,
     round,
@@ -92,19 +92,11 @@ export function GameHeader({ game }: { game: GameScreenModel }) {
             </Button>
           )}
           {role === "showman" && phase !== "finished" && (
-            <Button
-              size="sm"
-              variant={session.state.isPaused ? "accent" : "ghost"}
-              onClick={() =>
-                connection.emit(session.state.isPaused ? "game-unpause" : "game-pause")
-              }
-              icon={session.state.isPaused ? <PlayIcon size={16} /> : <PauseIcon size={16} />}
-              aria-label={session.state.isPaused ? t("game.resume") : t("game.pause")}
-            >
+            <GamePauseButton>
               <span className="hidden sm:inline">
                 {session.state.isPaused ? t("game.resume") : t("game.pause")}
               </span>
-            </Button>
+            </GamePauseButton>
           )}
           <Button
             size="sm"

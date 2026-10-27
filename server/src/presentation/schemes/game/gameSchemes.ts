@@ -9,6 +9,7 @@ import {
 } from "domain/constants/game";
 import { LIMIT_MAX, LIMIT_MIN, OFFSET_MIN } from "domain/constants/pagination";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { GameStatusFilter } from "domain/enums/game/GameStatusFilter";
 import { type GameUpdateDTO } from "domain/types/dto/game/GameUpdateDTO";
 import { type GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
@@ -90,5 +91,8 @@ export const gamePaginationScheme = () =>
     createdAtMax: Joi.date().optional(),
     createdAtMin: Joi.date().optional(),
     isPrivate: Joi.boolean().optional(),
-    titlePrefix: Joi.string().optional()
+    titlePrefix: Joi.string().optional(),
+    status: Joi.string()
+      .valid(...Object.values(GameStatusFilter))
+      .optional()
   });

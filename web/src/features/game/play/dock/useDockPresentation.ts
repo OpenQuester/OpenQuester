@@ -2,7 +2,7 @@ import { useGameStore } from "@/game/store";
 import { useCountdown } from "@/lib/useCountdown";
 import { useGame, useSession } from "../../GameContext";
 import { useDockModel } from "./useDockModel";
-import { phaseOf, type Phase } from "@/game/selectors";
+import { myRole, phaseOf, type Phase } from "@/game/selectors";
 
 const RING_COLORS: Partial<Record<Phase, string>> = {
   media: "var(--oq-info)",
@@ -16,6 +16,7 @@ const RING_COLORS: Partial<Record<Phase, string>> = {
 export function useDockPresentation() {
   const session = useSession();
   const { myId } = useGame();
+  const isShowman = myRole(session, myId) === "showman";
   const connection = useGameStore((s) => s.connection);
   const phase = phaseOf(session);
   const s = session.state;
@@ -45,5 +46,5 @@ export function useDockPresentation() {
     : paused || (left == null && phase !== "finished")
       ? "var(--oq-border-strong)"
       : (RING_COLORS[phase] ?? "var(--oq-accent)");
-  return { model, phase, paused, offline, fraction, left, ringLabel, ringColor };
+  return { model, phase, paused, offline, fraction, left, ringLabel, ringColor, isShowman };
 }

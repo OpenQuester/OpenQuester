@@ -148,7 +148,8 @@ export class GameRepository {
         createdAtMax: paginationOpts.createdAtMax,
         createdAtMin: paginationOpts.createdAtMin,
         isPrivate: paginationOpts.isPrivate,
-        titlePrefix: paginationOpts.titlePrefix
+        titlePrefix: paginationOpts.titlePrefix,
+        status: paginationOpts.status
       },
       {
         limit: paginationOpts.limit,

@@ -3,7 +3,6 @@ import { io, type Socket } from "socket.io-client";
 import { api } from "@/api/client";
 import { API_URL } from "@/api/config";
 import { i18n } from "@/i18n/index";
-import { translateServerError } from "@/i18n/serverErrors";
 import { formatScore } from "@/lib/format";
 
 import { preloadQuestionMedia } from "./media";
@@ -217,7 +216,7 @@ export class GameConnection {
       this.close();
       return;
     }
-    store.toast("error", translateServerError(message));
+    store.toast("error", message);
   }
 
   private onServerEvent(event: ServerEvent): void {

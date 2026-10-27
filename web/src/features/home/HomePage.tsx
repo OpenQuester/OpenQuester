@@ -31,6 +31,11 @@ export function HomePage() {
           visible={home.visible}
           filter={home.filter}
           setFilter={home.setFilter}
+          search={home.search}
+          changeSearch={home.changeSearch}
+          onSearchSubmit={home.onSearchSubmit}
+          setSearchComposing={home.setSearchComposing}
+          hasSearch={home.hasSearch}
         />
       </div>
     </PageContainer>

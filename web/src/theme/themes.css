@@ -50,6 +50,9 @@
 
   --oq-link-hover: #d6daff;
   --oq-scrim: #05060d;
+  /* Scrims stay dark in both themes, so their foreground stays light. */
+  --oq-on-scrim: #eef0ff;
+  --oq-on-scrim-soft: #c3c8ea;
 
   --oq-radius-sm: 10px;
   --oq-radius-md: 14px;

@@ -1132,7 +1132,7 @@ export interface paths {
         };
         /**
          * Get all games
-         * @description Returns lobby games from Redis-backed indexes. Games deleted by REST or by empty-game cleanup are removed from these indexes before they disappear from the listing.
+         * @description Returns games from Redis-backed indexes. Optional title, privacy, date and status filters apply together before pagination and the returned total. Omitting status includes every lifecycle status. Games deleted by REST or by empty-game cleanup are removed from these indexes before they disappear from the listing.
          */
         get: {
             parameters: {
@@ -1145,6 +1145,7 @@ export interface paths {
                     createdAtMax?: components["schemas"]["FilterCreatedAtMax"];
                     isPrivate?: components["schemas"]["FilterIsPrivate"];
                     titlePrefix?: components["schemas"]["PaginationTitlePrefix"];
+                    status?: components["schemas"]["GameStatusFilter"];
                 };
                 header?: never;
                 path?: never;
@@ -3637,6 +3638,11 @@ export interface components {
         FilterCreatedAtMax: string;
         /** @example false */
         FilterIsPrivate: boolean;
+        /**
+         * @description Filter before pagination: lobby means neither started nor finished; playing means started and not finished. Omit to include all statuses, including finished games.
+         * @enum {string}
+         */
+        GameStatusFilter: "lobby" | "playing";
         /**
          * @description Search by title prefix (start)
          * @example Anime

@@ -60,6 +60,12 @@ protocol semantics. Backend transport tests do not establish this UI target.
 
 ### Per-phase checks
 
+React shows a non-dismissible 3.5-second transition at game start and between rounds, including the final.
+It skips joining/reloading an active game, respects reduced motion and does not pause play.
+React covers and disables the game field during pause while preserving its state and board-edit mode.
+The showman can resume from the header or host tools; chat and permitted management remain available.
+Join retries preserve drafts and errors with busy buttons; masked passwords have a visibility toggle.
+
 React answer/bid drafts survive pause and temporary reconnect, while controls
 remain unavailable until the game resumes. Pending/accepted answers prevent
 duplicate sends; rejection or timeout allows a manual retry. Timed final/all-play
@@ -78,6 +84,14 @@ When changing gameplay UI, make sure the affected phase has:
 7. Localization keys for user-facing text.
 
 ## Required backend behavior
+
+`GET /v1/games` accepts optional `status=lobby|playing`, combined with title,
+privacy and date filters before pagination and the reported total. Lobby means
+neither `startedAt` nor `finishedAt` is set; playing means `startedAt` is set and
+`finishedAt` is absent, including paused games. Finished games match neither.
+Omitting `status` retains the existing listing of every status. The filter reads
+current lifecycle fields in bounded batches, without a persistent status index
+or additional writes on gameplay saves.
 
 When changing gameplay state, make sure:
 

@@ -7,7 +7,9 @@
     "dismiss": "Dismiss",
     "you": "you",
     "youCap": "You",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "nav": {
     "main": "Main",
@@ -56,6 +58,9 @@
     "hostSubtitle": "Pick a package, set the room, share the link. You're the showman.",
     "createGame": "Create game",
     "openGames": "Open games",
+    "search": "Search games",
+    "clearSearch": "Clear search",
+    "noMatches": "No games match your search and filters.",
     "filter": "Filter games",
     "filters": {
       "all": "All",
@@ -242,7 +247,8 @@
     "watch": "Spectate",
     "lobbyHelp": "Players buzz and score. Spectators watch everything but can't answer.",
     "playingHelp": "The game is in progress. Take a free seat and play from the next question, or watch.",
-    "fullHelp": "All seats are taken. You can watch and take a seat if one frees up."
+    "fullHelp": "All seats are taken. You can watch and take a seat if one frees up.",
+    "passwordInvalid": "Use 1–16 Latin letters, digits, - or _."
   },
   "game": {
     "joining": "Joining the game…",
@@ -322,9 +328,11 @@
   },
   "banner": {
     "reconnecting": "Connection lost — reconnecting…",
-    "reconnectingHelp": "Your seat and score are kept. The screen catches up as soon as you're back.",
-    "paused": "Paused by {{name}}",
-    "pausedHelp": "Timers are frozen. Nothing you press counts until the game resumes."
+    "reconnectingHelp": "Your seat and score are kept. The screen catches up as soon as you're back."
+  },
+  "pause": {
+    "title": "Game paused",
+    "waiting": "Waiting for the showman to continue the game."
   },
   "chat": {
     "title": "Chat",
@@ -610,7 +618,6 @@
     "reconnecting": "Reconnecting",
     "offlineInfo": "Actions are paused until you're back",
     "paused": "Paused",
-    "pausedInfo": "Nothing counts while the game is paused",
     "choosing": {
       "yourTurn": "Your turn to pick",
       "pickInfo": "Pick any amber cell on the board",
@@ -1458,6 +1465,11 @@
     "uploadStashed_one": "Upload {{count}} file",
     "uploadStashed_other": "Upload {{count}} files",
     "pickHelp": "Pick the same .siq or .oq file again. Only the media that's missing is uploaded."
+  },
+  "roundTransition": {
+    "title": "Next round",
+    "description": "Round {{n}} — {{name}}",
+    "firstTitle": "First round"
   },
   "skipRound": {
     "title": "Skip to the next round?",
