@@ -678,10 +678,11 @@ test("closing nested preview restores focus without scrolling the question form"
 test("local playtest uses unsaved content, separates roles, and leaves the form mounted", async ({
   page,
 }) => {
-  const source = await seed(page);
+  const source = await seed(page, false, false, { width: 1200, height: 900 });
   const calls: string[] = [];
   const form = page.getByTestId("question-dialog");
-  await form.getByLabel("Question text").fill("Unsaved interactive question");
+  const unsaved = "Unsaved interactive question";
+  await form.getByLabel("Question text").fill(unsaved);
   await form.getByRole("button", { name: "Preview", exact: true }).click();
   const preview = page.getByRole("dialog", { name: "Interactive game preview" });
   const game = preview.getByTestId("question-playtest");
@@ -724,7 +725,44 @@ test("local playtest uses unsaved content, separates roles, and leaves the form 
   const controls = game.getByRole("group", { name: "Simulation controls" });
   await controls.getByRole("button", { name: "Continue", exact: true }).click();
   await controls.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(game.getByTestId("question-text")).toHaveText("Unsaved interactive question");
+  await controls.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect(game.getByTestId("question-text")).toHaveText(unsaved);
+  const question = game.getByRole("region", { name: "Question" });
+  const stage = question.locator("../..");
+  const media = game.getByTestId("content-stage").locator("img");
+  const text = game.getByTestId("question-text");
+  const dock = game.getByTestId("dock");
+  const scroller = preview.locator(".overflow-y-auto").first();
+  await expect(media).toBeVisible();
+  for (const [width, height] of [
+    [1366, 884],
+    [1296, 700],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    for (const content of [media, text, dock]) {
+      const box = (await content.boundingBox())!;
+      const stageBox = (await stage.boundingBox())!;
+      const dockBox = (await dock.boundingBox())!;
+      expect(stageBox.y + stageBox.height).toBeLessThanOrEqual(dockBox.y + 1);
+      if (content !== dock) {
+        expect(box.y).toBeGreaterThanOrEqual(stageBox.y);
+        expect(box.y + box.height).toBeLessThanOrEqual(stageBox.y + stageBox.height + 1);
+      }
+      for (const edge of ["start", "end"] as const) {
+        await content.evaluate(
+          (element, block) => element.scrollIntoView({ block, behavior: "instant" }),
+          edge,
+        );
+        const visibleBox = (await content.boundingBox())!;
+        const scrollBox = (await scroller.boundingBox())!;
+        const edgeY = edge === "start" ? visibleBox.y : visibleBox.y + visibleBox.height;
+        expect(edgeY).toBeGreaterThanOrEqual(scrollBox.y - 3);
+        expect(edgeY).toBeLessThanOrEqual(scrollBox.y + scrollBox.height + 3);
+      }
+    }
+  }
+  await controls.getByRole("button", { name: "Resume", exact: true }).click();
+
   if (dir) {
     await page.setViewportSize({ width: 375, height: 900 });
     await game.getByTestId("question-text").scrollIntoViewIfNeeded();
@@ -768,7 +806,7 @@ test("local playtest uses unsaved content, separates roles, and leaves the form 
   expect(calls).toEqual([]);
   expect((await readDraft(page, source.id)).questions[0]!.text).toBe("Name this artwork");
   await page.keyboard.press("Escape");
-  await expect(form.getByLabel("Question text")).toHaveValue("Unsaved interactive question");
+  await expect(form.getByLabel("Question text")).toHaveValue(unsaved);
 });
 
 test("mobile playtest presents the real point picker and local final input", async ({ page }) => {

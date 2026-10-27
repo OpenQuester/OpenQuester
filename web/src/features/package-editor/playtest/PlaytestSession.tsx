@@ -166,7 +166,7 @@ export function PlaytestSession({
         <div className="shrink-0">
           <PlayerChips />
         </div>
-        <div className="order-2 flex min-h-52 shrink-0 flex-col rounded-md border border-line bg-surface-2 p-3 sm:order-1 sm:flex-1 sm:p-5">
+        <div className="order-2 flex min-h-52 shrink-0 flex-col rounded-md border border-line bg-surface-2 p-3 sm:order-1 sm:grow sm:p-5">
           <GameStage />
         </div>
         <div className="order-1 shrink-0 sm:order-2">
