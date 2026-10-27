@@ -51,7 +51,7 @@ test("only the no-risk picker answers; giving up reveals it without losing point
   // Real showman actions produce system entries, which must stay badge-free.
   await host.page.getByRole("button", { name: "Pause", exact: true }).click();
   await expectPhase([page], "Paused");
-  await host.page.getByRole("button", { name: "Resume", exact: true }).click();
+  await host.page.locator("header").getByRole("button", { name: "Resume", exact: true }).click();
   await expectPhase([page], "Choosing");
   await expect(page.getByTestId("open-chat").getByLabel(/unread/i)).toHaveCount(0);
   await host.page.getByTestId("open-chat").click();

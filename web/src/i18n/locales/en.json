@@ -328,9 +328,11 @@
   },
   "banner": {
     "reconnecting": "Connection lost — reconnecting…",
-    "reconnectingHelp": "Your seat and score are kept. The screen catches up as soon as you're back.",
-    "paused": "Paused by {{name}}",
-    "pausedHelp": "Timers are frozen. Nothing you press counts until the game resumes."
+    "reconnectingHelp": "Your seat and score are kept. The screen catches up as soon as you're back."
+  },
+  "pause": {
+    "title": "Game paused",
+    "waiting": "Waiting for the showman to continue the game."
   },
   "chat": {
     "title": "Chat",
@@ -616,7 +618,6 @@
     "reconnecting": "Reconnecting",
     "offlineInfo": "Actions are paused until you're back",
     "paused": "Paused",
-    "pausedInfo": "Nothing counts while the game is paused",
     "choosing": {
       "yourTurn": "Your turn to pick",
       "pickInfo": "Pick any amber cell on the board",

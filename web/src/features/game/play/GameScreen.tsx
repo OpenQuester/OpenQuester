@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { GameActionDock } from "./GameActionDock";
 import { GameMenu } from "./GameMenu";
+import { GamePauseOverlay } from "./GamePauseOverlay";
 import { GameStage } from "./GameStage";
 import { GameHeader } from "./screen/GameHeader";
 import { GamePanels } from "./screen/GamePanels";
@@ -24,13 +25,18 @@ export function GameScreen() {
         <p className="sr-only" aria-live="polite" role="status">
           {announcement}
         </p>
-        <ConnectionBanner showPause />
+        <ConnectionBanner />
         <GameHeader game={game} />
 
-        <main
-          className={cn(gameWidth, gameScreenStyles.stage, session.state.isPaused && "opacity-40")}
-        >
-          <GameStage />
+        <main className="relative isolate flex flex-1 flex-col">
+          <div
+            className={cn(gameWidth, gameScreenStyles.stage)}
+            inert={session.state.isPaused}
+            data-testid="game-stage"
+          >
+            <GameStage />
+          </div>
+          {session.state.isPaused && <GamePauseOverlay isShowman={role === "showman"} />}
         </main>
 
         <GameActionDock />

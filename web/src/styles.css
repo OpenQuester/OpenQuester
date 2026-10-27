@@ -43,6 +43,8 @@
   --color-on-warning-surface: var(--oq-on-warning-surface);
   --color-on-accent-surface: var(--oq-on-accent-surface);
   --color-scrim: var(--oq-scrim);
+  --color-on-scrim: var(--oq-on-scrim);
+  --color-on-scrim-soft: var(--oq-on-scrim-soft);
 
   --radius-sm: var(--oq-radius-sm);
   --radius-md: var(--oq-radius-md);

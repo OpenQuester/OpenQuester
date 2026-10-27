@@ -62,6 +62,8 @@ protocol semantics. Backend transport tests do not establish this UI target.
 
 React shows a non-dismissible 3.5-second transition at game start and between rounds, including the final.
 It skips joining/reloading an active game, respects reduced motion and does not pause play.
+React covers and disables the game field during pause while preserving its state and board-edit mode.
+The showman can resume from the header or host tools; chat and permitted management remain available.
 Join retries preserve drafts and errors with busy buttons; masked passwords have a visibility toggle.
 
 React answer/bid drafts survive pause and temporary reconnect, while controls

@@ -156,7 +156,7 @@ test.describe("game fixes", () => {
     await page.getByRole("button", { name: "Pause", exact: true }).click();
     await expect(dockPhase(pat.page)).toHaveText("Paused");
     await expect(draft).toBeHidden();
-    await page.getByRole("button", { name: "Resume", exact: true }).click();
+    await page.locator("header").getByRole("button", { name: "Resume", exact: true }).click();
     await expect(draft).toBeVisible();
     await expect(draft).toHaveValue("Preserve this answer");
 
