@@ -37,3 +37,15 @@ it("restores the last audible volume after zero or mute", () => {
   expect(media.muted).toBe(false);
   expect(media.volume).toBeCloseTo(0.4);
 });
+
+it("keeps the seek slider at the requested audio position before the next time update", () => {
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  const view = render(<EditorMediaPlayer src="file.wav" type="audio" onDuration={() => {}} />);
+  const media = view.container.querySelector("audio")!;
+  Object.defineProperty(media, "duration", { value: 130 });
+  fireEvent.durationChange(media);
+  const seek = screen.getByRole("slider", { name: "Seek" });
+  fireEvent.change(seek, { target: { value: "0.1" } });
+  expect(media.currentTime).toBeCloseTo(0.1);
+  expect(seek).toHaveValue("0.1");
+});

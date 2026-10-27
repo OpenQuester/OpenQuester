@@ -555,7 +555,11 @@ test("editor video retains working controls in fullscreen", async ({ page }) => 
     .toBe(true);
   await player.getByRole("button", { name: "Play", exact: true }).click();
   await expect(player.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await player.getByRole("button", { name: "Pause", exact: true }).click();
   await player.getByRole("slider", { name: "Seek" }).fill("0.5");
+  await expect
+    .poll(() => player.locator("video").evaluate((media: HTMLVideoElement) => media.currentTime))
+    .toBeCloseTo(0.5, 1);
   await player.getByRole("button", { name: "Mute", exact: true }).click();
   await expect(player.getByRole("button", { name: "Unmute", exact: true })).toBeVisible();
   await player.getByRole("button", { name: "Unmute", exact: true }).click();

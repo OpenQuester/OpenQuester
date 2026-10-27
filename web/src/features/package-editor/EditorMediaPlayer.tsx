@@ -147,7 +147,11 @@ export function EditorMediaPlayer({
           value={Math.min(position, duration)}
           disabled={!duration || error}
           onChange={(event) => {
-            if (ref.current) ref.current.currentTime = Number(event.target.value);
+            if (ref.current) {
+              const value = Number(event.target.value);
+              ref.current.currentTime = value;
+              setPosition(value);
+            }
           }}
         />
         <div className="flex min-w-0 items-center gap-1">
