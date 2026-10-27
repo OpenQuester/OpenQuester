@@ -4978,6 +4978,8 @@ export interface components {
             sources?: string[] | null;
             /** @description Point answers: the right spot */
             answerPoint?: components["schemas"]["AnswerPoint"] | null;
+            /** @description Original question image URL for the point-answer reveal, retained on rejoin */
+            answerPointImage?: string | null;
             answerDeviation?: number | null;
         };
         /** @description Data sent when a player automatically loses in final round */

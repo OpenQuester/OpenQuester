@@ -5,7 +5,7 @@ Owner/reviewer: originating chat `01a17dd2-f558-7f60-9e97-85f816942ca3` (Improve
 
 ## Scope and approved decisions
 
-Implement all 18 items below in one PR. React/web is the target. The two approved backend exceptions are correcting point-answer circle evaluation (including additive contract changes) and repairing the existing multi-player wrong/skip transition for choice and hidden questions. Do not modify Flutter or generated Dart files.
+Implement all 18 items below in one PR. React/web is the target. The three approved backend exceptions are correcting point-answer circle evaluation (including additive contract changes), repairing the existing multi-player wrong/skip transition for choice and hidden questions, and retaining the point reveal image on reconnect. Do not modify Flutter or generated Dart files.
 
 The user explicitly approved:
 
@@ -223,4 +223,6 @@ React Doctor changed-scope scan at `45c9b3bf` reported 78/100, no errors and 16 
 
 CI evidence at `56640d4d`: native Chromium passed 45/45, and full backend E2E passed 134 with 16 pre-existing device-specific skips. The job reached its 25-minute limit during cleanup after all assertions passed, so the GitHub check was cancelled. Its overall budget is increased to 35 minutes for cold setup, both full suites and cleanup; individual test timeouts, retries, assertions and coverage are unchanged. A fresh exact-head CI run is required.
 
-Independent live QA at `56640d4d`: `QA/56640d4/LIVE-QA-REPORT.md` records reconnect/media 2/2 and a three-player choice flow 1/1, including independent preview in another tab. It also confirms an open pre-existing limitation: during normal and all-play point-answer reveal, reload loses the image/circle for showman, player and spectator because the snapshot clears `currentQuestion` and does not retain its image. A separate backend-contract decision is pending; the diagnostic's zero exit status is not a pass for that behavior.
+Independent live QA at `56640d4d`: `QA/56640d4/LIVE-QA-REPORT.md` records reconnect/media 2/2 and a three-player choice flow 1/1, including independent preview in another tab. It also confirms an open pre-existing limitation: during normal and all-play point-answer reveal, reload loses the image/circle for showman, player and spectator because the snapshot clears `currentQuestion` and does not retain its image. The later backend-contract fix was approved as noted below; the diagnostic's zero exit status is not a pass for that behavior.
+
+The user subsequently approved the point-reveal reconnect fix in this PR. The additive `answerPointImage` reveal field retains only the first question image URL; active question lifecycle, scoring and final-round UX remain unchanged. Final verification and independent QA are pending.

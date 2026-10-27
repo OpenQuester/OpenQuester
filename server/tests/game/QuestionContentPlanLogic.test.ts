@@ -8,6 +8,9 @@ import {
   SHOW_ANSWER_DURATION_TEXT,
   SHOW_ANSWER_DURATION_VIDEO
 } from "domain/constants/game";
+import { AnswerType } from "domain/enums/package/AnswerType";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { PackageQuestionSubType } from "domain/types/dto/package/PackageQuestionDTO";
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
@@ -166,5 +169,44 @@ describe("ShowAnswerLogic answer plan", () => {
 
   it("has no plan without answer files", () => {
     expect(ShowAnswerLogic.buildAnswerPlan({ answerFiles: null })).toBeNull();
+  });
+});
+
+describe("point answer reveal image", () => {
+  it("selects the first question image by order without changing the original array", () => {
+    const files = [
+      file(3, PackageFileType.IMAGE, {
+        file: { md5: "later", type: PackageFileType.IMAGE, link: "/later" }
+      }),
+      file(0, PackageFileType.AUDIO),
+      file(1, PackageFileType.IMAGE, {
+        file: { md5: "first", type: PackageFileType.IMAGE, link: "/first" }
+      })
+    ];
+    const question = {
+      type: PackageQuestionType.SIMPLE,
+      subType: PackageQuestionSubType.SIMPLE,
+      order: 0,
+      price: 100,
+      isHidden: false,
+      answerDelay: 0,
+      showAnswerDuration: 5000,
+      answerType: AnswerType.POINT,
+      questionFiles: files
+    };
+    expect(ShowAnswerLogic.revealDetails(question).answerPointImage).toBe("/first");
+    expect(files.map((item) => item.order)).toEqual([3, 0, 1]);
+    expect(
+      ShowAnswerLogic.revealDetails({ ...question, answerType: AnswerType.TEXT }).answerPointImage
+    ).toBeNull();
+    expect(
+      ShowAnswerLogic.revealDetails({ ...question, questionFiles: [] }).answerPointImage
+    ).toBeNull();
+    expect(
+      ShowAnswerLogic.revealDetails({
+        ...question,
+        questionFiles: [file(0, PackageFileType.IMAGE)]
+      }).answerPointImage
+    ).toBeNull();
   });
 });

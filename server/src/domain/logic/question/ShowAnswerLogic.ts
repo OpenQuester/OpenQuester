@@ -3,6 +3,8 @@ import {
   SHOW_ANSWER_DURATION_TEXT,
   SHOW_ANSWER_DURATION_VIDEO
 } from "domain/constants/game";
+import { AnswerType } from "domain/enums/package/AnswerType";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import type { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
@@ -58,7 +60,14 @@ export class ShowAnswerLogic {
   public static revealDetails(
     question: PackageQuestionDTO | null | undefined
   ): AnswerRevealDetails {
+    const image =
+      question?.answerType === AnswerType.POINT
+        ? [...(question.questionFiles ?? [])]
+            .sort((a, b) => a.order - b.order)
+            .find((item) => item.file.type === PackageFileType.IMAGE)
+        : undefined;
     return {
+      answerPointImage: image?.file.link ?? null,
       answerPoint: question?.answerPoint ?? null,
       answerDeviation: question?.answerDeviation ?? null,
       rightAnswers: question?.rightAnswers ?? null,

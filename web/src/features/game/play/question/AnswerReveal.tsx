@@ -18,18 +18,15 @@ export function AnswerReveal() {
   const winner =
     result && result.answerType === "correct" ? findPlayer(session, result.player) : undefined;
   const answerText = data?.answerText ?? s.currentQuestion?.answerText ?? null;
+  const pointImage = data?.answerPointImage ?? pointPicture(s.currentQuestion);
   return (
     <div className={questionContentLayout} data-testid="answer-reveal">
       <span className="text-sm font-semibold uppercase tracking-wider text-muted">
         {t("reveal.answer")}
       </span>
       {answerText && <p className={questionStyles.revealedAnswer}>{answerText}</p>}
-      {data?.answerPoint && pointPicture(s.currentQuestion) && (
-        <PointPicker
-          src={pointPicture(s.currentQuestion)!}
-          target={data.answerPoint}
-          radius={data.answerDeviation}
-        />
+      {data?.answerPoint && pointImage && (
+        <PointPicker src={pointImage} target={data.answerPoint} radius={data.answerDeviation} />
       )}
       {!!data?.rightAnswers?.length && (
         <p className="m-0 text-center text-soft">

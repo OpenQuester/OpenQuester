@@ -18,12 +18,22 @@ export interface QuestionFinishEventPayload {
   /** Point answers: the right spot and how far off still counted */
   answerPoint?: AnswerPointDTO | null;
   answerDeviation?: number | null;
+  /** Original question image for the point-answer reveal, including on rejoin. */
+  answerPointImage?: string | null;
 }
 
-export interface QuestionFinishWithAnswerEventPayload
-  extends Pick<
-    QuestionFinishEventPayload,
-    "answerFiles" | "answerText" | "nextTurnPlayerId" | "answerContentPlan" | "rightAnswers" | "authors" | "sources" | "answerPoint" | "answerDeviation"
-  > {
+export interface QuestionFinishWithAnswerEventPayload extends Pick<
+  QuestionFinishEventPayload,
+  | "answerFiles"
+  | "answerText"
+  | "nextTurnPlayerId"
+  | "answerContentPlan"
+  | "rightAnswers"
+  | "authors"
+  | "sources"
+  | "answerPoint"
+  | "answerDeviation"
+  | "answerPointImage"
+> {
   answerResult: GameStateAnsweredPlayerData;
 }

@@ -6885,6 +6885,10 @@
               }
             ]
           },
+          "answerPointImage": {
+            "type": ["string", "null"],
+            "description": "Original question image URL for the point-answer reveal, retained on rejoin"
+          },
           "answerDeviation": {
             "type": ["number", "null"]
           }

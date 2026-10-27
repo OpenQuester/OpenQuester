@@ -142,6 +142,11 @@ When changing gameplay state, make sure:
   is not an additional tolerance radius. Legacy points without aspect metadata
   keep their original normalized-coordinate distance. Web publication measures
   the first final image and adds the aspect; no existing package is backfilled.
+  During a normal or all-play point-answer reveal, `answerShowData.answerPointImage`
+  retains the first question image URL for players who join or reload after the
+  active question is cleared. Point coordinates and radius remain answer-reveal
+  data; no additional answer metadata is exposed before reveal. Older reveal
+  payloads without the optional image URL remain valid.
 - **Showman instruction:** the web UI places `questionComment` before question
   content for the showman, including final answer and review phases, and omits
   it from public answer reveal. This UI visibility does not make the field

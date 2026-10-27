@@ -189,6 +189,8 @@ export interface AnswerShowData {
   /** Point answers: the right spot and the radius that counted. */
   answerPoint?: { x: number; y: number; imageAspectRatio?: number } | null;
   answerDeviation?: number | null;
+  /** Original question image for a point-answer reveal. */
+  answerPointImage?: string | null;
 }
 
 export interface FinalAnswer {
