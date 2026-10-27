@@ -18,30 +18,32 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
   return (
     <>
       {!final && <QuestionTypePicker q={q} set={set} />}
-      {!final && (
-        <NumberField
-          id="qf-price"
-          integer
-          label={t("editor.form.price")}
-          value={q.price}
-          onChange={(price) => set({ price })}
-          error={
-            q.price == null
-              ? t("editor.issues.noPrice")
-              : q.price < 0 || q.price > MAX_PRICE
-                ? t("editor.issues.priceRange", { max: MAX_PRICE })
-                : undefined
-          }
+      <div className={cn("grid gap-4", !final && "md:grid-cols-[minmax(0,1fr)_minmax(0,4fr)]")}>
+        {!final && (
+          <NumberField
+            id="qf-price"
+            integer
+            label={t("editor.form.price")}
+            value={q.price}
+            onChange={(price) => set({ price })}
+            error={
+              q.price == null
+                ? t("editor.issues.noPrice")
+                : q.price < 0 || q.price > MAX_PRICE
+                  ? t("editor.issues.priceRange", { max: MAX_PRICE })
+                  : undefined
+            }
+          />
+        )}
+        <OptionalTextField
+          id="qf-comment"
+          label={t("editor.form.comment")}
+          help={t("editor.form.commentHelp")}
+          value={q.questionComment}
+          onChange={(value) => set({ questionComment: value })}
         />
-      )}
+      </div>
       <QuestionTypeSettings q={q} set={set} final={final} />
-      <OptionalTextField
-        id="qf-comment"
-        label={t("editor.form.comment")}
-        help={t("editor.form.commentHelp")}
-        value={q.questionComment}
-        onChange={(value) => set({ questionComment: value })}
-      />
       <QuestionTextFields q={q} set={set} />
       {(final || q.type !== "choice") && <AnswerCheckSettings q={q} set={set} />}
       <div data-testid="question-media-fields">
