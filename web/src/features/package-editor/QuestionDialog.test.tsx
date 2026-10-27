@@ -105,6 +105,8 @@ it("maps the point slider to the larger image dimension without rewriting a lega
 });
 
 it("keeps the unsaved question mounted when the preview closes and does not save through it", async () => {
+  // Load the lazy module before measuring form behavior; browser tests cover opening it.
+  await import("./playtest/QuestionPlaytest");
   const q = newQuestion(100, { text: "Original" });
   const { store } = setup(q);
   const text = screen.getByLabelText("Question text");

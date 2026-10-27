@@ -13,11 +13,11 @@ describe("Buzzer question wrong answers", () => {
     suite = await SocketGameTestSuite.start();
   });
   afterEach(async () => {
-    suite.utils.packageTransform = null;
-    await suite.reset();
+    if (suite) suite.utils.packageTransform = null;
+    await suite?.reset();
   });
   afterAll(async () => {
-    await suite.stop();
+    await suite?.stop();
   });
 
   it.each([
@@ -54,11 +54,11 @@ describe("Buzzer question wrong answers", () => {
           SocketIOGameEvents.ANSWER_RESULT,
           () => {
             if (ruling === "automatic")
-              playerSockets[0].emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+              scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
                 answerText: "Option C"
               });
             else
-              showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+              scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
                 answerType: ruling === "skip" ? AnswerResultType.SKIP : AnswerResultType.WRONG,
                 scoreResult: -100
               });
@@ -104,7 +104,9 @@ describe("Buzzer question wrong answers", () => {
         showmanSocket,
         SocketIOGameEvents.ANSWER_RESULT,
         () => {
-          playerSockets[0].emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "Option B" });
+          scenario
+            .actor(playerSockets[0])
+            .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "Option B" });
         }
       );
       expect(result.answerResult.answerType).toBe(AnswerResultType.CORRECT);
@@ -135,7 +137,7 @@ describe("Buzzer question wrong answers", () => {
       for (let index = 0; index < playerSockets.length; index++) {
         await utils.answerQuestion(playerSockets[index], showmanSocket);
         await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT, () => {
-          showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
             answerType: AnswerResultType.WRONG,
             scoreResult: -100
           });

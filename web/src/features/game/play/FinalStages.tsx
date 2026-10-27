@@ -24,6 +24,19 @@ export function FinalThemesStage() {
   const myTurn = s.currentTurnPlayerId === myId;
   const canRemove = (myTurn || role === "showman") && !s.isPaused;
   const remaining = remainingFinalThemes(session).length;
+  function themeLabel(name: string, protectedTheme: boolean, out: boolean) {
+    if (protectedTheme) return t("editor.playtest.targetTheme", { name });
+    if (out) return t("final.themeRemoved", { name });
+    if (canRemove) return t("final.removeTheme", { name });
+    return name;
+  }
+  function themeStatus(protectedTheme: boolean, out: boolean) {
+    if (protectedTheme && remaining > 1) return t("editor.playtest.keepTheme");
+    if (out) return t("final.removed");
+    if (canRemove && remaining > 1) return t("final.remove");
+    if (remaining <= 1) return t("final.finalTheme");
+    return "";
+  }
 
   return (
     <section className={stageStyles.promptLayout} aria-labelledby="final-themes-h">
@@ -51,20 +64,8 @@ export function FinalThemesStage() {
                     "border-accent-line bg-surface-2 text-text hover:border-accent",
                   !out && disabled && "cursor-default border-line-strong bg-surface-2 text-text",
                 )}
-                aria-label={
-                  protectedTheme
-                    ? t("editor.playtest.targetTheme", { name: theme.name })
-                    : out
-                      ? t("final.themeRemoved", { name: theme.name })
-                      : canRemove
-                        ? t("final.removeTheme", { name: theme.name })
-                        : theme.name
-                }
-                title={
-                  protectedTheme
-                    ? t("editor.playtest.targetTheme", { name: theme.name })
-                    : undefined
-                }
+                aria-label={themeLabel(theme.name, protectedTheme, out)}
+                title={protectedTheme ? themeLabel(theme.name, true, out) : undefined}
               >
                 <span className="text-lg font-semibold [overflow-wrap:anywhere]">{theme.name}</span>
                 <span
@@ -73,15 +74,7 @@ export function FinalThemesStage() {
                     out ? "text-muted" : canRemove ? "text-accent-strong" : "text-muted",
                   )}
                 >
-                  {protectedTheme && remaining > 1
-                    ? t("editor.playtest.keepTheme")
-                    : out
-                      ? t("final.removed")
-                      : canRemove && remaining > 1
-                        ? t("final.remove")
-                        : remaining <= 1
-                          ? t("final.finalTheme")
-                          : ""}
+                  {themeStatus(protectedTheme, out)}
                 </span>
               </button>
             </li>

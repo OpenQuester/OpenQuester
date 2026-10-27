@@ -25,9 +25,15 @@ it("runs and pauses the question and reveal clocks and clears them on close", as
     />,
   );
   await screen.findByTestId("question-playtest");
-  vi.useFakeTimers();
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  vi.useFakeTimers({
+    toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  });
   expect(screen.getByTestId("dock-phase")).toHaveTextContent("Ready to buzz");
   fireEvent.click(screen.getByRole("button", { name: /^Pause$/ }));
   await act(async () => {
@@ -72,13 +78,46 @@ it("shows delayed choices only after advancing their real content clock", async 
     />,
   );
   await screen.findByTestId("question-playtest");
-  vi.useFakeTimers();
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  vi.useFakeTimers({
+    toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"],
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  });
   expect(screen.queryByRole("button", { name: "Blue" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   await act(async () => {
     vi.advanceTimersByTime(0);
   });
   expect(screen.getByRole("button", { name: "Blue" })).toBeInTheDocument();
+});
+
+it("explains manual judging according to the selected perspective", async () => {
+  const q = newQuestion(100, { text: "Question", answerText: "Answer" });
+  render(
+    <QuestionPlaytest
+      question={q}
+      final={false}
+      themeName="Theme"
+      media={new Map()}
+      canSave
+      onFix={() => {}}
+    />,
+  );
+  await screen.findByTestId("question-playtest");
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Make this player answer" }));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  expect(
+    screen.getByText("Switch to the showman to judge the submitted answers."),
+  ).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("View as"), { target: { value: "1" } });
+  expect(
+    screen.getByText("Judge the submitted answers using the controls below."),
+  ).toBeInTheDocument();
 });

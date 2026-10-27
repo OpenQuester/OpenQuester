@@ -1026,8 +1026,8 @@
       "finished": "This run is complete. Restart to try again.",
       "alreadySubmitted": "This player has answered. Choose another test player.",
       "selectAnswerer": "Select the test player who is answering.",
-      "waitingReview": "Switch to the showman to judge this answer.",
-      "review": "Switch to showman to judge text answers."
+      "judgeAnswers": "Judge the submitted answers using the controls below.",
+      "switchToShowman": "Switch to the showman to judge the submitted answers."
     },
     "preview": {
       "mediaCount": "Media files: {{count}}",

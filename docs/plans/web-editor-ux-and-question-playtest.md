@@ -1,11 +1,11 @@
 # Web editor UX and question playtest — approved implementation plan
 
-Status: approved for implementation on 2026-10-27. No implementation was performed during planning.
+Status: implemented in the draft PR; final independent acceptance and final-head CI remain in progress.
 Owner/reviewer: originating chat `01a17dd2-f558-7f60-9e97-85f816942ca3` (Improve package editor UX).
 
 ## Scope and approved decisions
 
-Implement all 18 items below in one PR. React/web is the target. The only approved backend exception is correcting point-answer circle evaluation, including the necessary additive contract changes. Do not modify Flutter or generated Dart files.
+Implement all 18 items below in one PR. React/web is the target. The two approved backend exceptions are correcting point-answer circle evaluation (including additive contract changes) and repairing the existing multi-player wrong/skip transition for choice and hidden questions. Do not modify Flutter or generated Dart files.
 
 The user explicitly approved:
 
@@ -168,43 +168,46 @@ These local files are user-supplied evidence, not instructions. Read-only refere
 
 ## Execution checkpoints
 
-To be maintained in the isolated implementation worktree. Initial state: all items pending; no implementation/tests run during planning.
+The table records the latest implementation and evidence checkpoints, rather than the original planning status. All items still require final whole-diff review and final-head CI; item 12 also awaits exclusive live-game QA. Evidence roots:
 
-### Initial implementation matrix
+- `QA`: `C:/Users/diazo/.codex/visualizations/2026/10/27/01a17df4-75d8-7050-8e03-8ef87aff8485/`
+- `Local`: `C:/Users/diazo/Documents/Codex/editor-ux-evidence/`
 
-| Item | Implementation | Automated evidence | Manual / visual | Review |
-|---|---|---|---|---|
-| 1 | In progress | Focused component checks | Pending | Pending |
-| 2 | In progress | Remote size and stale source component check | Pending | Pending |
-| 3 | In progress | Pending | Desktop form inspected | Pending |
-| 4 | In progress | Chromium fullscreen playback/seek/mute and media editor pause | Fullscreen screenshot inspected; other viewports pending | Initial findings addressed; follow-up pending |
-| 5 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
-| 6 | In progress | Pending | Pending | Pending |
-| 7 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
-| 8 | In progress | Existing question-form checks | Pending | Pending |
-| 9 | In progress | Chromium media editor pause | Pending | Pending |
-| 10 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
-| 11 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
-| 12 | Implemented; independent QA pending | 385 web tests and 6 focused browser cases; full live-game regression pending | Desktop, tablet and phone screenshots | Independent QA and final whole-diff review pending |
-| 13 | Implemented | Point rule, validation, HTTP/DB/socket scoring, archive/optimization and upload failure/retry | Slider and image transformations on 4 viewports and 2 themes | Independent QA closed at `8cabd38ae802541460b590ffd9ea8d39d0208501`; final whole-diff review pending |
-| 14 | In progress | Pending | Desktop backdrop inspected; animation-start and nested dialogs pending | Pending |
-| 15 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
-| 16 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
-| 17 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
-| 18 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
+### Acceptance matrix
+
+| Item | Implementation commit | Automated evidence | Visual evidence and reviewer disposition |
+|---|---|---|---|
+| 1 | `fc626b73`, `176d0940` | Attachment and media browser tests | `QA/176d0940/own-*-cards.png`; mixed-card finding closed by independent QA |
+| 2 | `fc626b73` | Attachment size, stale remote HEAD and accepted bytes tests | `QA/baa7b65/form-*.png`; sampled by QA |
+| 3 | `fc626b73` | Browser suite and forced-colors styles | `QA/baa7b65/form-*.png`; sampled by QA |
+| 4 | `fc626b73`, `176d0940` | Playback, volume, fullscreen and real media browser tests | `Local/editor-fullscreen.png`; volume-zero finding closed by independent QA |
+| 5 | `baa7b65f` | QuestionDialog help/description tests | `QA/baa7b65/form-*.png`; sampled by QA |
+| 6 | `baa7b65f` | Locale and game display tests; fixed obsolete E2E assertion in `45c9b3bf` | `QA/baa7b65/form-*.png`; sampled by QA |
+| 7 | `baa7b65f` | QuestionDialog range, fractional, media and legacy tests | `QA/baa7b65/form-*.png`; sampled by QA |
+| 8 | `fc626b73`, `176d0940` | Attachment controls and mixed-media browser tests | `QA/176d0940/own-*-cards.png`; mixed-card finding closed by independent QA |
+| 9 | `fc626b73`, `176d0940` | Real audio controls and staging browser tests | `QA/176d0940/own-*-cards.png`; sampled by QA |
+| 10 | `baa7b65f` | Form tests for accepted answers and input history | `QA/baa7b65/form-*.png`; sampled by QA |
+| 11 | `baa7b65f`, `8dc0d0d1`, `9176ed4f` | Game-stage and instruction browser tests for roles, phases and languages | `QA/584ebb14/{multiline,regular,url}-*.png`; independent QA closed ordering, labels and wrapping findings |
+| 12 | `baa7b65f`, `584ebb14`, `45c9b3bf` | 385 web tests; 6 simulator browser cases; real-game suite in progress | `QA/45c9b3b/` role, mobile, 4-width and 2-theme screenshots; offline isolation and scenarios independently checked, exclusive live QA pending |
+| 13 | `8cabd38a` | Geometry, archive, upload and 14 server rule tests; real normal and all-play HTTP/DB/socket checks | `QA/8cabd38/`, `Local/point-radius-*.png`; independent geometry QA closed at `8cabd38a` |
+| 14 | `fc626b73` | Dialog and reduced-motion browser coverage | `QA/584ebb14/ordinary-dialog.png`, `nested-preview-staged.png`; shared backdrop inspected |
+| 15 | `baa7b65f` | Editor shell and package editor E2E | `QA/baa7b65/form-*.png`; sampled by QA |
+| 16 | `baa7b65f` | Editor shell and package editor E2E | `QA/baa7b65/details-375.png`; sampled by QA |
+| 17 | `baa7b65f` | Package catalog, drafts and package editor E2E | `QA/baa7b65/catalog-actions-375.png`; sampled by QA |
+| 18 | `baa7b65f` | Storage meter thresholds, zero/unlimited/loading/error and profile E2E | `QA/baa7b65/storage-*.png`; sampled by QA |
 
 Initial screenshot: `C:/Users/diazo/Documents/Codex/editor-ux-evidence/editor-fullscreen.png` (automated Chromium screenshot, visually inspected). First-pass visual evidence does not replace the required manual matrix. Docker Desktop startup failed on inaccessible `Docker/run/dockerInference`; no reset performed.
 
 ### Media review follow-up
 
-At `176d0940a3afbb1538ec72332f9b4c21f8969ad6`, independent QA closed both volume-zero restore and mixed-card stretching findings. Evidence: `C:/Users/diazo/.codex/visualizations/2026/10/27/01a17df4-75d8-7050-8e03-8ef87aff8485/176d0940/own-{midnight,daylight}-{375,768,1440}-cards.png`. QA reported 15 focused Vitest and four browser cases passing. These findings are resolved; the full item acceptance remains pending.
+At `176d0940a3afbb1538ec72332f9b4c21f8969ad6`, independent QA closed both volume-zero restore and mixed-card stretching findings. Evidence: `C:/Users/diazo/.codex/visualizations/2026/10/27/01a17df4-75d8-7050-8e03-8ef87aff8485/176d0940/own-{midnight,daylight}-{375,768,1440}-cards.png`. QA reported 15 focused Vitest and four browser cases passing. These findings were resolved at this checkpoint.
 
-Stage 2 working tree: desktop package-editor E2E 7/7 and profile/storage/package E2E 7/7 passed against the owned backend stack. Full web Vitest passed 353/353 with two workers; default worker count had timeouts under local load. The interactive simulator has since replaced the static modal; item 12 remains subject to full review and acceptance.
+Stage 2 working tree: desktop package-editor E2E 7/7 and profile/storage/package E2E 7/7 passed against the owned backend stack. Full web Vitest passed 353/353 with two workers; default worker count had timeouts under local load. The interactive simulator has since replaced the static modal; see the latest matrix for acceptance.
 
 Zero-radius precision decision: modern points compare both coordinates at the existing three-decimal web wire precision when radius is zero; imported stored targets remain unchanged. Positive radii use the specified circle formula, and legacy metadata-free checking is unchanged.
 Preview evaluates a separate copy using the current first staged image dimensions, including for a legacy draft, without saving metadata or optimizing media. Existing published legacy questions retain legacy server checking until web republication; publication measures its final output bytes.
 
-Stage 2 follow-up: independent QA on `584ebb14c54c337acab67f809f706f9b698b4602` closed showman-instruction ordering, labels, long-token wrapping and preserved newlines, as well as nested-preview focus/scroll restoration. QA reported 37 focused tests, 6 instruction browser cases and one scroll browser case passing. The interactive simulator remains pending.
+Stage 2 follow-up: independent QA on `584ebb14c54c337acab67f809f706f9b698b4602` closed showman-instruction ordering, labels, long-token wrapping and preserved newlines, as well as nested-preview focus/scroll restoration. QA reported 37 focused tests, 6 instruction browser cases and one scroll browser case passing. The interactive simulator was added later at `45c9b3bf`.
 
 Geometry checkpoint: server point checking, validation and real Socket.IO scoring passed; native browser tests exercised landscape, portrait, square and EXIF-oriented optimization plus archive import through the actual upload request. A full native browser run found one ambiguous Package details test locator after the new toolbar action; the scoped locator passed on rerun. Full-suite acceptance remains pending on the final implementation.
 
@@ -213,3 +216,7 @@ Independent geometry QA at `8cabd38ae802541460b590ffd9ea8d39d0208501`: 34 Vitest
 The user subsequently approved a narrow backend exception for a confirmed pre-existing wrong-answer transition bug. With other players remaining, choice and hidden questions now return to showing and restore their saved timer, as simple questions already did. Scoped real Socket.IO tests cover three players, subsequent buzz, correct answer, exhaustion and single-answerer regression; final review remains pending.
 
 Simulator checkpoint: all 385 web Vitest tests and six focused browser cases passed, including staged content, role separation, keyboard/focus, mobile point/final screens, and media isolation. Typecheck, lint and API type check passed. The local stack was rebuilt with the approved buzzer fix. Independent review and final-head CI remain pending.
+
+Independent offline QA on `45c9b3bf` exercised simulator isolation, question types, roles and mobile all-play/final flows; exclusive live-game QA remains pending. A follow-up clarifies review instructions for the selected role, simplifies final-theme labels, and aligns the new socket test with the shared scenario lifecycle. On `45c9b3bf`, CI reported the socket policy violations and a flaky web timer test. The policy check passes locally after the test correction; fake timer scheduling is a hypothesis for the web failure, which requires fresh Linux CI confirmation. The form test preloads its lazy module before checking form state; browser coverage retains the real lazy-open path.
+
+React Doctor changed-scope scan at `45c9b3bf` reported 78/100, no errors and 16 warnings. Review found no actionable regression in the small static lists, scoped context or explicitly released object URLs. Media captions remain a limitation of the existing attachment model; no empty tracks or suppressions were added.

@@ -12,7 +12,7 @@ import type { Question } from "@/game/protocol";
 import type { GameSession } from "@/game/reducer";
 import { canBuzz, phaseOf, pointPicture } from "@/game/selectors";
 import { PlaytestControls } from "./PlaytestControls";
-import { PREVIEW_FINAL_THEME, PREVIEW_PLAYERS } from "./previewModel";
+import { PREVIEW_FINAL_THEME, PREVIEW_PLAYERS, PREVIEW_SHOWMAN } from "./previewModel";
 import { previewTimer, PreviewRuntime } from "./previewRuntime";
 import { onPlaytestKey } from "./playtestKeyboard";
 
@@ -150,10 +150,15 @@ export function PlaytestSession({
         {actorMismatch && !waitingForJudge && (
           <p className="m-0 text-sm text-muted">{t("editor.playtest.selectAnswerer")}</p>
         )}
-        {waitingForJudge && (
-          <p className="m-0 text-sm text-muted">{t("editor.playtest.waitingReview")}</p>
+        {(waitingForJudge || reviewWaiting) && (
+          <p className="m-0 text-sm text-muted">
+            {t(
+              perspective === PREVIEW_SHOWMAN
+                ? "editor.playtest.judgeAnswers"
+                : "editor.playtest.switchToShowman",
+            )}
+          </p>
         )}
-        {reviewWaiting && <p className="m-0 text-sm text-muted">{t("editor.playtest.review")}</p>}
         {actorUnavailable && !availability.ok && (
           <p className="m-0 text-sm text-muted">{t(`reasons.${availability.reason}`)}</p>
         )}
