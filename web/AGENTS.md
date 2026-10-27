@@ -164,6 +164,11 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   resumes inside the selection and restarts at its beginning otherwise.
   PointPicker's wrapper shrinks to the displayed image; target markers use a
   square aspect ratio so width-based radius stays circular in flex layouts.
+  The editor radius slider maps 100% to a diameter of 120% of the first image's
+  longer side. Before publication, the shared upload flow measures that final
+  image's oriented aspect ratio after optimization; failed decoding blocks the
+  create/replace request and remains retryable. Legacy packages without the
+  optional aspect keep their old server checking until web republication.
   Drag and drop is native HTML5; every drag has a Move dialog equivalent for
   touch and keyboard.
   `/packages/$id/preview` opens a published package in the same editor with

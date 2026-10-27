@@ -74,6 +74,36 @@ it("connects the selected answer mode to its explanation", async () => {
   );
 });
 
+it("maps the point slider to the larger image dimension without rewriting a legacy radius", async () => {
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:point-image");
+  const q = newQuestion(100, {
+    answerType: "point",
+    answerPoint: { x: 0.5, y: 0.5 },
+    answerDeviation: 1.3,
+    questionFiles: [{ md5: "point-image", type: "image", displayTime: 5000 }],
+  });
+  const { store } = setup(q);
+  act(() =>
+    store
+      .getState()
+      .addMedia([
+        { md5: "point-image", type: "image", name: "point.png", bytes: new Uint8Array([1]) },
+      ]),
+  );
+  const image = screen.getByTestId("point-picker").querySelector("img")!;
+  Object.defineProperties(image, { naturalWidth: { value: 600 }, naturalHeight: { value: 1200 } });
+  fireEvent.load(image);
+  const slider = screen.getByRole("slider", { name: "Answer radius" });
+  expect(slider).toHaveValue("100");
+  expect(screen.getByText(/780 px radius/)).toBeInTheDocument();
+  expect(screen.getByText(/exceeds the slider range/)).toBeInTheDocument();
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.answerDeviation).toBe(1.3);
+  fireEvent.change(slider, { target: { value: "99" } });
+  fireEvent.change(slider, { target: { value: "100" } });
+  await userEvent.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.answerDeviation).toBeCloseTo(1.2);
+});
+
 it("keeps the unsaved question mounted when the preview closes and does not save through it", async () => {
   const q = newQuestion(100, { text: "Original" });
   const { store } = setup(q);

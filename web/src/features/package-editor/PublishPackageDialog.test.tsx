@@ -9,6 +9,7 @@ import { useSettings } from "@/features/settings/settingsStore";
 import type * as Upload from "@/features/upload/upload";
 import type { MediaFile } from "@/features/upload/types";
 import { uploadPackage } from "@/features/upload/upload";
+import { PointImageDimensionsError } from "@/features/upload/pointImageDimensions";
 import { emptyPackage, newQuestion, newRound, newTheme } from "./packageDraft";
 import { PublishPackageDialog } from "./PublishPackageDialog";
 import { createPackageEditorStore, PackageEditorContext } from "./packageEditorStore";
@@ -33,6 +34,7 @@ it.each([
   [new ApiError("Package too large", 413), "Package too large"],
   [new ApiError("Storage full", 507), "Storage full"],
   [new ApiError("Invalid content", 400), "upload.serverRejected"],
+  [new PointImageDimensionsError(), "upload.pointImageDimensions"],
   [new Error("Local failure"), "Error: Local failure"],
 ] as const)(
   "preserves publish error %s and retries as a new package with current compression settings",

@@ -34,7 +34,7 @@ export interface UploadQuestion {
   answerHint?: string | null;
   answerType?: "text" | "number" | "point" | null;
   answerNumber?: number | null;
-  answerPoint?: { x: number; y: number } | null;
+  answerPoint?: { x: number; y: number; imageAspectRatio?: number } | null;
   answerDeviation?: number | null;
   /** Other answers that count as right; the showman sees them. */
   rightAnswers?: string[] | null;

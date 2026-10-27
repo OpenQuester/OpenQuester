@@ -63,4 +63,6 @@ export interface PackageQuestionDTO {
 export interface AnswerPointDTO {
   x: number;
   y: number;
+  /** Oriented first image width divided by height; absent on legacy packages. */
+  imageAspectRatio?: number;
 }

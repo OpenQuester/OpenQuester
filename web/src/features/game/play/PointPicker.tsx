@@ -32,6 +32,7 @@ export function PointPicker({
   radius = DEFAULT_POINT_RADIUS,
   picked,
   className,
+  onImageLoad,
 }: {
   src: string;
   onPick?: (spot: Spot) => void;
@@ -39,6 +40,7 @@ export function PointPicker({
   radius?: number | null;
   picked?: Spot | null;
   className?: string;
+  onImageLoad?: (width: number, height: number) => void;
 }) {
   const { t } = useTranslation();
   const [hover, setHover] = useState<Spot | null>(null);
@@ -93,7 +95,14 @@ export function PointPicker({
       }
       data-testid="point-picker"
     >
-      <img src={src} alt={t("point.picture")} className="block max-h-[60vh] max-w-full" />
+      <img
+        src={src}
+        alt={t("point.picture")}
+        className="block max-h-[60vh] max-w-full"
+        onLoad={(event) =>
+          onImageLoad?.(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)
+        }
+      />
       {target && (
         <span
           className={questionStyles.correctPoint}

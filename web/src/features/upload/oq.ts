@@ -197,10 +197,13 @@ function answerCheckOf(q: Json): Partial<UploadQuestion> {
   }
   const p = q.answerPoint;
   if (q.answerType === "point") {
+    const aspect = isObject(p) ? num(p.imageAspectRatio) : null;
     return {
       answerType: "point",
       answerPoint:
-        isObject(p) && num(p.x) != null && num(p.y) != null ? { x: num(p.x)!, y: num(p.y)! } : null,
+        isObject(p) && num(p.x) != null && num(p.y) != null
+          ? { x: num(p.x)!, y: num(p.y)!, ...(aspect != null ? { imageAspectRatio: aspect } : {}) }
+          : null,
       answerDeviation: deviation,
     };
   }

@@ -132,6 +132,16 @@ When changing gameplay state, make sure:
   default). Right +price, wrong −price, no showman ruling; text that isn't a
   number / point goes to the showman. In "everyone answers" questions these
   answers are ruled when the review starts.
+  With `answerPoint.imageAspectRatio`, distance is `hypot(dx, dy / aspect)`;
+  positive radii use the stored width-normalized deviation. For a zero radius,
+  both coordinates compare at the web wire precision of three decimals; this
+  is not an additional tolerance radius. Legacy points without aspect metadata
+  keep their original normalized-coordinate distance. Web publication measures
+  the first final image and adds the aspect; no existing package is backfilled.
+- **Showman instruction:** the web UI places `questionComment` before question
+  content for the showman, including final answer and review phases, and omits
+  it from public answer reveal. This UI visibility does not make the field
+  secret in the current protocol.
 - **Secret, customPrice:** after the transfer, the receiver picks the price
   from `allowedPrices` (`secret-question-price`, 30 s; on timeout the lowest
   price). The question is then shown and answered at that price.

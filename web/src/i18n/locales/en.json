@@ -781,6 +781,7 @@
     "showmanHelp": "Manage a player to fix their score, give them the turn, move them to spectators or remove them."
   },
   "upload": {
+    "pointImageDimensions": "Could not read the first image dimensions for a point answer. Check the image and try again.",
     "back": "Packages",
     "title": "Upload a package",
     "lead": "Bring a SIGame .siq pack or an OpenQuester .oq export. You'll see what's inside before anything is uploaded.",
@@ -1095,8 +1096,11 @@
       "deviation": "Allowed difference",
       "deviationHelp": "0 means exactly this number.",
       "pointHelp": "Click the right spot on the question's first picture.",
-      "radius": "Radius (% of the width)",
-      "radiusHelp": "How close a click must be. 5% when empty.",
+      "radius": "Answer radius",
+      "radiusLoading": "Loading image dimensions…",
+      "radiusValue": "{{percent}}% · {{pixels}} px radius",
+      "radiusLegacy": "This radius exceeds the slider range. It stays unchanged until you adjust it.",
+      "pointLegacy": "This published point uses legacy checking until you publish it again from the web editor.",
       "pointNeedsImage": "Add a picture to the question first."
     },
     "move": {

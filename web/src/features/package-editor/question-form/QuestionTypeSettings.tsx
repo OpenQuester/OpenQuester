@@ -1,9 +1,10 @@
 import { questionFormStyles } from "./questionFormStyles";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 import type { QuestionFieldsProps } from "./questionUpdates";
 import type { DraftQuestion } from "../packageDraft";
 import { FieldError, inputClass, Label } from "@/ui/Field";
-import { PointPicker } from "@/features/game/play/PointPicker";
+import { DEFAULT_POINT_RADIUS, PointPicker } from "@/features/game/play/PointPicker";
 import { mediaUrl } from "../packageMedia";
 import { useMediaFile } from "../packageEditorStore";
 import { QuestionCheckbox, NumberField, PricesField, SecondsField } from "./QuestionFields";
@@ -132,25 +133,61 @@ export function AnswerCheckSettings({ q, set }: QuestionFieldsProps) {
       )}
       {q.answerType === "point" &&
         (src ? (
-          <div className="flex flex-col gap-2">
-            <span className="text-sm text-faint">{t("editor.form.pointHelp")}</span>
-            <PointPicker
-              src={src}
-              target={q.answerPoint}
-              radius={q.answerDeviation}
-              onPick={(answerPoint) => set({ answerPoint })}
-            />
-            <NumberField
-              id="qf-radius"
-              label={t("editor.form.radius")}
-              value={q.answerDeviation == null ? null : Math.round(q.answerDeviation * 100)}
-              help={t("editor.form.radiusHelp")}
-              onChange={(v) => set({ answerDeviation: v == null ? null : v / 100 })}
-            />
-          </div>
+          <PointRadiusSettings key={src} src={src} q={q} set={set} />
         ) : (
           <FieldError>{t("editor.form.pointNeedsImage")}</FieldError>
         ))}
+    </div>
+  );
+}
+
+function PointRadiusSettings({ src, q, set }: QuestionFieldsProps & { src: string }) {
+  const { t } = useTranslation();
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const radius = q.answerDeviation ?? DEFAULT_POINT_RADIUS;
+  const max = size ? (0.6 * Math.max(size.width, size.height)) / size.width : 0;
+  const percent = max ? (radius / max) * 100 : 0;
+  const pixels = size ? Math.round(radius * size.width) : null;
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm text-faint">{t("editor.form.pointHelp")}</span>
+      <PointPicker
+        src={src}
+        target={q.answerPoint}
+        radius={q.answerDeviation}
+        onImageLoad={(width, height) => setSize(width > 0 && height > 0 ? { width, height } : null)}
+        onPick={(spot) =>
+          set({
+            answerPoint: {
+              x: Number(spot.x.toFixed(3)),
+              y: Number(spot.y.toFixed(3)),
+              ...(size ? { imageAspectRatio: size.width / size.height } : {}),
+            },
+          })
+        }
+      />
+      <Label htmlFor="qf-radius">{t("editor.form.radius")}</Label>
+      <input
+        id="qf-radius"
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={Math.min(100, Math.max(0, percent))}
+        disabled={!size}
+        onChange={(event) => set({ answerDeviation: (Number(event.target.value) / 100) * max })}
+      />
+      <span className="text-sm text-faint">
+        {pixels == null
+          ? t("editor.form.radiusLoading")
+          : t("editor.form.radiusValue", { percent: Math.round(percent), pixels })}
+      </span>
+      {percent > 100 && (
+        <span className="text-sm text-warning">{t("editor.form.radiusLegacy")}</span>
+      )}
+      {q.answerPoint && !q.answerPoint.imageAspectRatio && (
+        <span className="text-sm text-faint">{t("editor.form.pointLegacy")}</span>
+      )}
     </div>
   );
 }

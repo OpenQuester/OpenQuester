@@ -77,6 +77,15 @@ export class AnswerCheckLogic {
 
     const radius = question.answerDeviation ?? DEFAULT_POINT_DEVIATION;
 
-    return Math.hypot(point.x - right.x, point.y - right.y) <= radius;
+    const aspect = right.imageAspectRatio;
+    if (aspect === undefined) return Math.hypot(point.x - right.x, point.y - right.y) <= radius;
+    if (!Number.isFinite(aspect) || aspect <= 0) return null;
+    if (radius === 0) {
+      // The web point protocol serializes each normalized coordinate to three decimals.
+      return point.x.toFixed(3) === right.x.toFixed(3) && point.y.toFixed(3) === right.y.toFixed(3);
+    }
+    const distance = Math.hypot(point.x - right.x, (point.y - right.y) / aspect);
+    // The client sends decimal coordinates; permit only floating-point rounding at the edge.
+    return distance <= radius + Number.EPSILON * 8 * Math.max(1, radius);
   }
 }

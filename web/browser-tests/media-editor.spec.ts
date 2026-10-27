@@ -744,7 +744,10 @@ test("choice images and logos use their owning form's save and discard behavior"
     .not.toBeUndefined();
   const choiceHash = (await readDraft(page, source.id)).questions[0]!.options[0]!.file!.md5;
   expect(choiceHash).not.toBe(source.md5);
-  await page.getByRole("button", { name: "Package details", exact: true }).click();
+  await page
+    .getByTestId("outline")
+    .getByRole("button", { name: "Package details", exact: true })
+    .click();
   const details = page.getByRole("dialog");
   await details
     .locator('input[type="file"]')
@@ -758,7 +761,10 @@ test("choice images and logos use their owning form's save and discard behavior"
     return (await ((await import(d)) as typeof Drafts).loadDraft(id))!.pkg.logo;
   }, source.id);
   expect(logo).toBeNull();
-  await page.getByRole("button", { name: "Package details", exact: true }).click();
+  await page
+    .getByTestId("outline")
+    .getByRole("button", { name: "Package details", exact: true })
+    .click();
   await details
     .locator('input[type="file"]')
     .setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: Buffer.from(source.bytes) });
@@ -1248,7 +1254,6 @@ test("picture target stays circular and clicks match the displayed image across 
     const picker = form.getByTestId("point-picker"),
       target = form.getByTestId("point-target");
     const settingsInput = form.locator("#qf-radius");
-    await settingsInput.fill("7.");
     const originalPicker = await picker.elementHandle();
     for (const [device, w, h] of [
       ["desktop", 1625, 884],
@@ -1260,7 +1265,7 @@ test("picture target stays circular and clicks match the displayed image across 
       expect(
         await picker.evaluate((element, original) => element === original, originalPicker),
       ).toBe(true);
-      await expect(settingsInput).toHaveValue("7.");
+      await expect(settingsInput).toHaveValue("7");
       const image = picker.locator("img");
       await expect
         .poll(() => image.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
@@ -1272,7 +1277,7 @@ test("picture target stays circular and clicks match the displayed image across 
       await picker.click({ position: { x: bounds.width * 0.62, y: bounds.height * 0.4 } });
       const circle = (await target.boundingBox())!;
       expect(circle.width).toBeCloseTo(circle.height, 1);
-      expect(circle.width).toBeCloseTo(bounds.width * 0.14, 0);
+      expect(circle.width).toBeCloseTo(Math.max(bounds.width, bounds.height) * 0.084, 0);
       // Native mouse events round their client coordinates to whole CSS pixels.
       expect(Math.abs(circle.x + circle.width / 2 - (bounds.x + bounds.width * 0.62))).toBeLessThan(
         1,
@@ -1288,6 +1293,29 @@ test("picture target stays circular and clicks match the displayed image across 
         mkdirSync(dir, { recursive: true });
         await page.screenshot({ path: join(dir, "point-" + shape + "-" + device + ".png") });
       }
+    }
+  }
+});
+
+test("point radius reaches 60 percent of the larger image dimension", async ({ page }) => {
+  await seed(page, false, false, { width: 400, height: 240 });
+  const form = page.getByTestId("question-dialog");
+  await form.getByLabel("How players answer").selectOption("point");
+  await form.getByTestId("point-picker").click();
+  const slider = form.getByRole("slider", { name: "Answer radius" });
+  await expect(slider).toBeEnabled();
+  await slider.fill("100");
+  await expect(form.getByText("100% · 240 px radius")).toBeVisible();
+  const dir = process.env.OQ_MEDIA_SCREENSHOTS;
+  for (const width of [375, 768, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await form.getByText("100% · 240 px radius").scrollIntoViewIfNeeded();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(width);
+    if (dir) {
+      mkdirSync(dir, { recursive: true });
+      await page.screenshot({ path: join(dir, `point-radius-${width}.png`) });
     }
   }
 });

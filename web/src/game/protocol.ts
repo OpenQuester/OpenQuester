@@ -147,7 +147,7 @@ export interface Question {
   answerType?: "text" | "number" | "point" | null;
   /** Showman only: the right number / spot, and how far off still counts. */
   answerNumber?: number | null;
-  answerPoint?: { x: number; y: number } | null;
+  answerPoint?: { x: number; y: number; imageAspectRatio?: number } | null;
   answerDeviation?: number | null;
   /** Showman only: other right answers and known wrong answers. */
   rightAnswers?: string[] | null;
@@ -187,7 +187,7 @@ export interface AnswerShowData {
   authors?: string[] | null;
   sources?: string[] | null;
   /** Point answers: the right spot and the radius that counted. */
-  answerPoint?: { x: number; y: number } | null;
+  answerPoint?: { x: number; y: number; imageAspectRatio?: number } | null;
   answerDeviation?: number | null;
 }
 

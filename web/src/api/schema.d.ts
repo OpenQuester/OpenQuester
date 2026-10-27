@@ -5659,6 +5659,8 @@ export interface components {
         AnswerPoint: {
             x: number;
             y: number;
+            /** @description Oriented first image width divided by height; absent for legacy questions. */
+            imageAspectRatio?: number;
         };
         /**
          * @description Who may join right now: everyone, spectators only, or nobody new. People already in the game can always come back

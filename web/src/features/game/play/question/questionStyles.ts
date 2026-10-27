@@ -15,7 +15,7 @@ export const questionStyles = {
   waiting: "m-0 rounded-sm bg-surface-2 px-3 py-2 text-sm text-muted",
   mediaStep: "flex w-full flex-col items-center gap-4 oq-pop",
   picture: "relative inline-block w-fit max-w-full self-start overflow-hidden rounded-lg",
-  correctPoint: `${pointMarker} aspect-square border-4 border-success bg-success/20`,
+  correctPoint: `${pointMarker} aspect-square border border-success bg-success/20`,
   chosenPoint: `${pointMarker} h-5 w-5 border-2 border-white shadow`,
   choices: "m-0 grid w-full max-w-[820px] list-none grid-cols-1 gap-3 p-0 sm:grid-cols-2",
   choice: "flex min-h-14 w-full items-center gap-3 rounded-md border px-4 py-3 text-left text-lg",

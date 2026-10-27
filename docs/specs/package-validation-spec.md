@@ -50,6 +50,12 @@ A package should be considered broken when any of these are true:
 The web editor and `.oq` reader preserve a selected number/point answer mode
 even when its target is incomplete. Drafts remain editable; critical validation
 blocks publishing instead of silently changing the mode to text.
+Before web publication, the first question image is decoded after optional
+optimization to attach its oriented width/height ratio to a point target. A
+decode failure keeps the draft or imported source available for retry and
+prevents the create/replace request. Existing metadata-free packages keep
+their legacy checking until web republication. The optional field is not yet
+generated into the excluded Dart client; a Flutter rewrite can omit it.
 
 The web question form edits text answers in one **Correct answers** list, one
 accepted answer per line. It preserves the wire format: the first is

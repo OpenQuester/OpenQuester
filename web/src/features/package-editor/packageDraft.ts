@@ -55,7 +55,7 @@ export interface DraftQuestion {
   /** How players answer: typed/said (the showman judges), a number or a spot. */
   answerType: "text" | "number" | "point";
   answerNumber: number | null;
-  answerPoint: { x: number; y: number } | null;
+  answerPoint: { x: number; y: number; imageAspectRatio?: number } | null;
   /** Numbers: how far off still counts. Points: radius as a share of the width. */
   answerDeviation: number | null;
   /** Other answers that count as right. */

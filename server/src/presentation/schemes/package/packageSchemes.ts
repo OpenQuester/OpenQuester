@@ -70,11 +70,10 @@ const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
     is: AnswerType.POINT,
     then: Joi.object({
       x: Joi.number().min(0).max(1).required(),
-      y: Joi.number().min(0).max(1).required()
+      y: Joi.number().min(0).max(1).required(),
+      imageAspectRatio: Joi.number().positive()
     }).required(),
-    otherwise: Joi.object({ x: Joi.number().min(0).max(1), y: Joi.number().min(0).max(1) }).allow(
-      null
-    )
+    otherwise: Joi.object({ x: Joi.number().min(0).max(1), y: Joi.number().min(0).max(1), imageAspectRatio: Joi.number().positive() }).allow(null)
   }),
   answerDeviation: Joi.number().min(0).allow(null),
   rightAnswers: textList(),

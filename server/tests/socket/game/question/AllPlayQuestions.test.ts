@@ -208,6 +208,27 @@ describe("Everyone-answers questions", () => {
     });
   });
 
+  it("judges everyone-answer points using the persisted image aspect", async () => {
+    await suite.scenario(async (scenario) => {
+      utils.packageTransform = (pkg) => {
+        const question = pkg.rounds.flatMap(({ themes }) => themes).flatMap(({ questions }) => questions).find((q) => q.type === PackageQuestionType.NO_RISK)!;
+        question.subType = PackageQuestionSubType.FOR_EVERYONE;
+        question.answerType = AnswerType.POINT;
+        question.answerPoint = { x: 0.5, y: 0.5, imageAspectRatio: 2 };
+        question.answerDeviation = 0.1;
+      };
+      const { showmanSocket, playerSockets, playerUsers, gameId } = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
+      await utils.startGame(showmanSocket);
+      const question = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
+      await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+      const finish = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH);
+      await answerAll(scenario, showmanSocket, playerSockets, ["0.500,0.680", "0.500,0.701"]);
+      await finish;
+      expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.SHOWING_ANSWER);
+      await expectSavedStats(scenario, showmanSocket, gameId, playerUsers, [800, 0]);
+    });
+  });
+
   it("persists automatic and missing-answer rulings after the everyone-answer timer expires", async () => {
     await suite.scenario(async (scenario) => {
       utils.packageTransform = (pkg) => {

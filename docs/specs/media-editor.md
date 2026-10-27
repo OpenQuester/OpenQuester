@@ -87,8 +87,18 @@ The upload optimizer uses the same animated-image detection as the editor
 Attachment duration fields retain fractional/comma input while typing. Removing
 the first question image clears a point-answer target tied to that image.
 Replacing an attachment keeps its Edit button mounted so focus can return.
+The point-radius slider uses the displayed image dimensions: at 100%, the
+diameter is 120% of its larger dimension. Existing radii remain unchanged
+until adjusted, including values beyond the slider's range. Publication
+measures the final accepted or optimized first image for server checking.
 
 ### Video and audio
+
+Attachment previews use a local seekable player with play, timeline, volume,
+and video fullscreen controls. Existing remote files report size from HEAD
+when available; unknown sizes remain unknown. Opening the media editor pauses
+the parent form's previews. Live gameplay continues to use its own synchronized
+playback rather than these editor controls.
 
 Keep one start-to-end interval. Audio has one compact waveform; video has one
 thumbnail timeline beneath its preview. Click or drag directly on either timeline

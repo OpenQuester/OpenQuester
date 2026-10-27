@@ -8322,6 +8322,11 @@
             "type": "number",
             "minimum": 0,
             "maximum": 1
+          },
+          "imageAspectRatio": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Oriented first image width divided by height; absent for legacy questions."
           }
         },
         "required": ["x", "y"]
