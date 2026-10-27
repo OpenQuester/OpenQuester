@@ -13,7 +13,7 @@ export function mountInstruction(myId: number, final: boolean) {
     questionState: "showing",
     currentQuestion: question(100, {
       text: "A long question ".repeat(250),
-      questionComment: "Read this first",
+      questionComment: `FIRST LINE\nSECOND LINE https://example.test/${"a".repeat(220)}`,
     }),
   });
   useGameStore.setState({ session: game, connection: "connected", pending: null });

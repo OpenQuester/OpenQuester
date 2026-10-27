@@ -26,6 +26,16 @@ for (const final of [false, true]) {
       await expect(text).toBeVisible();
       if (role === "showman") {
         await expect(instruction).toBeVisible();
+        expect(await instruction.textContent()).toContain("FIRST LINE\nSECOND LINE");
+        expect(await instruction.evaluate((element) => getComputedStyle(element).whiteSpace)).toBe(
+          "pre-wrap",
+        );
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+          375,
+        );
+        const bounds = (await instruction.boundingBox())!;
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(375);
         expect((await instruction.boundingBox())!.y).toBeLessThan((await text.boundingBox())!.y);
         expect((await instruction.boundingBox())!.y).toBeLessThan(900);
       } else await expect(instruction).toHaveCount(0);
