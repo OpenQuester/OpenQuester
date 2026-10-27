@@ -43,9 +43,10 @@ async function seed(
   shared = false,
   remote = false,
   size = { width: 400, height: 240 },
+  final = false,
 ) {
   const result = await page.evaluate(
-    async ({ shared, remote, size }) => {
+    async ({ shared, remote, size, final }) => {
       const d = "/src/features/package-editor/draftStorage.ts",
         m = "/src/features/package-editor/packageDraft.ts",
         a = "/src/features/upload/archive.ts";
@@ -69,11 +70,11 @@ async function seed(
       const bytes = new Uint8Array(await blob.arrayBuffer()),
         md5 = md5Hex(bytes);
       const pkg = emptyPackage("Media editor browser verification"),
-        round = newRound("Round one");
+        round = newRound("Round one", final ? "final" : "simple");
       const media = { md5, type: "image" as const, displayTime: 4500, waitForFinish: false };
       round.themes = [
         newTheme("Media", [
-          newQuestion(100, {
+          newQuestion(final ? null : 100, {
             text: "Name this artwork",
             answerText: "Quiz",
             questionFiles: [media],
@@ -103,7 +104,7 @@ async function seed(
       ]);
       return { id, md5, bytes: [...bytes] };
     },
-    { shared, remote, size },
+    { shared, remote, size, final },
   );
   await page.goto(`/packages/editor/${result.id}`);
   await page.getByTestId("question-card").first().press("Control+Enter");
@@ -563,10 +564,280 @@ test("closing nested preview restores focus without scrolling the question form"
   await expect.poll(() => body.evaluate((node) => node.scrollTop)).toBeGreaterThan(100);
   const before = await body.evaluate((node) => node.scrollTop);
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("dialog", { name: "Preview" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Interactive game preview" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(opener).toBeFocused();
   expect(await body.evaluate((node) => node.scrollTop)).toBe(before);
+});
+
+test("local playtest uses unsaved content, separates roles, and leaves the form mounted", async ({
+  page,
+}) => {
+  const source = await seed(page);
+  const calls: string[] = [];
+  const form = page.getByTestId("question-dialog");
+  await form.getByLabel("Question text").fill("Unsaved interactive question");
+  await form.getByRole("button", { name: "Preview", exact: true }).click();
+  const preview = page.getByRole("dialog", { name: "Interactive game preview" });
+  const game = preview.getByTestId("question-playtest");
+  await expect(game).toBeVisible();
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/v1/")) calls.push(request.url());
+  });
+  const cell = game.locator('[data-question-id="100"]');
+  const position = await cell.evaluate((node) => ({
+    row: node.parentElement?.parentElement?.getAttribute("aria-label"),
+    text: node.textContent,
+  }));
+  const dir = process.env.OQ_MEDIA_SCREENSHOTS;
+  for (const width of [375, 768, 1440, 1920]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1))
+      .toBe(false);
+    expect(
+      await cell.evaluate((node) => ({
+        row: node.parentElement?.parentElement?.getAttribute("aria-label"),
+        text: node.textContent,
+      })),
+    ).toEqual(position);
+    const chips = game.getByRole("list", { name: "Scores" });
+    expect((await chips.boundingBox())!.height).toBeGreaterThan(30);
+    const board = game.getByRole("table");
+    const lastCell = game.getByTestId("board-cell").last();
+    const lastBox = (await lastCell.boundingBox())!,
+      boardBox = (await board.boundingBox())!;
+    expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(boardBox.y + boardBox.height + 1);
+    if (dir) {
+      mkdirSync(dir, { recursive: true });
+      await page.screenshot({
+        path: join(dir, `playtest-board-${width}.png`),
+        animations: "disabled",
+      });
+    }
+  }
+  const controls = game.getByRole("group", { name: "Simulation controls" });
+  await controls.getByRole("button", { name: "Continue", exact: true }).click();
+  await controls.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(game.getByTestId("question-text")).toHaveText("Unsaved interactive question");
+  if (dir) {
+    await page.setViewportSize({ width: 375, height: 900 });
+    await game.getByTestId("question-text").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(dir, "playtest-question-375.png"), animations: "disabled" });
+    await page.setViewportSize({ width: 1920, height: 900 });
+  }
+  await expect(game.getByTestId("showman-panel")).toHaveCount(0);
+  await controls.getByLabel("View as").selectOption("1");
+  await expect(game.getByTestId("showman-panel")).toContainText("Quiz");
+  await controls.getByLabel("View as").selectOption("2");
+  const prepared = controls.getByLabel("Prepared test answer");
+  await prepared.fill("cw ");
+  await prepared.press("Space");
+  await expect(game.getByTestId("dock-phase")).toHaveText("Ready to buzz");
+  await prepared.fill("Test answer");
+  await controls.getByRole("button", { name: "Continue", exact: true }).click();
+  await game.focus();
+  await page.keyboard.press("Space");
+  await expect(game.getByTestId("dock-phase")).toHaveText("Answering");
+  await controls.getByRole("button", { name: "Continue", exact: true }).click();
+  await controls.getByLabel("View as").selectOption("1");
+  await expect(game.getByTestId("showman-panel")).toContainText("Test answer");
+  await game.focus();
+  await page.keyboard.press("c");
+  await expect(game.getByTestId("answer-reveal")).toContainText("Quiz");
+  await expect(game.getByRole("button", { name: /report/i })).toHaveCount(0);
+  await controls.getByRole("button", { name: "Restart" }).click();
+  await controls.getByRole("button", { name: "Continue", exact: true }).click();
+  await controls.getByRole("button", { name: "Continue", exact: true }).click();
+  await controls.getByRole("button", { name: "Continue", exact: true }).click();
+  await game.focus();
+  await page.keyboard.press("Space");
+  await controls.getByLabel("View as").selectOption("1");
+  const hostInput = controls.getByLabel("Prepared test answer");
+  await hostInput.focus();
+  await page.keyboard.press("w");
+  await expect(game.getByTestId("dock-phase")).toHaveText("Answering");
+  await game.focus();
+  await page.keyboard.press("w");
+  await expect(game.getByTestId("dock-phase")).toHaveText("Ready to buzz");
+  expect(calls).toEqual([]);
+  expect((await readDraft(page, source.id)).questions[0]!.text).toBe("Name this artwork");
+  await page.keyboard.press("Escape");
+  await expect(form.getByLabel("Question text")).toHaveValue("Unsaved interactive question");
+});
+
+test("mobile playtest presents the real point picker and local final input", async ({ page }) => {
+  const source = await seed(page, false, false, undefined, true);
+  await page.setViewportSize({ width: 375, height: 900 });
+  const form = page.getByTestId("question-dialog");
+  await form.locator("#qf-answer-type").selectOption("point");
+  const target = form.getByTestId("point-picker");
+  await expect(target.locator("img")).toBeVisible();
+  await target.click();
+  await form.getByRole("button", { name: "Preview", exact: true }).click();
+  const game = page.getByTestId("question-playtest");
+  await expect(game).toBeVisible();
+  await expect(game.getByRole("button", { name: /kept for the preview question/i })).toBeDisabled();
+  expect((await readDraft(page, source.id)).questions[0]!.answerPoint).toBeNull();
+  const dir = process.env.OQ_MEDIA_SCREENSHOTS;
+  if (dir) {
+    mkdirSync(dir, { recursive: true });
+    await page.screenshot({ path: join(dir, "playtest-final-375.png"), animations: "disabled" });
+  }
+  const controls = game.getByRole("group", { name: "Simulation controls" });
+  for (let i = 0; i < 5; i++)
+    await controls.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
+  await controls.getByRole("button", { name: "Test settings" }).click();
+  const picker = game.getByTestId("point-picker").filter({ visible: true });
+  await expect(picker).toBeVisible();
+  if (dir) {
+    await picker.scrollIntoViewIfNeeded();
+    await page.screenshot({
+      path: join(dir, "playtest-final-point-375.png"),
+      animations: "disabled",
+    });
+  }
+  await picker.click();
+  await controls.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(
+    game.getByText("This player has answered. Choose another test player."),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(form).toBeVisible();
+});
+
+test("mobile regular point playtest uses the gameplay picker", async ({ page }) => {
+  await seed(page);
+  await page.setViewportSize({ width: 375, height: 900 });
+  const form = page.getByTestId("question-dialog");
+  await form.locator("#qf-answer-type").selectOption("point");
+  await form.getByTestId("point-picker").click();
+  await form.getByRole("button", { name: "Preview", exact: true }).click();
+  const game = page.getByTestId("question-playtest");
+  await expect(game).toBeVisible();
+  const controls = game.getByRole("group", { name: "Simulation controls" });
+  const next = controls.getByRole("button", { name: "Continue", exact: true });
+  await next.click();
+  await next.click();
+  await next.click();
+  await controls.getByRole("button", { name: "Make this player answer" }).click();
+  const picker = game.getByTestId("point-picker").filter({ visible: true });
+  await expect(picker).toBeVisible();
+  const dir = process.env.OQ_MEDIA_SCREENSHOTS;
+  if (dir) {
+    await picker.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(dir, "playtest-point-375.png"), animations: "disabled" });
+  }
+  await picker.click();
+  await expect(game.getByTestId("answer-reveal")).toBeVisible();
+});
+
+test("playtest pauses parent media, isolates volume, and releases its own media on close", async ({
+  page,
+}) => {
+  const source = await seed(page);
+  await page.goto("/");
+  const videoBytes = [...readFileSync("e2e/fixtures/clip.webm")];
+  await page.evaluate(
+    async ({ id, videoBytes }) => {
+      const d = "/src/features/package-editor/draftStorage.ts",
+        a = "/src/features/upload/archive.ts";
+      const { loadDraft, saveDraft } = (await import(d)) as typeof Drafts;
+      const { md5Hex } = (await import(a)) as typeof Archive;
+      const draft = (await loadDraft(id))!;
+      const bytes = new Uint8Array(videoBytes),
+        md5 = md5Hex(bytes);
+      draft.pkg.rounds[0]!.themes[0]!.questions[0]!.questionFiles = [
+        { md5, type: "video", displayTime: null },
+      ];
+      await saveDraft(draft, [{ md5, type: "video", name: `${md5}.webm`, bytes }]);
+    },
+    { id: source.id, videoBytes },
+  );
+  await page.goto(`/packages/editor/${source.id}`);
+  await page.getByTestId("question-card").first().press("Control+Enter");
+  const form = page.getByTestId("question-dialog"),
+    parentVideo = form.locator("video").first();
+  await form.getByRole("button", { name: "Play", exact: true }).first().click();
+  await expect.poll(() => parentVideo.evaluate((el: HTMLVideoElement) => el.paused)).toBe(false);
+  const settingsBefore = await page.evaluate(() => localStorage.getItem("oq.settings"));
+  await page.evaluate(() => {
+    const state = window as Window & { playtestUrls?: { created: string[]; revoked: string[] } };
+    state.playtestUrls = { created: [], revoked: [] };
+    const create = URL.createObjectURL.bind(URL),
+      revoke = URL.revokeObjectURL.bind(URL);
+    URL.createObjectURL = (blob) => {
+      const url = create(blob);
+      state.playtestUrls!.created.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      state.playtestUrls!.revoked.push(url);
+      revoke(url);
+    };
+  });
+  await form.getByRole("button", { name: "Preview", exact: true }).click();
+  const game = page.getByTestId("question-playtest");
+  await expect(game).toBeVisible();
+  await expect.poll(() => parentVideo.evaluate((el: HTMLVideoElement) => el.paused)).toBe(true);
+  const next = game
+    .getByRole("group", { name: "Simulation controls" })
+    .getByRole("button", { name: "Continue", exact: true });
+  await next.click();
+  await next.click();
+  const video = game.getByTestId("media-video"),
+    handle = await video.elementHandle();
+  await expect(video).toBeVisible();
+  await expect
+    .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime))
+    .toBeGreaterThan(0.1);
+  await game.getByRole("slider", { name: "Volume" }).fill("25");
+  expect(await page.evaluate(() => localStorage.getItem("oq.settings"))).toBe(settingsBefore);
+  await game.getByRole("button", { name: "Pause", exact: true }).click();
+  await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.paused)).toBe(true);
+  await game.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.paused)).toBe(false);
+  await game.getByRole("button", { name: "Restart", exact: true }).click();
+  expect(await handle!.evaluate((el: HTMLVideoElement) => el.paused)).toBe(true);
+  await page.keyboard.press("Escape");
+  const urls = await page.evaluate(
+    () =>
+      (window as Window & { playtestUrls?: { created: string[]; revoked: string[] } })
+        .playtestUrls!,
+  );
+  expect(urls.created.length).toBeGreaterThan(0);
+  expect(urls.created.every((url) => urls.revoked.includes(url))).toBe(true);
+  await expect(form.getByRole("button", { name: "Preview", exact: true })).toBeFocused();
+});
+
+test("playtest keyboard input and invalid-field return stay inside the editor", async ({
+  page,
+}) => {
+  await seed(page);
+  const form = page.getByTestId("question-dialog");
+  await form.locator("#qf-answer-type").selectOption("number");
+  await form.getByRole("button", { name: "Preview", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Interactive game preview" });
+  await expect(dialog.getByRole("alert")).toBeVisible();
+  await dialog.getByRole("button", { name: "Return to this field" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(form.locator("#qf-number")).toBeFocused();
+  await form.locator("#qf-number").fill("42");
+  await form.getByRole("button", { name: "Preview", exact: true }).click();
+  const game = page.getByTestId("question-playtest");
+  await expect(game).toBeVisible();
+  const next = game
+    .getByRole("group", { name: "Simulation controls" })
+    .getByRole("button", { name: "Continue", exact: true });
+  await next.focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
+  await page.keyboard.press("Control+Enter");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(form.locator("#qf-number")).toHaveValue("42");
 });
 
 test("remote download failure does not replace a published attachment", async ({ page }) => {

@@ -162,7 +162,7 @@ export function validatePackage(
   };
 }
 
-function checkQuestion(
+export function checkQuestion(
   q: DraftQuestion,
   final: boolean,
   add: (

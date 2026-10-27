@@ -142,6 +142,73 @@ describe("Dock", () => {
     expect(emit).toHaveBeenCalledWith("question-answer");
   });
 
+  it.each(["number", "point"] as const)(
+    "explains automatic checking for a regular %s answer",
+    (answerType) => {
+      renderDock(
+        showing({
+          questionState: "answering",
+          answeringPlayer: ALICE,
+          currentQuestion: question(100, { answerType }),
+        }),
+        ALICE,
+      );
+      expect(
+        screen.getAllByText(/checked automatically; the showman reviews unrecognized answers/i)
+          .length,
+      ).toBeGreaterThan(0);
+    },
+  );
+
+  it("explains automatic checking during everyone-answer review", () => {
+    renderDock(
+      showing({
+        currentQuestion: question(100, { type: "noRisk", answerType: "number" }),
+        allPlay: {
+          mode: "noRisk",
+          questionId: 100,
+          price: 100,
+          maxStake: null,
+          priceMultiplier: 2,
+          entries: [
+            {
+              playerId: ALICE,
+              stake: null,
+              answer: null,
+              submitted: false,
+              isCorrect: null,
+              scoreChange: null,
+            },
+          ],
+        },
+      }),
+      ALICE,
+    );
+    expect(
+      screen.getAllByText(/checked automatically; the showman reviews unrecognized answers/i)
+        .length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("keeps final numeric answers on the manual-review path", () => {
+    const s = session({
+      currentRound: round("final"),
+      questionState: "answering",
+      currentQuestion: question(100, { answerType: "number" }),
+      timer: timer(),
+      finalRoundData: {
+        phase: "answering",
+        bids: { [ALICE]: 100 },
+        answers: [],
+        turnOrder: [ALICE],
+        eliminatedThemes: [],
+      },
+    });
+    renderDock(s, ALICE);
+    expect(screen.queryByText(/checked automatically/i)).toBeNull();
+    expect(screen.getAllByText(/answers are revealed in the review/i).length).toBeGreaterThan(0);
+  });
+
   it("tells a spectator why they cannot buzz", () => {
     renderDock(showing(), SAM);
     expect(screen.queryByTestId("buzz")).toBeNull();

@@ -43,15 +43,17 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
         onChange={(value) => set({ questionComment: value })}
       />
       <QuestionTextFields q={q} set={set} />
-      <QuestionMediaList
-        label={t("editor.form.questionMedia")}
-        help={t("editor.form.questionMediaHelp")}
-        files={q.questionFiles}
-        onGeometryChange={onGeometryChange}
-        onChange={(update) =>
-          setQ((prev) => ({ ...prev, questionFiles: update(prev.questionFiles) }))
-        }
-      />
+      <div data-testid="question-media-fields">
+        <QuestionMediaList
+          label={t("editor.form.questionMedia")}
+          help={t("editor.form.questionMediaHelp")}
+          files={q.questionFiles}
+          onGeometryChange={onGeometryChange}
+          onChange={(update) =>
+            setQ((prev) => ({ ...prev, questionFiles: update(prev.questionFiles) }))
+          }
+        />
+      </div>
       {!q.text.trim() && q.questionFiles.length === 0 && (
         <FieldError>{t("editor.issues.questionEmpty")}</FieldError>
       )}

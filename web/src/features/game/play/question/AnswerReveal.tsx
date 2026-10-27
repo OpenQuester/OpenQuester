@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ReportQuestionButton } from "@/features/stats/QuestionReporting";
 import { findPlayer, pointPicture } from "@/game/selectors";
 import { formatSigned } from "@/lib/format";
-import { useSession } from "../../GameContext";
+import { useGame, useSession } from "../../GameContext";
 import { ContentStage } from "../ContentStage";
 import { PointPicker } from "../PointPicker";
 import { QuestionMedia } from "../QuestionMedia";
@@ -11,6 +11,7 @@ import { QuestionMedia } from "../QuestionMedia";
 export function AnswerReveal() {
   const { t } = useTranslation();
   const session = useSession();
+  const { store } = useGame();
   const s = session.state;
   const data = s.answerShowData;
   const result = data?.answerResult ?? (s.answeredPlayers ?? []).at(-1) ?? null;
@@ -43,7 +44,9 @@ export function AnswerReveal() {
         />
       ) : (
         data?.answerFiles &&
-        data.answerFiles.length > 0 && <QuestionMedia files={data.answerFiles} playing />
+        data.answerFiles.length > 0 && (
+          <QuestionMedia files={data.answerFiles} playing={!s.isPaused} />
+        )
       )}
       <p className="m-0 text-lg text-soft 3xl:text-2xl">
         {winner
@@ -60,7 +63,9 @@ export function AnswerReveal() {
             .join(" · ")}
         </p>
       )}
-      {s.currentQuestion?.id != null && <ReportQuestionButton questionId={s.currentQuestion.id} />}
+      {!store && s.currentQuestion?.id != null && (
+        <ReportQuestionButton questionId={s.currentQuestion.id} />
+      )}
     </div>
   );
 }

@@ -25,7 +25,7 @@ export function DockInfo({ children }: { children: ReactNode }) {
 /** Render the selected action without re-evaluating role, score or phase rules. */
 export function DockAction({ action }: { action: DockActionDescriptor | null }) {
   const { t } = useTranslation();
-  const { connection } = useGame();
+  const { connection, store } = useGame();
   const [, setSecretTarget] = useSecretTarget();
   if (!action) return null;
   switch (action.kind) {
@@ -39,7 +39,7 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
               {t("dock.showing.unpass")}
             </Button>
           )}
-          {action.nextRound && (
+          {action.nextRound && !store && (
             <SkipRoundButton size="sm" variant="ghost" label={t("dock.choosing.nextRound")} />
           )}
         </div>
@@ -184,6 +184,7 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
         </Button>
       );
     case "home":
+      if (store) return <DockInfo>{t("editor.playtest.finished")}</DockInfo>;
       return (
         <Link to="/" className={actionDockStyles.backHome} data-testid="back-to-games">
           {t("dock.finished.back")}

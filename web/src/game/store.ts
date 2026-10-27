@@ -1,4 +1,5 @@
-import { create } from "zustand";
+import { create, type StateCreator } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 import { safeStorage } from "@/lib/storage";
 
@@ -20,7 +21,7 @@ export interface GameToast {
   text: string;
 }
 
-interface GameStore {
+export interface GameStore {
   gameId: string | null;
   session: GameSession | null;
   connection: ConnectionStatus;
@@ -34,6 +35,10 @@ interface GameStore {
   /** Showman: board clicks remove or restore questions instead of picking. */
   boardEdit: boolean;
   setBoardEdit: (on: boolean) => void;
+  secretTarget: { scope: string; id: number | null };
+  setSecretTarget: (scope: string, id: number | null) => void;
+  previewVolume: number;
+  setPreviewVolume: (volume: number) => void;
 
   begin: (gameId: string) => void;
   dispatch: (event: ServerEvent) => void;
@@ -45,68 +50,76 @@ interface GameStore {
   markLeft: (why: "left" | "kicked" | "deleted" | "closed") => void;
 }
 
-let toastId = 0;
+const gameStore = (live: boolean): StateCreator<GameStore> => {
+  let toastId = 0;
+  return (set, get) => ({
+    gameId: null,
+    session: null,
+    connection: "idle",
+    joinError: null,
+    pending: null,
+    toasts: [],
+    left: null,
+    boardEdit: false,
+    setBoardEdit: (boardEdit) => set({ boardEdit }),
+    secretTarget: { scope: "", id: null },
+    setSecretTarget: (scope, id) => set({ secretTarget: { scope, id } }),
+    previewVolume: 0.7,
+    setPreviewVolume: (previewVolume) => set({ previewVolume }),
 
-export const useGameStore = create<GameStore>((set, get) => ({
-  gameId: null,
-  session: null,
-  connection: "idle",
-  joinError: null,
-  pending: null,
-  toasts: [],
-  left: null,
-  boardEdit: false,
-  setBoardEdit: (boardEdit) => set({ boardEdit }),
-
-  begin: (gameId) =>
-    set({
-      gameId,
-      session: null,
-      connection: "connecting",
-      joinError: null,
-      pending: null,
-      toasts: [],
-      left: null,
-    }),
-
-  dispatch: (event) => {
-    const { session, gameId } = get();
-    if (event.type === "game-data") {
-      // A snapshot replaces everything: no incremental patching after a gap.
+    begin: (gameId) =>
       set({
-        session: sessionFromSnapshot(gameId ?? "", event.payload),
+        gameId,
+        session: null,
+        connection: "connecting",
         joinError: null,
         pending: null,
+        toasts: [],
+        left: null,
+      }),
+
+    dispatch: (event) => {
+      const { session, gameId } = get();
+      if (event.type === "game-data") {
+        // A snapshot replaces everything: no incremental patching after a gap.
+        set({
+          session: sessionFromSnapshot(gameId ?? "", event.payload),
+          joinError: null,
+          pending: null,
+        });
+        return;
+      }
+      if (!session) return;
+      const next = reduce(session, event);
+      if (next === session) return;
+      const { pending } = get();
+      set({
+        session: next,
+        pending: resolvesPending(pending, event, session, next) ? null : pending,
       });
-      return;
-    }
-    if (!session) return;
-    const next = reduce(session, event);
-    if (next === session) return;
-    const { pending } = get();
-    set({
-      session: next,
-      pending: resolvesPending(pending, event, session, next) ? null : pending,
-    });
-  },
+    },
 
-  setConnection: (connection) => set({ connection }),
-  setJoinError: (joinError) => set({ joinError }),
-  setPending: (action) => set({ pending: action ? { action, at: Date.now() } : null }),
+    setConnection: (connection) => set({ connection }),
+    setJoinError: (joinError) => set({ joinError }),
+    setPending: (action) => set({ pending: action ? { action, at: Date.now() } : null }),
 
-  toast: (kind, text) => {
-    const id = ++toastId;
-    set((s) => ({ toasts: [...s.toasts.slice(-3), { id, kind, text }] }));
-    window.setTimeout(() => get().dismissToast(id), 4500);
-  },
-  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
-  markLeft: (why) => {
-    const gameId = get().gameId;
-    if (!gameId) return;
-    set({ left: { gameId, why } });
-    if (why === "left") rememberLeftGame(gameId);
-  },
-}));
+    toast: (kind, text) => {
+      const id = ++toastId;
+      set((s) => ({ toasts: [...s.toasts.slice(-3), { id, kind, text }] }));
+      if (live) window.setTimeout(() => get().dismissToast(id), 4500);
+    },
+    dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+    markLeft: (why) => {
+      const gameId = get().gameId;
+      if (!gameId) return;
+      set({ left: { gameId, why } });
+      if (live && why === "left") rememberLeftGame(gameId);
+    },
+  });
+};
+
+export const useGameStore = create<GameStore>(gameStore(true));
+export const createGameStore = () => createStore<GameStore>(gameStore(false));
 
 // Lets end-to-end tests and devtools inspect the live game state.
 if (typeof window !== "undefined") {

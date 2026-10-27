@@ -1,17 +1,17 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { myAllPlayEntry, phaseOf } from "@/game/selectors";
-import { useGameStore } from "@/game/store";
-import { useGame, useSession } from "../../GameContext";
+import { useGame, useGameState, useGameStoreApi, useSession } from "../../GameContext";
 import { PointPicker, pointAnswer, type Spot } from "../PointPicker";
 
 /** The answering player clicks a spot; it is sent as their answer. */
 export function PointAnswer({ src }: { src: string }) {
   const { t } = useTranslation();
+  const store = useGameStoreApi();
   const session = useSession();
   const { connection, myId } = useGame();
-  const pending = useGameStore((s) => s.pending);
-  const online = useGameStore((s) => s.connection === "connected");
+  const pending = useGameState((s) => s.pending);
+  const online = useGameState((s) => s.connection === "connected");
   const [picked, setPicked] = useState<Spot | null>(null);
   const event = phaseOf(session) === "all_play_answering" ? "all-play-answer" : "answer-submitted";
   const submitted =
@@ -29,7 +29,7 @@ export function PointAnswer({ src }: { src: string }) {
           disabled
             ? undefined
             : (spot) => {
-                if (useGameStore.getState().pending?.action === event) return;
+                if (store.getState().pending?.action === event) return;
                 setPicked(spot);
                 connection.emit(event, { answerText: pointAnswer(spot) });
               }

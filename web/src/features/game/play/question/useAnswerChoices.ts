@@ -3,8 +3,7 @@ import { timerElapsed } from "@/game/contentPlan";
 import type { ChoiceAnswer } from "@/game/protocol";
 import type { GameSession } from "@/game/reducer";
 import { myRole, phaseOf } from "@/game/selectors";
-import { useGameStore } from "@/game/store";
-import { useGame, useSession } from "../../GameContext";
+import { useGame, useGameState, useSession } from "../../GameContext";
 
 /**
  * Milliseconds until a choice question's options appear, on the question's own
@@ -30,7 +29,7 @@ function optionsShowIn(session: GameSession): number {
 }
 
 /** Image picks stay distinguishable from text options and are judged by the showman. */
-function optionAnswer(
+export function optionAnswer(
   text: string | null | undefined,
   index: number,
   options: readonly { text?: string | null }[],
@@ -48,8 +47,8 @@ function optionAnswer(
 export function useAnswerChoices() {
   const session = useSession();
   const { connection, myId } = useGame();
-  const pending = useGameStore((st) => st.pending);
-  const online = useGameStore((st) => st.connection === "connected");
+  const pending = useGameState((st) => st.pending);
+  const online = useGameState((st) => st.connection === "connected");
   const s = session.state;
   const q = s.currentQuestion!;
   const role = myRole(session, myId);

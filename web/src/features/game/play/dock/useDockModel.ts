@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { type GameSession } from "@/game/reducer";
-import { useGameStore } from "@/game/store";
+import { useGameState } from "@/features/game/GameContext";
 import { useSecretTarget } from "../useSecretTarget";
 import { useBuzzer } from "../useBuzzer";
 import { type ActionDockModel, type ActionDockContext } from "./actionDockModel";
@@ -18,7 +18,7 @@ import { findPlayer, myRole, phaseOf, questionValue, type DisabledReason } from 
 
 export function useDockModel(session: GameSession, myId: number): ActionDockModel {
   const { t } = useTranslation();
-  const pending = useGameStore((s) => s.pending);
+  const pending = useGameState((s) => s.pending);
   const [secretTarget] = useSecretTarget();
   const buzzer = useBuzzer(session, myId);
   const phase = phaseOf(session);

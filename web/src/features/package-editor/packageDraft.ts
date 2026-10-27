@@ -342,7 +342,7 @@ export function toUpload(pkg: DraftPackage): UploadContent {
   };
 }
 
-function toUploadQuestion(q: DraftQuestion, order: number, final: boolean): UploadQuestion {
+export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean): UploadQuestion {
   const type: QuestionType = final ? "simple" : q.type;
   // The text is a step of its own only next to media; alone it is just the text.
   const textStep =

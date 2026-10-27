@@ -16,6 +16,7 @@ The user explicitly approved:
 - Upgrading old point metadata when publishing through web. Existing published packages without metadata retain legacy checking; no server backfill.
 - Separate execution chats with GPT-6.1 Terra, Extra High (`gpt-6.1-terra`, `xhigh`), goals, a planning phase, automated/manual/visual testing, and a single big PR. A draft PR may be created after the first meaningful commit.
 - The originating chat acts as orchestrator and reviewer, prioritizing readability, patterns, and project style while reviewing the entire change. Corrections go back to the SAME implementation chat.
+- Additional user-approved backend exception: fix the existing multi-player wrong/skip transition for choice and hidden-price questions, including restoration of the saved showing timer. Keep single-answerer rules unchanged and cover the real Socket.IO flow.
 
 ## Execution workflow
 
@@ -184,8 +185,8 @@ To be maintained in the isolated implementation worktree. Initial state: all ite
 | 9 | In progress | Chromium media editor pause | Pending | Pending |
 | 10 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
 | 11 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
-| 12 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
-| 13 | Pending | Pending | Pending | Pending |
+| 12 | Implemented; independent QA pending | 385 web tests and 6 focused browser cases; full live-game regression pending | Desktop, tablet and phone screenshots | Independent QA and final whole-diff review pending |
+| 13 | Implemented | Point rule, validation, HTTP/DB/socket scoring, archive/optimization and upload failure/retry | Slider and image transformations on 4 viewports and 2 themes | Independent QA closed at `8cabd38ae802541460b590ffd9ea8d39d0208501`; final whole-diff review pending |
 | 14 | In progress | Pending | Desktop backdrop inspected; animation-start and nested dialogs pending | Pending |
 | 15 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
 | 16 | In progress | Web tests and desktop editor E2E | Desktop inspection; other viewport evidence pending | Pending |
@@ -198,7 +199,7 @@ Initial screenshot: `C:/Users/diazo/Documents/Codex/editor-ux-evidence/editor-fu
 
 At `176d0940a3afbb1538ec72332f9b4c21f8969ad6`, independent QA closed both volume-zero restore and mixed-card stretching findings. Evidence: `C:/Users/diazo/.codex/visualizations/2026/10/27/01a17df4-75d8-7050-8e03-8ef87aff8485/176d0940/own-{midnight,daylight}-{375,768,1440}-cards.png`. QA reported 15 focused Vitest and four browser cases passing. These findings are resolved; the full item acceptance remains pending.
 
-Stage 2 working tree: desktop package-editor E2E 7/7 and profile/storage/package E2E 7/7 passed against the owned backend stack. Full web Vitest passed 353/353 with two workers; default worker count had timeouts under local load. The modal currently retains the old static preview until the interactive simulator replaces it; item 12 remains incomplete.
+Stage 2 working tree: desktop package-editor E2E 7/7 and profile/storage/package E2E 7/7 passed against the owned backend stack. Full web Vitest passed 353/353 with two workers; default worker count had timeouts under local load. The interactive simulator has since replaced the static modal; item 12 remains subject to full review and acceptance.
 
 Zero-radius precision decision: modern points compare both coordinates at the existing three-decimal web wire precision when radius is zero; imported stored targets remain unchanged. Positive radii use the specified circle formula, and legacy metadata-free checking is unchanged.
 Preview evaluates a separate copy using the current first staged image dimensions, including for a legacy draft, without saving metadata or optimizing media. Existing published legacy questions retain legacy server checking until web republication; publication measures its final output bytes.
@@ -206,3 +207,9 @@ Preview evaluates a separate copy using the current first staged image dimension
 Stage 2 follow-up: independent QA on `584ebb14c54c337acab67f809f706f9b698b4602` closed showman-instruction ordering, labels, long-token wrapping and preserved newlines, as well as nested-preview focus/scroll restoration. QA reported 37 focused tests, 6 instruction browser cases and one scroll browser case passing. The interactive simulator remains pending.
 
 Geometry checkpoint: server point checking, validation and real Socket.IO scoring passed; native browser tests exercised landscape, portrait, square and EXIF-oriented optimization plus archive import through the actual upload request. A full native browser run found one ambiguous Package details test locator after the new toolbar action; the scoped locator passed on rerun. Full-suite acceptance remains pending on the final implementation.
+
+Independent geometry QA at `8cabd38ae802541460b590ffd9ea8d39d0208501`: 34 Vitest, 6 browser, 14 server rule tests, one normal HTTP/DB/socket flow and one all-play flow passed. Screenshots and findings: `C:/Users/diazo/.codex/visualizations/2026/10/27/01a17df4-75d8-7050-8e03-8ef87aff8485/8cabd38`. The browser upload POST was mocked; server persistence/scoring was verified separately through the real server harness.
+
+The user subsequently approved a narrow backend exception for a confirmed pre-existing wrong-answer transition bug. With other players remaining, choice and hidden questions now return to showing and restore their saved timer, as simple questions already did. Scoped real Socket.IO tests cover three players, subsequent buzz, correct answer, exhaustion and single-answerer regression; final review remains pending.
+
+Simulator checkpoint: all 385 web Vitest tests and six focused browser cases passed, including staged content, role separation, keyboard/focus, mobile point/final screens, and media isolation. Typecheck, lint and API type check passed. The local stack was rebuilt with the approved buzzer fix. Independent review and final-head CI remain pending.

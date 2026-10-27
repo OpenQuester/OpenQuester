@@ -1,6 +1,5 @@
-import { useGameStore } from "@/game/store";
 import { useCountdown } from "@/lib/useCountdown";
-import { useGame, useSession } from "../../GameContext";
+import { useGame, useGameState, useSession } from "../../GameContext";
 import { useDockModel } from "./useDockModel";
 import { myRole, phaseOf, type Phase } from "@/game/selectors";
 
@@ -17,7 +16,7 @@ export function useDockPresentation() {
   const session = useSession();
   const { myId } = useGame();
   const isShowman = myRole(session, myId) === "showman";
-  const connection = useGameStore((s) => s.connection);
+  const connection = useGameState((s) => s.connection);
   const phase = phaseOf(session);
   const s = session.state;
   const paused = s.isPaused;

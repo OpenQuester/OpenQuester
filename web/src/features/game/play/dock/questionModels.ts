@@ -127,7 +127,12 @@ export function answeringModel({
         canGiveUp: single,
         pending: sending("question-skip"),
       },
-      next: single ? t("dock.answering.youNextSingle") : t("dock.answering.youNext"),
+      next:
+        q?.answerType === "number" || q?.answerType === "point"
+          ? t("dock.answering.autoNext")
+          : single
+            ? t("dock.answering.youNextSingle")
+            : t("dock.answering.youNext"),
     };
   }
   return {

@@ -295,7 +295,7 @@ test.describe("game fixes", () => {
     await expect(pat.page.getByTestId("buzzer-cue")).toContainText("The buzzer is open", {
       timeout: 15_000,
     });
-    await expect(pat.page.getByTestId("buzzer-cue-time")).toContainText("s left");
+    await expect(pat.page.getByTestId("buzzer-cue-time")).toHaveText(/^\d+ sec\. left$/);
     await expect(page.getByTestId("buzzer-cue")).toContainText("Waiting for a player");
     await shot(pat.page, `fixes-cue-${test.info().project.name}`);
     await expectNoHorizontalScroll(pat.page);

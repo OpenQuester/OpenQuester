@@ -7,17 +7,28 @@ import { Button } from "@/ui/Button";
 import { StagedMediaContext } from "../packageEditorStore";
 import { MediaSessionContext } from "../media-editor/useStagedMedia";
 import type * as ops from "../packageOperations";
-import { QuestionPreview } from "../QuestionPreview";
 import { QuestionContent } from "./QuestionContent";
 import { QuestionHeader, QuestionFooter } from "./QuestionFormChrome";
 import { useQuestionForm } from "./useQuestionForm";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { usePackageEditor } from "../packageEditorStore";
+import { Spinner } from "@/ui/Spinner";
+
+const QuestionPlaytest = lazy(() =>
+  import("../playtest/QuestionPlaytest").then((module) => ({ default: module.QuestionPlaytest })),
+);
 export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: () => void }) {
   const { t } = useTranslation();
   const form = useQuestionForm(at, onClose);
   const { q, final, media, requestClose, save } = form;
   const [preview, setPreview] = useState(false);
   const fields = useRef<HTMLDivElement>(null);
+  const previewFocus = useRef<string | null>(null);
+  const storedMedia = usePackageEditor((s) => s.media);
+  const previewMedia = useMemo(
+    () => new Map([...storedMedia, ...media.pending]),
+    [storedMedia, media.pending],
+  );
   useEffect(() => {
     if (media.active || preview)
       fields.current
@@ -61,12 +72,48 @@ export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: (
                 <Dialog
                   open={preview}
                   onOpenChange={setPreview}
-                  title={t("editor.form.preview")}
+                  title={t("editor.playtest.title")}
+                  description={t("editor.playtest.description")}
                   wide
+                  fullScreen
+                  restoreFocus={() => {
+                    const selector = previewFocus.current;
+                    previewFocus.current = null;
+                    if (!selector) return null;
+                    return (
+                      fields.current?.querySelector<HTMLElement>(selector) ??
+                      fields.current?.querySelector<HTMLElement>("#qf-answer-type") ??
+                      fields.current?.querySelector<HTMLElement>("#qf-text") ??
+                      null
+                    );
+                  }}
                   closeLabel={t("common.close")}
                 >
-                  <div className="p-5" onKeyDown={(event) => event.stopPropagation()}>
-                    <QuestionPreview question={q} final={final} />
+                  <div
+                    className="flex min-h-full flex-col"
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    {preview && (
+                      <Suspense
+                        fallback={
+                          <div className="p-5">
+                            <Spinner label={t("editor.playtest.loading")} />
+                          </div>
+                        }
+                      >
+                        <QuestionPlaytest
+                          question={q}
+                          final={final}
+                          themeName={at.theme.name}
+                          media={previewMedia}
+                          canSave={form.canSave}
+                          onFix={(selector) => {
+                            previewFocus.current = selector;
+                            setPreview(false);
+                          }}
+                        />
+                      </Suspense>
+                    )}
                   </div>
                 </Dialog>
               </div>

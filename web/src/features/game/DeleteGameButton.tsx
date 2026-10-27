@@ -6,12 +6,12 @@ import { api, unwrap } from "@/api/client";
 import { useGameStore } from "@/game/store";
 import { Button } from "@/ui/Button";
 
-import { useGame } from "./GameContext";
+import { useLiveGame } from "./GameContext";
 
 /** Showman only: deletes the game for everyone, after a second confirming click. */
 export function DeleteGameButton({ gameId }: { gameId: string }) {
   const { t } = useTranslation();
-  const { connection } = useGame();
+  const { connection } = useLiveGame();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 

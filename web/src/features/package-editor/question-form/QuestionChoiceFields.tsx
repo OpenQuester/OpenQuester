@@ -13,7 +13,7 @@ export function QuestionChoiceFields({ q, set }: QuestionFieldsProps) {
   const { t } = useTranslation();
   const correct = q.answerText.trim();
   return (
-    <fieldset className={layoutStyles.optionGroup}>
+    <fieldset className={layoutStyles.optionGroup} data-testid="choice-fields">
       <legend className="mb-1 text-[15px] font-semibold">{t("editor.form.options")}</legend>
       <span className="text-sm text-faint">{t("editor.form.optionsHelp")}</span>
       {q.options.map((o, i) => {
@@ -67,6 +67,7 @@ export function QuestionChoiceFields({ q, set }: QuestionFieldsProps) {
       })}
       {q.options.length < 8 && (
         <Button
+          id="qf-add-option"
           size="sm"
           className="self-start"
           icon={<PlusIcon size={16} />}

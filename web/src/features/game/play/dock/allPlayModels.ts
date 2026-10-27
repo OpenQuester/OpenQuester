@@ -38,10 +38,15 @@ export function allPlayAnswerModel({ t, session, myId }: ActionDockContext): Act
   const done = entries.filter((e) => e.submitted).length;
   const mine = myAllPlayEntry(session, myId);
   const stakes = allPlayStakes(session, mine ?? { stake: null });
+  const auto =
+    session.state.currentQuestion?.answerType === "number" ||
+    session.state.currentQuestion?.answerType === "point";
   const next =
     session.state.allPlay?.mode === "stake"
-      ? t("dock.allPlay.answerNextStake")
-      : t("dock.allPlay.answerNextNoRisk", { points: formatScore(stakes.win) });
+      ? t(auto ? "dock.allPlay.answerNextStakeAuto" : "dock.allPlay.answerNextStake")
+      : t(auto ? "dock.allPlay.answerNextNoRiskAuto" : "dock.allPlay.answerNextNoRisk", {
+          points: formatScore(stakes.win),
+        });
   if (!mine) {
     return {
       status: t("dock.final.answersIn", { done, total: entries.length }),

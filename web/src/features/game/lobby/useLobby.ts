@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { me as findMe, seatedPlayers, showman } from "@/game/selectors";
 import { useGameStore } from "@/game/store";
-import { useGame, useSession } from "../GameContext";
+import { useLiveGame, useSession } from "../GameContext";
 import { useGamePreview } from "../useGamePreview";
 import { getLobbySeats } from "./getLobbySeats";
 
 export function useLobby() {
   const session = useSession();
-  const { connection, myId } = useGame();
+  const { connection, myId } = useLiveGame();
   const preview = useGamePreview(session.gameId);
   const pending = useGameStore((s) => s.pending);
   const [chatOpen, setChatOpen] = useState(false);

@@ -129,6 +129,10 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   `QuestionDialog.tsx` chooses read-only or editable presentation. Its keyed
   `question-form/QuestionForm.tsx` composes one column of fields; resizing and
   opening a preview must not remount the form or lose staged media.
+  `playtest/` runs the current unsaved question through the game stage in an
+  isolated store and local runtime. Preserve role-specific answer visibility, local
+  media and timer cleanup, and keep preview actions from persisting settings or
+  sending live game commands.
   `useQuestionForm.ts` owns staging/save/discard;
   `useQuestionMedia.ts` applies changes to one attachment occurrence using the
   latest list. `questionUpdates.ts` holds pure type/choice transformations.

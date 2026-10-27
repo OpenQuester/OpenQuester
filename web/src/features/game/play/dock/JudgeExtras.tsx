@@ -1,14 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { useGameStore } from "@/game/store";
 import { formatScore, formatSigned } from "@/lib/format";
 import { Button } from "@/ui/Button";
-import { useGame } from "../../GameContext";
+import { useGame, useGameState } from "../../GameContext";
 import { centeredActions } from "./actionDockStyles";
 
 export function JudgeExtras({ value, wrongCosts }: { value: number; wrongCosts: boolean }) {
   const { t } = useTranslation();
   const { connection } = useGame();
-  const pending = useGameStore((s) => s.pending);
+  const pending = useGameState((s) => s.pending);
   const busy = pending?.action === "answer-result";
   const rule = (answerType: "correct" | "wrong", scoreResult: number) => () =>
     connection.emit("answer-result", { scoreResult, answerType });

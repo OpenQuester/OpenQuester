@@ -17,7 +17,7 @@ import { ShowmanInstruction } from "./question/ShowmanInstruction";
 export function FinalThemesStage() {
   const { t } = useTranslation();
   const session = useSession();
-  const { connection, myId } = useGame();
+  const { connection, myId, protectedFinalThemeId } = useGame();
   const s = session.state;
   const eliminated = new Set(s.finalRoundData?.eliminatedThemes ?? []);
   const role = myRole(session, myId);
@@ -34,7 +34,8 @@ export function FinalThemesStage() {
       <ul className={stageStyles.finalThemes}>
         {(s.currentRound?.themes ?? []).map((theme) => {
           const out = eliminated.has(theme.id);
-          const disabled = out || !canRemove || remaining <= 1;
+          const protectedTheme = theme.id === protectedFinalThemeId;
+          const disabled = out || protectedTheme || !canRemove || remaining <= 1;
           return (
             <li key={theme.id}>
               <button
@@ -51,11 +52,18 @@ export function FinalThemesStage() {
                   !out && disabled && "cursor-default border-line-strong bg-surface-2 text-text",
                 )}
                 aria-label={
-                  out
-                    ? t("final.themeRemoved", { name: theme.name })
-                    : canRemove
-                      ? t("final.removeTheme", { name: theme.name })
-                      : theme.name
+                  protectedTheme
+                    ? t("editor.playtest.targetTheme", { name: theme.name })
+                    : out
+                      ? t("final.themeRemoved", { name: theme.name })
+                      : canRemove
+                        ? t("final.removeTheme", { name: theme.name })
+                        : theme.name
+                }
+                title={
+                  protectedTheme
+                    ? t("editor.playtest.targetTheme", { name: theme.name })
+                    : undefined
                 }
               >
                 <span className="text-lg font-semibold [overflow-wrap:anywhere]">{theme.name}</span>
@@ -65,13 +73,15 @@ export function FinalThemesStage() {
                     out ? "text-muted" : canRemove ? "text-accent-strong" : "text-muted",
                   )}
                 >
-                  {out
-                    ? t("final.removed")
-                    : canRemove && remaining > 1
-                      ? t("final.remove")
-                      : remaining <= 1
-                        ? t("final.finalTheme")
-                        : ""}
+                  {protectedTheme && remaining > 1
+                    ? t("editor.playtest.keepTheme")
+                    : out
+                      ? t("final.removed")
+                      : canRemove && remaining > 1
+                        ? t("final.remove")
+                        : remaining <= 1
+                          ? t("final.finalTheme")
+                          : ""}
                 </span>
               </button>
             </li>

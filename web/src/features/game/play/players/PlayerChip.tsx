@@ -57,7 +57,7 @@ export function PlayerChip({
   );
   return (
     <li data-testid="player-chip" data-player={player.meta.username}>
-      {isShowman ? (
+      {isShowman && onManage ? (
         <button
           type="button"
           className={cn(cls, "text-text hover:border-line-strong")}

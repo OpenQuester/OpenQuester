@@ -111,14 +111,28 @@ it("keeps the unsaved question mounted when the preview closes and does not save
   fireEvent.change(text, { target: { value: "Unsaved" } });
   const opener = screen.getByRole("button", { name: "Preview" });
   await userEvent.click(opener);
-  expect(screen.getByRole("dialog", { name: "Preview" })).toHaveTextContent("Unsaved");
+  const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
+  await screen.findByTestId("question-playtest");
+  await userEvent.click(within(preview).getByRole("button", { name: /^Continue$/ }));
+  await userEvent.click(within(preview).getByRole("button", { name: /^Continue$/ }));
+  expect(preview).toHaveTextContent("Unsaved");
   await userEvent.keyboard("{Control>}{Enter}{/Control}");
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.text).toBe("Original");
   await userEvent.keyboard("{Escape}");
-  expect(screen.queryByRole("dialog", { name: "Preview" })).toBeNull();
+  expect(screen.queryByRole("dialog", { name: "Interactive game preview" })).toBeNull();
   expect(screen.getByLabelText("Question text")).toBe(text);
   expect(text).toHaveValue("Unsaved");
   expect(opener).toHaveFocus();
+});
+
+it("returns focus to the invalid number target when the preview cannot run", async () => {
+  const q = newQuestion(100, { text: "Question", answerType: "number", answerNumber: null });
+  setup(q);
+  await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+  const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
+  expect(await within(preview).findByRole("alert")).toHaveTextContent(/number/i);
+  await userEvent.click(within(preview).getByRole("button", { name: "Return to this field" }));
+  await waitFor(() => expect(screen.getByLabelText("Right number")).toHaveFocus());
 });
 
 it("does not rewrite an imported reveal duration merely by opening the question", () => {
