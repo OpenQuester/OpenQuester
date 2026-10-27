@@ -43,6 +43,7 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
         onChange={(value) => set({ questionComment: value })}
       />
       <QuestionTextFields q={q} set={set} />
+      {(final || q.type !== "choice") && <AnswerCheckSettings q={q} set={set} />}
       <div data-testid="question-media-fields">
         <QuestionMediaList
           label={t("editor.form.questionMedia")}
@@ -65,7 +66,6 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
         />
       )}
       {!final && q.type === "choice" && <QuestionChoiceFields q={q} set={set} />}
-      {(final || q.type !== "choice") && <AnswerCheckSettings q={q} set={set} />}
       <QuestionAnswerFields q={q} set={set} final={final} />
       <QuestionMediaList
         label={t("editor.form.answerMedia")}

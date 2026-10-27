@@ -215,7 +215,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 6 | `playtest/PlaytestSession.tsx`, `game/play/GamePodium.tsx`, `stages/stageStyles.ts` | B: finished 3+ players at 1296×884 and short viewports; verify headings/names/scores/towers/background and bottom spacing. Reuse 5 only if evidence proves it; U for ranking unchanged. | Accepted; root and independent QA approved using earlier shared fix |
 | 7 | `EditorMediaPlayer.tsx`, `QuestionPreview.tsx` | B: 320–360px inspector video, long duration; use intentional play/time, full-width seek, mute/volume rows and overlay; verify keys/fullscreen/no overflow after 1. | Accepted; root and independent QA approved using earlier shared fix |
 | 8 | `EditorMediaPlayer.tsx`, `QuestionPreview.tsx` | B: narrow audio inspector, long duration; same rows without fullscreen placeholder; confirm seek/volume widths and a11y. | Accepted; root and independent QA approved |
-| 9 | `question-form/QuestionContent.tsx`, `QuestionTypeSettings.tsx` | U/B: move answer mode before question attachments, verify keyboard order, mode-dependent target and staged data survive switches; coordinate 11/24 later. | Planned; not released |
+| 9 | `question-form/QuestionContent.tsx`, `QuestionTypeSettings.tsx` | U/B: move answer mode before question attachments, verify keyboard order, mode-dependent target and staged data survive switches; coordinate 11/24 later. | Accepted; root and independent QA approved |
 | 10 | `QuestionContent.tsx`, `QuestionFields.tsx`, `questionFormStyles.ts` | B: desktop form widths including 1296 and narrow; price/comment 20/80 by available container, stack with long labels; U: comment/order/validation unchanged. | Planned; not released |
 | 11 | `QuestionContent.tsx`, `QuestionTypeSettings.tsx` | B/U: question text and mode/help 70–80/20–30 in same wide container row, DOM order before media, narrow stack, preserve focus/state and type-specific targets. | Planned; not released |
 | 12 | `QuestionContent.tsx`, `LinesField.tsx` | B/U: correct/wrong text side by side, hint below; narrow stack, guidance/error association and multiline cursor. | Planned; not released |
@@ -291,3 +291,7 @@ Root accepted podium containment on `34d3e0b1` after finished-game visual QA, an
 ### Annotation 8 acceptance
 
 Root approved the candidate SHA-256 `FF7D4AA562CBB4A6FF56833E135F43EA7B32275CF7CE92481412AFF0F9F53B43`. On a 130-second WAV, the earlier paused keyboard seek intermittently reverted to zero (2 of 3 isolated runs); after synchronizing the controlled position with the requested seek, the same scenario passed 5 of 5 runs and independent QA passed 3 of 3 plus end/midpoint and video checks. Focused unit/browser, typecheck, lint, Prettier and diff checks passed. These repetitions do not prove every browser race eliminated.
+
+### Annotation 9 acceptance
+
+Root approved patch SHA-256 `2EFC7D67DE872FC127B09F8CCCF44F3FC1D35F30B988C47225C544516CA98765`. Existing answer-mode settings were moved before question media; isolated wide and narrow checks retained unsaved text, numeric answer, image target and media. Existing deviation reset on mode change is unchanged. Independent QA and focused existing tests passed.
