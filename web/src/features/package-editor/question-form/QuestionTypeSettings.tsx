@@ -86,14 +86,11 @@ export function QuestionTypeSettings({ q, set, final }: QuestionFieldsProps & { 
   );
 }
 
-/** Typed, numeric, or point answers. */
-export function AnswerCheckSettings({ q, set }: QuestionFieldsProps) {
+/** The mode and its explanation stay together beside the question. */
+export function AnswerModeField({ q, set }: QuestionFieldsProps) {
   const { t } = useTranslation();
-  const image = q.questionFiles.find((f) => f.type === "image");
-  const file = useMediaFile(image?.md5);
-  const src = mediaUrl(file);
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <Label htmlFor="qf-answer-type">{t("editor.form.answerType")}</Label>
       <select
         id="qf-answer-type"
@@ -113,6 +110,19 @@ export function AnswerCheckSettings({ q, set }: QuestionFieldsProps) {
       <span id="qf-answer-type-help" className="text-sm text-faint">
         {t(`editor.form.answerTypeHelp.${q.answerType}`)}
       </span>
+    </div>
+  );
+}
+
+/** Numeric and point settings need the full width below the mode. */
+export function AnswerCheckFields({ q, set }: QuestionFieldsProps) {
+  const { t } = useTranslation();
+  const image = q.questionFiles.find((f) => f.type === "image");
+  const file = useMediaFile(image?.md5);
+  const src = mediaUrl(file);
+  if (q.answerType === "text") return null;
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
       {q.answerType === "number" && (
         <div className="grid grid-cols-2 gap-3">
           <NumberField

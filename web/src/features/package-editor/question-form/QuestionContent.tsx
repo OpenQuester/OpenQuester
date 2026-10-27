@@ -8,7 +8,7 @@ import { MAX_PRICE } from "../validatePackage";
 import { QuestionCheckbox, NumberField, OptionalTextField } from "./QuestionFields";
 import { QuestionChoiceFields } from "./QuestionChoiceFields";
 import { QuestionMediaList } from "./QuestionMediaList";
-import { AnswerCheckSettings, QuestionTypeSettings } from "./QuestionTypeSettings";
+import { AnswerCheckFields, AnswerModeField, QuestionTypeSettings } from "./QuestionTypeSettings";
 import { changeQuestionType } from "./questionUpdates";
 import type { QuestionFieldsProps } from "./questionUpdates";
 import type { QuestionFormState } from "./useQuestionForm";
@@ -44,8 +44,7 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
         />
       </div>
       <QuestionTypeSettings q={q} set={set} final={final} />
-      <QuestionTextFields q={q} set={set} />
-      {(final || q.type !== "choice") && <AnswerCheckSettings q={q} set={set} />}
+      <QuestionPromptFields q={q} set={set} final={final} />
       <div data-testid="question-media-fields">
         <QuestionMediaList
           label={t("editor.form.questionMedia")}
@@ -115,24 +114,31 @@ function QuestionTypePicker({ q, set }: QuestionFieldsProps) {
   );
 }
 
-function QuestionTextFields({ q, set }: QuestionFieldsProps) {
+function QuestionPromptFields({ q, set, final }: QuestionFieldsProps & { final: boolean }) {
   const { t } = useTranslation();
+  const hasAnswerMode = final || q.type !== "choice";
   return (
     <>
-      <div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="qf-text">{t("editor.form.text")}</Label>
-          <textarea
-            id="qf-text"
-            autoFocus
-            rows={3}
-            value={q.text}
-            onChange={(e) => set({ text: e.target.value })}
-            placeholder={t("editor.form.textPlaceholder")}
-            className={cn(inputClass, "min-h-24 resize-y py-3")}
-          />
+      <div
+        className={cn("grid gap-4", hasAnswerMode && "md:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]")}
+      >
+        <div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="qf-text">{t("editor.form.text")}</Label>
+            <textarea
+              id="qf-text"
+              autoFocus
+              rows={3}
+              value={q.text}
+              onChange={(e) => set({ text: e.target.value })}
+              placeholder={t("editor.form.textPlaceholder")}
+              className={cn(inputClass, "min-h-24 resize-y py-3")}
+            />
+          </div>
         </div>
+        {hasAnswerMode && <AnswerModeField q={q} set={set} />}
       </div>
+      {hasAnswerMode && <AnswerCheckFields q={q} set={set} />}
     </>
   );
 }
