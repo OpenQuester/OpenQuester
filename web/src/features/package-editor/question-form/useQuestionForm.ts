@@ -1,12 +1,29 @@
-import { useState } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { useStagedMedia } from "../media-editor/useStagedMedia";
 import type { DraftQuestion } from "../packageDraft";
 import * as ops from "../packageOperations";
 import { usePackageEditor } from "../packageEditorStore";
+import type { MediaChange, MediaUndo } from "./questionMediaHistory";
 export function useQuestionForm(at: ops.QuestionPath, onClose: () => void) {
   const apply = usePackageEditor((s) => s.apply);
   const final = at.round.type === "final";
-  const [q, setQ] = useState<DraftQuestion>(at.question);
+  const [draft, setDraft] = useState<{ q: DraftQuestion; undo: MediaUndo | null }>({
+    q: at.question,
+    undo: null,
+  });
+  const { q } = draft;
+  const setQ: Dispatch<SetStateAction<DraftQuestion>> = (update) =>
+    setDraft((prev) => ({
+      ...prev,
+      q: typeof update === "function" ? update(prev.q) : update,
+    }));
+  const applyMedia = (change: MediaChange) =>
+    setDraft((prev) => {
+      const result = change(prev.q);
+      return result ? { q: result.question, undo: result.undo } : prev;
+    });
+  const undoMedia = () =>
+    setDraft((prev) => (prev.undo ? { q: prev.undo(prev.q), undo: null } : prev));
   const [revealText, setRevealText] = useState(() => String(at.question.showAnswerDuration / 1000));
   const [confirmClose, setConfirmClose] = useState(false);
   const media = useStagedMedia();
@@ -39,13 +56,6 @@ export function useQuestionForm(at: ops.QuestionPath, onClose: () => void) {
   const requestClose = () =>
     media.active ? media.closeRef.current?.() : dirty ? setConfirmClose(true) : onClose();
 
-  const onGeometryChange = (index: number) => {
-    if (q.answerType !== "point" || q.questionFiles.findIndex((f) => f.type === "image") !== index)
-      return;
-    const old = q.answerPoint;
-    setQ((prev) => ({ ...prev, answerPoint: null }));
-    return () => setQ((prev) => ({ ...prev, answerPoint: prev.answerPoint ?? old }));
-  };
   return {
     q,
     setQ,
@@ -60,7 +70,9 @@ export function useQuestionForm(at: ops.QuestionPath, onClose: () => void) {
     changeReveal,
     save,
     requestClose,
-    onGeometryChange,
+    applyMedia,
+    undoMedia,
+    hasMediaUndo: !!draft.undo,
   };
 }
 export type QuestionFormState = ReturnType<typeof useQuestionForm>;

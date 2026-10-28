@@ -9,7 +9,12 @@ import { PlusIcon, TrashIcon } from "@/ui/icons";
 import { SingleMediaField } from "../media-editor/SingleMediaField";
 import { newId } from "../packageDraft";
 import { editChoiceText } from "./questionUpdates";
-export function QuestionChoiceFields({ q, set }: QuestionFieldsProps) {
+import { changeChoiceMedia, type ApplyMediaChange } from "./questionMediaHistory";
+export function QuestionChoiceFields({
+  q,
+  set,
+  applyMedia,
+}: QuestionFieldsProps & { applyMedia: ApplyMediaChange }) {
   const { t } = useTranslation();
   const correct = q.answerText.trim();
   return (
@@ -56,11 +61,10 @@ export function QuestionChoiceFields({ q, set }: QuestionFieldsProps) {
               </button>
             </div>
             <SingleMediaField
+              managedUndo
               label={t("mediaEditor.choiceImage", { letter: String.fromCharCode(65 + i) })}
               value={o.file}
-              onChange={(file) =>
-                set({ options: q.options.map((x) => (x.id === o.id ? { ...x, file } : x)) })
-              }
+              onChange={(file) => applyMedia(changeChoiceMedia(o.id, file))}
             />
           </div>
         );

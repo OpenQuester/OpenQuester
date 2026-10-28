@@ -14,7 +14,7 @@ import type { QuestionFieldsProps } from "./questionUpdates";
 import type { QuestionFormState } from "./useQuestionForm";
 export function QuestionContent({ form }: { form: QuestionFormState }) {
   const { t } = useTranslation();
-  const { q, set, setQ, final, onGeometryChange } = form;
+  const { q, set, setQ, final, applyMedia } = form;
   return (
     <>
       {!final && <QuestionTypePicker q={q} set={set} />}
@@ -50,7 +50,8 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
           label={t("editor.form.questionMedia")}
           help={t("editor.form.questionMediaHelp")}
           files={q.questionFiles}
-          onGeometryChange={onGeometryChange}
+          slot="questionFiles"
+          applyMedia={applyMedia}
           onChange={(update) =>
             setQ((prev) => ({ ...prev, questionFiles: update(prev.questionFiles) }))
           }
@@ -67,12 +68,16 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
         />
       )}
       <hr className="m-0 border-0 border-t border-line" />
-      {!final && q.type === "choice" && <QuestionChoiceFields q={q} set={set} />}
+      {!final && q.type === "choice" && (
+        <QuestionChoiceFields q={q} set={set} applyMedia={applyMedia} />
+      )}
       <QuestionAnswerFields q={q} set={set} final={final} />
       <QuestionMediaList
         label={t("editor.form.answerMedia")}
         help={t("editor.form.answerMediaHelp")}
         files={q.answerFiles}
+        slot="answerFiles"
+        applyMedia={applyMedia}
         onChange={(update) => setQ((prev) => ({ ...prev, answerFiles: update(prev.answerFiles) }))}
       >
         <QuestionTiming form={form} />

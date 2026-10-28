@@ -48,6 +48,28 @@ export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: (
                 requestClose();
               }}
               onKeyDown={(e) => {
+                const target = e.target as HTMLElement;
+                if (
+                  !preview &&
+                  !media.active &&
+                  !form.confirmClose &&
+                  form.hasMediaUndo &&
+                  !e.defaultPrevented &&
+                  !e.repeat &&
+                  !e.nativeEvent.isComposing &&
+                  !e.altKey &&
+                  !e.shiftKey &&
+                  e.ctrlKey !== e.metaKey &&
+                  e.key.toLowerCase() === "z" &&
+                  e.currentTarget.contains(target) &&
+                  !target.closest(
+                    "input, textarea, select, [contenteditable]:not([contenteditable=false])",
+                  )
+                ) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  form.undoMedia();
+                }
                 if (!preview && e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault();
                   save();

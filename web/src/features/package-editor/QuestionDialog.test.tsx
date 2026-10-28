@@ -21,6 +21,111 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("undoes a removed point image without undoing later text or another image's timing", async () => {
+  const image = { md5: "same", type: "image" as const, displayTime: 5000 };
+  const q = newQuestion(100, {
+    text: "Before",
+    answerType: "point",
+    answerPoint: { x: 0.25, y: 0.5 },
+    questionFiles: [image, { ...image, displayTime: 7000 }],
+  });
+  const { store } = setup(q);
+  const user = userEvent.setup();
+  await user.click(screen.getAllByRole("button", { name: "Remove file" })[0]!);
+  const text = screen.getByLabelText("Question text");
+  await user.clear(text);
+  await user.type(text, "After");
+  const duration = within(screen.getByTestId("attachment-card")).getByLabelText(/^Show/);
+  await user.clear(duration);
+  await user.type(duration, "3");
+  fireEvent.keyDown(text, { key: "z", ctrlKey: true });
+  expect(screen.getAllByTestId("attachment-card")).toHaveLength(1);
+  const add = within(screen.getByTestId("question-media-fields")).getByRole("button", {
+    name: "Add image, audio or video",
+  });
+  add.focus();
+  fireEvent.keyDown(add, { key: "z", ctrlKey: true });
+  expect(screen.getAllByTestId("attachment-card")).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: "Undo media change" })).toBeNull();
+  await user.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]).toMatchObject({
+    text: "After",
+    answerPoint: { x: 0.25, y: 0.5 },
+    questionFiles: [image, { ...image, displayTime: 3000 }],
+  });
+});
+
+it("restores a choice image without changing later option text", async () => {
+  const file = { md5: "choice-image", type: "image" as const };
+  const q = newQuestion(100, {
+    type: "choice",
+    options: [
+      { id: "a", text: "A", file },
+      { id: "b", text: "B", file: null },
+    ],
+  });
+  const { store } = setup(q);
+  const user = userEvent.setup();
+  const choices = screen.getByTestId("choice-fields");
+  await user.click(within(choices).getByRole("button", { name: "Remove file" }));
+  expect(within(choices).queryByRole("button", { name: "Undo media change" })).toBeNull();
+  const option = within(choices).getByLabelText("Option A");
+  await user.clear(option);
+  await user.type(option, "Edited");
+  const imageButton = within(choices).getByRole("button", { name: "Option A image" });
+  imageButton.focus();
+  fireEvent.keyDown(imageButton, { key: "z", metaKey: true });
+  await user.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.options[0]).toMatchObject({
+    text: "Edited",
+    file,
+  });
+});
+
+it("does not resurrect an option deleted after its image was removed", async () => {
+  const q = newQuestion(100, {
+    type: "choice",
+    options: [
+      { id: "a", text: "A", file: { md5: "choice-image", type: "image" } },
+      { id: "b", text: "B", file: null },
+    ],
+  });
+  const { store } = setup(q);
+  const user = userEvent.setup();
+  const choices = screen.getByTestId("choice-fields");
+  await user.click(within(choices).getByRole("button", { name: "Remove file" }));
+  await user.click(within(choices).getByRole("button", { name: "Remove option A" }));
+  const add = within(choices).getByRole("button", { name: "Add option" });
+  add.focus();
+  fireEvent.keyDown(add, { key: "z", ctrlKey: true });
+  await user.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.options.map((o) => o.id)).toEqual(
+    ["b"],
+  );
+});
+
+it("leaves redo, composition and preview keyboard input to their owners", async () => {
+  const image = { md5: "same", type: "image" as const, displayTime: 5000 };
+  setup(newQuestion(100, { text: "Question", answerText: "Answer", questionFiles: [image] }));
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Remove file" }));
+  const add = within(screen.getByTestId("question-media-fields")).getByRole("button", {
+    name: "Add image, audio or video",
+  });
+  fireEvent.keyDown(add, { key: "z", ctrlKey: true, shiftKey: true });
+  fireEvent.keyDown(add, { key: "z", ctrlKey: true, isComposing: true });
+  expect(screen.queryByTestId("attachment-card")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Preview" }));
+  const preview = await screen.findByTestId("question-playtest");
+  fireEvent.keyDown(preview, { key: "z", ctrlKey: true });
+  const dialog = preview.closest('[role="dialog"]')!;
+  await user.click(within(dialog as HTMLElement).getByRole("button", { name: "Close" }));
+  expect(screen.queryByTestId("attachment-card")).toBeNull();
+  add.focus();
+  fireEvent.keyDown(add, { key: "z", ctrlKey: true });
+  expect(screen.getByTestId("attachment-card")).toBeInTheDocument();
+});
+
 it("keeps a fractional media duration while typing and clears the point target when its image is removed", async () => {
   const q = newQuestion(100, {
     text: "Find it",

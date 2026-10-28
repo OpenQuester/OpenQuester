@@ -6,28 +6,20 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
 import { TrashIcon, UploadIcon } from "@/ui/icons";
 import { AttachmentPreview } from "../AttachmentPreview";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 export function QuestionMediaList({
   label,
   help,
   files,
   onChange,
-  onGeometryChange,
+  slot,
+  applyMedia,
   children,
 }: QuestionMediaListProps & { children?: ReactNode }) {
   const { t } = useTranslation();
-  const {
-    inputRef,
-    over,
-    setOver,
-    hasUndo,
-    undoChange,
-    add,
-    onDrop,
-    edit,
-    canEdit,
-    setDisplayTime,
-  } = useQuestionMedia({ label, help, files, onChange, onGeometryChange });
+  const { inputRef, over, setOver, remove, add, onDrop, edit, canEdit, setDisplayTime } =
+    useQuestionMedia({ label, help, files, onChange, slot, applyMedia });
+  const addButton = useRef<HTMLButtonElement>(null);
   return (
     <div className="flex flex-col gap-2">
       <div className={layoutStyles.spacedActions}>
@@ -45,7 +37,12 @@ export function QuestionMediaList({
             e.target.value = "";
           }}
         />
-        <Button size="sm" icon={<UploadIcon size={16} />} onClick={() => inputRef.current?.click()}>
+        <Button
+          ref={addButton}
+          size="sm"
+          icon={<UploadIcon size={16} />}
+          onClick={() => inputRef.current?.click()}
+        >
           {t("editor.media.add")}
         </Button>
       </div>
@@ -80,8 +77,8 @@ export function QuestionMediaList({
                 type="button"
                 aria-label={t("editor.media.remove")}
                 onClick={() => {
-                  onGeometryChange?.(i);
-                  onChange((current) => current.filter((_, j) => j !== i));
+                  remove(i);
+                  addButton.current?.focus();
                 }}
                 className={questionFormStyles.attachmentRemove}
               >
@@ -101,11 +98,6 @@ export function QuestionMediaList({
           {files.length ? t("editor.media.dropMore") : help}
         </span>
       </div>
-      {hasUndo && (
-        <Button className="self-start" onClick={undoChange}>
-          {t("mediaEditor.undo")}
-        </Button>
-      )}
       {children}
     </div>
   );
