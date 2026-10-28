@@ -1,4 +1,5 @@
 import type { Question } from "@/game/protocol";
+import { parsePointAnswer } from "@/game/pointAnswer";
 import { ambiguousImagePlaceholder } from "@/features/game/play/question/optionAnswer";
 
 const normalize = (value: string | null | undefined) =>
@@ -46,24 +47,16 @@ export function checkPreviewAnswer(
     return Math.abs(Number(clean) - q.answerNumber) <= Math.max(0, q.answerDeviation ?? 0);
   }
   if (q.answerType === "point") {
-    const values = answer
-      .split(/[,;\s]+/)
-      .filter(Boolean)
-      .map(Number);
-    if (
-      values.length !== 2 ||
-      values.some((v) => !Number.isFinite(v) || v < 0 || v > 1) ||
-      !q.answerPoint
-    )
-      return null;
+    const picked = parsePointAnswer(answer);
+    if (!picked || !q.answerPoint) return null;
     const { x, y, imageAspectRatio } = q.answerPoint;
     if (imageAspectRatio == null || !Number.isFinite(imageAspectRatio) || imageAspectRatio <= 0)
       return null;
     const radius = q.answerDeviation ?? 0.05;
     if (radius === 0)
-      return values[0]!.toFixed(3) === x.toFixed(3) && values[1]!.toFixed(3) === y.toFixed(3);
+      return picked.x.toFixed(3) === x.toFixed(3) && picked.y.toFixed(3) === y.toFixed(3);
     return (
-      Math.hypot(values[0]! - x, (values[1]! - y) / imageAspectRatio) <=
+      Math.hypot(picked.x - x, (picked.y - y) / imageAspectRatio) <=
       radius + Number.EPSILON * 8 * Math.max(1, radius)
     );
   }

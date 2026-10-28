@@ -1,5 +1,6 @@
 import { layoutStyles } from "@/ui/layoutStyles";
-import type { FinalAnswer } from "@/game/protocol";
+import type { FinalAnswer, Question } from "@/game/protocol";
+import { parsePointAnswer } from "@/game/pointAnswer";
 import { cn } from "@/lib/cn";
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +22,7 @@ import { stageStyles } from "./stages/stageStyles";
 import { QuestionMedia } from "./QuestionMedia";
 import { ShowmanInstruction } from "./question/ShowmanInstruction";
 import { PointAnswer } from "./question/PointAnswer";
+import { PointPicker } from "./PointPicker";
 
 /** Players take turns removing themes; the last one left is the final question. */
 export function FinalThemesStage() {
@@ -204,14 +206,20 @@ export function FinalReviewStage() {
       </div>
       <ul className={stageStyles.answerList} aria-label={t("final.answers")}>
         {(final?.answers ?? []).map((a) => (
-          <FinalReviewAnswer key={a.id} answer={a} />
+          <FinalReviewAnswer key={a.id} answer={a} question={isShowman ? q : undefined} />
         ))}
       </ul>
     </section>
   );
 }
 
-function FinalReviewAnswer({ answer }: { answer: FinalAnswer }) {
+function FinalReviewAnswer({
+  answer,
+  question,
+}: {
+  answer: FinalAnswer;
+  question?: Question | null;
+}) {
   const { t } = useTranslation();
   const session = useSession();
   const { connection, myId } = useGame();
@@ -220,6 +228,10 @@ function FinalReviewAnswer({ answer }: { answer: FinalAnswer }) {
   const p = findPlayer(session, answer.playerId);
   const bid = finalBid(session, answer.playerId) ?? 0;
   const pending = answer.isCorrect == null && !answer.autoLoss;
+  const picture = pointPicture(question);
+  const picked = answer.answer ? parsePointAnswer(answer.answer) : null;
+  const pointReview =
+    isShowman && question?.answerType === "point" && question.answerPoint && picture;
   return (
     <li
       className={cn(
@@ -228,7 +240,7 @@ function FinalReviewAnswer({ answer }: { answer: FinalAnswer }) {
       )}
       data-testid="final-answer"
     >
-      <div className={layoutStyles.summaryColumn}>
+      <div className={cn(layoutStyles.summaryColumn, pointReview && "basis-full")}>
         <span className="text-sm text-muted">
           {p?.meta.username} · {t("final.bid")}{" "}
           <b className="font-mono text-text">{formatScore(bid)}</b>
@@ -236,6 +248,14 @@ function FinalReviewAnswer({ answer }: { answer: FinalAnswer }) {
         <span className="text-lg [overflow-wrap:anywhere]">
           {answer.answer ? `“${answer.answer}”` : t("final.noAnswer")}
         </span>
+        {pointReview && (
+          <PointPicker
+            src={picture}
+            target={question.answerPoint}
+            radius={question.answerDeviation}
+            picked={picked}
+          />
+        )}
       </div>
       {pending ? (
         isShowman ? (

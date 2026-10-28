@@ -1,15 +1,15 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GameConnection } from "@/game/connection";
-import { ALICE, SAM, SHOWMAN, question, round, session, timer } from "@/game/fixtures";
+import { ALICE, BOB, SAM, SHOWMAN, question, round, session, timer } from "@/game/fixtures";
 import type { GameSession } from "@/game/reducer";
 import { useGameStore } from "@/game/store";
 
 import { GameContext } from "../GameContext";
-import { FinalAnswerStage } from "./FinalStages";
+import { FinalAnswerStage, FinalReviewStage } from "./FinalStages";
 import { QuestionStage } from "./QuestionStage";
 import { AnswerReveal } from "./question/AnswerReveal";
 
@@ -53,6 +53,54 @@ it("shows final question instructions to the showman and not to a player", () =>
   cleanup();
   renderStage(game, <FinalAnswerStage />, SAM);
   expect(screen.queryByText("Final instruction")).not.toBeInTheDocument();
+});
+
+it("shows each final point submission and correct target only to the showman", () => {
+  const q = question(100, {
+    answerType: "point",
+    answerPoint: { x: 0.7, y: 0.3 },
+    answerDeviation: 0.1,
+    questionFiles: [
+      {
+        order: 0,
+        displayTime: null,
+        file: { md5: "image", type: "image", link: "https://x/image" },
+      },
+    ],
+  });
+  const game = session({
+    currentRound: round("final"),
+    questionState: "reviewing",
+    finalRoundData: {
+      phase: "reviewing",
+      bids: { [ALICE]: 100, [SAM]: 200 },
+      turnOrder: [ALICE, SAM],
+      eliminatedThemes: [],
+      questionData: { themeId: 1, themeName: "Final", question: q },
+      answers: [
+        { id: "a", playerId: ALICE, answer: "0.200,0.400", submittedAt: "2026-01-01" },
+        { id: "b", playerId: SAM, answer: "invalid", submittedAt: "2026-01-01" },
+        { id: "c", playerId: BOB, answer: "", submittedAt: "2026-01-01" },
+      ],
+    },
+  });
+  renderStage(game, <FinalReviewStage />, SHOWMAN);
+  const [first, second, third] = screen.getAllByTestId("final-answer");
+  expect(within(first!).getByTestId("point-target")).toHaveStyle({
+    left: "70%",
+    top: "30%",
+    width: "20%",
+  });
+  expect(within(first!).getByTestId("point-picked")).toHaveStyle({ left: "20%", top: "40%" });
+  expect(within(second!).queryByTestId("point-picked")).toBeNull();
+  expect(within(third!).queryByTestId("point-picked")).toBeNull();
+  expect(within(second!).getByText("“invalid”")).toBeVisible();
+  cleanup();
+  for (const role of [ALICE, SAM]) {
+    renderStage(game, <FinalReviewStage />, role);
+    expect(screen.queryByTestId("point-picker")).toBeNull();
+    cleanup();
+  }
 });
 
 describe("final answer stage", () => {

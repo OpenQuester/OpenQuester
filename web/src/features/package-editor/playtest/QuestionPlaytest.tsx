@@ -24,6 +24,8 @@ const fieldFor: Partial<Record<Issue["code"], string>> = {
   missingMedia: '[data-testid="question-media-fields"] button',
   choiceOptions: '#qf-add-option, [data-testid="choice-fields"] input:not([type="radio"])',
   choiceEmptyOption: '[data-testid="choice-fields"] input:not([type="radio"])',
+  choiceCorrectUnresolved:
+    '[data-testid="choice-fields"] input[type="radio"]:not(:disabled), #qf-add-option:not(:disabled)',
   secretPrices: "#qf-prices",
   numberAnswerMissing: "#qf-number",
   pointAnswerMissing: '[data-testid="point-picker"]',

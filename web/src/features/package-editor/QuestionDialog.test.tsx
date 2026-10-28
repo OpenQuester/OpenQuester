@@ -287,6 +287,50 @@ it("returns focus to the invalid number target when the preview cannot run", asy
   await waitFor(() => expect(screen.getByLabelText("Right number")).toHaveFocus());
 });
 
+it("returns focus to a correct-choice radio after deleting the selected option", async () => {
+  setup(
+    newQuestion(100, {
+      type: "choice",
+      text: "Question",
+      answerText: "A",
+      correctChoiceOptionId: "a",
+      options: [
+        { id: "a", text: "A", file: null },
+        { id: "b", text: "B", file: null },
+        { id: "c", text: "C", file: null },
+      ],
+    }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Remove option A" }));
+  await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+  const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
+  const issue = within(preview).getByText(
+    "Choose the correct option again before publishing.",
+  ).parentElement!;
+  await userEvent.click(within(issue).getByRole("button", { name: "Return to this field" }));
+  await waitFor(() =>
+    expect(within(screen.getByTestId("choice-fields")).getAllByRole("radio")[0]).toHaveFocus(),
+  );
+});
+
+it("returns focus to Add option when a choice repair has no options", async () => {
+  setup(
+    newQuestion(100, {
+      type: "choice",
+      text: "Question",
+      correctChoiceOptionId: null,
+      options: [],
+    }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+  const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
+  const issue = within(preview).getByText(
+    "Choose the correct option again before publishing.",
+  ).parentElement!;
+  await userEvent.click(within(issue).getByRole("button", { name: "Return to this field" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add option" })).toHaveFocus());
+});
+
 it("does not rewrite an imported reveal duration merely by opening the question", () => {
   const { store } = setup(newQuestion(100, { showAnswerDuration: 1234 }));
   expect(screen.getByLabelText("Answer reveal duration")).toHaveValue("1.234");

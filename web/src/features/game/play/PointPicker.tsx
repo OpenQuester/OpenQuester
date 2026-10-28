@@ -120,6 +120,7 @@ export function PointPicker({
         <span
           className={cn(questionStyles.chosenPoint, picked ? "bg-accent" : "bg-accent/50")}
           style={{ left: `${(picked ?? hover)!.x * 100}%`, top: `${(picked ?? hover)!.y * 100}%` }}
+          data-testid={picked ? "point-picked" : undefined}
         />
       )}
     </div>

@@ -252,7 +252,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 33 | Choice authoring/draft and archive, package API/persistence, `AnswerSubmittedUseCase`, preview and shared game UI | U/B/L: clicked text/media choice auto-checks; intentional spoken/text remains manual; trace explicit correctness key, privacy and legacy behavior. | Accepted; root and independent QA approved |
 | 34 | `dock/JudgeExtras.tsx`, locales, existing UI/preview and live E2E tests | U/B/L: single skip zero uses existing `answerType: skip`, result/score, eligible next player, single-answerer, exhaustion/stats/undo; ensure preview retains skip classification. | Accepted; root and independent QA approved (`c4d5df95`) |
 | 35 | `ui/Field.tsx`, `styles.css` | B: select arrow vs long text at desktop/mobile, focus and all locales; preserve native behavior, sizing and listbox/forced-colors fallback. | Accepted; root and independent QA approved (`7e038b67`) |
-| 36 | `features/upload/UploadAccess.tsx`, auth button and theme tokens | U/B with mocked provider: distinguish loading/error/unavailable and preserve `/packages/upload` return. Test unauthenticated/guest/configured/unconfigured, no actual OAuth. | Design approved; implementation in progress |
+| 36 | `features/upload/UploadAccess.tsx`, auth button and theme tokens | U/B with mocked provider: distinguish loading/error/unavailable and preserve `/packages/upload` return. Test unauthenticated/guest/configured/unconfigured, no actual OAuth. | Accepted; root and independent QA approved (`413e9470`) |
 
 ### Current source observations
 
@@ -391,8 +391,10 @@ Root inspected CI run `40699163204`, job `122853959378`, for head `940f9701`: we
 
 ### Final review follow-ups after item 36
 
-- Final point-question review shows coordinate text but lacks the image, correct target/radius and player's picked point needed for a host's manual ruling. Reuse the existing point picker and coordinate parser where data permits, preserving role privacy. Root found a rejoin gap: final review clears the timer, so the current question-data rejoin hook returns early; the stored final question data is public, while the full question is sent only to the host during the live transition. Do not fetch the whole package as a workaround. Design the minimal guarded server/rejoin contract and tests separately; new backend scope requires user authorization.
-- The repair action for `choiceCorrectUnresolved` currently focuses question text instead of the correct-choice control. Route focus to an available correct-option radio, with an appropriate add-option fallback, and verify focus after the dialog closes.
+- Final point-question review: the host's response row now uses the existing read-only point picker with the correct target/radius and parsed player's pick; invalid or empty coordinates remain text without a fabricated marker. Players and spectators do not receive this host-only display. Native preview at 375/1296 px checked two different picks against the same target, invalid input, role privacy, image decoding and row/button geometry. Root found a rejoin gap: final review clears the timer, so the current question-data rejoin hook returns early; the stored final question data is public, while the full question is sent only to the host during the live transition. Do not fetch the whole package as a workaround. Design the minimal guarded server/rejoin contract and tests separately; new backend scope requires user authorization.
+- The repair action for `choiceCorrectUnresolved` now focuses an available correct-option radio, falling back to Add option when no radios exist. Component tests exercise both after preview close, and native preview verified focus after deleting the selected choice on 375/1296 px.
+
+Web follow-up candidate checks: typecheck, lint and the full web suite passed (469/469); the focused stage, editor, preview and point picker suite passed (79/79 before the final layout-only adjustment). In native preview the point answer row gives the image its own line above the judging buttons; image width was 281 px inside a 315 px row on a 375 px viewport. Independent QA and root approval are pending.
 
 ### Annotation 32 design and reproduction
 
