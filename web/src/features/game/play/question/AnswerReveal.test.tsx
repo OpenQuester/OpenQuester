@@ -136,12 +136,10 @@ it("shows a judged attempt from a rejoined forced reveal and removes it after un
   );
   expect(screen.getByTestId("submitted-answer")).toHaveTextContent("wrong but real");
   act(() =>
-    store
-      .getState()
-      .dispatch({
-        type: "answer-result-undo",
-        payload: { playerId: ALICE, revertedResult: -100, newScore: 0, canAnswerAgain: false },
-      }),
+    store.getState().dispatch({
+      type: "answer-result-undo",
+      payload: { playerId: ALICE, revertedResult: -100, newScore: 0, canAnswerAgain: false },
+    }),
   );
   expect(screen.queryByTestId("submitted-answer")).toBeNull();
 });
