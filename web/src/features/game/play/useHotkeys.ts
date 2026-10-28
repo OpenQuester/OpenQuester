@@ -12,7 +12,7 @@ function isTyping(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-/** Space buzzes, C/W judge, 1–4 pick a choice option, T opens chat, ? the menu. */
+/** Space buzzes, C/W judge, 1–9 pick a choice option, T opens chat, ? the menu. */
 export function useHotkeys({ onChat, onMenu }: { onChat: () => void; onMenu: () => void }) {
   const { connection, myId } = useGame();
 

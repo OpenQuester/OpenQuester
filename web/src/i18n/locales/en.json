@@ -674,7 +674,7 @@
       "showmanNext": "Correct: {{name}} scores and picks next. Wrong: −{{points}} and the buzzer reopens.",
       "showmanNextSingle": "Only {{name}} answers this one. Either way the answer is revealed next.",
       "you": "You're answering!",
-      "pickOption": "Pick an option above, or press 1 – 4",
+      "pickOption": "Pick an option or press its number",
       "typeLabel": "Your answer",
       "typePlaceholder": "Say it out loud or type it here",
       "send": "Send",
