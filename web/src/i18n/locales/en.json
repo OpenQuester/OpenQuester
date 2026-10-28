@@ -986,7 +986,8 @@
       "cards": "Preview cards with media and answers"
     },
     "inspector": {
-      "label": "Selected question"
+      "label": "Selected question",
+      "resize": "Resize question inspector"
     },
     "playtest": {
       "title": "Interactive game preview",

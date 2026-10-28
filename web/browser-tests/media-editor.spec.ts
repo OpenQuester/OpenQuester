@@ -588,6 +588,83 @@ test("editor video retains working controls in fullscreen", async ({ page }) => 
   if (dir) await inspector.screenshot({ path: join(dir, "editor-inspector.png") });
 });
 
+test("inspector resizing stays bounded and falls back to the editor when space is limited", async ({
+  page,
+}) => {
+  await seed(page);
+  await page
+    .getByTestId("question-dialog")
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  const card = page.getByTestId("question-card").first();
+  await card.click();
+  const inspector = page.getByTestId("inspector");
+  const handle = page.locator('[role="separator"][aria-controls="package-editor-inspector"]');
+  await expect(handle).toHaveAccessibleName("Resize question inspector");
+  const expectWidth = async (width: number) => {
+    await expect(handle).toHaveAttribute("aria-valuenow", String(width));
+    await expect.poll(async () => (await inspector.boundingBox())?.width).toBe(width);
+  };
+  await expectWidth(360);
+  await handle.focus();
+  await handle.press("End");
+  await expectWidth(600);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(handle).toHaveAttribute("aria-valuemax", "528");
+  await expectWidth(528);
+  expect((await page.locator("#main").boundingBox())!.width).toBeGreaterThanOrEqual(480);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expectWidth(600);
+  await handle.press("Home");
+  await expectWidth(320);
+  await handle.press("ArrowLeft");
+  await expectWidth(336);
+  await handle.press("ArrowRight");
+  await expectWidth(320);
+  const handleBox = (await handle.boundingBox())!;
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x + handleBox.width / 2 - 80, handleBox.y + handleBox.height / 2);
+  await page.mouse.up();
+  await expectWidth(400);
+  const dragBox = (await handle.boundingBox())!;
+  await page.mouse.move(dragBox.x + dragBox.width / 2, dragBox.y + dragBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(dragBox.x + dragBox.width / 2 - 20, dragBox.y + dragBox.height / 2);
+  await expectWidth(420);
+  await handle.dispatchEvent("pointercancel", { pointerId: 1, isPrimary: true });
+  await page.mouse.move(dragBox.x + dragBox.width / 2 - 80, dragBox.y + dragBox.height / 2);
+  await page.mouse.up();
+  await expectWidth(420);
+  await inspector.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(inspector).toHaveCount(0);
+  await card.click();
+  await expectWidth(420);
+  await page.setViewportSize({ width: 1279, height: 900 });
+  await expect(inspector).toHaveCount(0);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expectWidth(420);
+  await page.evaluate(async () => {
+    const path = "/src/i18n/index.ts";
+    const { i18n } = await import(path);
+    await i18n.changeLanguage("ru");
+  });
+  await handle.press("Home");
+  await expect
+    .poll(() => inspector.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBe(0);
+  const remove = inspector.getByRole("button", { name: "Удалить" });
+  const removeBox = (await remove.boundingBox())!;
+  const inspectorBox = (await inspector.boundingBox())!;
+  expect(removeBox.x + removeBox.width).toBeLessThanOrEqual(inspectorBox.x + inspectorBox.width);
+  await page.locator("#main").evaluate((element) => {
+    element.parentElement!.style.width = "1000px";
+  });
+  await expect(inspector).toHaveCount(0);
+  await card.click();
+  await expect(page.getByTestId("question-dialog")).toBeVisible();
+});
+
 test("video attachment actions are compact and removal stays staged", async ({ page }) => {
   const source = await seed(page);
   const form = page.getByTestId("question-dialog");

@@ -12,10 +12,12 @@ import {
   PackageUndoToast,
 } from "./shell/PackageEditorStatus";
 import { usePackageEditorShell } from "./shell/usePackageEditorShell";
+import { useInspectorResize } from "./shell/useInspectorResize";
 
 /** `header` replaces the editing header, e.g. for a read-only preview. */
 export function PackageEditorShell({ header }: { header?: React.ReactNode } = {}) {
-  const shell = usePackageEditorShell();
+  const { containerRef, outlineRef, fits, ...resize } = useInspectorResize();
+  const shell = usePackageEditorShell(fits);
   const {
     readOnly,
     pkg,
@@ -50,8 +52,8 @@ export function PackageEditorShell({ header }: { header?: React.ReactNode } = {}
         />
       )}
 
-      <div className="flex min-h-0 flex-1">
-        <aside className={packageEditorShellStyles.outline}>
+      <div ref={containerRef} className="flex min-h-0 flex-1">
+        <aside ref={outlineRef} className={packageEditorShellStyles.outline}>
           <PackageOutline
             report={report}
             onAddRound={addRound}
@@ -90,7 +92,9 @@ export function PackageEditorShell({ header }: { header?: React.ReactNode } = {}
           </div>
         </main>
 
-        {wide && selected && <PackageEditorInspector selected={selected} actions={actions} />}
+        {wide && selected && (
+          <PackageEditorInspector selected={selected} actions={actions} resize={resize} />
+        )}
       </div>
 
       {!readOnly && <PackageValidationStatus report={report} onReview={() => setPublish(true)} />}

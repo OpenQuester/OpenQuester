@@ -9,7 +9,11 @@ export const packageEditorShellStyles = {
   outline: "hidden w-[272px] shrink-0 overflow-y-auto border-r border-line px-3 py-5 lg:block",
   workspace: "flex flex-col gap-5 px-4 py-5 sm:px-6 lg:px-7",
   inspector:
-    "flex w-[360px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-line bg-surface/60 p-5",
+    "flex h-full w-full min-w-0 flex-col gap-4 overflow-y-auto border-l border-line bg-surface/60 p-5",
+  inspectorHandle:
+    "absolute inset-y-0 -left-1.5 z-10 w-3 touch-none cursor-col-resize rounded-sm hover:bg-accent/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent",
+  inspectorGrip:
+    "pointer-events-none absolute left-1/2 top-1/2 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-line-strong",
   inspectorClose:
     "inline-flex size-9 items-center justify-center rounded-sm text-muted hover:bg-surface-2",
   status: "flex items-center gap-3 border-t border-line bg-surface px-4 py-2.5 text-sm sm:px-5",

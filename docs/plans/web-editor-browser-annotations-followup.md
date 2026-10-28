@@ -223,7 +223,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 14 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: semantic answer boundary after question on wide/narrow; use a theme-token separator, no extra decorative wrapper; verify ordering/focus. | Accepted; root and independent QA approved |
 | 15 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: attribution group on wide/narrow; theme-token separator, no duplicated semantic grouping. | Accepted; root and independent QA approved |
 | 16 | `QuestionContent.tsx`, `ui/Field.tsx` | U/B: invalid duration produces exactly one aria-associated message/error; valid/media-active explanation no duplicate or false invalid state; retain fractional 2–30 validation. | Accepted; root and independent QA approved |
-| 17 | `PackageEditorShell.tsx`, `shell/PackageEditorInspector.tsx`, `shell/packageEditorShellStyles.ts`, `shell/usePackageEditorShell.ts` | B: 1296×884 and resize 1280→1920, action row/player sliders; implement bounded accessible local resize per constants above, keyboard/pointer, resize clamp, min main and mobile fallback. | Planned; not released |
+| 17 | `PackageEditorShell.tsx`, `shell/PackageEditorInspector.tsx`, `shell/packageEditorShellStyles.ts`, `shell/usePackageEditorShell.ts` | B: 1296×884 and resize 1280→1920, action row/player sliders; implement bounded accessible local resize per constants above, keyboard/pointer, resize clamp, min main and mobile fallback. | Accepted; root and independent QA approved |
 | 18 | `QuestionPreview.tsx`, `AttachmentPreview.tsx`, `PointPicker.tsx`, locales | B/U: point answer selected in inspector; localized coordinate control, hover/focus temporary vs click/Enter/Space pinned, reset on question/image, existing first-image circle; no player/game disclosure or mutation. | Planned; not released |
 | 19 | `board/RoundHeader.tsx`, `board/packageBoardStyles.ts` | B/U: normal/final heading, controls and long names at available row widths; adjust flex basis/wrap, preserve editing/menus and localized strings. | Planned; not released |
 | 20 | locales `en/uk/ru`, `QuestionTypeSettings.tsx`, `AllPlayStages.tsx` | U/B: compare authoring/actual all-play stake rules and copy; consistently say all players bid and answer; verify long localized labels. | Planned; not released |
@@ -335,7 +335,16 @@ Root approved patch SHA-256 `5BFC3583399A105CA6483C4A41C5011B4A11072AF39FDFCB83C
 | 13 | `9bf5f277` |
 | 14 | `5ef18ddb` |
 | 15 | `438890d6` |
+| 16 | `ae275d76` |
 
 ### Annotation 16 acceptance
 
 Root approved patch SHA-256 `A412C62F97D7FB03C8D5542386F19C315218B3C059A68FEEA9CD94A8C605C124`. Independent QA verified one associated alert for invalid blank, 1.9, 31 and nonnumeric input; valid boundaries and decimal comma, plus media transitions. Existing duration test and checks passed.
+
+### Annotation 17 approved design
+
+Inspector width belongs to the editor shell, defaults to 360 px, and is bounded to 320–600 px and the measured space remaining after the visible outline and a 480 px main area. If the container cannot fit those minima, the existing narrow card-to-dialog behavior applies. A keyboard-accessible vertical separator and pointer capture resize the panel; width remains local to the shell. Grouped action buttons wrap when localized labels do not fit. The same shell supports read-only previews. Baseline on 1296 px: the 360 px Russian inspector had clientWidth 359 and scrollWidth 384; the last action extended 25 px beyond its right edge.
+
+### Annotation 17 acceptance
+
+Root approved patch SHA-256 `1DD4AEDAAABC15A6A8E0995F40D4ABDC5B79E69FB3999E083D782CF619CFED54`. Independent QA verified bounded pointer and keyboard resizing, real width, viewport and container fallback, actions and media. Read-only inspector behavior was checked with a component fixture; published-route E2E was not run at this step.
