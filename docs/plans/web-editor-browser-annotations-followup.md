@@ -231,7 +231,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 22 | `playtest/PlaytestControls.tsx`, `PlaytestSession.tsx`, `game/play/question/PointAnswer.tsx` | B: point in preview answering/all-play; remove duplicated prepared picker where real selected player can answer, one gesture→one event, preserve host/spectator/final until 27. Verify stage containment separately from 5/23. | Accepted; root and independent QA approved |
 | 23 | `PlaytestSession.tsx`, `QuestionStage.tsx`, `PointAnswer.tsx`, game stage styles | B/L: all-play point actual flow at 1296–1366×884 and short screens; assert image and text inside background, no dock intersection, reachable controls; use 5 root fix only if verified. | Accepted unchanged; root and independent QA approved |
 | 24 | `QuestionContent.tsx`, `validatePackage.ts`, `packageDraft.ts`, `QuestionPreview.tsx` | U/B/L: text→number→text retains hidden answers and target, save/reopen/publish, preview and reveal/reconnect. Resolve `noAnswer` warning and target-as-reveal boundary described above; report any needed backend change before edits. | Accepted; root and independent QA approved |
-| 25 | `QuestionContent.tsx`, `useQuestionForm.ts` | U/B: move reveal timing next to answer content/media; preserve 13/16 validation, disabled fallback value, keyboard order and scroll/focus. | Planned; not released |
+| 25 | `QuestionContent.tsx`, `useQuestionForm.ts` | U/B: move reveal timing next to answer content/media; preserve 13/16 validation, disabled fallback value, keyboard order and scroll/focus. | Accepted; root and independent QA approved |
 | 26 | `game/play/SpecialStages.tsx`, locales | B/U: identify redundant price explanation in actual stage and remove only that paragraph; retain price/actions and shared preview/live behavior, remove only truly unused locale keys. | Planned; not released |
 | 27 | `playtest/PlaytestSession.tsx`, `PlaytestControls.tsx`, `previewRuntime.ts`, `previewSpecial.ts`, `previewFinal.ts`, `playtestKeyboard.ts` | U/B: enact actor model above; exercise simple/hidden/choice/secret/stake/all-play/final as each role, valid player selection, no duplicated picker, no hidden answer submission, restart/pause/keyboard. | Planned; not released |
 | 28 | `game/play/question/AnswerReveal.tsx`, `AllPlayStages.tsx`, `game/reducer.ts`, locales | U/B/L: wording + actual submitted value by authoritative event/review; regular vs simultaneous privacy, manual and auto, reconnect. Escalate missing persisted data instead of substituting canonical answer. | Planned; not released |
@@ -342,6 +342,8 @@ Root approved patch SHA-256 `5BFC3583399A105CA6483C4A41C5011B4A11072AF39FDFCB83C
 | 20 | `43f830e7` |
 | 21 | `6010e6a9` |
 | 22 | `cceccb97` |
+| 23 | No new runtime change; verified after `cceccb97` |
+| 24 | `76a8bad2` |
 
 ### Annotation 16 acceptance
 
@@ -392,3 +394,11 @@ Root and independent QA accepted the unchanged runtime after verifying the local
 Numeric questions hide correct/wrong free-text fields while preserving their draft values, hint and target controls. A numeric-only copy for editor publication and local play derives the answer text from a finite target and omits stale text aliases; archives and drafts retain the original text and aliases. Choice questions keep their existing fields even if an old numeric mode remains on the draft; final questions use their effective simple type. The published game representation cannot recover hidden text when reopened from the server as a new draft, so the original draft or exported archive is needed to retain it. Direct SIQ/OQ upload remains unchanged. Previously published numeric questions with stale reveal text need republishing: the existing reconnect reveal payload does not expose the target number.
 
 Root approved candidate SHA-256 `B34BC85587B942767DABE58CC575656EA1FE45DAA32E5B9AFA9BC9EC912177BF`. Independent QA published and played a numeric zero question against a separate backend, then rejoined and verified the revealed zero and +100 score. Draft and archive preservation were verified; this does not extend to previously published questions or change direct uploads. Focused coverage passed 70 tests, plus 8 numeric tests after the direct-upload regression was added. Typecheck, lint and formatting passed; React Doctor reported 87/100 with no findings in the changed scope.
+
+### Annotation 25 acceptance
+
+Place the existing reveal-duration control inside the answer-media group using component children, removing its redundant Timing heading. Keep form state and validation unchanged, including the disabled media fallback and one associated help or error message. Verify the group placement and existing duration/media regression tests, keyboard and focus, and desktop and phone layouts with an isolated editor fixture.
+
+The isolated editor fixture showed the old control outside the answer-media group and the candidate inside it at 1296×884 and 375×884. With answer media, the stored fallback remained disabled with its existing explanation; after removal it became editable. At 1304×884 and 390×884 after resize, the entered 2.5 seconds and focus remained, Tab reached Authors, and an invalid value produced one error and disabled Save. The 21 QuestionDialog tests passed, including the legacy fallback and 2–30 second validation. Typecheck, lint, formatting and diff checks passed; React Doctor reported 90/100 and no findings in the changed scope. These are isolated editor and component checks, not live-server evidence.
+
+Root approved the reviewed candidate SHA-256 `21F8FDACD196A506AAF0B3006C967AD1032280AADF31E7DC24D35295E76827E4`; independent QA passed against runtime SHA-256 `1EAE9A0DCD12C925D7AC13205C7010EC318E53227E2FEB8657F5EB51588AC642`.

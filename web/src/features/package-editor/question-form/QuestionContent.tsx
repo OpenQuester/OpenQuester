@@ -74,8 +74,9 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
         help={t("editor.form.answerMediaHelp")}
         files={q.answerFiles}
         onChange={(update) => setQ((prev) => ({ ...prev, answerFiles: update(prev.answerFiles) }))}
-      />
-      <QuestionTiming form={form} />
+      >
+        <QuestionTiming form={form} />
+      </QuestionMediaList>
       <hr className="m-0 border-0 border-t border-line" />
       <QuestionMetadataFields q={q} set={set} />
     </>
@@ -235,7 +236,6 @@ function QuestionTiming({ form }: { form: QuestionFormState }) {
   const hasAnswerMedia = form.q.answerFiles.length > 0;
   return (
     <div className="flex flex-col gap-2">
-      <span className={questionFormStyles.previewLabel}>{t("editor.form.timing")}</span>
       <Label htmlFor="qf-reveal">{t("editor.form.showAnswer")}</Label>
       <div className="flex items-center gap-2">
         <input

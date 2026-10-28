@@ -48,7 +48,9 @@ it("keeps incomplete reveal input and permits only durations from 2 to 30 second
   const { store } = setup(newQuestion(100));
   const input = screen.getByLabelText("Answer reveal duration");
   const save = screen.getByTestId("question-save");
+  input.focus();
   fireEvent.change(input, { target: { value: "" } });
+  expect(input).toHaveFocus();
   expect(input).toHaveValue("");
   expect(save).toBeDisabled();
   fireEvent.change(input, { target: { value: "1.9" } });

@@ -6,14 +6,15 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
 import { TrashIcon, UploadIcon } from "@/ui/icons";
 import { AttachmentPreview } from "../AttachmentPreview";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 export function QuestionMediaList({
   label,
   help,
   files,
   onChange,
   onGeometryChange,
-}: QuestionMediaListProps) {
+  children,
+}: QuestionMediaListProps & { children?: ReactNode }) {
   const { t } = useTranslation();
   const {
     inputRef,
@@ -105,6 +106,7 @@ export function QuestionMediaList({
           {t("mediaEditor.undo")}
         </Button>
       )}
+      {children}
     </div>
   );
 }
