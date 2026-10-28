@@ -120,6 +120,18 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
       // Update timer with resumedAt timestamp to indicate it was restored
       GamePauseLogic.updateTimerForResume(savedTimer);
 
+      // Move the saved showing timer back to the active key so its remaining
+      // time produces the normal Redis expiration event.
+      timerMutations.push(
+        { op: "delete", key: timerKey(game.id, QuestionState.SHOWING) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(savedTimer),
+          pxTtl: GamePauseLogic.calculateRemainingTime(savedTimer)
+        }
+      );
+
       // Set the restored timer on game state
       game.gameState.timer = savedTimer;
 

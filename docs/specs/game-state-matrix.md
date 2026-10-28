@@ -109,8 +109,10 @@ When changing gameplay state, make sure:
   the answer immediately instead of waiting for the timer.
 - For simple, choice, and hidden-price buzzer questions, a wrong or skipped
   answer returns to showing with the saved question timer when other eligible
-  players remain. A correct answer or exhaustion reveals the answer; secret,
-  stake, and single-player no-risk questions remain single-answerer.
+  players remain. The server rearms its expiration for the remaining time;
+  answering timeout follows the same path. A correct answer or exhaustion
+  reveals the answer; secret, stake, and single-player no-risk questions remain
+  single-answerer.
 - When the showman picks a stake or secret question, it belongs to the player
   whose turn it was: they make the opening bid or choose the recipient. The
   showman never bids, receives or answers.
