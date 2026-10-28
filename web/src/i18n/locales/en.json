@@ -357,6 +357,7 @@
       "toggleRestored": "put {{theme}} for {{price}} back on the board",
       "answerRight": "judged {{player}} right ({{points}})",
       "answerWrong": "judged {{player}} wrong ({{points}})",
+      "answerSkipped": "skipped {{player}}'s answer ({{points}})",
       "undo": "took back the ruling on {{player}} ({{points}})",
       "joinMode": "set who can join: {{mode}}",
       "kick": "removed {{player}} from the game",
@@ -617,6 +618,7 @@
   "announce": {
     "correct": "{{name}} is correct, {{points}}",
     "wrong": "{{name}} is wrong, {{points}}",
+    "skipped": "{{name}}'s answer was skipped, {{points}}",
     "yourTurn": "Your turn"
   },
   "dock": {

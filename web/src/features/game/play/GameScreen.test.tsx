@@ -83,6 +83,33 @@ it("counts only player messages, clears the badge on read, and handles a full ch
   expect(badge()).toHaveTextContent("1");
 });
 
+it("reports a skipped ruling neutrally in the live announcement and game log", async () => {
+  setup([]);
+  act(() => {
+    const session = useGameStore.getState().session!;
+    useGameStore.setState({
+      session: {
+        ...session,
+        lastResult: { key: 1, player: BOB, result: 0, score: 0, answerType: "skip" },
+        chat: [
+          {
+            ...message("skip", true),
+            message: "Showman judged user3 wrong (0)",
+            system: {
+              action: "answer-result",
+              params: { player: "user3", answerType: "skip", points: 0 },
+            },
+          },
+        ],
+      },
+    });
+  });
+  expect(screen.getByRole("status")).toHaveTextContent("user3's answer was skipped, 0");
+  await userEvent.click(screen.getByTestId("open-chat"));
+  expect(screen.getByTestId("chat-log")).toHaveTextContent("skipped user3's answer (0)");
+  expect(screen.getByTestId("chat-log")).not.toHaveTextContent("wrong");
+});
+
 it("keeps read messages read when a reconnect reorders equal timestamps", async () => {
   const a = message("A");
   const b = message("B");

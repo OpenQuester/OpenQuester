@@ -369,6 +369,7 @@
       "toggleRestored": "вернул на поле {{theme}} за {{price}}",
       "answerRight": "засчитал ответ {{player}} ({{points}})",
       "answerWrong": "не засчитал ответ {{player}} ({{points}})",
+      "answerSkipped": "пропустил ответ {{player}} ({{points}})",
       "undo": "отменил решение по {{player}} ({{points}})",
       "joinMode": "изменил, кто может присоединиться: {{mode}}",
       "kick": "убрал {{player}} из игры",
@@ -629,6 +630,7 @@
   "announce": {
     "correct": "{{name}} отвечает верно, {{points}}",
     "wrong": "{{name}} ошибается, {{points}}",
+    "skipped": "ответ {{name}} пропущен, {{points}}",
     "yourTurn": "Ваш ход"
   },
   "dock": {
