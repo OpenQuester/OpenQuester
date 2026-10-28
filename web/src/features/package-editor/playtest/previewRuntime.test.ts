@@ -25,6 +25,55 @@ function setup(patch: Parameters<typeof newQuestion>[1] = {}, final = false) {
 }
 
 describe("local question playtest", () => {
+  it("shares authoritative rejected choices with the next player", () => {
+    const game = setup({
+      type: "choice",
+      answerText: "Correct",
+      options: [
+        { id: "a", text: "Wrong", file: null },
+        { id: "b", text: "Correct", file: null },
+        { id: "c", text: "Other", file: null },
+      ],
+    });
+    game.advance();
+    game.advance();
+    game.advanceWait();
+    const [wrong, , other] = game.question.answers!;
+    game.buzz(PREVIEW_PLAYERS[0]);
+    game.submit("Wrong", wrong!.order);
+    expect(game.session.state.answeredPlayers?.at(-1)).toMatchObject({
+      answerType: "wrong",
+      choiceOrder: wrong!.order,
+    });
+    game.buzz(PREVIEW_PLAYERS[1]);
+    game.submit("Wrong", wrong!.order);
+    expect(game.session.submittedAnswer).toBeNull();
+    game.submit("Other", other!.order);
+    expect(game.session.state.answeredPlayers?.at(-1)?.choiceOrder).toBe(other!.order);
+  });
+
+  it("keeps a manual skip distinct from a rejected image choice", () => {
+    const game = setup({
+      type: "choice",
+      answerText: "Correct",
+      options: [
+        { id: "a", text: "", file: null },
+        { id: "b", text: "Correct", file: null },
+      ],
+    });
+    game.advance();
+    game.advance();
+    game.advanceWait();
+    game.buzz(PREVIEW_PLAYERS[0]);
+    game.submit("1", game.question.answers![0]!.order);
+    expect(game.session.submittedAnswer).toBe("1");
+    game.setPerspective(PREVIEW_SHOWMAN);
+    game.commands.emit("answer-result", { answerType: "skip", scoreResult: 0 });
+    expect(game.session.state.answeredPlayers?.at(-1)?.answerType).toBe("skip");
+    game.buzz(PREVIEW_PLAYERS[1]);
+    game.submit("1", game.question.answers![0]!.order);
+    expect(game.session.submittedAnswer).toBe("1");
+  });
   it("reveals the numeric target rather than hidden draft text or aliases", () => {
     const game = setup({
       answerType: "number",

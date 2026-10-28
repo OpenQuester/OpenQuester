@@ -81,6 +81,7 @@ export class SkipQuestionForceUseCase implements GameActionHandler<
     game.gameState.skippedPlayers = null;
     game.gameState.answeringPlayer = null;
     game.gameState.submittedAnswer = null;
+    game.gameState.submittedChoiceOrder = null;
 
     const timerMutations = this.buildShowAnswerTimerMutations(game, question);
 

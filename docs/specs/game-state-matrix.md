@@ -125,6 +125,14 @@ When changing gameplay state, make sure:
   authored correct answer. The regular text is cleared on a fresh answerer or
   question and on reset. All-play and final answers follow their separate
   private-until-review rules.
+- A regular choice submission may carry the selected option's unique package
+  order. A wrong ruling, including zero points, records that order in the
+  public attempt history and prevents the option from being selected again;
+  a skip does not. Undo removes the ruling, and reconnect receives the same
+  history. Legacy text-only answers identify an option only when its normalized
+  text and order are both unique; ambiguous legacy answers retain their old
+  behavior and cannot reliably enforce selection-specific repeats. Image-only
+  choices without a trustworthy answer key remain for manual judgment.
 
 ## Special question rules (SIGame parity)
 

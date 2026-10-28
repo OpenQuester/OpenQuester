@@ -5,6 +5,7 @@ import { AnswerType } from "domain/enums/package/AnswerType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { AnswerCheckLogic } from "domain/logic/question/AnswerCheckLogic";
 import { AnswerSubmittedLogic } from "domain/logic/question/AnswerSubmittedLogic";
+import { ChoiceSelectionLogic } from "domain/logic/question/ChoiceSelectionLogic";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import { DataMutationConverter } from "domain/types/action/DataMutation";
@@ -44,11 +45,20 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
     AnswerSubmittedLogic.validate(game, currentPlayer);
 
     const answerText = ctx.action.payload.answerText;
-    AnswerSubmittedLogic.recordSubmission(game, answerText);
-    const result = AnswerSubmittedLogic.buildResult({ game, answerText });
+    const choiceOrder = ChoiceSelectionLogic.resolve(
+      game,
+      answerText,
+      ctx.action.payload.choiceOrder
+    );
+    AnswerSubmittedLogic.recordSubmission(game, answerText, choiceOrder);
+    const result = AnswerSubmittedLogic.buildResult({ game, answerText, choiceOrder });
     const submitted = DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts);
 
-    const verdict = await this._check(game, answerText);
+    const selected = game.gameState.currentQuestion?.answers?.find(
+      (option) => option.order === choiceOrder
+    );
+    const imageOnly = ctx.action.payload.choiceOrder !== undefined && !selected?.text?.trim();
+    const verdict = imageOnly ? null : await this._check(game, answerText);
     if (verdict === null) {
       return {
         success: true,

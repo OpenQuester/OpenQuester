@@ -228,6 +228,7 @@ function backToChoosing(session: GameSession): GameSession {
       skippedPlayers: null,
       answerShowData: null,
       submittedAnswer: null,
+      submittedChoiceOrder: null,
       secretQuestionData: null,
       stakeQuestionData: null,
       questionEligiblePlayers: null,
@@ -295,6 +296,7 @@ function onQuestionData(
       skippedPlayers: newPick ? null : s.skippedPlayers,
       answerShowData: newPick ? null : s.answerShowData,
       submittedAnswer: newPick ? null : s.submittedAnswer,
+      submittedChoiceOrder: newPick ? null : s.submittedChoiceOrder,
       questionEligiblePlayers: eligible ?? s.questionEligiblePlayers ?? null,
       buzzerOpensAtMs:
         buzzerOpensAtMs !== undefined ? buzzerOpensAtMs : newPick ? null : s.buzzerOpensAtMs,
@@ -489,6 +491,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           questionState: "answering",
           answeringPlayer: event.payload.userId,
           submittedAnswer: null,
+          submittedChoiceOrder: null,
           timer: event.payload.timer,
         }),
         submittedAnswer: null,
@@ -497,7 +500,10 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
 
     case "answer-submitted":
       return {
-        ...patchState(session, { submittedAnswer: event.payload.answerText }),
+        ...patchState(session, {
+          submittedAnswer: event.payload.answerText,
+          submittedChoiceOrder: event.payload.choiceOrder ?? null,
+        }),
         submittedAnswer: event.payload.answerText,
       };
 
@@ -516,6 +522,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         ...patchState(session, {
           answeringPlayer: null,
           submittedAnswer: null,
+          submittedChoiceOrder: null,
           answeredPlayers: answered,
           // A correct answer is followed by question-finish and the reveal.
           questionState: reopened ? "showing" : s.questionState,
@@ -545,6 +552,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           answerShowData: data,
           answeringPlayer: null,
           submittedAnswer: null,
+          submittedChoiceOrder: null,
           currentTurnPlayerId: data.nextTurnPlayerId ?? s.currentTurnPlayerId,
           currentRound: markQuestionPlayed(s.currentRound, s.currentQuestion?.id),
           skippedPlayers: null,

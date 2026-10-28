@@ -98,6 +98,7 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     game.setQuestionState(QuestionState.ANSWERING);
     game.gameState.answeringPlayer = winnerPlayerId;
     game.gameState.submittedAnswer = null;
+    game.gameState.submittedChoiceOrder = null;
     game.gameState.stakeQuestionData = {
       ...stakeData,
       biddingPhase: false,

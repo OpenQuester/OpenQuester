@@ -63,6 +63,7 @@ export class QuestionPickLogic {
     // For normal questions, set currentQuestion immediately
     game.gameState.answerShowData = null;
     game.gameState.submittedAnswer = null;
+    game.gameState.submittedChoiceOrder = null;
     game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(question);
     GameQuestionMapper.setQuestionPlayed(game, question.id!, themeId);
   }
@@ -90,6 +91,7 @@ export class QuestionPickLogic {
   /** Mark a special question as played on the board. */
   public static markQuestionPlayed(game: Game, questionId: number, themeId: number): void {
     game.gameState.submittedAnswer = null;
+    game.gameState.submittedChoiceOrder = null;
     GameQuestionMapper.setQuestionPlayed(game, questionId, themeId);
   }
 

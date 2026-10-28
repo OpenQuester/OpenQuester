@@ -21,6 +21,7 @@ export interface GameStateAnsweredPlayerData {
   answerType: AnswerResultType;
   /** Actual text submitted by the player, absent for oral or legacy answers. */
   answerText?: string | null;
+  choiceOrder?: number | null;
   /**
    * How much the score really moved: `result` clamped by the score limit.
    * Undoing the ruling takes back exactly this.
@@ -49,6 +50,7 @@ export interface GameStateDTO {
   answeringPlayer: number | null; // Only if answering
   /** Current regular answer while it awaits a ruling. */
   submittedAnswer?: string | null;
+  submittedChoiceOrder?: number | null;
   answeredPlayers: GameStateAnsweredPlayerData[] | null;
   /** This is used as readiness at game start and as readiness for another events */
   readyPlayers: number[] | null;

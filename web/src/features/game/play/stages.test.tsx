@@ -242,6 +242,49 @@ describe("choice options", () => {
   beforeEach(() => useGameStore.setState({ session: null, pending: null }));
   afterEach(() => vi.useRealTimers());
 
+  it("disables only the option with an authoritative wrong ruling and restores it after undo", async () => {
+    const game = session({
+      currentRound: round(),
+      questionState: "answering",
+      answeringPlayer: ALICE,
+      currentQuestion: choice(),
+      answeredPlayers: [
+        { player: SAM, result: 0, score: 0, answerType: "wrong", choiceOrder: 0 },
+        { player: SHOWMAN, result: 0, score: 0, answerType: "skip", choiceOrder: 1 },
+      ],
+    });
+    const emit = renderStage(game, <QuestionStage />);
+    expect(screen.getByRole("button", { name: "Shark, Wrong" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Option 2" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Shark, Wrong" }));
+    expect(emit).not.toHaveBeenCalled();
+    act(() =>
+      useGameStore.setState({
+        session: { ...game, state: { ...game.state, answeredPlayers: [] } },
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Shark" })).toBeEnabled();
+  });
+
+  it("falls back to the legacy command when option orders are duplicated", async () => {
+    const emit = renderStage(
+      session({
+        currentRound: round(),
+        questionState: "answering",
+        answeringPlayer: ALICE,
+        currentQuestion: choice({
+          answers: [
+            { order: 0, text: "Shark", file: null },
+            { order: 0, text: "Whale", file: null },
+          ],
+        }),
+      }),
+      <QuestionStage />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Whale" }));
+    expect(emit).toHaveBeenCalledWith("answer-submitted", { answerText: "Whale" });
+  });
+
   it("releases pending choice and stage timers when leaving the question", () => {
     vi.useFakeTimers();
     renderStage(
@@ -274,7 +317,7 @@ describe("choice options", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Option 2" }));
 
-    expect(emit).toHaveBeenCalledWith("answer-submitted", { answerText: "2" });
+    expect(emit).toHaveBeenCalledWith("answer-submitted", { answerText: "2", choiceOrder: 1 });
   });
 
   it("keeps choices visible but prevents submission while paused or reconnecting", async () => {
@@ -294,7 +337,10 @@ describe("choice options", () => {
     expect(emit).not.toHaveBeenCalled();
     act(() => useGameStore.setState({ connection: "connected" }));
     await userEvent.click(option);
-    expect(emit).toHaveBeenCalledExactlyOnceWith("answer-submitted", { answerText: "2" });
+    expect(emit).toHaveBeenCalledExactlyOnceWith("answer-submitted", {
+      answerText: "2",
+      choiceOrder: 1,
+    });
   });
 
   it("keeps a picture-only answer distinct from numeric and prefixed text options", async () => {
@@ -315,7 +361,7 @@ describe("choice options", () => {
       <QuestionStage />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Option 2" }));
-    expect(emit).toHaveBeenCalledWith("answer-submitted", { answerText: "##2" });
+    expect(emit).toHaveBeenCalledWith("answer-submitted", { answerText: "##2", choiceOrder: 1 });
   });
 
   it("keeps delayed options hidden while the game is paused", () => {
@@ -473,7 +519,7 @@ describe("choice options", () => {
     expect(picture).toBeEnabled();
     await userEvent.click(picture);
     expect(emit).toHaveBeenCalledTimes(2);
-    expect(emit).toHaveBeenLastCalledWith("answer-submitted", { answerText: "2" });
+    expect(emit).toHaveBeenLastCalledWith("answer-submitted", { answerText: "2", choiceOrder: 1 });
     act(() =>
       useGameStore.getState().dispatch({ type: "answer-submitted", payload: { answerText: "2" } }),
     );

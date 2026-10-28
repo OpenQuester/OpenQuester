@@ -258,10 +258,19 @@ describe("reducer: regular question", () => {
   });
 
   it("keeps the snapshot phase when question data is re-sent after a rejoin", () => {
-    let s = session({ currentRound: round(), questionState: "showing", timer: timer() });
+    let s = session({
+      currentRound: round(),
+      questionState: "showing",
+      timer: timer(),
+      submittedChoiceOrder: 0,
+    });
     s = reduce(s, { type: "question-data", payload: { data: question(101), timer: timer() } });
     expect(phaseOf(s)).toBe("showing");
     expect(s.state.currentQuestion?.id).toBe(101);
+    expect(s.state.submittedChoiceOrder).toBe(0);
+    s = session({ currentRound: round(), questionState: "choosing", submittedChoiceOrder: 0 });
+    s = reduce(s, { type: "question-data", payload: { data: question(102), timer: timer() } });
+    expect(s.state.submittedChoiceOrder).toBeNull();
   });
 
   it("keeps the question paused when it is re-sent while someone answers", () => {

@@ -4222,6 +4222,8 @@ export interface components {
             answeringPlayer?: number | null;
             /** @description Current regular submitted answer while awaiting a ruling; absent for legacy states */
             submittedAnswer?: string | null;
+            /** @description Current regular choice order while awaiting a ruling; absent for legacy states */
+            submittedChoiceOrder?: number | null;
             /** @description Answer reveal retained while showing the answer */
             answerShowData?: components["schemas"]["SocketIOQuestionFinishEventPayload"] | null;
             answeredPlayers?: components["schemas"]["GameStateAnsweredPlayer"][] | null;
@@ -4329,6 +4331,8 @@ export interface components {
             answerType: components["schemas"]["SocketIOGameAnswerType"];
             /** @description Actual submitted answer, null or absent for oral and legacy answers */
             answerText?: string | null;
+            /** @description Validated order of the selected choice, when known */
+            choiceOrder?: number | null;
             /** @description How much the score really moved (result clamped by the score limit); undoing the ruling takes back exactly this */
             appliedChange?: number;
         };
@@ -4683,6 +4687,8 @@ export interface components {
              * @example I don't know
              */
             answerText?: string | null;
+            /** @description Optional selected choice order for a regular choice question */
+            choiceOrder?: number;
         };
         /** @description Data sent to all players when the showman evaluates an answer */
         SocketIOAnswerResultEventPayload: {

@@ -199,7 +199,8 @@ export class GameValidator {
 
   public static validateAnswerSubmitted(data: AnswerSubmittedData) {
     const schema = Joi.object<AnswerSubmittedData>({
-      answerText: Joi.string().max(255).allow(null)
+      answerText: Joi.string().max(255).allow(null),
+      choiceOrder: Joi.number()
     });
 
     return this._validate<AnswerSubmittedData>(data, schema);

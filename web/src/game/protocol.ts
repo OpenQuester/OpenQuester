@@ -171,6 +171,7 @@ export interface Question {
 
 export interface AnsweredPlayer {
   player: number;
+  choiceOrder?: number | null;
   result: number;
   score: number;
   answerType: AnswerResultType;
@@ -285,6 +286,7 @@ export interface GameState {
   currentQuestion: Question | null;
   answeringPlayer: number | null;
   submittedAnswer?: string | null;
+  submittedChoiceOrder?: number | null;
   answeredPlayers: AnsweredPlayer[] | null;
   readyPlayers: number[] | null;
   timer: Timer | null;
@@ -379,7 +381,7 @@ export interface ServerEvents {
   /** Someone pressed before the buzzer opened and is locked out for `lockMs`. */
   "buzzer-false-start": { playerId: number; lockMs: number };
   "buzzer-open": { buzzerOpensAtMs: number };
-  "answer-submitted": { answerText: string | null };
+  "answer-submitted": { answerText: string | null; choiceOrder?: number | null };
   "answer-result": { answerResult: AnsweredPlayer; timer: Timer | null };
   "question-finish": AnswerShowData;
   "answer-show-start": Record<string, never>;
@@ -495,7 +497,7 @@ export interface ClientEvents {
   "media-downloaded": { mediaDurations?: { md5: string; durationMs: number }[] } | undefined;
   "question-pick": { questionId: number };
   "question-answer": undefined;
-  "answer-submitted": { answerText: string | null };
+  "answer-submitted": { answerText: string | null; choiceOrder?: number };
   "answer-result": { scoreResult: number; answerType: AnswerResultType };
   "skip-question-force": undefined;
   "skip-show-answer": undefined;

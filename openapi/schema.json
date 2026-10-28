@@ -5428,6 +5428,10 @@
             "maxLength": 255,
             "description": "Current regular submitted answer while awaiting a ruling; absent for legacy states"
           },
+          "submittedChoiceOrder": {
+            "type": ["number", "null"],
+            "description": "Current regular choice order while awaiting a ruling; absent for legacy states"
+          },
           "answerShowData": {
             "description": "Answer reveal retained while showing the answer",
             "oneOf": [
@@ -5661,6 +5665,10 @@
             "type": ["string", "null"],
             "maxLength": 255,
             "description": "Actual submitted answer, null or absent for oral and legacy answers"
+          },
+          "choiceOrder": {
+            "type": ["number", "null"],
+            "description": "Validated order of the selected choice, when known"
           },
           "appliedChange": {
             "type": "integer",
@@ -6337,6 +6345,10 @@
             "maxLength": 255,
             "description": "Player's answer text",
             "examples": ["I don't know"]
+          },
+          "choiceOrder": {
+            "type": "number",
+            "description": "Optional selected choice order for a regular choice question"
           }
         }
       },

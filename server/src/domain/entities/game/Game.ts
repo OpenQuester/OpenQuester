@@ -452,6 +452,9 @@ export class Game {
       score,
       answerType,
       answerText: this.gameState.submittedAnswer ?? null,
+      ...(this.gameState.submittedChoiceOrder == null
+        ? {}
+        : { choiceOrder: this.gameState.submittedChoiceOrder }),
       appliedChange: score - previousScore
     };
 
@@ -467,6 +470,7 @@ export class Game {
     // Always reset answering player
     this.gameState.answeringPlayer = null;
     this.gameState.submittedAnswer = null;
+    this.gameState.submittedChoiceOrder = null;
     this.setQuestionState(nextState);
 
     return playerAnswerResult;
@@ -481,6 +485,7 @@ export class Game {
     this.gameState.answeredPlayers = null;
     this.gameState.answeringPlayer = null;
     this.gameState.submittedAnswer = null;
+    this.gameState.submittedChoiceOrder = null;
     this.gameState.skippedPlayers = null;
     this.gameState.answerShowData = null;
     this.gameState.secretQuestionData = null;

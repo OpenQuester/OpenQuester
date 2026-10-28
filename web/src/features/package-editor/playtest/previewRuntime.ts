@@ -6,6 +6,7 @@ import { canBuzz, phaseOf, questionValue, wrongCostsPoints } from "@/game/select
 import { createGameStore } from "@/game/store";
 import { serverNow } from "@/lib/clock";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
+import { optionAnswer } from "@/features/game/play/question/optionAnswer";
 import {
   clampPreviewScore,
   PREVIEW_PLAYERS,
@@ -160,11 +161,11 @@ export class PreviewRuntime {
         break;
       case "answer-submitted":
         if (this.state.state.answeringPlayer === sender)
-          this.submit(command.payload.answerText ?? "");
+          this.submit(command.payload.answerText ?? "", command.payload.choiceOrder);
         break;
       case "answer-result":
         if (sender === PREVIEW_SHOWMAN)
-          this.judge(command.payload.answerType === "correct", command.payload.scoreResult);
+          this.judge(command.payload.answerType, command.payload.scoreResult);
         break;
       case "question-skip":
         if (
@@ -172,7 +173,7 @@ export class PreviewRuntime {
           this.state.state.answeringPlayer === sender &&
           ["secret", "stake", "noRisk"].includes(this.question.type)
         )
-          this.judge(false);
+          this.judge("wrong");
         else if (phaseOf(this.state) === "showing" && canBuzz(this.state, sender).ok) {
           this.dispatch({ type: "question-skip", payload: { playerId: sender } });
           if (this.allExhausted()) this.finish();
@@ -264,18 +265,54 @@ export class PreviewRuntime {
       payload: { userId: id, timer: previewTimer(60_000) },
     });
   }
-  submit(answer: string) {
+  submit(answer: string, order?: number) {
     if (phaseOf(this.state) !== "answering" || this.state.submittedAnswer != null || !answer.trim())
       return;
-    this.dispatch({ type: "answer-submitted", payload: { answerText: answer.trim() } });
-    const result = checkPreviewAnswer(this.question, answer);
-    if (result != null) this.judge(result);
+    const options =
+      this.question.type === "choice"
+        ? [...(this.question.answers ?? [])].sort((a, b) => a.order - b.order)
+        : [];
+    const normalize = (text: string | null | undefined) =>
+      (text ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+    const matches =
+      order == null
+        ? options.filter(
+            (option) => normalize(option.text) && normalize(option.text) === normalize(answer),
+          )
+        : options.filter((option) => option.order === order);
+    if (order != null && matches.length !== 1) return;
+    const option =
+      matches.length === 1 && options.filter((o) => o.order === matches[0]!.order).length === 1
+        ? matches[0]
+        : undefined;
+    if (
+      option &&
+      order != null &&
+      normalize(answer) !== normalize(optionAnswer(option.text, options.indexOf(option), options))
+    )
+      return;
+    const choiceOrder = option?.order;
+    if (
+      choiceOrder != null &&
+      (this.state.state.answeredPlayers ?? []).some(
+        (entry) => entry.answerType === "wrong" && entry.choiceOrder === choiceOrder,
+      )
+    )
+      return;
+    this.dispatch({
+      type: "answer-submitted",
+      payload: { answerText: answer.trim(), choiceOrder },
+    });
+    const result =
+      order != null && !option?.text?.trim() ? null : checkPreviewAnswer(this.question, answer);
+    if (result != null) this.judge(result ? "correct" : "wrong");
   }
-  judge(correct: boolean, scoreResult?: number) {
+  judge(answerType: "correct" | "wrong" | "skip", scoreResult?: number) {
     const id = this.state.state.answeringPlayer;
     if (phaseOf(this.state) !== "answering" || id == null) return;
     const value = questionValue(this.state);
-    const requested = scoreResult ?? (correct ? value : -value);
+    const correct = answerType === "correct";
+    const requested = scoreResult ?? (correct ? value : answerType === "skip" ? 0 : -value);
     const delta =
       requested < 0 && !wrongCostsPoints(this.state)
         ? 0
@@ -289,8 +326,9 @@ export class PreviewRuntime {
       payload: {
         answerResult: {
           player: id,
-          answerType: correct ? "correct" : "wrong",
+          answerType,
           answerText: this.state.submittedAnswer,
+          choiceOrder: this.state.state.submittedChoiceOrder,
           result: delta,
           score,
         },
@@ -363,7 +401,7 @@ export class PreviewRuntime {
         this.finish();
         break;
       case "answering":
-        this.judge(false);
+        this.judge("wrong");
         break;
       case "reveal":
         this.endRound();

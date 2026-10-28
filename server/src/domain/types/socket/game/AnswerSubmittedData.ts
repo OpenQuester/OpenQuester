@@ -3,4 +3,5 @@
  */
 export interface AnswerSubmittedData {
   answerText: string | null;
+  choiceOrder?: number;
 }

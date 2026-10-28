@@ -98,6 +98,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
     game.gameState.skippedPlayers = null;
     game.gameState.answeringPlayer = null;
     game.gameState.submittedAnswer = null;
+    game.gameState.submittedChoiceOrder = null;
     game.gameState.answerShowData = {
       answerFiles: question?.answerFiles ?? null,
       answerText: question?.answerText ?? null,
