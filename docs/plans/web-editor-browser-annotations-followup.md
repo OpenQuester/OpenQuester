@@ -182,6 +182,10 @@ Increase right inset/spacing around the package language dropdown arrow by a few
 
 When runtime auth settings expose Discord sign-in, show the existing OAuth action with Discord icon and brand styling on the upload gate. Preserve the intended return-to-upload flow, provider loading/error states, and the truthful unavailable message when Discord is not configured. Do not hardcode dev-server availability, require a real OAuth sign-in to prove rendering, or change account/server configuration.
 
+Use the existing auth-settings query and distinguish pending, failed (with retry), configured and unconfigured results; keep a cached configured provider usable during a failed background refresh. Share the Discord-branded button between upload and login, retaining each existing return target and PKCE flow. Use Discord's official white symbol and brand color from https://discord.com/branding. Visitors continue through the existing login link, and signed-in users keep access to upload.
+
+Candidate verification: focused auth/upload tests passed 14/14 and the full web suite passed 466/466. Isolated Chromium with mocked settings checked loading, failure, retry, configured and unconfigured states on 375 and 1296 px; configured screenshots covered EN/UK/RU and both available themes. The white text on brand blurple has a calculated 4.61:1 contrast; the official image decoded locally. Typecheck, lint, formatting and build passed, with the existing Vite large-chunk warning. No real OAuth was initiated. React Doctor reported one high-complexity warning for `UploadAccess`; the small conditional gate follows the distinct provider and account states, so no score-driven extraction was made.
+
 ## Evidence and acceptance requirements
 
 - Reproduce the user's 1296/1304/1366 x 884 viewports as well as small/short screens, with mixed actual image/video/audio, long labels, multiple choices, point and number answers, stake/all-play/final, and both relevant themes/locales.
@@ -247,8 +251,8 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 32 | `useAnswerChoices.ts`, `AnswerChoices.tsx`, `game/reducer.ts`, `game/protocol.ts`, server socket/domain and OpenAPI contract | U/B/L: wrong selection visible/disabled for another player, keyboard and new question; reconnect and identical/image-only options. Inspect authoritative attempt identity and legacy limits. | Accepted; root and independent QA approved |
 | 33 | Choice authoring/draft and archive, package API/persistence, `AnswerSubmittedUseCase`, preview and shared game UI | U/B/L: clicked text/media choice auto-checks; intentional spoken/text remains manual; trace explicit correctness key, privacy and legacy behavior. | Accepted; root and independent QA approved |
 | 34 | `dock/JudgeExtras.tsx`, locales, existing UI/preview and live E2E tests | U/B/L: single skip zero uses existing `answerType: skip`, result/score, eligible next player, single-answerer, exhaustion/stats/undo; ensure preview retains skip classification. | Accepted; root and independent QA approved (`c4d5df95`) |
-| 35 | `ui/Field.tsx`, `styles.css` | B: select arrow vs long text at desktop/mobile, focus and all locales; preserve native behavior, sizing and listbox/forced-colors fallback. | Design approved; implementation in progress |
-| 36 | `features/upload/UploadAccess.tsx`, `features/auth/discord.ts`, `LoginPage.tsx`, icons/locales | U/B with mocked provider: guest already has configured-provider button; add existing Discord branding/icon, distinguish loading/error/unavailable and preserve `/packages/upload` return. Test unauthenticated/guest/configured/unconfigured, no actual OAuth. | Planned; not released |
+| 35 | `ui/Field.tsx`, `styles.css` | B: select arrow vs long text at desktop/mobile, focus and all locales; preserve native behavior, sizing and listbox/forced-colors fallback. | Accepted; root and independent QA approved (`7e038b67`) |
+| 36 | `features/upload/UploadAccess.tsx`, auth button and theme tokens | U/B with mocked provider: distinguish loading/error/unavailable and preserve `/packages/upload` return. Test unauthenticated/guest/configured/unconfigured, no actual OAuth. | Design approved; implementation in progress |
 
 ### Current source observations
 
@@ -387,7 +391,7 @@ Root inspected CI run `40699163204`, job `122853959378`, for head `940f9701`: we
 
 ### Final review follow-ups after item 36
 
-- Final point-question review shows coordinate text but lacks the image, correct target/radius and player's picked point needed for a host's manual ruling. Investigate reusing the existing point picker and coordinate parser with existing data, preserving role privacy and rejoin; report any contract gap before changing the server.
+- Final point-question review shows coordinate text but lacks the image, correct target/radius and player's picked point needed for a host's manual ruling. Reuse the existing point picker and coordinate parser where data permits, preserving role privacy. Root found a rejoin gap: final review clears the timer, so the current question-data rejoin hook returns early; the stored final question data is public, while the full question is sent only to the host during the live transition. Do not fetch the whole package as a workaround. Design the minimal guarded server/rejoin contract and tests separately; new backend scope requires user authorization.
 - The repair action for `choiceCorrectUnresolved` currently focuses question text instead of the correct-choice control. Route focus to an available correct-option radio, with an appropriate add-option fallback, and verify focus after the dialog closes.
 
 ### Annotation 32 design and reproduction

@@ -3,7 +3,7 @@ import { PageContainer, PageTitle } from "@/ui/Page";
 import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
 import { FieldError, Label, TextInput } from "@/ui/Field";
-import { startDiscordLogin } from "./discord";
+import { DiscordSignInButton } from "./DiscordSignInButton";
 import { useLoginForm } from "./useLoginForm";
 
 export function LoginPage() {
@@ -42,13 +42,7 @@ export function LoginPage() {
         {discordClientId && (
           <Card tone="raised" className="flex flex-col gap-3">
             <p className="m-0 text-soft">{t("login.discordHelp")}</p>
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={() => void startDiscordLogin(discordClientId, target)}
-            >
-              {t("login.discord")}
-            </Button>
+            <DiscordSignInButton clientId={discordClientId} returnTo={target} />
           </Card>
         )}
       </div>
