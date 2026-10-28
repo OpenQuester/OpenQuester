@@ -32,6 +32,7 @@ export function PointPicker({
   radius = DEFAULT_POINT_RADIUS,
   picked,
   className,
+  imageClassName,
   onImageLoad,
 }: {
   src: string;
@@ -40,6 +41,7 @@ export function PointPicker({
   radius?: number | null;
   picked?: Spot | null;
   className?: string;
+  imageClassName?: string;
   onImageLoad?: (width: number, height: number) => void;
 }) {
   const { t } = useTranslation();
@@ -98,7 +100,7 @@ export function PointPicker({
       <img
         src={src}
         alt={t("point.picture")}
-        className="block max-h-[60vh] max-w-full"
+        className={cn("block max-h-[60vh] max-w-full", imageClassName)}
         onLoad={(event) =>
           onImageLoad?.(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)
         }

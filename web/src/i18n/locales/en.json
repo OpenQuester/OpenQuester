@@ -1036,6 +1036,8 @@
       "mediaOnly": "Media answer",
       "openFull": "Select the question for the full preview.",
       "answer": "Answer",
+      "pointAnswer": "Point on image 1 · {{x}}%, {{y}}%",
+      "pointUnavailable": "The point or its image is unavailable.",
       "noAnswer": "No answer yet",
       "noQuestion": "No question text or media yet",
       "hint": "Showman hint",

@@ -9,6 +9,7 @@ import type { DraftMedia } from "./packageDraft";
 import { formatBytes } from "@/lib/format";
 import { EditorMediaPlayer } from "./EditorMediaPlayer";
 import { useAttachmentSize } from "./useAttachmentSize";
+import { PointPicker, type Spot } from "@/features/game/play/PointPicker";
 
 export function MediaIcon({ type, size = 16 }: { type: DraftMedia["type"]; size?: number }) {
   return type === "image" ? (
@@ -28,10 +29,12 @@ export function AttachmentPreview({
   media,
   small,
   className,
+  point,
 }: {
   media: Pick<DraftMedia, "md5" | "type">;
   small?: boolean;
   className?: string;
+  point?: { target: Spot | null; radius: number | null };
 }) {
   const { t } = useTranslation();
   const file = useMediaFile(media.md5);
@@ -61,7 +64,16 @@ export function AttachmentPreview({
     );
   return (
     <div className="flex min-w-0 flex-col gap-1">
-      {media.type === "image" ? (
+      {media.type === "image" && point ? (
+        <div className="flex w-full justify-center rounded-sm bg-surface-3">
+          <PointPicker
+            src={url}
+            target={point.target}
+            radius={point.radius}
+            imageClassName="max-h-64"
+          />
+        </div>
+      ) : media.type === "image" ? (
         <img
           src={url}
           alt=""
