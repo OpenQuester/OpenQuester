@@ -76,6 +76,7 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
         onChange={(update) => setQ((prev) => ({ ...prev, answerFiles: update(prev.answerFiles) }))}
       />
       <QuestionTiming form={form} />
+      <hr className="m-0 border-0 border-t border-line" />
       <QuestionMetadataFields q={q} set={set} />
     </>
   );

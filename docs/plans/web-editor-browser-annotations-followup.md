@@ -221,7 +221,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 12 | `QuestionContent.tsx`, `LinesField.tsx` | B/U: correct/wrong text side by side, hint below; narrow stack, guidance/error association and multiline cursor. | Accepted; root and independent QA approved |
 | 13 | `QuestionContent.tsx`, `useQuestionForm.ts`, `ui/Field.tsx` | U/B: answer media toggles disabled visual and description; invalid fallback retained without active error, re-enabled/revalidated after last removal, reload and cancel. | Accepted; root and independent QA approved |
 | 14 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: semantic answer boundary after question on wide/narrow; use a theme-token separator, no extra decorative wrapper; verify ordering/focus. | Accepted; root and independent QA approved |
-| 15 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: attribution group on wide/narrow; theme-token separator, no duplicated semantic grouping. | Planned; not released |
+| 15 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: attribution group on wide/narrow; theme-token separator, no duplicated semantic grouping. | Accepted; root and independent QA approved |
 | 16 | `QuestionContent.tsx`, `ui/Field.tsx` | U/B: invalid duration produces exactly one aria-associated message/error; valid/media-active explanation no duplicate or false invalid state; retain fractional 2–30 validation. | Planned; not released |
 | 17 | `PackageEditorShell.tsx`, `shell/PackageEditorInspector.tsx`, `shell/packageEditorShellStyles.ts`, `shell/usePackageEditorShell.ts` | B: 1296×884 and resize 1280→1920, action row/player sliders; implement bounded accessible local resize per constants above, keyboard/pointer, resize clamp, min main and mobile fallback. | Planned; not released |
 | 18 | `QuestionPreview.tsx`, `AttachmentPreview.tsx`, `PointPicker.tsx`, locales | B/U: point answer selected in inspector; localized coordinate control, hover/focus temporary vs click/Enter/Space pinned, reset on question/image, existing first-image circle; no player/game disclosure or mutation. | Planned; not released |
@@ -315,3 +315,7 @@ Root approved patch SHA-256 `2E5F50B1F2B5752F5AC06D063E82DBA19D1AE3FD5A7A4603193
 ### Annotation 14 acceptance
 
 Root approved patch SHA-256 `1D6EB229E6FA80F9DBEABC48E070BF1E44E0ED12AA68FA8D6E3DC6074837C4AC`. Independent QA checked the semantic separator before answer sections for normal, choice and final questions on wide and narrow layouts. Existing checks passed.
+
+### Annotation 15 acceptance
+
+Root approved patch SHA-256 `5BFC3583399A105CA6483C4A41C5011B4A11072AF39FDFCB83C222D109C56C55`. Independent QA and full screenshots verified the attribution divider in normal, choice and final forms on wide and narrow layouts; focus and entered authors survived resize and save/reopen.
