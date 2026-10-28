@@ -31,6 +31,13 @@ export function AnswerReveal() {
         {t("reveal.answer")}
       </span>
       {answerText && <p className={questionStyles.revealedAnswer}>{answerText}</p>}
+      {data?.correctChoiceImage && (
+        <img
+          src={data.correctChoiceImage}
+          alt={t("reveal.answer")}
+          className="max-h-80 max-w-full rounded-md object-contain"
+        />
+      )}
       {data?.answerPoint && pointImage && (
         <PointPicker src={pointImage} target={data.answerPoint} radius={data.answerDeviation} />
       )}

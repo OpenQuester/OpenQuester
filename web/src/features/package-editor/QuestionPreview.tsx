@@ -9,6 +9,7 @@ import { MediaIcon, AttachmentPreview } from "./AttachmentPreview";
 import { questionTypeDetail } from "./questionPresentation";
 import { useMediaFile } from "./packageEditorStore";
 import { numericAnswerText } from "./numericAnswer";
+import { correctChoice } from "./choiceCorrectness";
 
 /** Everything a question shows, read-only: used in the inspector and full previews. */
 export function QuestionPreview({
@@ -38,6 +39,7 @@ function QuestionPreviewContent({
   const pointAnswer = type !== "choice" && q.answerType === "point";
   const numberAnswer = type !== "choice" && q.answerType === "number";
   const numberText = numberAnswer ? numericAnswerText(q.answerNumber) : null;
+  const selectedChoice = type === "choice" ? correctChoice(q) : undefined;
   const imageIndex = q.questionFiles.findIndex((file) => file.type === "image");
   const image = q.questionFiles[imageIndex];
   const imageFile = useMediaFile(pointAnswer ? image?.md5 : undefined);
@@ -79,7 +81,7 @@ function QuestionPreviewContent({
       {type === "choice" && q.options.length > 0 && (
         <ol className={packageEditorStyles.previewChoices}>
           {q.options.map((o, i) => {
-            const correct = o.text.trim() !== "" && o.text.trim() === q.answerText.trim();
+            const correct = o.id === selectedChoice?.id;
             return (
               <li
                 key={o.id}
@@ -137,6 +139,8 @@ function QuestionPreviewContent({
           <span className="font-semibold whitespace-pre-wrap [overflow-wrap:anywhere]">
             {q.answerText}
           </span>
+        ) : selectedChoice?.file ? (
+          <span className="font-semibold">{t("editor.preview.mediaOnly")}</span>
         ) : q.answerFiles.length === 0 ? (
           <span className="text-sm text-warning">{t("editor.preview.noAnswer")}</span>
         ) : null}

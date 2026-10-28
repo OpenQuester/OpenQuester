@@ -4754,6 +4754,11 @@
               "showDelay": {
                 "$ref": "#/components/schemas/QuestionShowDelay"
               },
+              "correctChoiceOrder": {
+                "type": ["integer", "null"],
+                "minimum": 0,
+                "description": "Optional unique order of the authored correct choice; omitted for legacy questions and hidden from players before reveal"
+              },
               "answers": {
                 "type": "array",
                 "items": {
@@ -6921,6 +6926,10 @@
           "answerPointImage": {
             "type": ["string", "null"],
             "description": "Original question image URL for the point-answer reveal, retained on rejoin"
+          },
+          "correctChoiceImage": {
+            "type": ["string", "null"],
+            "description": "Image-only correct choice for the answer reveal, retained on rejoin"
           },
           "answerDeviation": {
             "type": ["number", "null"]

@@ -7,7 +7,7 @@ import { md5Hex } from "@/features/upload/archive";
 import { parseOq } from "@/features/upload/oq";
 
 import { ExportMediaError, exportOq } from "./packageMedia";
-import { emptyPackage, newQuestion, newRound, newTheme } from "./packageDraft";
+import { emptyPackage, fromUpload, newQuestion, newRound, newTheme } from "./packageDraft";
 
 const MD5 = "a".repeat(32);
 
@@ -86,5 +86,29 @@ describe("exporting a draft opened from a published package", () => {
     expect(parsed.files.get(remoteId)?.bytes).toEqual(remoteBytes);
     expect(parsed.files.get(localId)?.bytes).toEqual(localBytes);
     expect(fetch).toHaveBeenCalledExactlyOnceWith(stored.url);
+  });
+
+  it("keeps an image choice selection and its bytes through an actual archive", async () => {
+    const bytes = new Uint8Array([10, 11, 12]);
+    const md5 = md5Hex(bytes);
+    const pkg = emptyPackage("Choice");
+    const q = newQuestion(100, {
+      type: "choice",
+      text: "Q",
+      correctChoiceOptionId: "image",
+      options: [
+        { id: "other", text: "Other", file: null },
+        { id: "image", text: "", file: { md5, type: "image" } },
+      ],
+    });
+    pkg.rounds = [{ ...newRound("Round"), themes: [newTheme("Theme", [q])] }];
+    const media = new Map([[md5, { md5, type: "image" as const, name: "image.png", bytes }]]);
+    const blob = await exportOq(pkg, media);
+    const parsed = await parseOq(unzipSync(new Uint8Array(await blob.arrayBuffer())));
+    const restored = fromUpload(parsed.content).rounds[0]!.themes[0]!.questions[0]!;
+    expect(
+      restored.options.find((option) => option.id === restored.correctChoiceOptionId)?.file?.md5,
+    ).toBe(md5);
+    expect(parsed.files.get(md5)?.bytes).toEqual(bytes);
   });
 });

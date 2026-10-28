@@ -3855,6 +3855,8 @@ export interface components {
             /** @constant */
             subType?: "simple";
             showDelay: components["schemas"]["QuestionShowDelay"];
+            /** @description Optional unique order of the authored correct choice; omitted for legacy questions and hidden from players before reveal */
+            correctChoiceOrder?: number | null;
             answers: components["schemas"]["QuestionChoiceAnswers"][];
         } & {
             /**
@@ -4994,6 +4996,8 @@ export interface components {
             answerPoint?: components["schemas"]["AnswerPoint"] | null;
             /** @description Original question image URL for the point-answer reveal, retained on rejoin */
             answerPointImage?: string | null;
+            /** @description Image-only correct choice for the answer reveal, retained on rejoin */
+            correctChoiceImage?: string | null;
             answerDeviation?: number | null;
         };
         /** @description Data sent when a player automatically loses in final round */

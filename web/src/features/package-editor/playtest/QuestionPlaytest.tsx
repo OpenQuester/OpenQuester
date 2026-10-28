@@ -87,21 +87,20 @@ export function QuestionPlaytest({
   } | null>(null);
   const [failed, setFailed] = useState(false);
   const [run, setRun] = useState(0);
-  const names = useMemo<PreviewNames>(
-    () => ({
-      showman: t("editor.playtest.showman"),
-      players: [
-        t("editor.playtest.player", { number: 1 }),
-        t("editor.playtest.player", { number: 2 }),
-        t("editor.playtest.player", { number: 3 }),
-      ],
-      spectator: t("editor.playtest.spectator"),
-      round: t("editor.playtest.round"),
-      final: t("editor.playtest.final"),
-      theme: t("editor.playtest.theme"),
-    }),
-    [t],
-  );
+  // Player names are part of the launched game. Keep its media resources and
+  // state alive when only the surrounding UI language changes.
+  const [names] = useState<PreviewNames>(() => ({
+    showman: t("editor.playtest.showman"),
+    players: [
+      t("editor.playtest.player", { number: 1 }),
+      t("editor.playtest.player", { number: 2 }),
+      t("editor.playtest.player", { number: 3 }),
+    ],
+    spectator: t("editor.playtest.spectator"),
+    round: t("editor.playtest.round"),
+    final: t("editor.playtest.final"),
+    theme: t("editor.playtest.theme"),
+  }));
 
   useEffect(() => {
     if (issues.length) return;
@@ -115,7 +114,7 @@ export function QuestionPlaytest({
         if (!controller.signal.aborted)
           setPrepared({
             question: ready,
-            initial: initialPreview(final, themeName || t("editor.playtest.theme"), ready, names),
+            initial: initialPreview(final, themeName || names.theme, ready, names),
           });
       })
       .catch(() => {
@@ -125,7 +124,7 @@ export function QuestionPlaytest({
       controller.abort();
       resources.dispose();
     };
-  }, [attempt, final, issues.length, media, names, question, t, themeName]);
+  }, [attempt, final, issues.length, media, names, question, themeName]);
 
   if (issues.length)
     return (

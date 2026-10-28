@@ -6,6 +6,7 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { AnswerCheckLogic } from "domain/logic/question/AnswerCheckLogic";
 import { AnswerSubmittedLogic } from "domain/logic/question/AnswerSubmittedLogic";
 import { ChoiceSelectionLogic } from "domain/logic/question/ChoiceSelectionLogic";
+import { ChoiceAnswerLogic } from "domain/logic/question/ChoiceAnswerLogic";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import { DataMutationConverter } from "domain/types/action/DataMutation";
@@ -54,11 +55,12 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
     const result = AnswerSubmittedLogic.buildResult({ game, answerText, choiceOrder });
     const submitted = DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts);
 
-    const selected = game.gameState.currentQuestion?.answers?.find(
-      (option) => option.order === choiceOrder
+    const verdict = await this._check(
+      game,
+      answerText,
+      choiceOrder,
+      ctx.action.payload.choiceOrder !== undefined
     );
-    const imageOnly = ctx.action.payload.choiceOrder !== undefined && !selected?.text?.trim();
-    const verdict = imageOnly ? null : await this._check(game, answerText);
     if (verdict === null) {
       return {
         success: true,
@@ -83,7 +85,12 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
   }
 
   /** Choice, number and point answers are judged by the server */
-  private async _check(game: Game, answerText: string | null): Promise<boolean | null> {
+  private async _check(
+    game: Game,
+    answerText: string | null,
+    choiceOrder: number | null,
+    explicitSelection: boolean
+  ): Promise<boolean | null> {
     const current = game.gameState.currentQuestion;
     const checkable =
       current?.type === PackageQuestionType.CHOICE ||
@@ -94,6 +101,9 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
 
     const resources = await this.transitionResourceService.getCurrentQuestionWithTheme(game);
 
-    return AnswerCheckLogic.check(resources?.questionWithTheme?.question, answerText);
+    const question = resources?.questionWithTheme?.question;
+    return current?.type === PackageQuestionType.CHOICE
+      ? ChoiceAnswerLogic.check(question, answerText, choiceOrder, explicitSelection)
+      : AnswerCheckLogic.check(question, answerText);
   }
 }

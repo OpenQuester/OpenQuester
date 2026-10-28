@@ -1,12 +1,33 @@
 import type { Question } from "@/game/protocol";
+import { ambiguousImagePlaceholder } from "@/features/game/play/question/optionAnswer";
 
 const normalize = (value: string | null | undefined) =>
   (value ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
 
 /** Mirrors AnswerCheckLogic; null means that the showman must judge. */
-export function checkPreviewAnswer(q: Question, answer: string): boolean | null {
+export function checkPreviewAnswer(
+  q: Question,
+  answer: string,
+  choiceOrder: number | null = null,
+  explicitSelection = false,
+): boolean | null {
   if (!answer.trim()) return null;
   if (q.type === "choice") {
+    const answers = q.answers ?? [];
+    if (!explicitSelection && ambiguousImagePlaceholder(answers, answer)) return null;
+    if (q.correctChoiceOrder != null) {
+      if (!Number.isInteger(q.correctChoiceOrder) || q.correctChoiceOrder < 0) return null;
+      const correct = answers.filter((option) => option.order === q.correctChoiceOrder);
+      const selected = answers.filter((option) => option.order === choiceOrder);
+      if (correct.length !== 1 || selected.length !== 1) return null;
+      const alias = normalize(selected[0]!.text);
+      return (
+        selected[0]!.order === q.correctChoiceOrder ||
+        (!!alias && (q.rightAnswers ?? []).some((item) => normalize(item) === alias))
+      );
+    }
+    if (explicitSelection && !answers.find((option) => option.order === choiceOrder)?.text?.trim())
+      return null;
     const options = (q.answers ?? []).map((option) => normalize(option.text)).filter(Boolean);
     const rights = [q.answerText, ...(q.rightAnswers ?? [])]
       .map(normalize)

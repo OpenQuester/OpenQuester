@@ -53,6 +53,10 @@ export interface UploadQuestion {
   priceMultiplier?: number;
   showDelay?: number;
   answers?: { order: number; text: string | null; file: FileRef | null }[];
+  /** Correct option order; missing or null means legacy. */
+  correctChoiceOrder?: number | null;
+  /** Editor archive only: the author must repair an invalid or removed selection. */
+  correctChoiceNeedsRepair?: boolean;
 }
 
 export interface UploadTheme {
@@ -107,6 +111,7 @@ export interface ImportWarning {
     | "emptyQuestion"
     | "noAnswer"
     | "choiceAsSimple"
+    | "choiceCorrectUnresolved"
     | "unknownType"
     | "finalAsSimple"
     | "extraFinalQuestions"

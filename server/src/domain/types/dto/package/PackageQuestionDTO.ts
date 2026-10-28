@@ -57,6 +57,8 @@ export interface PackageQuestionDTO {
   priceMultiplier?: number | null; // NoRisk question
   showDelay?: number | null; // Choice question
   answers?: PackageAnswerDTO[] | null; // Choice question
+  /** Correct choice's order, when authored; private until reveal. */
+  correctChoiceOrder?: number | null;
 }
 
 /** A spot on a picture, as fractions (0–1) of its width and height */

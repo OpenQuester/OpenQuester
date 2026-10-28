@@ -67,6 +67,7 @@ import { AddPackageCreditsAndAnswers_0_27_0_1792300000000 as AddPackageCreditsAn
 import { AddAnswerTypes_0_28_0_1792400000000 as AddAnswerTypes } from "./migrations/0.28.0_AddAnswerTypes_1792400000000";
 import { AddQuestionReports_0_29_0_1792500000000 as AddQuestionReports } from "./migrations/0.29.0_AddQuestionReports_1792500000000";
 import { AddPackageUploadStatus_0_30_0_1792600000000 as AddPackageUploadStatus } from "./migrations/0.30.0_AddPackageUploadStatus_1792600000000";
+import { AddCorrectChoiceOrder_0_31_0_1792700000000 as AddCorrectChoiceOrder } from "./migrations/0.31.0_AddCorrectChoiceOrder_1792700000000";
 import { QuestionReport } from "infrastructure/database/models/report/QuestionReport";
 import { StorageLimit } from "infrastructure/database/models/StorageLimit";
 
@@ -212,7 +213,8 @@ export const AppDataSource = new DataSource({
     AddPackageCreditsAndAnswers,
     AddAnswerTypes,
     AddQuestionReports,
-    AddPackageUploadStatus
+    AddPackageUploadStatus,
+    AddCorrectChoiceOrder
   ],
   poolSize: env.DB_POOL_SIZE,
   migrationsRun: true,

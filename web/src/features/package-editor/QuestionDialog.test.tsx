@@ -470,6 +470,47 @@ it("keeps choice correctness and form history when renaming an option and changi
   });
 });
 
+it("selects an image-only option by identity", async () => {
+  const q = newQuestion(100, {
+    type: "choice",
+    text: "Question",
+    answerText: "Other",
+    options: [
+      { id: "image", text: "", file: { md5: "picture", type: "image" } },
+      { id: "other", text: "Other", file: null },
+    ],
+  });
+  const { store } = setup(q);
+  const user = userEvent.setup();
+  await user.click(screen.getAllByRole("radio", { name: "Correct" })[0]!);
+  expect(screen.getAllByRole("radio", { name: "Correct" })[0]).toBeChecked();
+  await user.click(screen.getByTestId("question-save"));
+  const saved = store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!;
+  expect(saved.correctChoiceOptionId).toBe("image");
+  expect(
+    toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]!.correctChoiceOrder,
+  ).toBe(0);
+});
+
+it("does not transfer the correct selection when its option is deleted", async () => {
+  const q = newQuestion(100, {
+    type: "choice",
+    text: "Question",
+    correctChoiceOptionId: "a",
+    answerText: "Same",
+    options: [
+      { id: "a", text: "Same", file: null },
+      { id: "b", text: "Same", file: null },
+    ],
+  });
+  const { store } = setup(q);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "Remove option A" }));
+  expect(screen.getByRole("radio", { name: "Correct" })).not.toBeChecked();
+  await user.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.correctChoiceOptionId).toBeNull();
+});
+
 function setup(question: DraftQuestion, wide = false) {
   const listeners = new Set<() => void>();
   const mediaQuery = {

@@ -6,7 +6,10 @@ import { canBuzz, phaseOf, questionValue, wrongCostsPoints } from "@/game/select
 import { createGameStore } from "@/game/store";
 import { serverNow } from "@/lib/clock";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
-import { optionAnswer } from "@/features/game/play/question/optionAnswer";
+import {
+  ambiguousImagePlaceholder,
+  optionAnswer,
+} from "@/features/game/play/question/optionAnswer";
 import {
   clampPreviewScore,
   PREVIEW_PLAYERS,
@@ -276,9 +279,11 @@ export class PreviewRuntime {
       (text ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
     const matches =
       order == null
-        ? options.filter(
-            (option) => normalize(option.text) && normalize(option.text) === normalize(answer),
-          )
+        ? ambiguousImagePlaceholder(options, answer)
+          ? []
+          : options.filter(
+              (option) => normalize(option.text) && normalize(option.text) === normalize(answer),
+            )
         : options.filter((option) => option.order === order);
     if (order != null && matches.length !== 1) return;
     const option =
@@ -303,8 +308,7 @@ export class PreviewRuntime {
       type: "answer-submitted",
       payload: { answerText: answer.trim(), choiceOrder },
     });
-    const result =
-      order != null && !option?.text?.trim() ? null : checkPreviewAnswer(this.question, answer);
+    const result = checkPreviewAnswer(this.question, answer, choiceOrder ?? null, order != null);
     if (result != null) this.judge(result ? "correct" : "wrong");
   }
   judge(answerType: "correct" | "wrong" | "skip", scoreResult?: number) {
@@ -351,6 +355,13 @@ export class PreviewRuntime {
     );
   }
   finish(id: number | null = this.picker) {
+    const correctChoices =
+      this.question.type === "choice" && this.question.correctChoiceOrder != null
+        ? (this.question.answers ?? []).filter(
+            (option) => option.order === this.question.correctChoiceOrder,
+          )
+        : [];
+    const correctChoice = correctChoices.length === 1 ? correctChoices[0] : undefined;
     const files = this.question.answerFiles?.map((file) => ({
       ...file,
       displayTime:
@@ -366,6 +377,12 @@ export class PreviewRuntime {
       payload: {
         answerText: this.question.answerText ?? null,
         answerFiles: this.question.answerFiles ?? null,
+        correctChoiceImage:
+          !this.question.answerFiles?.length &&
+          !correctChoice?.text?.trim() &&
+          correctChoice?.file?.type === "image"
+            ? (correctChoice.file.link ?? null)
+            : null,
         rightAnswers: this.question.rightAnswers ?? null,
         answerPoint: this.question.answerPoint ?? null,
         answerDeviation: this.question.answerDeviation ?? null,

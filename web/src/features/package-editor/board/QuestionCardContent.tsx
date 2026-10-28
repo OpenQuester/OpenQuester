@@ -5,6 +5,7 @@ import { CopyIcon, EditIcon, MoveIcon, TrashIcon } from "@/ui/icons";
 import { Menu } from "@/ui/Menu";
 import { MediaIcon, AttachmentPreview } from "../AttachmentPreview";
 import type { CardActions, QuestionCardProps } from "../QuestionCard";
+import { correctChoice } from "../choiceCorrectness";
 
 import type { useQuestionCard } from "./useQuestionCard";
 
@@ -17,6 +18,7 @@ export function QuestionCardContent({
 }: Omit<QuestionCardProps, "index"> & { card: ReturnType<typeof useQuestionCard> }) {
   const { t } = useTranslation();
   const { selected, readOnly, cards, type, image, mediaTypes, label } = card;
+  const choiceImage = !final && q.type === "choice" ? correctChoice(q)?.file : null;
   return (
     <button
       type="button"
@@ -81,14 +83,14 @@ export function QuestionCardContent({
         <span
           className={cn(
             packageBoardStyles.questionAnswer,
-            q.answerText.trim() || q.answerFiles.length
+            q.answerText.trim() || q.answerFiles.length || choiceImage
               ? "bg-success-surface text-success"
               : "bg-warning-surface text-warning",
           )}
         >
           {q.answerText.trim() ||
-            (q.answerFiles.length
-              ? t(`editor.media.${q.answerFiles[0]!.type}`)
+            (q.answerFiles.length || choiceImage
+              ? t(`editor.media.${q.answerFiles[0]?.type ?? choiceImage?.type}`)
               : t("editor.preview.noAnswer"))}
         </span>
       )}

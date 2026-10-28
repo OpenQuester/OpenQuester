@@ -58,6 +58,7 @@ export function useAnswerChoices() {
       .map((attempt) => attempt.choiceOrder),
   );
   const correct = role === "showman" ? q.answerText?.trim().toLowerCase() : undefined;
+  const correctOrder = role === "showman" ? q.correctChoiceOrder : undefined;
   // Locked while the pick is on its way or accepted; a failed send unlocks it
   const locked = pending?.action === "answer-submitted" || session.submittedAnswer != null;
 
@@ -71,5 +72,5 @@ export function useAnswerChoices() {
         : {}),
     });
   }
-  return { visible, answers, correct, answering, locked, picked, pick, rejected };
+  return { visible, answers, correct, correctOrder, answering, locked, picked, pick, rejected };
 }

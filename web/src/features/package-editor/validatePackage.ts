@@ -40,6 +40,7 @@ export type PackageIssueCode =
   | "choiceOptions"
   | "choiceEmptyOption"
   | "choiceNoCorrect"
+  | "choiceCorrectUnresolved"
   | "secretPrices"
   | "multipleFinals"
   | "finalNotLast"
@@ -186,7 +187,16 @@ export function checkQuestion(
     if (q.options.length < 2 || q.options.length > 8)
       add("critical", "choiceOptions", { count: q.options.length });
     if (q.options.some((o) => !o.text.trim() && !o.file)) add("critical", "choiceEmptyOption");
-    if (!q.options.some((o) => o.text.trim() && o.text.trim() === q.answerText.trim()))
+    if (
+      q.correctChoiceOptionId === null ||
+      (q.correctChoiceOptionId !== undefined &&
+        !q.options.some((o) => o.id === q.correctChoiceOptionId))
+    )
+      add("critical", "choiceCorrectUnresolved");
+    else if (
+      q.correctChoiceOptionId === undefined &&
+      !q.options.some((o) => o.text.trim() && o.text.trim() === q.answerText.trim())
+    )
       add("warning", "choiceNoCorrect");
   } else if (
     (numeric ? !Number.isFinite(q.answerNumber) : !q.answerText.trim()) &&

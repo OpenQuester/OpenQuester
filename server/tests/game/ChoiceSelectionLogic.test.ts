@@ -1,5 +1,6 @@
 import { describe, expect, it } from "@jest/globals";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { ChoiceSelectionLogic } from "domain/logic/question/ChoiceSelectionLogic";
 import { AnswerSubmittedLogic } from "domain/logic/question/AnswerSubmittedLogic";
 import { GameMapper } from "domain/mappers/GameMapper";
@@ -58,5 +59,21 @@ describe("choice selection identity", () => {
     game.gameState.currentQuestion!.answers![1].order = 0;
     expect(() => ChoiceSelectionLogic.resolve(game, "Wrong", 0)).toThrow();
     expect(ChoiceSelectionLogic.resolve(game, "Wrong")).toBeNull();
+  });
+
+  it("does not attach a text option identity to a legacy image-placeholder collision", () => {
+    const game = gameWithChoices();
+    game.gameState.currentQuestion!.answers = [
+      { order: 0, text: null, file: { md5: "image", type: PackageFileType.IMAGE } },
+      { order: 1, text: "1", file: null },
+      { order: 2, text: "42", file: null }
+    ];
+    game.gameState.answeringPlayer = 2;
+    const order = ChoiceSelectionLogic.resolve(game, "1");
+    expect(order).toBeNull();
+    AnswerSubmittedLogic.recordSubmission(game, "1", order);
+    const result = game.handleQuestionAnswer(0, AnswerResultType.WRONG, QuestionState.SHOWING);
+    expect(result.choiceOrder).toBeUndefined();
+    expect(ChoiceSelectionLogic.resolve(game, "1", 1)).toBe(1);
   });
 });

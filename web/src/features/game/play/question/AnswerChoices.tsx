@@ -5,7 +5,7 @@ import { useAnswerChoices } from "./useAnswerChoices";
 
 export function AnswerChoices() {
   const { t } = useTranslation();
-  const { visible, answers, correct, answering, locked, picked, pick, rejected } =
+  const { visible, answers, correct, correctOrder, answering, locked, picked, pick, rejected } =
     useAnswerChoices();
   if (!visible) return <p className="m-0 text-muted">{t("question.optionsSoon")}</p>;
 
@@ -13,7 +13,10 @@ export function AnswerChoices() {
     <ol className={questionStyles.choices} aria-label={t("question.options")}>
       {answers.map((a, i) => {
         const text = a.text ?? "";
-        const isCorrect = correct != null && text.trim().toLowerCase() === correct;
+        const isCorrect =
+          correctOrder != null
+            ? a.order === correctOrder
+            : correct != null && text.trim().toLowerCase() === correct;
         const isRejected = rejected.has(a.order);
         return (
           <li key={a.id ?? i}>

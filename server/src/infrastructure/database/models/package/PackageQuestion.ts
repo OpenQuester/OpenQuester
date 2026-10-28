@@ -42,6 +42,7 @@ export interface PackageQuestionImport {
   transferType?: PackageQuestionTransferType | null;
   priceMultiplier?: number | null;
   showDelay?: number | null;
+  correctChoiceOrder?: number | null;
   showAnswerDuration: number;
 }
 
@@ -141,6 +142,9 @@ export class PackageQuestion {
   @Column({ name: "show_delay", type: "int", nullable: true })
   showDelay?: number | null;
 
+  @Column({ name: "correct_choice_order", type: "int", nullable: true })
+  correctChoiceOrder?: number | null;
+
   @OneToMany(
     () => PackageQuestionChoiceAnswer,
     (answer: PackageQuestionChoiceAnswer) => answer.question
@@ -157,7 +161,8 @@ export class PackageQuestion {
     this.text_order = data.textOrder ?? null;
     this.answer_hint = data.answerHint;
     this.answer_text = data.answerText;
-    this.answer_type = data.answerType && data.answerType !== AnswerType.TEXT ? data.answerType : null;
+    this.answer_type =
+      data.answerType && data.answerType !== AnswerType.TEXT ? data.answerType : null;
     this.answer_number = data.answerNumber ?? null;
     this.answer_point = data.answerPoint ?? null;
     this.answer_deviation = data.answerDeviation ?? null;
@@ -173,6 +178,7 @@ export class PackageQuestion {
     this.transfer_type = data.transferType;
     this.price_multiplier = data.priceMultiplier;
     this.showDelay = data.showDelay;
+    this.correctChoiceOrder = data.correctChoiceOrder ?? null;
     this.show_answer_duration = data.showAnswerDuration;
   }
 
@@ -201,6 +207,9 @@ export class PackageQuestion {
       textOrder: this.text_order ?? null,
       answerHint: this.answer_hint,
       answerText: this.answer_text,
+      ...(this.type === PackageQuestionType.CHOICE && this.correctChoiceOrder != null
+        ? { correctChoiceOrder: this.correctChoiceOrder }
+        : {}),
       answerType: this.answer_type ?? AnswerType.TEXT,
       answerNumber: this.answer_number ?? null,
       answerPoint: this.answer_point ?? null,

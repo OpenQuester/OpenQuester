@@ -129,11 +129,13 @@ export function answeringModel({
         pending: sending("question-skip"),
       },
       next:
-        q?.answerType === "number" || q?.answerType === "point"
-          ? t("dock.answering.autoNext")
-          : single
-            ? t("dock.answering.youNextSingle")
-            : t("dock.answering.youNext"),
+        q?.type === "choice"
+          ? t("dock.answering.choiceNext")
+          : q?.answerType === "number" || q?.answerType === "point"
+            ? t("dock.answering.autoNext")
+            : single
+              ? t("dock.answering.youNextSingle")
+              : t("dock.answering.youNext"),
     };
   }
   return {

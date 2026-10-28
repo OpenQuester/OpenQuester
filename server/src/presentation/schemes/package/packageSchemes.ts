@@ -43,7 +43,9 @@ const packageFileSchema = Joi.object({
 });
 
 // Base question schema with common fields
-const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
+type PackageQuestionInput = PackageQuestionDTO & { correctChoiceNeedsRepair?: unknown };
+
+const baseQuestionSchema = Joi.object<PackageQuestionInput>({
   price: Joi.number().allow(null).max(MAX_QUESTION_PRICE_UPLOAD).required(), // Final round questions have null price - players bid after theme selection
   order: Joi.number().min(0).required(),
   type: Joi.string()
@@ -145,6 +147,13 @@ const questionSchema = baseQuestionSchema.keys({
     then: Joi.number().required(),
     otherwise: Joi.forbidden()
   }),
+  correctChoiceOrder: Joi.when("type", {
+    is: "choice",
+    then: Joi.number().integer().min(0).allow(null),
+    otherwise: Joi.forbidden()
+  }),
+  // Archive-only marker: an unresolved draft cannot be published as legacy.
+  correctChoiceNeedsRepair: Joi.forbidden(),
   answers: Joi.when("type", {
     is: "choice",
     then: Joi.array()
@@ -162,7 +171,17 @@ const questionSchema = baseQuestionSchema.keys({
   })
 });
 
-const questions = Joi.array().items(questionSchema).required();
+const validateChoiceKey = (question: PackageQuestionDTO, helpers: Joi.CustomHelpers) => {
+  if (
+    question.correctChoiceOrder != null &&
+    (question.answers ?? []).filter((answer) => answer.order === question.correctChoiceOrder).length !== 1
+  ) {
+    return helpers.error("any.invalid");
+  }
+  return question;
+};
+
+const questions = Joi.array().items(questionSchema.custom(validateChoiceKey)).required();
 
 // Themes schema with conditional validation for final rounds
 const themes = Joi.array()
@@ -189,7 +208,7 @@ const finalRoundThemes = Joi.array()
             type: Joi.string().valid("simple").required(),
             price: Joi.allow(null).required(), // Final round questions must have null price
             isHidden: Joi.boolean().valid(false).optional()
-          })
+          }).custom(validateChoiceKey)
         )
         .length(1) // Exactly one question per theme in final round
         .required()

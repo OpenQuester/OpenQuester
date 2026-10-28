@@ -154,6 +154,7 @@ export interface Question {
   wrongAnswers?: string[] | null;
   /** Showman only until the answer is revealed. */
   answerText?: string | null;
+  correctChoiceOrder?: number | null;
   answerDelay: number;
   questionComment?: string | null;
   questionFiles?: QuestionFile[] | null;
@@ -181,6 +182,7 @@ export interface AnsweredPlayer {
 export interface AnswerShowData {
   answerFiles: QuestionFile[] | null;
   answerText: string | null;
+  correctChoiceImage?: string | null;
   nextTurnPlayerId: number | null;
   answerContentPlan?: ContentPlan | null;
   answerResult?: AnsweredPlayer;

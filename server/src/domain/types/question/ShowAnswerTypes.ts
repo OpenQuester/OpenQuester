@@ -13,4 +13,5 @@ export interface AnswerRevealDetails {
   answerPoint: AnswerPointDTO | null;
   answerPointImage: string | null;
   answerDeviation: number | null;
+  correctChoiceImage: string | null;
 }

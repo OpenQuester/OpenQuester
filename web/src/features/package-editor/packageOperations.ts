@@ -175,7 +175,14 @@ export function duplicateTheme(pkg: DraftPackage, id: string): { pkg: DraftPacka
 // ── Questions ───────────────────────────────────────────────────────────────
 
 export function cloneQuestion(q: DraftQuestion): DraftQuestion {
-  return { ...q, id: newId(), options: q.options.map((o) => ({ ...o, id: newId() })) };
+  const options = q.options.map((o) => ({ ...o, id: newId() }));
+  const index = q.options.findIndex((o) => o.id === q.correctChoiceOptionId);
+  return {
+    ...q,
+    id: newId(),
+    options,
+    correctChoiceOptionId: index < 0 ? q.correctChoiceOptionId : options[index]!.id,
+  };
 }
 
 export function addQuestion(

@@ -20,6 +20,8 @@ export interface QuestionFinishEventPayload {
   answerDeviation?: number | null;
   /** Original question image for the point-answer reveal, including on rejoin. */
   answerPointImage?: string | null;
+  /** Correct image-only choice, shown only after reveal. */
+  correctChoiceImage?: string | null;
 }
 
 export interface QuestionFinishWithAnswerEventPayload extends Pick<
@@ -34,6 +36,7 @@ export interface QuestionFinishWithAnswerEventPayload extends Pick<
   | "answerPoint"
   | "answerDeviation"
   | "answerPointImage"
+  | "correctChoiceImage"
 > {
   answerResult: GameStateAnsweredPlayerData;
 }

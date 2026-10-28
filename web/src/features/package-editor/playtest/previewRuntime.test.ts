@@ -74,6 +74,62 @@ describe("local question playtest", () => {
     game.submit("1", game.question.answers![0]!.order);
     expect(game.session.submittedAnswer).toBe("1");
   });
+
+  it("automatically judges an authored image and reveals it only after the ruling", () => {
+    const draft = newQuestion(100, {
+      type: "choice",
+      text: "Question",
+      correctChoiceOptionId: "img",
+      options: [
+        { id: "img", text: "", file: { md5: "picture", type: "image" } },
+        { id: "other", text: "1", file: null },
+      ],
+    });
+    const question = previewQuestion(draft, false, new Map([["picture", "https://x/image"]]));
+    const game = new PreviewRuntime(
+      initialPreview(false, "Target", question, names, () => 0),
+      question,
+    );
+    game.advance();
+    game.advance();
+    game.advanceWait();
+    expect(game.store.getState().session?.state.currentQuestion).not.toHaveProperty(
+      "correctChoiceOrder",
+    );
+    game.buzz(PREVIEW_PLAYERS[0]);
+    game.submit("#1", 0);
+    expect(game.session.lastResult?.answerType).toBe("correct");
+    expect(game.session.state.answerShowData?.correctChoiceImage).toBe("https://x/image");
+  });
+
+  it("does not attach a rejected identity to an ambiguous legacy image placeholder", () => {
+    const draft = newQuestion(100, {
+      type: "choice",
+      text: "Question",
+      answerText: "1",
+      options: [
+        { id: "img", text: "", file: { md5: "picture", type: "image" } },
+        { id: "other", text: "1", file: null },
+      ],
+    });
+    const question = previewQuestion(draft, false, new Map());
+    const game = new PreviewRuntime(
+      initialPreview(false, "Target", question, names, () => 0),
+      question,
+    );
+    game.advance();
+    game.advance();
+    game.advanceWait();
+    game.buzz(PREVIEW_PLAYERS[0]);
+    game.submit("1");
+    expect(game.session.state.submittedChoiceOrder).toBeNull();
+    game.setPerspective(PREVIEW_SHOWMAN);
+    game.commands.emit("answer-result", { answerType: "wrong", scoreResult: 0 });
+    expect(game.session.state.answeredPlayers?.at(-1)?.choiceOrder).toBeNull();
+    game.buzz(PREVIEW_PLAYERS[1]);
+    game.submit("1", 1);
+    expect(game.session.lastResult?.answerType).toBe("correct");
+  });
   it("reveals the numeric target rather than hidden draft text or aliases", () => {
     const game = setup({
       answerType: "number",

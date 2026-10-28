@@ -247,6 +247,210 @@ describe("Choice Question Flow Tests", () => {
   });
 
   describe("Automatic check", () => {
+    it("keeps an ambiguous legacy image placeholder out of rejected choice history", async () => {
+      await suite.scenario(async (scenario) => {
+        utils.packageTransform = (pkg) => {
+          const q = pkg.rounds[0].themes
+            .flatMap(({ questions }) => questions)
+            .find((item) => item.type === PackageQuestionType.CHOICE)!;
+          q.answerText = "1";
+          q.answers = [
+            {
+              order: 0,
+              text: null,
+              file: { md5: TEST_MEDIA_FILE_MD5, type: PackageFileType.IMAGE }
+            },
+            { order: 1, text: "1", file: null }
+          ];
+        };
+        const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          2,
+          0,
+          true,
+          0,
+          true
+        );
+        await utils.startGame(showmanSocket);
+        const question = await utils.findQuestionByType(PackageQuestionType.CHOICE, gameId);
+        await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+        await scenario.emitAndWaitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SUBMITTED,
+          () => {
+            scenario
+              .actor(playerSockets[0])
+              .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "1" });
+          }
+        );
+        expect((await utils.getGameState(gameId))!.submittedChoiceOrder).toBeNull();
+        const wrong = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () => {
+            scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+              answerType: AnswerResultType.WRONG,
+              scoreResult: 0
+            });
+          }
+        );
+        expect(wrong.answerResult.choiceOrder).toBeUndefined();
+        expect(
+          (await utils.getGameState(gameId))!.answeredPlayers?.at(-1)?.choiceOrder
+        ).toBeUndefined();
+        await utils.answerQuestion(playerSockets[1], showmanSocket);
+        const right = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () => {
+            scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+              answerText: "1",
+              choiceOrder: 1
+            });
+          }
+        );
+        expect(right.answerResult.answerType).toBe(AnswerResultType.CORRECT);
+      });
+    });
+    it("grades an authored image choice and reveals its image without exposing the key first", async () => {
+      await suite.scenario(async (scenario) => {
+        utils.packageTransform = (pkg) => {
+          const q = pkg.rounds[0].themes
+            .flatMap(({ questions }) => questions)
+            .find((item) => item.type === PackageQuestionType.CHOICE)!;
+          q.answerText = null;
+          q.correctChoiceOrder = 0;
+          q.answers = [
+            {
+              order: 0,
+              text: null,
+              file: { md5: TEST_MEDIA_FILE_MD5, type: PackageFileType.IMAGE }
+            },
+            { order: 1, text: "1", file: null }
+          ];
+        };
+        const { showmanSocket, playerSockets, spectatorSockets, gameId } =
+          await utils.setupGameTestEnvironment(userRepo, app, 2, 1, true, 0, true);
+        await utils.startGame(showmanSocket);
+        const question = await utils.findQuestionByType(PackageQuestionType.CHOICE, gameId);
+        const publicQuestion = scenario.waitForEvent(
+          spectatorSockets[0],
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        const playerQuestion = scenario.waitForEvent(
+          playerSockets[1],
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        const hostQuestion = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_DATA);
+        await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+        expect((await publicQuestion).data).not.toHaveProperty("correctChoiceOrder");
+        expect((await playerQuestion).data).not.toHaveProperty("correctChoiceOrder");
+        expect((await hostQuestion).data.correctChoiceOrder).toBe(0);
+        expect((await utils.getGameState(gameId))!.currentQuestion).not.toHaveProperty(
+          "correctChoiceOrder"
+        );
+        const { socket: observer, user } = await utils.createGameClient(app, userRepo);
+        const joined = scenario.waitForEvent(observer, SocketIOGameEvents.GAME_DATA);
+        scenario
+          .actor(observer)
+          .emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+        const snapshot = await joined;
+        expect(JSON.stringify(snapshot.gameState)).not.toContain("correctChoiceOrder");
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+        const reveal = scenario.waitForEvent(
+          spectatorSockets[0],
+          SocketIOGameEvents.QUESTION_FINISH
+        );
+        const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () => {
+            scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+              answerText: "#1",
+              choiceOrder: 0
+            });
+          }
+        );
+        expect(result.answerResult.answerType).toBe(AnswerResultType.CORRECT);
+        const shown = await reveal;
+        expect(shown.answerText).toBeNull();
+        expect(shown.correctChoiceImage).toEqual(expect.any(String));
+        expect((await utils.getGameState(gameId))!.answerShowData?.correctChoiceImage).toBe(
+          shown.correctChoiceImage
+        );
+        const leave = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+        scenario.actor(observer).disconnect();
+        await leave;
+        await scenario.assert.waitForActionsComplete({ gameId });
+        const { socket: rejoined } = await utils.createSocketForExistingUser(app, user.id);
+        const rejoin = scenario.waitForEvent(rejoined, SocketIOGameEvents.GAME_DATA);
+        scenario
+          .actor(rejoined)
+          .emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+        expect((await rejoin).gameState.answerShowData.correctChoiceImage).toBe(
+          shown.correctChoiceImage
+        );
+      });
+    });
+
+    it("automatically marks a wrong image choice and lets the next player choose the correct text", async () => {
+      await suite.scenario(async (scenario) => {
+        utils.packageTransform = (pkg) => {
+          const q = pkg.rounds[0].themes
+            .flatMap(({ questions }) => questions)
+            .find((item) => item.type === PackageQuestionType.CHOICE)!;
+          q.answerText = "1";
+          q.correctChoiceOrder = 1;
+          q.answers = [
+            {
+              order: 0,
+              text: null,
+              file: { md5: TEST_MEDIA_FILE_MD5, type: PackageFileType.IMAGE }
+            },
+            { order: 1, text: "1", file: null }
+          ];
+        };
+        const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          2,
+          0,
+          true,
+          0,
+          true
+        );
+        await utils.startGame(showmanSocket);
+        const question = await utils.findQuestionByType(PackageQuestionType.CHOICE, gameId);
+        await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+        const wrong = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () => {
+            scenario
+              .actor(playerSockets[0])
+              .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "#1", choiceOrder: 0 });
+          }
+        );
+        expect(wrong.answerResult).toMatchObject({
+          answerType: AnswerResultType.WRONG,
+          choiceOrder: 0
+        });
+        await utils.answerQuestion(playerSockets[1], showmanSocket);
+        const right = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () => {
+            scenario
+              .actor(playerSockets[1])
+              .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "1", choiceOrder: 1 });
+          }
+        );
+        expect(right.answerResult.answerType).toBe(AnswerResultType.CORRECT);
+      });
+    });
     async function buzzOnChoice(answerText: string) {
       const setup = await setupChoiceOptions(4, answerText);
       await utils.startGame(setup.showmanSocket);
@@ -484,27 +688,46 @@ describe("Choice Question Flow Tests", () => {
   it("persists point aspect through HTTP and scores the image-space circle through sockets", async () => {
     await suite.scenario(async (scenario) => {
       utils.packageTransform = (pkg) => {
-        const q = pkg.rounds[0].themes[0].questions.find((item) => item.type === PackageQuestionType.SIMPLE)!;
+        const q = pkg.rounds[0].themes[0].questions.find(
+          (item) => item.type === PackageQuestionType.SIMPLE
+        )!;
         q.answerType = AnswerType.POINT;
         q.answerPoint = { x: 0.5, y: 0.5, imageAspectRatio: 2 };
         q.answerDeviation = 0.1;
       };
-      const { showmanSocket, playerSockets, spectatorSockets, gameId } = await utils.setupGameTestEnvironment(userRepo, app, 1, 1, true, 0, true);
+      const { showmanSocket, playerSockets, spectatorSockets, gameId } =
+        await utils.setupGameTestEnvironment(userRepo, app, 1, 1, true, 0, true);
       await utils.startGame(showmanSocket);
       const q = await utils.findQuestionByType(PackageQuestionType.SIMPLE, gameId);
-      const stored = await userRepo.manager.getRepository(PackageQuestion).findOneByOrFail({ id: q!.id });
+      const stored = await userRepo.manager
+        .getRepository(PackageQuestion)
+        .findOneByOrFail({ id: q!.id });
       expect(stored.answer_point).toEqual({ x: 0.5, y: 0.5, imageAspectRatio: 2 });
-      const hostData = scenario.waitForEvent<GameQuestionDataEventPayload>(showmanSocket, SocketIOGameEvents.QUESTION_DATA);
-      const playerData = scenario.waitForEvent<GameQuestionDataEventPayload>(playerSockets[0], SocketIOGameEvents.QUESTION_DATA);
-      const spectatorData = scenario.waitForEvent<GameQuestionDataEventPayload>(spectatorSockets[0], SocketIOGameEvents.QUESTION_DATA);
+      const hostData = scenario.waitForEvent<GameQuestionDataEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.QUESTION_DATA
+      );
+      const playerData = scenario.waitForEvent<GameQuestionDataEventPayload>(
+        playerSockets[0],
+        SocketIOGameEvents.QUESTION_DATA
+      );
+      const spectatorData = scenario.waitForEvent<GameQuestionDataEventPayload>(
+        spectatorSockets[0],
+        SocketIOGameEvents.QUESTION_DATA
+      );
       await utils.pickQuestion(showmanSocket, q!.id, playerSockets);
       const [host, player, spectator] = await Promise.all([hostData, playerData, spectatorData]);
       expect(host.data).toMatchObject({ answerPoint: { x: 0.5, y: 0.5, imageAspectRatio: 2 } });
       expect(player.data).not.toHaveProperty("answerPoint");
       expect(spectator.data).not.toHaveProperty("answerPoint");
       await utils.answerQuestion(playerSockets[0], showmanSocket);
-      const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(showmanSocket, SocketIOGameEvents.ANSWER_RESULT, () =>
-        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "0.500,0.680" })
+      const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.ANSWER_RESULT,
+        () =>
+          scenario
+            .actor(playerSockets[0])
+            .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "0.500,0.680" })
       );
       expect(result.answerResult.answerType).toBe(AnswerResultType.CORRECT);
     });

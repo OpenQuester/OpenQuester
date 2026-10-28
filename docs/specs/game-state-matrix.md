@@ -132,7 +132,12 @@ When changing gameplay state, make sure:
   history. Legacy text-only answers identify an option only when its normalized
   text and order are both unique; ambiguous legacy answers retain their old
   behavior and cannot reliably enforce selection-specific repeats. Image-only
-  choices without a trustworthy answer key remain for manual judgment.
+  choices without a trustworthy answer key remain for manual judgment. With
+  an authored key the server checks the selected order automatically; explicit
+  additional text aliases still count. A legacy number that could also be an
+  image placeholder stays manual and does not identify a rejected row. The
+  correct key stays private until reveal; an image-only correct choice without
+  authored answer media is shown in the reveal and retained on rejoin.
 
 ## Special question rules (SIGame parity)
 

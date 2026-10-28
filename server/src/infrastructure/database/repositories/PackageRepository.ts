@@ -374,6 +374,7 @@ export class PackageRepository {
               transferType: questionData.transferType,
               priceMultiplier: questionData.priceMultiplier,
               showDelay: questionData.showDelay,
+              correctChoiceOrder: questionData.correctChoiceOrder,
               showAnswerDuration: questionData.showAnswerDuration
             });
             questionsToSave.push(question);

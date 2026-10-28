@@ -78,6 +78,8 @@ export interface DraftQuestion {
   priceMultiplier: number;
   /** Choice. */
   options: DraftChoiceOption[];
+  /** Undefined is legacy, null requires the author to select a replacement. */
+  correctChoiceOptionId?: string | null;
   showDelay: number;
 }
 
@@ -252,8 +254,23 @@ export function fromUpload(c: UploadContent): DraftPackage {
         id: newId(),
         name: t.name,
         description: t.description ?? "",
-        questions: byOrder(t.questions).map((q) =>
-          newQuestion(q.price, {
+        questions: byOrder(t.questions).map((q) => {
+          const sourceOptions = byOrder(q.answers ?? []);
+          const options = sourceOptions.map((a) => ({
+            id: newId(),
+            text: a.text ?? "",
+            file: a.file,
+          }));
+          const matches = sourceOptions
+            .map((a, index) => ({ a, index }))
+            .filter(({ a }) => q.correctChoiceOrder != null && a.order === q.correctChoiceOrder);
+          const correctChoiceOptionId =
+            q.correctChoiceNeedsRepair || q.correctChoiceOrder != null
+              ? matches.length === 1 && !q.correctChoiceNeedsRepair
+                ? options[matches[0]!.index]!.id
+                : null
+              : undefined;
+          return newQuestion(q.price, {
             type: q.type,
             text: q.text ?? "",
             textPosition: textPosition(q),
@@ -277,14 +294,11 @@ export function fromUpload(c: UploadContent): DraftPackage {
             transferType: q.transferType ?? "any",
             allowedPrices: q.allowedPrices ?? [],
             priceMultiplier: q.priceMultiplier ?? 2,
-            options: byOrder(q.answers ?? []).map((a) => ({
-              id: newId(),
-              text: a.text ?? "",
-              file: a.file,
-            })),
+            options,
+            correctChoiceOptionId,
             showDelay: q.showDelay ?? 0,
-          }),
-        ),
+          });
+        }),
       })),
     })),
   };
@@ -389,6 +403,11 @@ export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean
       out.subType = "simple";
       out.showDelay = q.showDelay;
       out.answers = q.options.map((o, i) => ({ order: i, text: orNull(o.text), file: o.file }));
+      if (q.correctChoiceOptionId !== undefined) {
+        const index = q.options.findIndex((option) => option.id === q.correctChoiceOptionId);
+        if (index < 0) out.correctChoiceNeedsRepair = true;
+        else out.correctChoiceOrder = index;
+      }
       break;
   }
   return out;

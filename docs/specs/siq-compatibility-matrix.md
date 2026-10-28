@@ -56,7 +56,7 @@ This matrix should be updated as parser/editor/game support evolves.
 | Simple answer text | Supported | Preserve answer text. |
 | Content order and timing (`placement`, `waitForFinish`, `duration`) | Supported | Keep item order, background audio, grouping and explicit durations; the game plays them one step at a time. All screen texts merge into the question text at the first text's position (`textOrder`); a text shown together with the next item becomes a caption. `replic`/`say` goes to the comment. |
 | Answer media | Partial | Preserve when model supports it; warn if game/editor preview is incomplete. |
-| Choice question | Partial | Preserve choices when possible; ensure gameplay CTA explains screen selection. |
+| Choice question | Partial | Preserve choices when possible; the React editor can explicitly mark an image or text option as correct in `.oq`, while SIQ import does not invent that new identity from uncertain source semantics. |
 | Stake/bidding question | Supported or Partial | Preserve type if game support exists; warn if SIQ semantics differ. |
 | Secret/transfer question | Supported or Partial | Preserve transfer behavior if game support exists; warn on unsupported variants. |
 | No Risk question | Supported | Preserve no-negative-score behavior. |

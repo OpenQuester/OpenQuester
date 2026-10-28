@@ -60,12 +60,19 @@ generated into the excluded Dart client; a Flutter rewrite can omit it.
 The web question form edits text answers in one **Correct answers** list, one
 accepted answer per line. The first is `answerText`, the rest are
 `rightAnswers`. Choice questions keep the selected correct option plus an
-**Also accept** list. Numeric mode hides the correct/wrong text lists and treats
+**Also accept** list. An explicit choice selection follows the option's draft
+identity through edits and is published as its unique `correctChoiceOrder`, so
+an image-only option can be correct without invented text. Existing packages
+without this key keep their legacy text behavior. Removing an explicitly
+selected option or importing an invalid key leaves the draft editable but
+blocks publication until the author selects a replacement. An `.oq` archive
+retains that unresolved state for repair; a missing or null legacy key does
+not imply an error. Numeric mode hides the correct/wrong text lists and treats
 a finite numeric target as an answer. Switching modes retains the hidden values
 in the draft and `.oq` archive. For editor publication and local preview, a
 game-facing copy uses the target as the answer text and omits the hidden text
 aliases. Direct imported-package upload is unchanged; previously published
-packages are not migrated. Automatic answer-checking rules are unchanged.
+packages are not migrated.
 
 ## Warning validations
 

@@ -97,7 +97,9 @@ export function toContent(
   const question = (q: Json, i: number, where: string): UploadQuestion => {
     let type = (str(q.type) ?? "simple") as UploadQuestion["type"];
     // The server needs 2–8 options; fewer can still be played as a regular question.
-    if (type === "choice" && list(q.answers).length < 2) {
+    const incompleteChoice = type === "choice" && list(q.answers).length < 2;
+    const hasChoiceKey = q.correctChoiceNeedsRepair === true || q.correctChoiceOrder != null;
+    if (incompleteChoice && !hasChoiceKey) {
       warnings.push({ code: "choiceAsSimple", where });
       type = "simple";
     }
@@ -143,6 +145,22 @@ export function toContent(
       out.answers = list(q.answers).flatMap((a, j) =>
         isObject(a) ? [{ order: num(a.order) ?? j, text: str(a.text), file: fileRef(a.file) }] : [],
       );
+      if (q.correctChoiceNeedsRepair === true || q.correctChoiceOrder != null) {
+        const order = q.correctChoiceOrder;
+        if (
+          incompleteChoice ||
+          q.correctChoiceNeedsRepair === true ||
+          typeof order !== "number" ||
+          !Number.isInteger(order) ||
+          order < 0 ||
+          out.answers.filter((a) => a.order === order).length !== 1
+        ) {
+          out.correctChoiceNeedsRepair = true;
+          warnings.push({ code: "choiceCorrectUnresolved", where });
+        } else {
+          out.correctChoiceOrder = order;
+        }
+      }
     }
     return out;
   };

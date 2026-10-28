@@ -4,12 +4,27 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { type PackageAnswerDTO } from "domain/types/dto/package/PackageAnswerDTO";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
 
 const normalize = (text: string | null | undefined) =>
   (text ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
 
 /** Resolve only identities that the current package actually identifies uniquely. */
 export class ChoiceSelectionLogic {
+  public static hasAmbiguousImagePlaceholder(
+    options: PackageAnswerDTO[],
+    answer: string | null
+  ): boolean {
+    const sorted = [...options].sort((a, b) => a.order - b.order);
+    return sorted.some(
+      (option, index) =>
+        option.file?.type === PackageFileType.IMAGE &&
+        !normalize(option.text) &&
+        normalize(answer) === String(index + 1)
+    );
+  }
+
   public static resolve(game: Game, answer: string | null, order?: number): number | null {
     const question = game.gameState.currentQuestion;
     if (
@@ -24,6 +39,9 @@ export class ChoiceSelectionLogic {
     }
 
     const options = question.answers ?? [];
+    if (order === undefined && this.hasAmbiguousImagePlaceholder(options, answer)) {
+      return null;
+    }
     const selected =
       order === undefined
         ? options.filter(

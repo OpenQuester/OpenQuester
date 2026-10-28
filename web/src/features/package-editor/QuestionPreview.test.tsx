@@ -31,6 +31,36 @@ function setup(question: DraftQuestion, mediaIds = ["first", "second"]) {
 
 const image = (md5: string) => ({ md5, type: "image" as const, displayTime: null });
 
+it("shows an image-only correct choice and marks only the explicitly selected duplicate", () => {
+  const question = newQuestion(100, {
+    type: "choice",
+    correctChoiceOptionId: "picture",
+    text: "Q",
+    options: [
+      { id: "picture", text: "", file: { md5: "first", type: "image" } },
+      { id: "other", text: "Other", file: null },
+    ],
+  });
+  const { rerender, view } = setup(question);
+  expect(screen.getByText("Media answer")).toBeVisible();
+  expect(screen.queryByText("No answer yet")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("listitem")[0]).toHaveClass("border-success-line");
+  rerender(
+    view({
+      ...question,
+      answerText: "Same",
+      correctChoiceOptionId: "other",
+      options: [
+        { id: "picture", text: "Same", file: null },
+        { id: "other", text: "Same", file: null },
+      ],
+    }),
+  );
+  const rows = screen.getAllByRole("listitem");
+  expect(rows[0]).not.toHaveClass("border-success-line");
+  expect(rows[1]).toHaveClass("border-success-line");
+});
+
 it("shows the numeric target, including zero, instead of hidden stale answer text", () => {
   const question = newQuestion(100, {
     answerType: "number",

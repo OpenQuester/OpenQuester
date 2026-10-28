@@ -9,4 +9,5 @@ export type SimplePackageQuestionDTO = Omit<
   | "answerPoint"
   | "rightAnswers"
   | "wrongAnswers"
+  | "correctChoiceOrder"
 >;

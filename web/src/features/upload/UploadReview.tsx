@@ -40,6 +40,9 @@ export function UploadReview({
   const c = parsed.content;
   const totals = describe(parsed);
   const empty = totals.questions === 0;
+  const needsChoiceRepair = parsed.warnings.some(
+    (warning) => warning.code === "choiceCorrectUnresolved",
+  );
   const duplicates = useDuplicates(parsed);
   const hasDuplicates = (duplicates.data?.length ?? 0) > 0;
   return (
@@ -100,8 +103,8 @@ export function UploadReview({
         <Button
           variant={hasDuplicates ? "secondary" : "accent"}
           size="lg"
-          inactive={empty}
-          disabled={empty || editing}
+          inactive={empty || needsChoiceRepair}
+          disabled={empty || needsChoiceRepair || editing}
           onClick={onUpload}
           className="sm:min-w-[240px]"
           icon={<UploadIcon size={20} />}
