@@ -172,6 +172,10 @@ Candidate verification: focused dock and preview tests pass (49/49), including e
 
 ### 35. Dropdown arrow spacing
 
+Keep the shared native select and its consumer sizing. For single-select dropdowns, render a theme-colored CSS arrow inset from the edge and reserve space between it and the selected text. Preserve native appearance for multiple/size listboxes and forced colors; the underlying select retains labels, keyboard, focus and disabled behavior. Verify catalog and other consumers at mobile/desktop, in both available themes and all locales.
+
+Candidate verification: isolated Chromium catalog at 375 and 1296 px, both available themes and EN/UK/RU, with the longest language option selected; measured 48 px right padding and no text/arrow collision or horizontal page overflow. Keyboard selection and focus worked; disabled, `multiple`, `size=3`, `size=1` and forced-colors native fallback were checked with actual rendered shared controls. Typecheck, lint and the focused controls suite passed; screenshots are retained outside the repository.
+
 Increase right inset/spacing around the package language dropdown arrow by a few pixels using the shared select styling where appropriate. Verify text does not collide with the arrow, including long localized labels and focus states.
 
 ### 36. Discord login action on upload
@@ -242,8 +246,8 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 31 | `QuestionStage.tsx`, `AnswerChoices.tsx`, `questionStyles.ts`, `PlaytestSession.tsx`, locales/shortcut guide | B/L: long mixed choices and option media at reported sizes/short height; assert stage bounds, dock gap, visible/reachable all options; verify independently after 5. | Accepted; root and independent QA approved |
 | 32 | `useAnswerChoices.ts`, `AnswerChoices.tsx`, `game/reducer.ts`, `game/protocol.ts`, server socket/domain and OpenAPI contract | U/B/L: wrong selection visible/disabled for another player, keyboard and new question; reconnect and identical/image-only options. Inspect authoritative attempt identity and legacy limits. | Accepted; root and independent QA approved |
 | 33 | Choice authoring/draft and archive, package API/persistence, `AnswerSubmittedUseCase`, preview and shared game UI | U/B/L: clicked text/media choice auto-checks; intentional spoken/text remains manual; trace explicit correctness key, privacy and legacy behavior. | Accepted; root and independent QA approved |
-| 34 | `dock/JudgeExtras.tsx`, locales, existing UI/preview and live E2E tests | U/B/L: single skip zero uses existing `answerType: skip`, result/score, eligible next player, single-answerer, exhaustion/stats/undo; ensure preview retains skip classification. | Design approved; implementation in progress |
-| 35 | `features/packages/PackageSearchControls.tsx`, `ui/Field.tsx` | B: select arrow vs long text at desktop/mobile, focus and all locales; adjust native select padding minimally, verify other shared selects. | Planned; not released |
+| 34 | `dock/JudgeExtras.tsx`, locales, existing UI/preview and live E2E tests | U/B/L: single skip zero uses existing `answerType: skip`, result/score, eligible next player, single-answerer, exhaustion/stats/undo; ensure preview retains skip classification. | Accepted; root and independent QA approved (`c4d5df95`) |
+| 35 | `ui/Field.tsx`, `styles.css` | B: select arrow vs long text at desktop/mobile, focus and all locales; preserve native behavior, sizing and listbox/forced-colors fallback. | Design approved; implementation in progress |
 | 36 | `features/upload/UploadAccess.tsx`, `features/auth/discord.ts`, `LoginPage.tsx`, icons/locales | U/B with mocked provider: guest already has configured-provider button; add existing Discord branding/icon, distinguish loading/error/unavailable and preserve `/packages/upload` return. Test unauthenticated/guest/configured/unconfigured, no actual OAuth. | Planned; not released |
 
 ### Current source observations
@@ -379,7 +383,12 @@ Web typecheck and lint passed; after the lifecycle repair, an initial full run f
 
 ### Final CI follow-ups
 
-Root inspected CI run `40699163204`, job `122853959378`, for head `940f9701`: web E2E reported 132 passed, 16 skipped, one flaky and one failed. `web/e2e/full-game.spec.ts:105` still expects the old “Alice was right · +100” wording after item 28 deliberately changed it to “Alice answers correctly · +100”. After item 33, make a separately reviewed minimal update to that exact expectation. The phone case `web/e2e/responsive.spec.ts:70` measured a board cell at 20.90625 px instead of at least 44 px on the first attempt, then passed on retry. Diagnose the actual transient cause and report evidence before deciding whether any UI change is needed; do not mask it with a speculative CSS fix or timeout. Final acceptance requires current-head CI evidence.
+Root inspected CI run `40699163204`, job `122853959378`, for head `940f9701`: web E2E reported 132 passed, 16 skipped, one flaky and one failed. The stale `full-game.spec.ts:105` text expectation was separately reviewed and updated in `0604be43`; current-head CI must verify it. The phone case `web/e2e/responsive.spec.ts:70` measured a board cell at 20.90625 px instead of at least 44 px on the first attempt, then passed on retry. Diagnose the actual transient cause and report evidence before deciding whether any UI change is needed; do not mask it with a speculative CSS fix or timeout. Final acceptance requires current-head CI evidence.
+
+### Final review follow-ups after item 36
+
+- Final point-question review shows coordinate text but lacks the image, correct target/radius and player's picked point needed for a host's manual ruling. Investigate reusing the existing point picker and coordinate parser with existing data, preserving role privacy and rejoin; report any contract gap before changing the server.
+- The repair action for `choiceCorrectUnresolved` currently focuses question text instead of the correct-choice control. Route focus to an available correct-option radio, with an appropriate add-option fallback, and verify focus after the dialog closes.
 
 ### Annotation 32 design and reproduction
 
