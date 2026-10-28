@@ -9,6 +9,7 @@ import { GameService } from "application/services/game/GameService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { type Game } from "domain/entities/game/Game";
 import { GameActionType } from "domain/enums/GameActionType";
+import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ShowmanActionLogLogic } from "domain/logic/chat/ShowmanActionLogLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
@@ -21,6 +22,7 @@ import {
   type SecretQuestionTransferResult
 } from "domain/types/question/SecretQuestionTransferTypes";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
+import { type FinalQuestionEventData } from "domain/types/socket/events/FinalRoundEventData";
 import {
   type GameJoinOutputData,
   type GameLeaveBroadcastData
@@ -190,6 +192,7 @@ export class SocketActionHooks {
     }
 
     await this.emitCurrentQuestionDataToJoinedSocket(action, game);
+    await this.emitFinalReviewQuestionToShowman(action, game);
 
     if (data.players.length > 1 && currentUserId) {
       await this.userNotificationRoomService.subscribeGameToUserNotifications(
@@ -197,6 +200,28 @@ export class SocketActionHooks {
         currentUserId
       );
     }
+  }
+
+  private async emitFinalReviewQuestionToShowman(action: GameAction, game: Game): Promise<void> {
+    const final = game.gameState.finalRoundData;
+    const joinedPlayer = game.getPlayer(action.playerId, { fetchDisconnected: false });
+    const questionData = final?.questionData;
+    if (
+      final?.phase !== FinalRoundPhase.REVIEWING ||
+      joinedPlayer?.role !== PlayerRole.SHOWMAN ||
+      !questionData?.question?.id
+    ) {
+      return;
+    }
+
+    const full = await this.packageStore.getQuestionWithTheme(game.id, questionData.question.id);
+    if (!full) return;
+
+    this.realtimeGateway.publish(
+      RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.FINAL_QUESTION_DATA, {
+        questionData: { ...questionData, question: full.question }
+      } satisfies FinalQuestionEventData)
+    );
   }
 
   private async emitCurrentQuestionDataToJoinedSocket(

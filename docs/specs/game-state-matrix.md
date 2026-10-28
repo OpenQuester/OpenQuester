@@ -161,6 +161,10 @@ When changing gameplay state, make sure:
   submits a selected point through `final-answer-submit`, and the showman
   manually judges it in the final review; no automatic final-point ruling is
   implied. The first ordered question image is the target.
+  During final review the showman sees the target, tolerance and each valid
+  submitted position. On rejoin the server sends the full final question only
+  to the joining showman after the public game snapshot; players and spectators
+  receive the public question without the private target.
   With `answerPoint.imageAspectRatio`, distance is `hypot(dx, dy / aspect)`;
   positive radii use the stored width-normalized deviation. For a zero radius,
   both coordinates compare at the web wire precision of three decimals; this

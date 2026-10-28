@@ -1,6 +1,10 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from "@jest/globals";
+import { container } from "tsyringe";
 
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import { GameActionType } from "domain/enums/GameActionType";
+import { AnswerType } from "domain/enums/package/AnswerType";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -10,7 +14,11 @@ import {
   FinalQuestionEventData
 } from "domain/types/socket/events/FinalRoundEventData";
 import { GameJoinOutputData } from "domain/types/socket/events/SocketEventInterfaces";
+import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { TestUtils } from "tests/utils/TestUtils";
 
 describe("Player Join Game State Tests", () => {
@@ -31,6 +39,223 @@ describe("Player Join Game State Tests", () => {
   });
 
   describe("Player joining during Final Round phases", () => {
+    it("restores the private final point to the rejoining showman only after the snapshot", async () => {
+      await suite.scenario(async (scenario) => {
+        const { gameId, showmanSocket, showmanUser, playerSockets, playerUsers, spectatorSockets } =
+          await utils.setupFinalRoundGame({ playersCount: 2, playerScores: [1500, 1200] });
+        const phase = scenario.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.FINAL_PHASE_COMPLETE
+        );
+        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
+        await phase;
+
+        const state = await utils.getGameState(gameId);
+        const finalTheme = state.currentRound!.themes.find(
+          (theme) => !theme.questions?.some((question) => question.isPlayed)
+        )!;
+        const questionId = finalTheme.questions![0].id;
+        const store = container.resolve(PackageStore);
+        const stored = await store.getQuestionWithTheme(gameId, questionId);
+        expect(stored).not.toBeNull();
+        const question: PackageQuestionDTO = {
+          ...stored!.question,
+          answerType: AnswerType.POINT,
+          answerPoint: { x: 0.7, y: 0.3, imageAspectRatio: 2 },
+          answerDeviation: 0.1,
+          questionFiles: [
+            {
+              order: 0,
+              displayTime: null,
+              file: {
+                md5: "point-image",
+                type: PackageFileType.IMAGE,
+                link: "https://example.test/point.png"
+              }
+            }
+          ]
+        };
+        await container.resolve(RedisRepository).hset(store.getPackageKey(gameId), {
+          [`q:${questionId}`]: JSON.stringify(question)
+        });
+
+        const firstBid = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_BID_SUBMIT);
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
+        await firstBid;
+        const finalQuestion = scenario.waitForEvent<FinalQuestionEventData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_QUESTION_DATA
+        );
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
+        expect((await finalQuestion).questionData.question).toMatchObject({
+          answerPoint: question.answerPoint
+        });
+        const firstAnswer = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+        );
+        scenario
+          .actor(playerSockets[0])
+          .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "0.2,0.4" });
+        await firstAnswer;
+        const review = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_SUBMIT_END);
+        const accepted = scenario
+          .createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.FINAL_ANSWER_SUBMIT,
+            socketId: playerSockets[1].id
+          })
+          .waitForCount(1);
+        scenario
+          .actor(playerSockets[1])
+          .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "0.8,0.6" });
+        await Promise.all([review, accepted]);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        const reviewingState = await utils.getGameState(gameId);
+        expect(reviewingState.finalRoundData?.phase).toBe(FinalRoundPhase.REVIEWING);
+        expect(reviewingState.currentQuestion?.id).toBeUndefined();
+
+        await utils.disconnectAndCleanup(showmanSocket);
+        const { socket: rejoinedHost } = await utils.createSocketForExistingUser(showmanUser.id);
+        const hostJoinMark = scenario.mark();
+        const hostJoinAccepted = scenario
+          .createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.JOIN,
+            socketId: rejoinedHost.id
+          })
+          .waitForCount(1);
+        const hostEvents = scenario.collectSocketEvents<
+          GameJoinOutputData | FinalQuestionEventData
+        >(rejoinedHost, [SocketIOGameEvents.GAME_DATA, SocketIOGameEvents.FINAL_QUESTION_DATA], 2);
+        scenario
+          .actor(rejoinedHost)
+          .emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SHOWMAN });
+        const [events] = await Promise.all([hostEvents.promise, hostJoinAccepted]);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        await scenario.assert.noInboundMany({
+          actors: [...playerSockets, ...spectatorSockets].map((socket) => scenario.actor(socket)),
+          event: SocketIOGameEvents.FINAL_QUESTION_DATA,
+          afterSequence: hostJoinMark,
+          durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS
+        });
+        expect(events.map((entry) => entry.event)).toEqual([
+          SocketIOGameEvents.GAME_DATA,
+          SocketIOGameEvents.FINAL_QUESTION_DATA
+        ]);
+        const snapshot = events[0].data as GameJoinOutputData;
+        const restored = events[1].data as FinalQuestionEventData;
+        expect(snapshot.gameState.finalRoundData?.questionData?.question).not.toHaveProperty(
+          "answerPoint"
+        );
+        expect(snapshot.gameState.finalRoundData?.questionData?.question).not.toHaveProperty(
+          "answerDeviation"
+        );
+        expect(restored.questionData.question).toMatchObject({
+          id: questionId,
+          answerPoint: question.answerPoint,
+          answerDeviation: 0.1,
+          questionFiles: question.questionFiles
+        });
+
+        await utils.disconnectAndCleanup(playerSockets[0]);
+        const { socket: rejoinedPlayer } = await utils.createSocketForExistingUser(
+          playerUsers[0].id
+        );
+        const playerActor = scenario.actor(rejoinedPlayer);
+        const playerMark = scenario.mark();
+        const playerJoinAccepted = scenario
+          .createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.JOIN,
+            socketId: rejoinedPlayer.id
+          })
+          .waitForCount(1);
+        const playerSnapshot = scenario.waitForEvent<GameJoinOutputData>(
+          rejoinedPlayer,
+          SocketIOGameEvents.GAME_DATA
+        );
+        playerActor.emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.PLAYER });
+        const [playerData] = await Promise.all([playerSnapshot, playerJoinAccepted]);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        expect(playerData.gameState.finalRoundData?.questionData?.question).not.toHaveProperty(
+          "answerPoint"
+        );
+        expect(playerData.gameState.finalRoundData?.questionData?.question).not.toHaveProperty(
+          "answerDeviation"
+        );
+        await scenario.assert.noInbound({
+          actor: playerActor,
+          event: SocketIOGameEvents.FINAL_QUESTION_DATA,
+          afterSequence: playerMark,
+          durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS
+        });
+
+        const { socket: spectator } = await utils.createGameClient();
+        const spectatorActor = scenario.actor(spectator);
+        const spectatorMark = scenario.mark();
+        const spectatorJoinAccepted = scenario
+          .createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.JOIN,
+            socketId: spectator.id
+          })
+          .waitForCount(1);
+        const spectatorSnapshot = scenario.waitForEvent<GameJoinOutputData>(
+          spectator,
+          SocketIOGameEvents.GAME_DATA
+        );
+        spectatorActor.emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+        const [spectatorData] = await Promise.all([spectatorSnapshot, spectatorJoinAccepted]);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        expect(spectatorData.gameState.finalRoundData?.questionData?.question).not.toHaveProperty(
+          "answerPoint"
+        );
+        expect(spectatorData.gameState.finalRoundData?.questionData?.question).not.toHaveProperty(
+          "answerDeviation"
+        );
+        await scenario.assert.noInbound({
+          actor: spectatorActor,
+          event: SocketIOGameEvents.FINAL_QUESTION_DATA,
+          afterSequence: spectatorMark,
+          durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS
+        });
+
+        await utils.disconnectAndCleanup(rejoinedHost);
+        const { socket: missingHost } = await utils.createSocketForExistingUser(showmanUser.id);
+        const missingResource = jest
+          .spyOn(store, "getQuestionWithTheme")
+          .mockResolvedValueOnce(null);
+        try {
+          const missingActor = scenario.actor(missingHost);
+          const missingMark = scenario.mark();
+          const missingJoinAccepted = scenario
+            .createAcceptedActionProbe({
+              gameId,
+              actionType: GameActionType.JOIN,
+              socketId: missingHost.id
+            })
+            .waitForCount(1);
+          const snapshotWithoutResource = scenario.waitForEvent(
+            missingHost,
+            SocketIOGameEvents.GAME_DATA
+          );
+          missingActor.emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SHOWMAN });
+          await Promise.all([snapshotWithoutResource, missingJoinAccepted]);
+          await scenario.assert.waitForActionsComplete({ gameId });
+          await scenario.assert.noInbound({
+            actor: missingActor,
+            event: SocketIOGameEvents.FINAL_QUESTION_DATA,
+            afterSequence: missingMark,
+            durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS
+          });
+          expect(missingResource).toHaveBeenCalledWith(gameId, questionId);
+        } finally {
+          missingResource.mockRestore();
+        }
+      });
+    });
+
     it("should receive questionData when joining during FINAL_ANSWERING phase", async () => {
       await suite.scenario(async (scenario) => {
         /**

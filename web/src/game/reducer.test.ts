@@ -530,6 +530,35 @@ describe("reducer: final round", () => {
 });
 
 describe("reducer: snapshots and housekeeping", () => {
+  it("restores a host's final point question after the public rejoin snapshot", () => {
+    const publicQuestion = question(110, { answerType: "point" });
+    const publicData = { themeId: 11, themeName: "Science", question: publicQuestion };
+    const finalRoundData = {
+      phase: "reviewing" as const,
+      turnOrder: [ALICE],
+      bids: { [ALICE]: 100 },
+      eliminatedThemes: [],
+      answers: [{ id: "answer", playerId: ALICE, answer: "0.2,0.4", submittedAt: "2026-01-01" }],
+      questionData: publicData,
+    };
+    const snapshotEvent = snapshot({
+      currentRound: round("final"),
+      questionState: "reviewing",
+      finalRoundData,
+    });
+    const publicState = reduce(choosing(), { type: "game-data", payload: snapshotEvent });
+    expect(publicState.state.finalRoundData?.questionData?.question.answerPoint).toBeUndefined();
+    const full = { ...publicQuestion, answerPoint: { x: 0.7, y: 0.3 }, answerDeviation: 0.1 };
+    const hostState = reduce(publicState, {
+      type: "final-question-data",
+      payload: { questionData: { ...publicData, question: full } },
+    });
+    expect(hostState.state.finalRoundData?.questionData?.question).toEqual(full);
+    expect(hostState.state.finalRoundData?.answers).toEqual(finalRoundData.answers);
+    expect(phaseOf(hostState)).toBe("final_reviewing");
+    expect(publicState.state.finalRoundData?.questionData?.question.answerPoint).toBeUndefined();
+  });
+
   it("replaces everything with a fresh snapshot", () => {
     const s = reduce(choosing(), { type: "game-data", payload: snapshot() });
     expect(isStarted(s)).toBe(false);
