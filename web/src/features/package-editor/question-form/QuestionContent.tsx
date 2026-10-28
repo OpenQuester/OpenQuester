@@ -250,13 +250,16 @@ function QuestionTiming({ form }: { form: QuestionFormState }) {
         />
         <span className="text-sm text-muted">{t("editor.form.secondsUnit")}</span>
       </div>
-      <span
-        id="qf-reveal-help"
-        className={cn("text-sm", hasAnswerMedia ? "font-medium text-soft" : "text-faint")}
-      >
-        {hasAnswerMedia ? t("editor.form.revealMediaHelp") : t("editor.form.revealRange")}
-      </span>
-      {!form.canSave && <FieldError>{t("editor.form.revealRange")}</FieldError>}
+      {!form.canSave ? (
+        <FieldError id="qf-reveal-help">{t("editor.form.revealRange")}</FieldError>
+      ) : (
+        <span
+          id="qf-reveal-help"
+          className={cn("text-sm", hasAnswerMedia ? "font-medium text-soft" : "text-faint")}
+        >
+          {hasAnswerMedia ? t("editor.form.revealMediaHelp") : t("editor.form.revealRange")}
+        </span>
+      )}
     </div>
   );
 }

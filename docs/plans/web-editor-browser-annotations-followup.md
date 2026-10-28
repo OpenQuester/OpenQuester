@@ -1,6 +1,6 @@
 # React editor and game preview: 36 browser annotations
 
-Status: planning only. Starting revision: `71a6eab30b62e61c4f9e40c334ad5fca8fb3d2bf`, draft PR [#484](https://github.com/OpenQuester/OpenQuester/pull/484). This follow-up supersedes earlier acceptance only for the newly reported cases; previous checks are historical evidence, not proof these cases work.
+Status: implementation in progress; the per-item ledger below is the current status. Starting revision: `71a6eab30b62e61c4f9e40c334ad5fca8fb3d2bf`, draft PR [#484](https://github.com/OpenQuester/OpenQuester/pull/484). This follow-up supersedes earlier acceptance only for the newly reported cases; previous checks are historical evidence, not proof these cases work.
 
 ## Ownership and boundaries
 
@@ -222,7 +222,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 13 | `QuestionContent.tsx`, `useQuestionForm.ts`, `ui/Field.tsx` | U/B: answer media toggles disabled visual and description; invalid fallback retained without active error, re-enabled/revalidated after last removal, reload and cancel. | Accepted; root and independent QA approved |
 | 14 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: semantic answer boundary after question on wide/narrow; use a theme-token separator, no extra decorative wrapper; verify ordering/focus. | Accepted; root and independent QA approved |
 | 15 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: attribution group on wide/narrow; theme-token separator, no duplicated semantic grouping. | Accepted; root and independent QA approved |
-| 16 | `QuestionContent.tsx`, `ui/Field.tsx` | U/B: invalid duration produces exactly one aria-associated message/error; valid/media-active explanation no duplicate or false invalid state; retain fractional 2–30 validation. | Planned; not released |
+| 16 | `QuestionContent.tsx`, `ui/Field.tsx` | U/B: invalid duration produces exactly one aria-associated message/error; valid/media-active explanation no duplicate or false invalid state; retain fractional 2–30 validation. | Accepted; root and independent QA approved |
 | 17 | `PackageEditorShell.tsx`, `shell/PackageEditorInspector.tsx`, `shell/packageEditorShellStyles.ts`, `shell/usePackageEditorShell.ts` | B: 1296×884 and resize 1280→1920, action row/player sliders; implement bounded accessible local resize per constants above, keyboard/pointer, resize clamp, min main and mobile fallback. | Planned; not released |
 | 18 | `QuestionPreview.tsx`, `AttachmentPreview.tsx`, `PointPicker.tsx`, locales | B/U: point answer selected in inspector; localized coordinate control, hover/focus temporary vs click/Enter/Space pinned, reset on question/image, existing first-image circle; no player/game disclosure or mutation. | Planned; not released |
 | 19 | `board/RoundHeader.tsx`, `board/packageBoardStyles.ts` | B/U: normal/final heading, controls and long names at available row widths; adjust flex basis/wrap, preserve editing/menus and localized strings. | Planned; not released |
@@ -319,3 +319,23 @@ Root approved patch SHA-256 `1D6EB229E6FA80F9DBEABC48E070BF1E44E0ED12AA68FA8D6E3
 ### Annotation 15 acceptance
 
 Root approved patch SHA-256 `5BFC3583399A105CA6483C4A41C5011B4A11072AF39FDFCB83C222D109C56C55`. Independent QA and full screenshots verified the attribution divider in normal, choice and final forms on wide and narrow layouts; focus and entered authors survived resize and save/reopen.
+
+### Accepted item commit map
+
+| Items | Approved implementation commit |
+| --- | --- |
+| 1, 7 | `d5060ba0` |
+| 2–4 | `d9ebf495` |
+| 5–6 | `34d3e0b1` |
+| 8 | `b06ef867` |
+| 9 | `fda94ab9` |
+| 10 | `ead0d7ff` |
+| 11 | `fb19cfe3` |
+| 12 | `89e6a9ba` |
+| 13 | `9bf5f277` |
+| 14 | `5ef18ddb` |
+| 15 | `438890d6` |
+
+### Annotation 16 acceptance
+
+Root approved patch SHA-256 `A412C62F97D7FB03C8D5542386F19C315218B3C059A68FEEA9CD94A8C605C124`. Independent QA verified one associated alert for invalid blank, 1.9, 31 and nonnumeric input; valid boundaries and decimal comma, plus media transitions. Existing duration test and checks passed.

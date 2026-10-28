@@ -53,13 +53,24 @@ it("keeps incomplete reveal input and permits only durations from 2 to 30 second
   expect(save).toBeDisabled();
   fireEvent.change(input, { target: { value: "1.9" } });
   expect(save).toBeDisabled();
+  expect(screen.getAllByText("Enter a duration from 2 to 30 seconds.")).toHaveLength(1);
+  expect(screen.getByText("Enter a duration from 2 to 30 seconds.")).toHaveAttribute(
+    "role",
+    "alert",
+  );
+  expect(input).toHaveAccessibleDescription("Enter a duration from 2 to 30 seconds.");
   fireEvent.change(input, { target: { value: "2" } });
   expect(save).toBeEnabled();
+  expect(screen.getByText("Enter a duration from 2 to 30 seconds.")).not.toHaveAttribute(
+    "role",
+    "alert",
+  );
+  expect(input).toHaveAccessibleDescription("Enter a duration from 2 to 30 seconds.");
   fireEvent.change(input, { target: { value: "30" } });
   expect(save).toBeEnabled();
   fireEvent.change(input, { target: { value: "30.1" } });
   expect(save).toBeDisabled();
-  fireEvent.change(input, { target: { value: "2.5" } });
+  fireEvent.change(input, { target: { value: "2,5" } });
   await userEvent.click(save);
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.showAnswerDuration).toBe(2500);
 });
