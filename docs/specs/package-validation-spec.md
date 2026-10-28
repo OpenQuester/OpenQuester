@@ -36,7 +36,7 @@ A package should be considered broken when any of these are true:
 - round has no themes
 - theme has no questions
 - question has neither text nor media
-- answer has neither text nor answer media where answer is required
+- answer has neither text, answer media nor a valid numeric target where answer is required
 - media reference is missing/broken
 - media file type is not allowed
 - package contains unsupported SIQ feature without safe fallback
@@ -58,10 +58,14 @@ their legacy checking until web republication. The optional field is not yet
 generated into the excluded Dart client; a Flutter rewrite can omit it.
 
 The web question form edits text answers in one **Correct answers** list, one
-accepted answer per line. It preserves the wire format: the first is
-`answerText`, the rest are `rightAnswers`. Choice questions keep the selected
-correct option plus an **Also accept** list. This UI grouping does not change
-import/export formats or automatic answer-checking rules.
+accepted answer per line. The first is `answerText`, the rest are
+`rightAnswers`. Choice questions keep the selected correct option plus an
+**Also accept** list. Numeric mode hides the correct/wrong text lists and treats
+a finite numeric target as an answer. Switching modes retains the hidden values
+in the draft and `.oq` archive. For editor publication and local preview, a
+game-facing copy uses the target as the answer text and omits the hidden text
+aliases. Direct imported-package upload is unchanged; previously published
+packages are not migrated. Automatic answer-checking rules are unchanged.
 
 ## Warning validations
 

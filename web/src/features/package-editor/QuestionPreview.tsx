@@ -8,6 +8,7 @@ import type { DraftQuestion } from "./packageDraft";
 import { MediaIcon, AttachmentPreview } from "./AttachmentPreview";
 import { questionTypeDetail } from "./questionPresentation";
 import { useMediaFile } from "./packageEditorStore";
+import { numericAnswerText } from "./numericAnswer";
 
 /** Everything a question shows, read-only: used in the inspector and full previews. */
 export function QuestionPreview({
@@ -35,6 +36,8 @@ function QuestionPreviewContent({
   const type = final ? "simple" : q.type;
   const detail = final ? "" : questionTypeDetail(q, t);
   const pointAnswer = type !== "choice" && q.answerType === "point";
+  const numberAnswer = type !== "choice" && q.answerType === "number";
+  const numberText = numberAnswer ? numericAnswerText(q.answerNumber) : null;
   const imageIndex = q.questionFiles.findIndex((file) => file.type === "image");
   const image = q.questionFiles[imageIndex];
   const imageFile = useMediaFile(pointAnswer ? image?.md5 : undefined);
@@ -123,6 +126,12 @@ function QuestionPreviewContent({
             </button>
           ) : (
             <span className="text-sm text-warning">{t("editor.preview.pointUnavailable")}</span>
+          )
+        ) : numberAnswer ? (
+          numberText != null ? (
+            <span className="font-semibold">{numberText}</span>
+          ) : (
+            <span className="text-sm text-warning">{t("editor.form.answerNumberMissing")}</span>
           )
         ) : q.answerText.trim() ? (
           <span className="font-semibold whitespace-pre-wrap [overflow-wrap:anywhere]">

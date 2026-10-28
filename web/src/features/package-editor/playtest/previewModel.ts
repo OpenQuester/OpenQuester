@@ -4,6 +4,7 @@ import type { GameJoinData, Player, Question, QuestionFile, Round } from "@/game
 import { sessionFromSnapshot } from "@/game/reducer";
 import { serverNow } from "@/lib/clock";
 import { toUploadQuestion, type DraftQuestion } from "../packageDraft";
+import { playableNumericQuestion } from "../numericAnswer";
 
 export const PREVIEW_SHOWMAN = 1;
 export const PREVIEW_PLAYERS = [2, 3, 4] as const;
@@ -39,7 +40,7 @@ export function previewQuestion(
   final: boolean,
   links: Map<string, string>,
 ): Question {
-  const q = toUploadQuestion(draft, 0, final);
+  const q = playableNumericQuestion(toUploadQuestion(draft, 0, final));
   const file = (f: { md5: string; type: "image" | "audio" | "video" }) => ({
     ...f,
     link: links.get(f.md5) ?? null,

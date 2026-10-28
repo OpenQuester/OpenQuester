@@ -24,6 +24,25 @@ function setup(patch: Parameters<typeof newQuestion>[1] = {}, final = false) {
 }
 
 describe("local question playtest", () => {
+  it("reveals the numeric target rather than hidden draft text or aliases", () => {
+    const game = setup({
+      answerType: "number",
+      answerNumber: -12.5,
+      answerText: "Old answer",
+      rightAnswers: ["Old right"],
+      wrongAnswers: ["Old wrong"],
+    });
+    game.advance("");
+    game.advance("");
+    game.advance("");
+    game.advance("");
+    game.advance("-12.5");
+    expect(game.session.state.answerShowData).toMatchObject({
+      answerText: "-12.5",
+      rightAnswers: null,
+    });
+  });
+
   it("keeps the live game untouched and filters private answers before rendering", () => {
     const live = useGameStore.getState().session;
     const game = setup({ answerType: "number", answerNumber: 42, answerDeviation: 1 });

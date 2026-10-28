@@ -181,13 +181,18 @@ export function checkQuestion(
   if (missing) add("critical", "missingMedia", { count: missing });
 
   const type = final ? "simple" : q.type;
+  const numeric = type !== "choice" && q.answerType === "number";
   if (type === "choice") {
     if (q.options.length < 2 || q.options.length > 8)
       add("critical", "choiceOptions", { count: q.options.length });
     if (q.options.some((o) => !o.text.trim() && !o.file)) add("critical", "choiceEmptyOption");
     if (!q.options.some((o) => o.text.trim() && o.text.trim() === q.answerText.trim()))
       add("warning", "choiceNoCorrect");
-  } else if (!q.answerText.trim() && q.answerFiles.length === 0) add("warning", "noAnswer");
+  } else if (
+    (numeric ? !Number.isFinite(q.answerNumber) : !q.answerText.trim()) &&
+    q.answerFiles.length === 0
+  )
+    add("warning", "noAnswer");
 
   // A number or point answer needs its target, or the server couldn't judge it
   if (type !== "choice" && q.answerType === "number" && !Number.isFinite(q.answerNumber))
@@ -207,5 +212,6 @@ export function checkQuestion(
     (q.allowedPrices.length < 2 || q.allowedPrices.length > 5)
   )
     add("critical", "secretPrices", { count: q.allowedPrices.length });
-  if (q.text.length > LONG_TEXT || q.answerText.length > LONG_TEXT) add("warning", "longText");
+  if (q.text.length > LONG_TEXT || (!numeric && q.answerText.length > LONG_TEXT))
+    add("warning", "longText");
 }

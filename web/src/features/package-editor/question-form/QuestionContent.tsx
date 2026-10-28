@@ -147,52 +147,55 @@ function QuestionPromptFields({ q, set, final }: QuestionFieldsProps & { final: 
 
 function QuestionAnswerFields({ q, set, final }: QuestionFieldsProps & { final: boolean }) {
   const { t } = useTranslation();
+  const numeric = (final || q.type !== "choice") && q.answerType === "number";
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2">
-        {final || q.type !== "choice" ? (
-          <LinesField
-            key="answer"
-            id="qf-answer"
-            label={t("editor.form.answer")}
-            help={
-              <Trans
-                i18nKey="editor.form.answerHelp"
-                components={{ strong: <strong className="font-semibold" /> }}
-              />
-            }
-            optional={false}
-            value={[q.answerText, ...q.rightAnswers].filter(Boolean)}
-            onChange={([answerText = "", ...rightAnswers]) => set({ answerText, rightAnswers })}
-          />
-        ) : (
-          <LinesField
-            key="right"
-            id="qf-right"
-            label={t("editor.form.rightAnswers")}
-            help={
-              <Trans
-                i18nKey="editor.form.rightAnswersHelp"
-                components={{ strong: <strong className="font-semibold" /> }}
-              />
-            }
-            value={q.rightAnswers}
-            onChange={(rightAnswers) => set({ rightAnswers })}
-          />
-        )}
-        <LinesField
-          id="qf-wrong"
-          label={t("editor.form.wrongAnswers")}
-          help={
-            <Trans
-              i18nKey="editor.form.wrongAnswersHelp"
-              components={{ strong: <strong className="font-semibold" /> }}
+      {!numeric && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {final || q.type !== "choice" ? (
+            <LinesField
+              key="answer"
+              id="qf-answer"
+              label={t("editor.form.answer")}
+              help={
+                <Trans
+                  i18nKey="editor.form.answerHelp"
+                  components={{ strong: <strong className="font-semibold" /> }}
+                />
+              }
+              optional={false}
+              value={[q.answerText, ...q.rightAnswers].filter(Boolean)}
+              onChange={([answerText = "", ...rightAnswers]) => set({ answerText, rightAnswers })}
             />
-          }
-          value={q.wrongAnswers}
-          onChange={(wrongAnswers) => set({ wrongAnswers })}
-        />
-      </div>
+          ) : (
+            <LinesField
+              key="right"
+              id="qf-right"
+              label={t("editor.form.rightAnswers")}
+              help={
+                <Trans
+                  i18nKey="editor.form.rightAnswersHelp"
+                  components={{ strong: <strong className="font-semibold" /> }}
+                />
+              }
+              value={q.rightAnswers}
+              onChange={(rightAnswers) => set({ rightAnswers })}
+            />
+          )}
+          <LinesField
+            id="qf-wrong"
+            label={t("editor.form.wrongAnswers")}
+            help={
+              <Trans
+                i18nKey="editor.form.wrongAnswersHelp"
+                components={{ strong: <strong className="font-semibold" /> }}
+              />
+            }
+            value={q.wrongAnswers}
+            onChange={(wrongAnswers) => set({ wrongAnswers })}
+          />
+        </div>
+      )}
       <OptionalTextField
         id="qf-hint"
         label={t("editor.form.hint")}

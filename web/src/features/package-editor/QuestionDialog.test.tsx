@@ -85,6 +85,38 @@ it("connects the selected answer mode to its explanation", async () => {
   );
 });
 
+it("hides numeric text fields while retaining their draft values across save and reopen", async () => {
+  const question = newQuestion(100, {
+    text: "Question",
+    answerText: "Original",
+    rightAnswers: ["Another"],
+    wrongAnswers: ["Wrong"],
+    answerHint: "Hint",
+  });
+  const { store } = setup(question);
+  const user = userEvent.setup();
+  await user.selectOptions(screen.getByLabelText("How players answer"), "number");
+  expect(document.querySelector("#qf-answer")).toBeNull();
+  expect(document.querySelector("#qf-wrong")).toBeNull();
+  expect(document.querySelector("#qf-hint")).toHaveValue("Hint");
+  await user.type(screen.getByLabelText("Right number"), "0");
+  await user.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]).toMatchObject({
+    answerType: "number",
+    answerNumber: 0,
+    answerText: "Original",
+    rightAnswers: ["Another"],
+    wrongAnswers: ["Wrong"],
+    answerHint: "Hint",
+  });
+  act(() => store.getState().edit(question.id));
+  await user.selectOptions(screen.getByLabelText("How players answer"), "text");
+  expect(document.querySelector("#qf-answer")).toHaveValue("Original\nAnother");
+  expect(document.querySelector("#qf-wrong")).toHaveValue("Wrong");
+  await user.selectOptions(screen.getByLabelText("How players answer"), "number");
+  expect(screen.getByLabelText("Right number")).toHaveValue("0");
+});
+
 it("maps the point slider to the larger image dimension without rewriting a legacy radius", async () => {
   vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:point-image");
   const q = newQuestion(100, {

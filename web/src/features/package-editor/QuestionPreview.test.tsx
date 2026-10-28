@@ -31,6 +31,24 @@ function setup(question: DraftQuestion, mediaIds = ["first", "second"]) {
 
 const image = (md5: string) => ({ md5, type: "image" as const, displayTime: null });
 
+it("shows the numeric target, including zero, instead of hidden stale answer text", () => {
+  const question = newQuestion(100, {
+    answerType: "number",
+    answerNumber: 0,
+    answerText: "Old answer",
+  });
+  const { rerender, view } = setup(question);
+  expect(screen.getByText("0")).toBeInTheDocument();
+  expect(screen.queryByText("Old answer")).not.toBeInTheDocument();
+  rerender(view({ ...question, answerNumber: null }));
+  expect(screen.getByText("Enter the right number")).toBeInTheDocument();
+  expect(screen.queryByText("Old answer")).not.toBeInTheDocument();
+  rerender(view({ ...question, type: "choice" }));
+  expect(screen.getByText("Old answer")).toBeInTheDocument();
+  rerender(view({ ...question, type: "choice" }, true));
+  expect(screen.getByText("0")).toBeInTheDocument();
+});
+
 it("shows the first image target temporarily or pinned without replacing the image, then resets on identity changes", async () => {
   const question = newQuestion(100, {
     answerType: "point",

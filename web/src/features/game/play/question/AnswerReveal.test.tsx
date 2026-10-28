@@ -4,8 +4,48 @@ import { GameContext } from "@/features/game/GameContext";
 import { ALICE, question, round, session } from "@/game/fixtures";
 import { createGameStore } from "@/game/store";
 import { AnswerReveal } from "./AnswerReveal";
+import { newQuestion, toUploadQuestion } from "@/features/package-editor/packageDraft";
+import { playableNumericQuestion } from "@/features/package-editor/numericAnswer";
 
 afterEach(cleanup);
+
+it("shows the projected numeric answer from a rejoined reveal snapshot without old aliases", () => {
+  const question = playableNumericQuestion(
+    toUploadQuestion(
+      newQuestion(100, {
+        answerType: "number",
+        answerNumber: 0,
+        answerText: "Old answer",
+        rightAnswers: ["Old alias"],
+      }),
+      0,
+      false,
+    ),
+  );
+  const store = createGameStore();
+  store.setState({
+    session: session({
+      currentRound: round(),
+      questionState: "showing_answer",
+      currentQuestion: null,
+      answerShowData: {
+        answerText: question.answerText ?? null,
+        rightAnswers: question.rightAnswers ?? null,
+        answerFiles: null,
+        nextTurnPlayerId: ALICE,
+      },
+    }),
+  });
+  render(
+    <GameContext.Provider
+      value={{ store, myId: ALICE, connection: { connected: true, emit: () => {} } }}
+    >
+      <AnswerReveal />
+    </GameContext.Provider>,
+  );
+  expect(screen.getByText("0")).toBeInTheDocument();
+  expect(screen.queryByText(/Old answer|Old alias/)).not.toBeInTheDocument();
+});
 
 describe("point answer reveal", () => {
   it("restores the image and radius from a rejoined snapshot without a current question", () => {

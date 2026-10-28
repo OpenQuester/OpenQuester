@@ -9,6 +9,7 @@ import { uploadPackage, type UploadProgress } from "@/features/upload/upload";
 import { PointImageDimensionsError } from "@/features/upload/pointImageDimensions";
 import { toParsed } from "../packageMedia";
 import { usePackageEditor } from "../packageEditorStore";
+import { playableNumericContent } from "../numericAnswer";
 
 export type PublishStep =
   | { kind: "check" }
@@ -39,7 +40,8 @@ export function usePublishPackage(setStep: (step: PublishStep) => void) {
   /** With `replace`, saves over the package this draft was published as. */
   const publish = async (replace: boolean) => {
     try {
-      const parsed = toParsed(pkg, media);
+      const draft = toParsed(pkg, media);
+      const parsed = { ...draft, content: playableNumericContent(draft.content) };
       const { id, failed, state } = await uploadPackage(
         parsed,
         (progress) => setStep({ kind: "uploading", progress }),

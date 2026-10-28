@@ -314,8 +314,8 @@ const listOrNull = (list: string[]): string[] | null => {
 };
 
 /**
- * The POST /v1/packages body. Mirrors the server's Joi scheme: type-specific
- * fields only on their type, final round questions are simple with no price.
+ * Archive-compatible content shared with the editor's publication projection.
+ * Type-specific fields stay on their type; final questions are simple with no price.
  */
 export function toUpload(pkg: DraftPackage): UploadContent {
   return {
