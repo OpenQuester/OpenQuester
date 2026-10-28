@@ -92,6 +92,9 @@ it("shows each final point submission and correct target only to the showman", (
     width: "20%",
   });
   expect(within(first!).getByTestId("point-picked")).toHaveStyle({ left: "20%", top: "40%" });
+  expect(within(first!).getByText(/Correct point: 70%.*30%.*Tolerance radius: 10%/)).toHaveClass(
+    "sr-only",
+  );
   expect(within(second!).queryByTestId("point-picked")).toBeNull();
   expect(within(third!).queryByTestId("point-picked")).toBeNull();
   expect(within(second!).getByText("“invalid”")).toBeVisible();
@@ -99,6 +102,7 @@ it("shows each final point submission and correct target only to the showman", (
   for (const role of [ALICE, SAM]) {
     renderStage(game, <FinalReviewStage />, role);
     expect(screen.queryByTestId("point-picker")).toBeNull();
+    expect(screen.queryByText(/Correct point:/)).toBeNull();
     cleanup();
   }
 });

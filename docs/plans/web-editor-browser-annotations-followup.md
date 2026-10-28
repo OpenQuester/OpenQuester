@@ -406,7 +406,13 @@ Server rejoin verification: the focused real Socket.IO test failed without the n
 
 The existing skip ruling was neutral in scoring, but the live screen-reader announcement, wrong-answer sound and structured chat log treated it as wrong. Use distinct localized skip wording in EN/UK/RU and no correct/wrong sound for skip; preserve both existing cues and wording for correct/wrong. The server's legacy fallback text remains unchanged; React renders the structured log when available. Verify the actual game screen's live region and log, all three locales, and each cue independently.
 
-Candidate checks: focused game-screen and feedback tests passed 8/8. They exercise the actual `GameScreen` live region and rendered structured log, and the feedback hook in EN/UK/RU with sound enabled: skip produces no wrong/correct cue, and correct/wrong still play their respective cues. Typecheck, lint and formatting passed. An attempted isolated native harness did not mount reliably due its context setup, so it is not browser evidence; independent QA remains pending.
+Checks: focused game-screen and feedback tests passed 8/8. They exercise the actual `GameScreen` live region and rendered structured log, and the feedback hook in EN/UK/RU with sound enabled: skip produces no wrong/correct cue, and correct/wrong still play their respective cues. Typecheck, lint and formatting passed. Independent QA used an existing isolated live API in all three languages, confirmed neutral chat/live announcement and no oscillator for skip, and verified wrong-answer sound as a control. Root accepted local commit `45b23f5f`.
+
+### Point target accessibility follow-up
+
+When a point target is already available to a role, the shared picker supplies a localized screen-reader description of its horizontal/vertical position and tolerance radius. Coordinates are percentages of image width and height; radius is a percentage of image width, including the existing 5% default and a real zero. Interactive pickers combine this with the cursor description; read-only pickers expose a screen-reader-only description. No target is introduced where one was absent.
+
+Candidate checks: focused point picker and final stage tests passed 30/30, including host/non-host privacy, target absent, default/zero/tiny radius, keyboard and EN/UK/RU text. Typecheck and lint passed. Isolated native final preview at 375/1296 px showed the host description in all three languages, checked the image/row geometry and confirmed player/spectator views contain no picker. Independent QA and root review remain pending.
 
 ### Final verification ledger (in progress)
 

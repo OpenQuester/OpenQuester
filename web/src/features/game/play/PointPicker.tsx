@@ -44,7 +44,7 @@ export function PointPicker({
   imageClassName?: string;
   onImageLoad?: (width: number, height: number) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [hover, setHover] = useState<Spot | null>(null);
   const spotOf = (e: MouseEvent<HTMLDivElement>): Spot => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -54,6 +54,19 @@ export function PointPicker({
     };
   };
   const r = radius ?? DEFAULT_POINT_RADIUS;
+  const percent = (value: number) =>
+    new Intl.NumberFormat(i18n.language, { maximumSignificantDigits: 6 }).format(value * 100);
+  const targetDescription = target
+    ? t("point.targetDescription", {
+        x: percent(target.x),
+        y: percent(target.y),
+        radius: percent(r),
+      })
+    : undefined;
+  const cursorDescription =
+    onPick && hover
+      ? t("point.cursor", { x: Math.round(hover.x * 100), y: Math.round(hover.y * 100) })
+      : undefined;
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!onPick) return;
@@ -91,8 +104,8 @@ export function PointPicker({
       role={onPick ? "button" : undefined}
       aria-label={onPick ? t("point.pick") : undefined}
       aria-description={
-        onPick && hover
-          ? t("point.cursor", { x: Math.round(hover.x * 100), y: Math.round(hover.y * 100) })
+        onPick
+          ? [cursorDescription, targetDescription].filter(Boolean).join(" ") || undefined
           : undefined
       }
       data-testid="point-picker"
@@ -105,6 +118,7 @@ export function PointPicker({
           onImageLoad?.(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)
         }
       />
+      {targetDescription && !onPick && <span className="sr-only">{targetDescription}</span>}
       {target && (
         <span
           className={questionStyles.correctPoint}
