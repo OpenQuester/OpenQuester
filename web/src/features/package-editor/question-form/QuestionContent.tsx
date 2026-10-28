@@ -66,6 +66,7 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
           label={t("editor.form.textFirst")}
         />
       )}
+      <hr className="m-0 border-0 border-t border-line" />
       {!final && q.type === "choice" && <QuestionChoiceFields q={q} set={set} />}
       <QuestionAnswerFields q={q} set={set} final={final} />
       <QuestionMediaList

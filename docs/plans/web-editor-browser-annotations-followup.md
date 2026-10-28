@@ -220,7 +220,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 11 | `QuestionContent.tsx`, `QuestionTypeSettings.tsx` | B/U: question text and mode/help 70–80/20–30 in same wide container row, DOM order before media, narrow stack, preserve focus/state and type-specific targets. | Accepted; root and independent QA approved |
 | 12 | `QuestionContent.tsx`, `LinesField.tsx` | B/U: correct/wrong text side by side, hint below; narrow stack, guidance/error association and multiline cursor. | Accepted; root and independent QA approved |
 | 13 | `QuestionContent.tsx`, `useQuestionForm.ts`, `ui/Field.tsx` | U/B: answer media toggles disabled visual and description; invalid fallback retained without active error, re-enabled/revalidated after last removal, reload and cancel. | Accepted; root and independent QA approved |
-| 14 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: semantic answer boundary after question on wide/narrow; use a theme-token separator, no extra decorative wrapper; verify ordering/focus. | Planned; not released |
+| 14 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: semantic answer boundary after question on wide/narrow; use a theme-token separator, no extra decorative wrapper; verify ordering/focus. | Accepted; root and independent QA approved |
 | 15 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: attribution group on wide/narrow; theme-token separator, no duplicated semantic grouping. | Planned; not released |
 | 16 | `QuestionContent.tsx`, `ui/Field.tsx` | U/B: invalid duration produces exactly one aria-associated message/error; valid/media-active explanation no duplicate or false invalid state; retain fractional 2–30 validation. | Planned; not released |
 | 17 | `PackageEditorShell.tsx`, `shell/PackageEditorInspector.tsx`, `shell/packageEditorShellStyles.ts`, `shell/usePackageEditorShell.ts` | B: 1296×884 and resize 1280→1920, action row/player sliders; implement bounded accessible local resize per constants above, keyboard/pointer, resize clamp, min main and mobile fallback. | Planned; not released |
@@ -311,3 +311,7 @@ Root approved patch SHA-256 `BA8B7059CB3CE245A87FC20A90968901DD90155B4EF71F3587D
 ### Annotation 13 acceptance
 
 Root approved patch SHA-256 `2E5F50B1F2B5752F5AC06D063E82DBA19D1AE3FD5A7A46031936177626084D16`. Independent QA confirmed the disabled styling and description, stored 60-second fallback through reload, revalidation on last media removal, cancel/discard and valid fractional save. The existing validation behavior remains unchanged; duplicate help/error is item 16.
+
+### Annotation 14 acceptance
+
+Root approved patch SHA-256 `1D6EB229E6FA80F9DBEABC48E070BF1E44E0ED12AA68FA8D6E3DC6074837C4AC`. Independent QA checked the semantic separator before answer sections for normal, choice and final questions on wide and narrow layouts. Existing checks passed.
