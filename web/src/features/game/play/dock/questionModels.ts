@@ -1,6 +1,7 @@
 import { formatScore, formatSigned } from "@/lib/format";
 
 import { type ActionDockModel, type ActionDockContext } from "./actionDockModel";
+import { allPlayRevealText } from "../allPlayRevealText";
 
 import {
   canBuzz,
@@ -157,14 +158,17 @@ export function revealModel({
   const s = session.state;
   const result = s.answerShowData?.answerResult ?? (s.answeredPlayers ?? []).at(-1);
   const correct = result?.answerType === "correct";
+  const allPlaySummary = allPlayRevealText(session, t);
   const nextPicker = s.answerShowData?.nextTurnPlayerId ?? s.currentTurnPlayerId;
   return {
-    status: correct
-      ? t("dock.reveal.correct", {
-          name: name(result?.player),
-          points: formatSigned(result!.result),
-        })
-      : t("dock.reveal.nobody"),
+    status:
+      allPlaySummary ??
+      (correct
+        ? t("dock.reveal.correct", {
+            name: name(result?.player),
+            points: formatSigned(result!.result),
+          })
+        : t("dock.reveal.nobody")),
     action:
       role === "showman"
         ? { kind: "continue", pending: sending("skip-show-answer") }

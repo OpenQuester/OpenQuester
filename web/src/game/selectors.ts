@@ -300,6 +300,17 @@ export function myAllPlayEntry(session: GameSession, myId: number) {
   return session.state.allPlay?.entries.find((e) => e.playerId === myId) ?? null;
 }
 
+/** The adjudicated results remain available through the answer reveal. */
+export function allPlayReveal(session: GameSession) {
+  const entries = session.state.allPlay?.entries;
+  if (!entries) return null;
+  return {
+    correct: entries.filter((entry) => entry.isCorrect === true),
+    submitted: entries.some((entry) => entry.submitted),
+    unresolved: entries.some((entry) => entry.submitted && entry.isCorrect == null),
+  };
+}
+
 /** Highest stake I may make: my score, at least the price, capped by the package. */
 export function allPlayMaxStake(session: GameSession, myId: number): number {
   const data = session.state.allPlay;

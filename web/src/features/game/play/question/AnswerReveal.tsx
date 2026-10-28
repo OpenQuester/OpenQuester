@@ -7,6 +7,7 @@ import { useGame, useSession } from "../../GameContext";
 import { ContentStage } from "../ContentStage";
 import { PointPicker } from "../PointPicker";
 import { QuestionMedia } from "../QuestionMedia";
+import { allPlayRevealText } from "../allPlayRevealText";
 
 export function AnswerReveal() {
   const { t } = useTranslation();
@@ -14,7 +15,11 @@ export function AnswerReveal() {
   const { store } = useGame();
   const s = session.state;
   const data = s.answerShowData;
-  const result = data?.answerResult ?? (s.answeredPlayers ?? []).at(-1) ?? null;
+  const allPlaySummary = allPlayRevealText(session, t);
+  const result =
+    allPlaySummary == null
+      ? (data?.answerResult ?? (s.answeredPlayers ?? []).at(-1) ?? null)
+      : null;
   const winner =
     result && result.answerType === "correct" ? findPlayer(session, result.player) : undefined;
   const respondent = result ? findPlayer(session, result.player) : undefined;
@@ -46,10 +51,14 @@ export function AnswerReveal() {
           <QuestionMedia files={data.answerFiles} playing={!s.isPaused} />
         )
       )}
-      <p className="m-0 text-lg text-soft 3xl:text-2xl">
-        {winner
-          ? t("reveal.gotIt", { name: winner.meta.username, points: formatSigned(result!.result) })
-          : t("reveal.nobody")}
+      <p className="m-0 text-center text-lg text-soft [overflow-wrap:anywhere] 3xl:text-2xl">
+        {allPlaySummary ??
+          (winner
+            ? t("reveal.gotIt", {
+                name: winner.meta.username,
+                points: formatSigned(result!.result),
+              })
+            : t("reveal.nobody"))}
       </p>
       {result?.answerText != null && result.answerText !== "" && (
         <p
