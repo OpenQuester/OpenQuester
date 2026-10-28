@@ -73,9 +73,14 @@ export class SkipQuestionForceUseCase implements GameActionHandler<
     game.gameState.questionContentPlan = null;
     game.gameState.stakeQuestionData = null;
     game.gameState.secretQuestionData = null;
-    game.gameState.answeredPlayers = null;
+    // Keep judged regular attempts available on the reveal and after rejoin.
+    // Simultaneous answers use their own review state.
+    if (game.gameState.allPlay) {
+      game.gameState.answeredPlayers = null;
+    }
     game.gameState.skippedPlayers = null;
     game.gameState.answeringPlayer = null;
+    game.gameState.submittedAnswer = null;
 
     const timerMutations = this.buildShowAnswerTimerMutations(game, question);
 

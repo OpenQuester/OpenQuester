@@ -4220,6 +4220,10 @@ export interface components {
              * @example 727
              */
             answeringPlayer?: number | null;
+            /** @description Current regular submitted answer while awaiting a ruling; absent for legacy states */
+            submittedAnswer?: string | null;
+            /** @description Answer reveal retained while showing the answer */
+            answerShowData?: components["schemas"]["SocketIOQuestionFinishEventPayload"] | null;
             answeredPlayers?: components["schemas"]["GameStateAnsweredPlayer"][] | null;
             /**
              * @description IDs of players who skipped the question
@@ -4323,6 +4327,8 @@ export interface components {
              */
             score: number;
             answerType: components["schemas"]["SocketIOGameAnswerType"];
+            /** @description Actual submitted answer, null or absent for oral and legacy answers */
+            answerText?: string | null;
             /** @description How much the score really moved (result clamped by the score limit); undoing the ruling takes back exactly this */
             appliedChange?: number;
         };
@@ -4968,6 +4974,8 @@ export interface components {
             answerText: components["schemas"]["QuestionAnswerText"] | null;
             /** @description ID of the next player to take their turn, null if no next player (game finished) */
             nextTurnPlayerId?: number | null;
+            /** @description Result of the regular answer, including actual submitted text when available */
+            answerResult?: components["schemas"]["GameStateAnsweredPlayer"];
             /** @description Answer files timeline on the SHOWING_ANSWER timer; the answer text stays visible as the headline */
             answerContentPlan?: components["schemas"]["QuestionContentPlan"] | null;
             /** @description Other answers that also counted as right */

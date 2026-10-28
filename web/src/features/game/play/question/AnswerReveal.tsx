@@ -17,6 +17,7 @@ export function AnswerReveal() {
   const result = data?.answerResult ?? (s.answeredPlayers ?? []).at(-1) ?? null;
   const winner =
     result && result.answerType === "correct" ? findPlayer(session, result.player) : undefined;
+  const respondent = result ? findPlayer(session, result.player) : undefined;
   const answerText = data?.answerText ?? s.currentQuestion?.answerText ?? null;
   const pointImage = data?.answerPointImage ?? pointPicture(s.currentQuestion);
   return (
@@ -50,6 +51,17 @@ export function AnswerReveal() {
           ? t("reveal.gotIt", { name: winner.meta.username, points: formatSigned(result!.result) })
           : t("reveal.nobody")}
       </p>
+      {result?.answerText != null && result.answerText !== "" && (
+        <p
+          className="m-0 text-center text-soft [overflow-wrap:anywhere]"
+          data-testid="submitted-answer"
+        >
+          {t("reveal.submitted", {
+            name: respondent?.meta.username ?? t("roles.player"),
+            answer: result.answerText,
+          })}
+        </p>
+      )}
       {(!!data?.authors?.length || !!data?.sources?.length) && (
         <p className="m-0 text-center text-sm text-muted" data-testid="answer-credits">
           {[

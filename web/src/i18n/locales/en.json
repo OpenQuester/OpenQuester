@@ -515,8 +515,9 @@
   },
   "reveal": {
     "answer": "The answer",
-    "gotIt": "{{name}} got it · {{points}}",
-    "nobody": "Nobody got this one.",
+    "gotIt": "{{name}} answers correctly · {{points}}",
+    "nobody": "No one answered correctly.",
+    "submitted": "{{name}} answered: “{{answer}}”",
     "alsoRight": "Also accepted: {{answers}}",
     "authors": "By {{names}}",
     "sources": "Source: {{list}}"
@@ -686,7 +687,7 @@
       "numberPlaceholder": "Type a number"
     },
     "reveal": {
-      "correct": "{{name}} was right · {{points}}",
+      "correct": "{{name}} answers correctly · {{points}}",
       "nobody": "Here's the answer",
       "continue": "Continue",
       "info": "Back to the board in a moment",

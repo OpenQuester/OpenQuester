@@ -100,6 +100,7 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     // Transition to answering state
     game.setQuestionState(QuestionState.ANSWERING);
     game.gameState.answeringPlayer = targetPlayerId;
+    game.gameState.submittedAnswer = null;
     game.gameState.secretQuestionData = null;
 
     return {

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { GameContext } from "@/features/game/GameContext";
 import { ALICE, question, round, session } from "@/game/fixtures";
@@ -45,6 +45,105 @@ it("shows the projected numeric answer from a rejoined reveal snapshot without o
   );
   expect(screen.getByText("0")).toBeInTheDocument();
   expect(screen.queryByText(/Old answer|Old alias/)).not.toBeInTheDocument();
+});
+
+it.each(["0", "A different response"])(
+  "shows actual player text %s separately from the authored answer after rejoin",
+  (text) => {
+    const store = createGameStore();
+    store.setState({
+      session: session({
+        currentRound: round(),
+        questionState: "showing_answer",
+        currentQuestion: null,
+        answerShowData: {
+          answerText: "Canonical",
+          answerFiles: null,
+          nextTurnPlayerId: ALICE,
+          answerResult: {
+            player: ALICE,
+            answerType: "correct",
+            result: 0,
+            score: 100,
+            answerText: text,
+          },
+        },
+      }),
+    });
+    render(
+      <GameContext.Provider
+        value={{ store, myId: ALICE, connection: { connected: true, emit: () => {} } }}
+      >
+        <AnswerReveal />
+      </GameContext.Provider>,
+    );
+    expect(screen.getByText("Canonical")).toBeInTheDocument();
+    expect(screen.getByTestId("submitted-answer")).toHaveTextContent(text);
+    expect(screen.getByTestId("submitted-answer")).toHaveTextContent("user2");
+    expect(screen.getByText(/answers correctly/)).toBeInTheDocument();
+  },
+);
+
+it("does not fabricate a submitted answer for oral and legacy results", () => {
+  const store = createGameStore();
+  store.setState({
+    session: session({
+      currentRound: round(),
+      questionState: "showing_answer",
+      answerShowData: {
+        answerText: "Canonical",
+        answerFiles: null,
+        nextTurnPlayerId: ALICE,
+        answerResult: { player: ALICE, answerType: "correct", result: 100, score: 100 },
+      },
+    }),
+  });
+  render(
+    <GameContext.Provider
+      value={{ store, myId: ALICE, connection: { connected: true, emit: () => {} } }}
+    >
+      <AnswerReveal />
+    </GameContext.Provider>,
+  );
+  expect(screen.queryByTestId("submitted-answer")).toBeNull();
+});
+
+it("shows a judged attempt from a rejoined forced reveal and removes it after undo", () => {
+  const store = createGameStore();
+  store.setState({
+    session: session({
+      currentRound: round(),
+      questionState: "showing_answer",
+      currentQuestion: null,
+      answeredPlayers: [
+        {
+          player: ALICE,
+          answerType: "wrong",
+          result: -100,
+          score: -100,
+          answerText: "wrong but real",
+        },
+      ],
+      answerShowData: { answerText: "Canonical", answerFiles: null, nextTurnPlayerId: ALICE },
+    }),
+  });
+  render(
+    <GameContext.Provider
+      value={{ store, myId: ALICE, connection: { connected: true, emit: () => {} } }}
+    >
+      <AnswerReveal />
+    </GameContext.Provider>,
+  );
+  expect(screen.getByTestId("submitted-answer")).toHaveTextContent("wrong but real");
+  act(() =>
+    store
+      .getState()
+      .dispatch({
+        type: "answer-result-undo",
+        payload: { playerId: ALICE, revertedResult: -100, newScore: 0, canAnswerAgain: false },
+      }),
+  );
+  expect(screen.queryByTestId("submitted-answer")).toBeNull();
 });
 
 describe("point answer reveal", () => {

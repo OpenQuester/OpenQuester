@@ -83,7 +83,10 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
       (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
     ),
     finished: false,
-    submittedAnswer: null,
+    submittedAnswer:
+      state.questionState === "answering" && state.currentRound?.type !== "final" && !state.allPlay
+        ? (state.submittedAnswer ?? null)
+        : null,
     lastResult: null,
     finalSubmitted: finalData ? finalData.answers.map((a) => a.playerId) : [],
     finalAutoLoss: finalData
@@ -224,6 +227,7 @@ function backToChoosing(session: GameSession): GameSession {
       answeredPlayers: null,
       skippedPlayers: null,
       answerShowData: null,
+      submittedAnswer: null,
       secretQuestionData: null,
       stakeQuestionData: null,
       questionEligiblePlayers: null,
@@ -290,6 +294,7 @@ function onQuestionData(
       answeredPlayers: newPick ? null : s.answeredPlayers,
       skippedPlayers: newPick ? null : s.skippedPlayers,
       answerShowData: newPick ? null : s.answerShowData,
+      submittedAnswer: newPick ? null : s.submittedAnswer,
       questionEligiblePlayers: eligible ?? s.questionEligiblePlayers ?? null,
       buzzerOpensAtMs:
         buzzerOpensAtMs !== undefined ? buzzerOpensAtMs : newPick ? null : s.buzzerOpensAtMs,
@@ -483,6 +488,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         ...patchState(session, {
           questionState: "answering",
           answeringPlayer: event.payload.userId,
+          submittedAnswer: null,
           timer: event.payload.timer,
         }),
         submittedAnswer: null,
@@ -490,7 +496,10 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       };
 
     case "answer-submitted":
-      return { ...session, submittedAnswer: event.payload.answerText };
+      return {
+        ...patchState(session, { submittedAnswer: event.payload.answerText }),
+        submittedAnswer: event.payload.answerText,
+      };
 
     case "answer-result": {
       const result = event.payload.answerResult;
@@ -506,6 +515,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       return {
         ...patchState(session, {
           answeringPlayer: null,
+          submittedAnswer: null,
           answeredPlayers: answered,
           // A correct answer is followed by question-finish and the reveal.
           questionState: reopened ? "showing" : s.questionState,
@@ -534,6 +544,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           questionState: "showing_answer",
           answerShowData: data,
           answeringPlayer: null,
+          submittedAnswer: null,
           currentTurnPlayerId: data.nextTurnPlayerId ?? s.currentTurnPlayerId,
           currentRound: markQuestionPlayed(s.currentRound, s.currentQuestion?.id),
           skippedPlayers: null,

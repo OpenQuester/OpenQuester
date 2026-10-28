@@ -71,8 +71,9 @@ export function ShowmanPanel() {
         <div className="flex flex-col gap-1 text-sm">
           <span className="text-muted">{t("showman.alreadyAnswered")}</span>
           {(s.answeredPlayers ?? []).map((a, i) => (
-            <span key={i}>
+            <span key={i} className="[overflow-wrap:anywhere]">
               {findPlayer(session, a.player)?.meta.username} · {formatSigned(a.result)}
+              {a.answerText ? ` · “${a.answerText}”` : null}
             </span>
           ))}
         </div>

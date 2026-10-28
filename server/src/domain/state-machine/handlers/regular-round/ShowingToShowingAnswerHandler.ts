@@ -90,9 +90,14 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
     game.setQuestionState(QuestionState.SHOWING_ANSWER);
     game.gameState.currentQuestion = null;
     game.gameState.questionContentPlan = null;
-    game.gameState.answeredPlayers = null;
+    // Keep judged regular attempts available on the reveal and after rejoin.
+    // Simultaneous answers use their own review state.
+    if (game.gameState.allPlay) {
+      game.gameState.answeredPlayers = null;
+    }
     game.gameState.skippedPlayers = null;
     game.gameState.answeringPlayer = null;
+    game.gameState.submittedAnswer = null;
     game.gameState.answerShowData = {
       answerFiles: question?.answerFiles ?? null,
       answerText: question?.answerText ?? null,

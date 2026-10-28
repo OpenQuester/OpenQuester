@@ -174,6 +174,7 @@ export interface AnsweredPlayer {
   result: number;
   score: number;
   answerType: AnswerResultType;
+  answerText?: string | null;
 }
 
 export interface AnswerShowData {
@@ -283,6 +284,7 @@ export interface GameState {
   currentRound: Round | null;
   currentQuestion: Question | null;
   answeringPlayer: number | null;
+  submittedAnswer?: string | null;
   answeredPlayers: AnsweredPlayer[] | null;
   readyPlayers: number[] | null;
   timer: Timer | null;

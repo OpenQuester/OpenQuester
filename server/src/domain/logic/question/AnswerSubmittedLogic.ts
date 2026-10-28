@@ -31,6 +31,11 @@ export class AnswerSubmittedLogic {
     }
   }
 
+  /** Retain the latest regular submission while it awaits a ruling. */
+  public static recordSubmission(game: Game, answerText: string | null): void {
+    game.gameState.submittedAnswer = answerText ?? null;
+  }
+
   /**
    * Build the result for answer submitted with broadcasts.
    */
@@ -38,7 +43,6 @@ export class AnswerSubmittedLogic {
     input: AnswerSubmittedBuildResultInput
   ): AnswerSubmittedResult {
     const { game, answerText } = input;
-
     const broadcastData: AnswerSubmittedBroadcastData = {
       answerText,
     };

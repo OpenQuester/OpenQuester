@@ -5423,6 +5423,18 @@
             "description": "Id of player who is currently answering",
             "examples": [727]
           },
+          "submittedAnswer": {
+            "type": ["string", "null"],
+            "maxLength": 255,
+            "description": "Current regular submitted answer while awaiting a ruling; absent for legacy states"
+          },
+          "answerShowData": {
+            "description": "Answer reveal retained while showing the answer",
+            "oneOf": [
+              { "$ref": "#/components/schemas/SocketIOQuestionFinishEventPayload" },
+              { "type": "null" }
+            ]
+          },
           "answeredPlayers": {
             "type": ["array", "null"],
             "items": {
@@ -5644,6 +5656,11 @@
           },
           "answerType": {
             "$ref": "#/components/schemas/SocketIOGameAnswerType"
+          },
+          "answerText": {
+            "type": ["string", "null"],
+            "maxLength": 255,
+            "description": "Actual submitted answer, null or absent for oral and legacy answers"
           },
           "appliedChange": {
             "type": "integer",
@@ -6835,6 +6852,10 @@
               }
             ],
             "description": "ID of the next player to take their turn, null if no next player (game finished)"
+          },
+          "answerResult": {
+            "$ref": "#/components/schemas/GameStateAnsweredPlayer",
+            "description": "Result of the regular answer, including actual submitted text when available"
           },
           "answerContentPlan": {
             "description": "Answer files timeline on the SHOWING_ANSWER timer; the answer text stays visible as the headline",

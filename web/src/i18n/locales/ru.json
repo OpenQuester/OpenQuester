@@ -527,8 +527,9 @@
   },
   "reveal": {
     "answer": "Ответ",
-    "gotIt": "{{name}} угадывает · {{points}}",
-    "nobody": "Этого никто не угадал.",
+    "gotIt": "{{name}} отвечает правильно · {{points}}",
+    "nobody": "Никто не ответил правильно.",
+    "submitted": "{{name}} ответил(а): «{{answer}}»",
     "alsoRight": "Также принимается: {{answers}}",
     "authors": "Автор: {{names}}",
     "sources": "Источник: {{list}}"
@@ -698,7 +699,7 @@
       "numberPlaceholder": "Введите число"
     },
     "reveal": {
-      "correct": "{{name}} угадывает · {{points}}",
+      "correct": "{{name}} отвечает правильно · {{points}}",
       "nobody": "Вот ответ",
       "continue": "Дальше",
       "info": "Сейчас вернёмся к табло",

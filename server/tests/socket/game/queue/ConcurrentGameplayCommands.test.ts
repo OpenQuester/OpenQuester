@@ -414,6 +414,7 @@ describe("Game Lock and Queue Mechanics", () => {
 
           const gameState = await utils.getGameState(gameId);
           expect(gameState!.questionState).toBe(QuestionState.ANSWERING);
+          expect(gameState!.submittedAnswer).toBe(answerTexts.at(-1));
         } catch (error) {
           primaryFailure = error;
         } finally {

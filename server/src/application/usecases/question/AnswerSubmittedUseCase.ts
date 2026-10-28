@@ -22,7 +22,7 @@ import { QuestionValueLogic } from "domain/logic/question/QuestionValueLogic";
  * Context-aware: receives prefetched game/player from the executor's
  * IN pipeline and returns pure results — no Redis calls.
  *
- * Usually read-only: the typed answer goes to the showman, who judges it.
+ * The submitted answer is saved while the showman judges it.
  * Choice, number and point answers are checked by the server instead
  * ({@link AnswerCheckLogic}) and judged right away.
  */
@@ -44,6 +44,7 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
     AnswerSubmittedLogic.validate(game, currentPlayer);
 
     const answerText = ctx.action.payload.answerText;
+    AnswerSubmittedLogic.recordSubmission(game, answerText);
     const result = AnswerSubmittedLogic.buildResult({ game, answerText });
     const submitted = DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts);
 
@@ -52,7 +53,7 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
       return {
         success: true,
         data: result.data,
-        mutations: submitted,
+        mutations: [DataMutationConverter.saveGameMutation(game), ...submitted],
         broadcastGame: game
       };
     }

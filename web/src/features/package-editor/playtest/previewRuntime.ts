@@ -130,6 +130,8 @@ export class PreviewRuntime {
         state: {
           ...s.state,
           currentQuestion: q && !isHost ? publicQuestion(q) : q,
+          submittedAnswer:
+            isHost || s.state.answeringPlayer === this.perspective ? s.state.submittedAnswer : null,
           finalRoundData: visibleFinal,
           allPlay: visibleAll,
         },
@@ -288,6 +290,7 @@ export class PreviewRuntime {
         answerResult: {
           player: id,
           answerType: correct ? "correct" : "wrong",
+          answerText: this.state.submittedAnswer,
           result: delta,
           score,
         },

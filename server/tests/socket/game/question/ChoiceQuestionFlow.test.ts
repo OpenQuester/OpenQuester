@@ -458,6 +458,9 @@ describe("Choice Question Flow Tests", () => {
         await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
+        const accepted = scenario
+          .createAcceptedActionProbe({ gameId, actionType: GameActionType.ANSWER_SUBMITTED })
+          .waitForCount(1);
         const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
           showmanSocket,
           SocketIOGameEvents.ANSWER_RESULT,
@@ -466,7 +469,13 @@ describe("Choice Question Flow Tests", () => {
               .actor(playerSockets[0])
               .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "43" })
         );
+        await accepted;
+        await scenario.assert.waitForActionsComplete({ gameId });
         expect(result.answerResult.answerType).toBe(AnswerResultType.CORRECT);
+        expect(result.answerResult.answerText).toBe("43");
+        const state = await utils.getGameState(gameId);
+        expect(state?.submittedAnswer).toBeNull();
+        expect(state?.answerShowData).toMatchObject({ answerResult: { answerText: "43" } });
         utils.packageTransform = null;
       });
     });

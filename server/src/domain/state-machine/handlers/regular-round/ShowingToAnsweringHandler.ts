@@ -72,6 +72,7 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
 
     // Set answering player and transition state
     game.gameState.answeringPlayer = playerId;
+    game.gameState.submittedAnswer = null;
     game.setQuestionState(QuestionState.ANSWERING);
 
     return {

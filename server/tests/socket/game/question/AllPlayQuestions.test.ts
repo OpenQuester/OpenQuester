@@ -7,6 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AllPlayMode } from "domain/types/dto/game/state/AllPlayDataDTO";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionSubType } from "domain/types/dto/package/PackageQuestionDTO";
 import {
@@ -121,6 +122,41 @@ describe("Everyone-answers questions", () => {
       });
     }
   }
+
+  it("keeps an all-play submission private on a spectator join before review", async () => {
+    await suite.scenario(async (scenario) => {
+      forEveryone(PackageQuestionType.NO_RISK);
+      const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        2,
+        0,
+        false
+      );
+      await utils.startGame(showmanSocket);
+      const question = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
+      await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+      const accepted = scenario
+        .createAcceptedActionProbe({ gameId, actionType: GameActionType.EVERYONE_ANSWER_SUBMIT })
+        .waitForCount(1);
+      const submitted = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.ALL_PLAY_ANSWER);
+      scenario
+        .actor(playerSockets[0])
+        .emit(SocketIOGameEvents.ALL_PLAY_ANSWER, { answerText: "private all-play text" });
+      await Promise.all([accepted, submitted]);
+      await scenario.assert.waitForActionsComplete({ gameId });
+      const { socket } = await utils.createGameClient(app, userRepo);
+      const joined = scenario.waitForEvent(socket, SocketIOGameEvents.GAME_DATA);
+      scenario.actor(socket).emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+      const data = await joined;
+      expect(data.gameState.questionState).toBe(QuestionState.SHOWING);
+      expect(
+        data.gameState.allPlay.entries.map((entry: { submitted: boolean }) => entry.submitted).sort()
+      ).toEqual([false, true]);
+      expect(data.gameState.submittedAnswer ?? null).toBeNull();
+      expect(JSON.stringify(data.gameState)).not.toContain("private all-play text");
+    });
+  });
 
   it("no-risk for everyone: everyone answers, right wins price × multiplier, wrong costs nothing", async () => {
     await suite.scenario(async (scenario) => {

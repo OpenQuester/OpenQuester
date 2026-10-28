@@ -116,6 +116,13 @@ When changing gameplay state, make sure:
   showman never bids, receives or answers.
 - `start` carries `currentTurnPlayerId`, so every client shows who picks first.
 - The showman's copy of the final question includes the answer for judging.
+- A regular submitted answer is broadcast to the game and retained while it
+  awaits a ruling. A result carries the player's actual submitted text when
+  available, and the reveal retains that result for rejoin. An oral or legacy
+  answer without stored text remains unknown; it is not replaced by the
+  authored correct answer. The regular text is cleared on a fresh answerer or
+  question and on reset. All-play and final answers follow their separate
+  private-until-review rules.
 
 ## Special question rules (SIGame parity)
 

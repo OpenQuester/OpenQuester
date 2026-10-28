@@ -13,7 +13,7 @@ import {
   timer,
 } from "./fixtures";
 import type { ServerEvent } from "./protocol";
-import { isStarted, reduce, type GameSession } from "./reducer";
+import { isStarted, reduce, sessionFromSnapshot, type GameSession } from "./reducer";
 import { phaseOf } from "./selectors";
 
 const run = (s: GameSession, ...events: ServerEvent[]) => events.reduce(reduce, s);
@@ -51,6 +51,54 @@ describe("reducer: lobby", () => {
 });
 
 describe("reducer: regular question", () => {
+  it("restores a pending regular submission and clears it for a new answerer", () => {
+    let s = sessionFromSnapshot(
+      "game",
+      snapshot({
+        currentRound: round(),
+        questionState: "answering",
+        answeringPlayer: ALICE,
+        submittedAnswer: "0",
+      }),
+    );
+    expect(s.submittedAnswer).toBe("0");
+    const result = {
+      player: ALICE,
+      result: 0,
+      score: 0,
+      answerType: "wrong" as const,
+      answerText: "0",
+    };
+    s = reduce(s, { type: "answer-result", payload: { answerResult: result, timer: timer() } });
+    expect(s.submittedAnswer).toBeNull();
+    expect(s.state.submittedAnswer).toBeNull();
+    expect(s.state.answeredPlayers?.at(-1)?.answerText).toBe("0");
+    s = reduce(s, {
+      type: "answer-result-undo",
+      payload: { playerId: ALICE, revertedResult: 0, newScore: 0, canAnswerAgain: true },
+    });
+    s = reduce(s, { type: "question-answer", payload: { userId: BOB, timer: timer() } });
+    expect(s.submittedAnswer).toBeNull();
+    expect(s.state.submittedAnswer).toBeNull();
+  });
+
+  it("does not restore a regular pending answer in final or legacy snapshots", () => {
+    const old = sessionFromSnapshot(
+      "game",
+      snapshot({ currentRound: round(), questionState: "answering" }),
+    );
+    expect(old.submittedAnswer).toBeNull();
+    const final = sessionFromSnapshot(
+      "game",
+      snapshot({
+        currentRound: round("final"),
+        questionState: "answering",
+        submittedAnswer: "stale",
+      }),
+    );
+    expect(final.submittedAnswer).toBeNull();
+  });
+
   it("applies renamed board and join-mode broadcasts", () => {
     let s = choosing();
     const questionId = s.state.currentRound!.themes[0]!.questions[0]!.id;

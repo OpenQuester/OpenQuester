@@ -61,6 +61,23 @@ describe("local question playtest", () => {
     expect(useGameStore.getState().session).toBe(live);
   });
 
+  it("keeps pending preview text private and retains actual text after a manual ruling", () => {
+    const game = setup({ answerText: "Canonical" });
+    game.advance();
+    game.advance();
+    game.advanceWait();
+    game.commands.emit("question-answer");
+    game.commands.emit("answer-submitted", { answerText: "Different response" });
+    game.setPerspective(5);
+    expect(game.store.getState().session?.submittedAnswer).toBeNull();
+    expect(game.store.getState().session?.state.submittedAnswer).toBeNull();
+    game.setPerspective(PREVIEW_SHOWMAN);
+    expect(game.store.getState().session?.submittedAnswer).toBe("Different response");
+    game.commands.emit("answer-result", { answerType: "correct", scoreResult: 100 });
+    expect(game.session.state.answeredPlayers?.at(-1)?.answerText).toBe("Different response");
+    expect(game.session.state.answerShowData?.answerText).toBe("Canonical");
+  });
+
   it("keeps the picker after wrong answers and gives the turn to a correct answerer", () => {
     const wrong = setup({ answerType: "number", answerNumber: 42 });
     wrong.advance();

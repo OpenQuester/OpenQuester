@@ -451,6 +451,7 @@ export class Game {
       result: modifiedScoreResult,
       score,
       answerType,
+      answerText: this.gameState.submittedAnswer ?? null,
       appliedChange: score - previousScore
     };
 
@@ -465,6 +466,7 @@ export class Game {
 
     // Always reset answering player
     this.gameState.answeringPlayer = null;
+    this.gameState.submittedAnswer = null;
     this.setQuestionState(nextState);
 
     return playerAnswerResult;
@@ -478,6 +480,7 @@ export class Game {
     this.gameState.timer = null;
     this.gameState.answeredPlayers = null;
     this.gameState.answeringPlayer = null;
+    this.gameState.submittedAnswer = null;
     this.gameState.skippedPlayers = null;
     this.gameState.answerShowData = null;
     this.gameState.secretQuestionData = null;
