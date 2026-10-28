@@ -529,8 +529,7 @@
     "giveTo": "Give the question to",
     "prices": "Prices to pick from",
     "pickPriceYou": "The question is yours — pick its price",
-    "pickPrice": "{{name}} got the question and picks its price",
-    "priceRule": "A bigger price wins more if you're right and costs more if you're wrong. You see the question after picking."
+    "pickPrice": "{{name}} got the question and picks its price"
   },
   "stake": {
     "kicker": "Stake question · auction",
@@ -1116,7 +1115,6 @@
       "allowedPrices": "Prices the receiver picks from",
       "allowedPricesHelp": "Optional: 2 to 5 prices separated by commas. Empty keeps the board price.",
       "showDelay": "Options appear after (sec.)",
-      "timing": "Timing",
       "showAnswer": "Answer reveal duration",
       "secondsUnit": "seconds",
       "revealRange": "Enter a duration from 2 to 30 seconds.",

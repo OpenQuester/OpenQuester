@@ -171,7 +171,6 @@ function SecretPriceStage({
           ? t("secret.pickPriceYou")
           : t("secret.pickPrice", { name: chooser?.meta.username ?? "" })}
       </h2>
-      <p className="m-0 text-soft">{t("secret.priceRule")}</p>
       <ul className={stageStyles.stakeBids} aria-label={t("secret.prices")}>
         {selection.allowedPrices.map((p) => (
           <li key={p} className={stageStyles.stakeBid}>

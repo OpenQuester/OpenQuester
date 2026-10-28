@@ -232,7 +232,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 23 | `PlaytestSession.tsx`, `QuestionStage.tsx`, `PointAnswer.tsx`, game stage styles | B/L: all-play point actual flow at 1296–1366×884 and short screens; assert image and text inside background, no dock intersection, reachable controls; use 5 root fix only if verified. | Accepted unchanged; root and independent QA approved |
 | 24 | `QuestionContent.tsx`, `validatePackage.ts`, `packageDraft.ts`, `QuestionPreview.tsx` | U/B/L: text→number→text retains hidden answers and target, save/reopen/publish, preview and reveal/reconnect. Resolve `noAnswer` warning and target-as-reveal boundary described above; report any needed backend change before edits. | Accepted; root and independent QA approved |
 | 25 | `QuestionContent.tsx`, `useQuestionForm.ts` | U/B: move reveal timing next to answer content/media; preserve 13/16 validation, disabled fallback value, keyboard order and scroll/focus. | Accepted; root and independent QA approved |
-| 26 | `game/play/SpecialStages.tsx`, locales | B/U: identify redundant price explanation in actual stage and remove only that paragraph; retain price/actions and shared preview/live behavior, remove only truly unused locale keys. | Planned; not released |
+| 26 | `game/play/SpecialStages.tsx`, locales | B/U: identify redundant price explanation in actual stage and remove only that paragraph; retain price/actions and shared preview/live behavior, remove only truly unused locale keys. | Accepted; root and independent QA approved |
 | 27 | `playtest/PlaytestSession.tsx`, `PlaytestControls.tsx`, `previewRuntime.ts`, `previewSpecial.ts`, `previewFinal.ts`, `playtestKeyboard.ts` | U/B: enact actor model above; exercise simple/hidden/choice/secret/stake/all-play/final as each role, valid player selection, no duplicated picker, no hidden answer submission, restart/pause/keyboard. | Planned; not released |
 | 28 | `game/play/question/AnswerReveal.tsx`, `AllPlayStages.tsx`, `game/reducer.ts`, locales | U/B/L: wording + actual submitted value by authoritative event/review; regular vs simultaneous privacy, manual and auto, reconnect. Escalate missing persisted data instead of substituting canonical answer. | Planned; not released |
 | 29 | `AnswerReveal.tsx`, `game/reducer.ts`, `game/selectors.ts`, `previewSpecial.ts` | U/B/L: all-play mixed auto/manual accepted, several correct, zero point/negative score, empty/wrong and reconnect. Derive from authoritative `allPlay.entries`, normal from actual result, no score-sign guesses; frontend-only if actual event and snapshot evidence confirms entries survive reveal. | Planned; not released |
@@ -344,6 +344,7 @@ Root approved patch SHA-256 `5BFC3583399A105CA6483C4A41C5011B4A11072AF39FDFCB83C
 | 22 | `cceccb97` |
 | 23 | No new runtime change; verified after `cceccb97` |
 | 24 | `76a8bad2` |
+| 25 | `fe0ee7ea` |
 
 ### Annotation 16 acceptance
 
@@ -402,3 +403,11 @@ Place the existing reveal-duration control inside the answer-media group using c
 The isolated editor fixture showed the old control outside the answer-media group and the candidate inside it at 1296×884 and 375×884. With answer media, the stored fallback remained disabled with its existing explanation; after removal it became editable. At 1304×884 and 390×884 after resize, the entered 2.5 seconds and focus remained, Tab reached Authors, and an invalid value produced one error and disabled Save. The 21 QuestionDialog tests passed, including the legacy fallback and 2–30 second validation. Typecheck, lint, formatting and diff checks passed; React Doctor reported 90/100 and no findings in the changed scope. These are isolated editor and component checks, not live-server evidence.
 
 Root approved the reviewed candidate SHA-256 `21F8FDACD196A506AAF0B3006C967AD1032280AADF31E7DC24D35295E76827E4`; independent QA passed against runtime SHA-256 `1EAE9A0DCD12C925D7AC13205C7010EC318E53227E2FEB8657F5EB51588AC642`.
+
+### Annotation 26 acceptance
+
+Reproduce the secret-question price-selection stage in isolated local preview at wide and phone widths. Remove only its extra explanatory paragraph and the now-unused English, Ukrainian and Russian price-rule keys, along with the unused Timing keys deferred from item 25. Keep the chooser heading, allowed prices and actionable dock unchanged. Verify the existing focused game and preview tests, locale consistency, typecheck, formatting and actual price selection in both layouts.
+
+The isolated editor preview showed the redundant paragraph before the change at 1296×884 and 375×884. After removal the chooser heading, 300/500 prices and dock remained; switching to Player 2 and choosing 500 advanced to the answering stage with price 500 at both sizes. The shared stage is used by preview and live gameplay; this check exercises the local preview only. The 41 focused game/preview tests and 2 locale consistency tests passed, as did typecheck, lint, formatting and diff checks. React Doctor reported 97/100 and no findings in the changed scope.
+
+Root approved candidate SHA-256 `0DF6EEDB96BDAC209829CD948930F5AE973B228A707302186EC261CB3BB88296`; independent QA passed both the isolated simulator and an isolated actual game, including a price selection of 200.
