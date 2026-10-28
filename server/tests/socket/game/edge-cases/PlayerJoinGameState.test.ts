@@ -175,7 +175,9 @@ describe("Player Join Game State Tests", () => {
           rejoinedPlayer,
           SocketIOGameEvents.GAME_DATA
         );
-        playerActor.emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.PLAYER });
+        scenario
+          .actor(rejoinedPlayer)
+          .emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.PLAYER });
         const [playerData] = await Promise.all([playerSnapshot, playerJoinAccepted]);
         await scenario.assert.waitForActionsComplete({ gameId });
         expect(playerData.gameState.finalRoundData?.questionData?.question).not.toHaveProperty(
@@ -205,7 +207,9 @@ describe("Player Join Game State Tests", () => {
           spectator,
           SocketIOGameEvents.GAME_DATA
         );
-        spectatorActor.emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+        scenario
+          .actor(spectator)
+          .emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
         const [spectatorData] = await Promise.all([spectatorSnapshot, spectatorJoinAccepted]);
         await scenario.assert.waitForActionsComplete({ gameId });
         expect(spectatorData.gameState.finalRoundData?.questionData?.question).not.toHaveProperty(
@@ -240,7 +244,9 @@ describe("Player Join Game State Tests", () => {
             missingHost,
             SocketIOGameEvents.GAME_DATA
           );
-          missingActor.emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SHOWMAN });
+          scenario
+            .actor(missingHost)
+            .emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SHOWMAN });
           await Promise.all([snapshotWithoutResource, missingJoinAccepted]);
           await scenario.assert.waitForActionsComplete({ gameId });
           await scenario.assert.noInbound({
