@@ -226,7 +226,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 17 | `PackageEditorShell.tsx`, `shell/PackageEditorInspector.tsx`, `shell/packageEditorShellStyles.ts`, `shell/usePackageEditorShell.ts` | B: 1296×884 and resize 1280→1920, action row/player sliders; implement bounded accessible local resize per constants above, keyboard/pointer, resize clamp, min main and mobile fallback. | Accepted; root and independent QA approved |
 | 18 | `QuestionPreview.tsx`, `AttachmentPreview.tsx`, `PointPicker.tsx`, locales | B/U: point answer selected in inspector; localized coordinate control, hover/focus temporary vs click/Enter/Space pinned, reset on question/image, existing first-image circle; no player/game disclosure or mutation. | Accepted; root and independent QA approved |
 | 19 | `board/RoundHeader.tsx`, `board/packageBoardStyles.ts` | B/U: normal/final heading, controls and long names at available row widths; adjust flex basis/wrap, preserve editing/menus and localized strings. | Accepted; root and independent QA approved |
-| 20 | locales `en/uk/ru`, `QuestionTypeSettings.tsx`, `AllPlayStages.tsx` | U/B: compare authoring/actual all-play stake rules and copy; consistently say all players bid and answer; verify long localized labels. | Planned; not released |
+| 20 | locales `en/uk/ru`, `QuestionTypeSettings.tsx`, `AllPlayStages.tsx` | U/B: compare authoring/actual all-play stake rules and copy; consistently say all players bid and answer; verify long localized labels. | Accepted; root and independent QA approved |
 | 21 | `game/play/dock/BidControls.tsx`, `DockAction.tsx`, `specialModels.ts`, `allPlayModels.ts`, `finalModels.ts`, selectors | U/B/L: regular auction, all-play and final; suggestions above input+slider, submit below; authoritative min/max/all-in/step, invalid/zero/negative score and pending. No invented increment; reproduce actual server constraints first. | Planned; not released |
 | 22 | `playtest/PlaytestControls.tsx`, `PlaytestSession.tsx`, `game/play/question/PointAnswer.tsx` | B: point in preview answering/all-play; remove duplicated prepared picker where real selected player can answer, one gesture→one event, preserve host/spectator/final until 27. Verify stage containment separately from 5/23. | Planned; not released |
 | 23 | `PlaytestSession.tsx`, `QuestionStage.tsx`, `PointAnswer.tsx`, game stage styles | B/L: all-play point actual flow at 1296–1366×884 and short screens; assert image and text inside background, no dock intersection, reachable controls; use 5 root fix only if verified. | Planned; not released |
@@ -338,6 +338,7 @@ Root approved patch SHA-256 `5BFC3583399A105CA6483C4A41C5011B4A11072AF39FDFCB83C
 | 16 | `ae275d76` |
 | 17 | `37ac24f1` |
 | 18 | `329e21dc` |
+| 19 | `101af804` |
 
 ### Annotation 16 acceptance
 
@@ -358,3 +359,7 @@ Root approved candidate SHA-256 `86F33A2CF6F9819E46435531999A52159E520F03CE466FB
 ### Annotation 19 acceptance
 
 Root approved candidate SHA-256 `76BCF1685ACAF1DE2F0789EBB84CA92B00A54DAE4D15600EE00400B1468EEE91`. At a 1296 px viewport with the default inspector, the 280 px title basis forced a second row even when 252 px (English) or 192 px (Russian) remained beside the controls. At 375 px, Russian controls overflowed the 343 px header by 61 px. A smaller title basis and a wrapping control group resolve these cases. Independent QA checked geometry, controls and final/read-only behavior; the latter used a component fixture.
+
+### Annotation 20 acceptance
+
+Root approved candidate SHA-256 `9320784CBF3C7593C13FA8AFF2DE6084AE5C3ED144ABE32D90D090D9A68E6C37`. Existing all-play rules specify that each player submits a stake and then an answer. The in-game explanation already says both; the editor checkbox label now says both in English, Ukrainian and Russian. Independent QA verified wide and narrow layouts, label interaction and save/reopen; locale parity and formatting checks passed.

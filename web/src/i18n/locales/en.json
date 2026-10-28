@@ -1100,7 +1100,7 @@
       "settingsFor": "{{type}} settings",
       "maxBid": "Highest bid",
       "maxBidHelp": "Leave empty to allow all-in.",
-      "stakeEveryone": "Everyone bids at once",
+      "stakeEveryone": "Everyone bids and answers",
       "multiplier": "Price multiplier",
       "noRiskEveryone": "Everyone plays it",
       "transferTitle": "Who can receive it",
