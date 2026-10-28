@@ -3,7 +3,12 @@ import { type ActionDockModel, type ActionDockContext } from "./actionDockModel"
 
 import { allPlayMaxStake, allPlayStakes, myAllPlayEntry, pointPicture } from "@/game/selectors";
 
-export function allPlayStakeModel({ t, session, myId }: ActionDockContext): ActionDockModel {
+export function allPlayStakeModel({
+  t,
+  session,
+  myId,
+  sending,
+}: ActionDockContext): ActionDockModel {
   const entries = session.state.allPlay?.entries ?? [];
   const placed = entries.filter((e) => e.stake != null).length;
   const mine = myAllPlayEntry(session, myId);
@@ -28,7 +33,13 @@ export function allPlayStakeModel({ t, session, myId }: ActionDockContext): Acti
   const max = allPlayMaxStake(session, myId);
   return {
     status: t("dock.final.bidRange", { max: formatScore(max) }),
-    action: { kind: "bid", event: "all-play-stake", min: 1, max, allIn: max },
+    action: {
+      kind: "bid",
+      event: "all-play-stake",
+      range: { min: 1, max },
+      allIn: max,
+      pending: sending("all-play-stake"),
+    },
     next,
   };
 }

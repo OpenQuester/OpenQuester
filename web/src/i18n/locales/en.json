@@ -581,6 +581,11 @@
   },
   "bid": {
     "quick": "Quick bids",
+    "slider": "Bid amount slider",
+    "detailsUnavailable": "Bidding details are unavailable. Wait for the game to update.",
+    "afterAllIn": "After an all-in, only all-in or pass is allowed.",
+    "noRegularBid": "A regular bid is unavailable.",
+    "waitTimer": "No bid is available. Wait for the timer.",
     "amount": "Your bid",
     "bid": "Bid {{amount}}",
     "range": "Bid {{min}} – {{max}}",

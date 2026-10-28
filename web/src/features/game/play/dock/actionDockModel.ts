@@ -29,9 +29,11 @@ export type DockAction =
   | {
       kind: "bid";
       event: "stake-bid-submit" | "final-bid-submit" | "all-play-stake";
-      min: number;
-      max: number;
+      range: { min: number; max: number } | null;
       allIn: number | null;
+      pass?: boolean;
+      pending: boolean;
+      unavailable?: string;
     }
   | { kind: "timed-answer"; event?: "all-play-answer"; numeric?: boolean };
 

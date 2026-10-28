@@ -283,4 +283,100 @@ describe("Dock", () => {
     expect(screen.getByTestId("dock-phase")).toHaveTextContent("Paused");
     expect(screen.queryByTestId("buzz")).toBeNull();
   });
+
+  it("sends the chosen auction amount or the distinct all-in/pass actions and guards pending", async () => {
+    const s = session({
+      currentRound: round(),
+      currentQuestion: question(100, { type: "stake", price: 100 }),
+      currentTurnPlayerId: ALICE,
+      questionState: "bidding",
+      stakeQuestionData: {
+        pickerPlayerId: ALICE,
+        questionId: 100,
+        maxPrice: null,
+        bids: { [BOB]: 100 },
+        passedPlayers: [],
+        biddingOrder: [ALICE, BOB],
+        currentBidderIndex: 0,
+        highestBid: 100,
+        winnerPlayerId: null,
+        biddingPhase: true,
+      },
+    });
+    s.players = s.players.map((p) => ({ ...p, score: p.meta.id === ALICE ? 600 : 500 }));
+    const emit = renderDock(s, ALICE);
+    const slider = screen.getByRole("slider", { name: "Bid amount slider" });
+    fireEvent.change(slider, { target: { value: "250" } });
+    expect(screen.getByRole("textbox", { name: "Your bid" })).toHaveValue("250");
+    await userEvent.click(screen.getByTestId("bid-submit"));
+    expect(emit).toHaveBeenLastCalledWith("stake-bid-submit", {
+      bidType: "normal",
+      bidAmount: 250,
+    });
+    act(() => useGameStore.setState({ pending: { action: "stake-bid-submit", at: Date.now() } }));
+    expect(screen.getByTestId("bid-submit")).toBeDisabled();
+    expect(screen.getByTestId("bid-pass")).toBeDisabled();
+    expect(screen.getByRole("button", { name: /All-in/ })).toBeDisabled();
+    act(() => useGameStore.setState({ pending: null }));
+    expect(screen.getByRole("textbox", { name: "Your bid" })).toHaveValue("250");
+    await userEvent.click(screen.getByRole("button", { name: /All-in/ }));
+    expect(emit).toHaveBeenLastCalledWith("stake-bid-submit", {
+      bidType: "all-in",
+      bidAmount: null,
+    });
+    await userEvent.click(screen.getByTestId("bid-pass"));
+    expect(emit).toHaveBeenLastCalledWith("stake-bid-submit", { bidType: "pass", bidAmount: null });
+  });
+
+  it.each(["all-play", "final"] as const)(
+    "submits the slider value in %s bidding",
+    async (mode) => {
+      const common = {
+        currentRound: round(mode === "final" ? "final" : "simple"),
+        questionState: "bidding" as const,
+      };
+      const s =
+        mode === "final"
+          ? session({
+              ...common,
+              finalRoundData: {
+                phase: "bidding",
+                bids: {},
+                answers: [],
+                turnOrder: [ALICE],
+                eliminatedThemes: [],
+              },
+            })
+          : session({
+              ...common,
+              allPlay: {
+                mode: "stake",
+                questionId: 100,
+                price: 100,
+                maxStake: null,
+                priceMultiplier: null,
+                entries: [
+                  {
+                    playerId: ALICE,
+                    stake: null,
+                    answer: null,
+                    submitted: false,
+                    isCorrect: null,
+                    scoreChange: null,
+                  },
+                ],
+              },
+            });
+      s.players = s.players.map((p) => ({ ...p, score: mode === "final" ? 200 : 0 }));
+      const emit = renderDock(s, ALICE);
+      const slider = screen.getByRole("slider", { name: "Bid amount slider" });
+      expect(slider).toHaveAttribute("max", mode === "final" ? "200" : "100");
+      fireEvent.change(slider, { target: { value: "25" } });
+      await userEvent.click(screen.getByTestId("bid-submit"));
+      expect(emit).toHaveBeenCalledWith(
+        mode === "final" ? "final-bid-submit" : "all-play-stake",
+        mode === "final" ? { bid: 25 } : { amount: 25 },
+      );
+    },
+  );
 });

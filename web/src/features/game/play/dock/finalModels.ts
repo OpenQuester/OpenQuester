@@ -37,7 +37,13 @@ export function finalEliminationModel({
   };
 }
 
-export function finalBidModel({ reason, t, session, myId }: ActionDockContext): ActionDockModel {
+export function finalBidModel({
+  reason,
+  t,
+  session,
+  myId,
+  sending,
+}: ActionDockContext): ActionDockModel {
   const role = myRole(session, myId);
   const mePlayer = findMe(session, myId);
   const players = seatedPlayers(session).filter((p) => isEligible(session, p.meta.id));
@@ -71,7 +77,13 @@ export function finalBidModel({ reason, t, session, myId }: ActionDockContext): 
   const score = mePlayer!.score;
   return {
     status: t("dock.final.bidRange", { max: formatScore(score) }),
-    action: { kind: "bid", event: "final-bid-submit", min: 1, max: score, allIn: score },
+    action: {
+      kind: "bid",
+      event: "final-bid-submit",
+      range: { min: 1, max: score },
+      allIn: score,
+      pending: sending("final-bid-submit"),
+    },
     next,
   };
 }

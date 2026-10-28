@@ -227,7 +227,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 18 | `QuestionPreview.tsx`, `AttachmentPreview.tsx`, `PointPicker.tsx`, locales | B/U: point answer selected in inspector; localized coordinate control, hover/focus temporary vs click/Enter/Space pinned, reset on question/image, existing first-image circle; no player/game disclosure or mutation. | Accepted; root and independent QA approved |
 | 19 | `board/RoundHeader.tsx`, `board/packageBoardStyles.ts` | B/U: normal/final heading, controls and long names at available row widths; adjust flex basis/wrap, preserve editing/menus and localized strings. | Accepted; root and independent QA approved |
 | 20 | locales `en/uk/ru`, `QuestionTypeSettings.tsx`, `AllPlayStages.tsx` | U/B: compare authoring/actual all-play stake rules and copy; consistently say all players bid and answer; verify long localized labels. | Accepted; root and independent QA approved |
-| 21 | `game/play/dock/BidControls.tsx`, `DockAction.tsx`, `specialModels.ts`, `allPlayModels.ts`, `finalModels.ts`, selectors | U/B/L: regular auction, all-play and final; suggestions above input+slider, submit below; authoritative min/max/all-in/step, invalid/zero/negative score and pending. No invented increment; reproduce actual server constraints first. | Planned; not released |
+| 21 | `game/play/dock/BidControls.tsx`, `DockAction.tsx`, `specialModels.ts`, `allPlayModels.ts`, `finalModels.ts`, selectors | U/B/L: regular auction, all-play and final; suggestions above input+slider, submit below; authoritative min/max/all-in/step, invalid/zero/negative score and pending. No invented increment; reproduce actual server constraints first. | Accepted; root and independent QA approved |
 | 22 | `playtest/PlaytestControls.tsx`, `PlaytestSession.tsx`, `game/play/question/PointAnswer.tsx` | B: point in preview answering/all-play; remove duplicated prepared picker where real selected player can answer, one gesture→one event, preserve host/spectator/final until 27. Verify stage containment separately from 5/23. | Planned; not released |
 | 23 | `PlaytestSession.tsx`, `QuestionStage.tsx`, `PointAnswer.tsx`, game stage styles | B/L: all-play point actual flow at 1296–1366×884 and short screens; assert image and text inside background, no dock intersection, reachable controls; use 5 root fix only if verified. | Planned; not released |
 | 24 | `QuestionContent.tsx`, `validatePackage.ts`, `packageDraft.ts`, `QuestionPreview.tsx` | U/B/L: text→number→text retains hidden answers and target, save/reopen/publish, preview and reveal/reconnect. Resolve `noAnswer` warning and target-as-reveal boundary described above; report any needed backend change before edits. | Planned; not released |
@@ -339,6 +339,7 @@ Root approved patch SHA-256 `5BFC3583399A105CA6483C4A41C5011B4A11072AF39FDFCB83C
 | 17 | `37ac24f1` |
 | 18 | `329e21dc` |
 | 19 | `101af804` |
+| 20 | `43f830e7` |
 
 ### Annotation 16 acceptance
 
@@ -363,3 +364,15 @@ Root approved candidate SHA-256 `76BCF1685ACAF1DE2F0789EBB84CA92B00A54DAE4D15600
 ### Annotation 20 acceptance
 
 Root approved candidate SHA-256 `9320784CBF3C7593C13FA8AFF2DE6084AE5C3ED144ABE32D90D090D9A68E6C37`. Existing all-play rules specify that each player submits a stake and then an answer. The in-game explanation already says both; the editor checkbox label now says both in English, Ukrainian and Russian. Independent QA verified wide and narrow layouts, label interaction and save/reopen; locale parity and formatting checks passed.
+
+### Annotation 21 proposed design
+
+Use the shared live/preview bid control: quick suggestions, then a 70/30 slider and input row, with submit below. The slider uses integer step 1 and updates the same draft as the input and suggestions. Preserve invalid or temporarily empty input and existing draft lifetime across pause/reconnect; clamp the thumb for display without silently submitting or rewriting an invalid draft. Disable duplicate commands during the existing pending state.
+
+For an ordinary auction, derive allowable actions from the existing server rules: normal bids require no existing all-in and range from the greater of 1, question price and highest bid plus 1, to the lower of player score and the optional maximum price. All-in follows its separate server predicate: the player's score must meet the effective question price, exceed an existing highest bid, and respect the optional cap. The server treats a zero question price as 1; its package schema does not exclude negative prices, so all-in must not inherit the normal bid minimum of 1 for legacy negative-price data. Pass is unavailable on the first bid attempt. If an all-in already exists, only a valid all-in or pass is available. If the question price is missing from both the current question and board snapshot, do not infer that the server's price is 1; explain that bidding details are unavailable. A first bidder with no valid action waits for the server timer, which automatically places the opening price. All-play retains its existing score/price/cap calculation and the final round its positive-score 1-to-score range. No server behavior or wire contract changes.
+
+Reproduced baseline in an isolated browser component fixture: score 50 and price 100 offered bid 100, all-in 50 and opening pass; score 1000 and cap 500 offered all-in 1000; after another player's all-in the numeric auction remained available. Focused regression coverage must exercise the server-derived boundaries, invalid/empty draft, single-value range, pending, pause/reconnect and changing bounds, plus wide/narrow real-control rendering in preview and live React. Independent QA will separately verify live transport on an isolated backend.
+
+### Annotation 21 acceptance
+
+Root approved candidate SHA-256 `CB28A92CB77D46528B8EDA79E9D3F023461E343FFACF7113FD2AF1EEFDE0059A`. Independent QA verified normal auction bid/pass and all-in/pass, final bidding and everyone-stakes scoring against an isolated live backend, plus pause/reconnect draft retention and editor preview at desktop and phone widths. Pending, unusual bounds, missing price and legacy zero/negative values were checked in isolated fixtures. The unaffordable opening wait message was fixture-tested; an actual zero/negative-score game proceeded directly to answering, so that particular UI was not exercised live. Focused tests, typecheck, lint and formatting passed; React Doctor reported 92/100 with no findings in the changed scope.

@@ -229,9 +229,10 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
     case "bid":
       return (
         <BidControls
-          min={action.min}
-          max={action.max}
+          range={action.range}
           allIn={action.allIn}
+          pending={action.pending}
+          unavailable={action.unavailable}
           onBid={(amount) => {
             switch (action.event) {
               case "stake-bid-submit":
@@ -246,12 +247,12 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
             }
           }}
           onAllIn={
-            action.event === "stake-bid-submit"
+            action.event === "stake-bid-submit" && action.allIn != null
               ? () => connection.emit("stake-bid-submit", { bidType: "all-in", bidAmount: null })
               : undefined
           }
           onPass={
-            action.event === "stake-bid-submit"
+            action.event === "stake-bid-submit" && action.pass
               ? () => connection.emit("stake-bid-submit", { bidType: "pass", bidAmount: null })
               : undefined
           }
