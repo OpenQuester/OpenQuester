@@ -227,6 +227,7 @@ function QuestionMetadataFields({ q, set }: QuestionFieldsProps) {
 
 function QuestionTiming({ form }: { form: QuestionFormState }) {
   const { t } = useTranslation();
+  const hasAnswerMedia = form.q.answerFiles.length > 0;
   return (
     <div className="flex flex-col gap-2">
       <span className={questionFormStyles.previewLabel}>{t("editor.form.timing")}</span>
@@ -236,18 +237,22 @@ function QuestionTiming({ form }: { form: QuestionFormState }) {
           id="qf-reveal"
           inputMode="decimal"
           value={form.revealText}
-          disabled={form.q.answerFiles.length > 0}
+          disabled={hasAnswerMedia}
           aria-invalid={!form.canSave}
           aria-describedby="qf-reveal-help"
           onChange={(e) => form.changeReveal(e.target.value)}
-          className={cn(inputClass, "w-24")}
+          className={cn(
+            inputClass,
+            "w-24 disabled:cursor-not-allowed disabled:border-line disabled:bg-surface-2 disabled:text-faint",
+          )}
         />
         <span className="text-sm text-muted">{t("editor.form.secondsUnit")}</span>
       </div>
-      <span id="qf-reveal-help" className="text-sm text-faint">
-        {form.q.answerFiles.length
-          ? t("editor.form.revealMediaHelp")
-          : t("editor.form.revealRange")}
+      <span
+        id="qf-reveal-help"
+        className={cn("text-sm", hasAnswerMedia ? "font-medium text-soft" : "text-faint")}
+      >
+        {hasAnswerMedia ? t("editor.form.revealMediaHelp") : t("editor.form.revealRange")}
       </span>
       {!form.canSave && <FieldError>{t("editor.form.revealRange")}</FieldError>}
     </div>

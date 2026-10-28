@@ -152,6 +152,10 @@ it("keeps a legacy reveal duration while answer media controls the timeline, the
   const { store } = setup(q);
   const duration = screen.getByLabelText("Answer reveal duration");
   expect(duration).toBeDisabled();
+  expect(duration).not.toHaveAttribute("aria-invalid", "true");
+  expect(duration).toHaveAccessibleDescription(
+    "Answer media determines the reveal timeline; this fallback duration does not apply.",
+  );
   expect(screen.getByTestId("question-save")).toBeEnabled();
   fireEvent.change(screen.getByLabelText("Question text"), { target: { value: "Edited" } });
   await userEvent.click(screen.getByTestId("question-save"));
@@ -159,6 +163,7 @@ it("keeps a legacy reveal duration while answer media controls the timeline, the
   act(() => store.getState().edit(q.id));
   await userEvent.click(screen.getByRole("button", { name: "Remove file" }));
   expect(screen.getByLabelText("Answer reveal duration")).toBeEnabled();
+  expect(screen.getByLabelText("Answer reveal duration")).toHaveAttribute("aria-invalid", "true");
   expect(screen.getByTestId("question-save")).toBeDisabled();
   expect(screen.getByRole("alert")).toHaveTextContent("2 to 30 seconds");
 });
