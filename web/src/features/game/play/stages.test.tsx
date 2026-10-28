@@ -66,6 +66,63 @@ describe("final answer stage", () => {
     vi.restoreAllMocks();
   });
 
+  it("sends a final point once and keeps other media mounted across perspectives", () => {
+    const image = { md5: "same-image", type: "image" as const, link: "https://x/image" };
+    const video = { md5: "video", type: "video" as const, link: "https://x/video" };
+    const q = question(100, {
+      answerType: "point",
+      questionFiles: [
+        { order: 0, displayTime: null, file: image },
+        { order: 1, displayTime: null, file: video },
+        { order: 2, displayTime: null, file: image },
+      ],
+    });
+    const s = session({
+      currentRound: round("final"),
+      questionState: "answering",
+      currentQuestion: q,
+      timer: timer(),
+      finalRoundData: {
+        phase: "answering",
+        bids: { [ALICE]: 100 },
+        answers: [],
+        turnOrder: [ALICE],
+        eliminatedThemes: [],
+        questionData: { themeId: 10, themeName: "Final", question: q },
+      },
+    });
+    const emit = vi.fn((action: string) => useGameStore.getState().setPending(action));
+    const connection = { emit, connected: true } as unknown as GameConnection;
+    useGameStore.setState({ session: s, connection: "connected", pending: null });
+    const ui = (myId: number) => (
+      <GameContext.Provider value={{ connection, myId }}>
+        <FinalAnswerStage />
+      </GameContext.Provider>
+    );
+    const { rerender } = render(ui(ALICE));
+    const media = screen.getByTestId("media-video");
+    expect(screen.getAllByRole("img")).toHaveLength(2);
+    expect(screen.getByTestId("point-picker")).toBeInTheDocument();
+    rerender(ui(SHOWMAN));
+    expect(screen.queryByTestId("point-picker")).toBeNull();
+    expect(screen.getByTestId("media-video")).toBe(media);
+    rerender(ui(ALICE));
+    expect(screen.getByTestId("media-video")).toBe(media);
+    fireEvent.keyDown(screen.getByTestId("point-picker"), { key: "Enter" });
+    expect(emit).toHaveBeenCalledExactlyOnceWith("final-answer-submit", {
+      answerText: "0.500,0.500",
+    });
+    fireEvent.keyDown(screen.getByTestId("point-picker"), { key: "Enter" });
+    expect(emit).toHaveBeenCalledTimes(1);
+    act(() => useGameStore.getState().setPending(null));
+    act(() => useGameStore.setState({ session: { ...s, state: { ...s.state, isPaused: true } } }));
+    fireEvent.keyDown(screen.getByTestId("point-picker"), { key: "Enter" });
+    expect(emit).toHaveBeenCalledTimes(1);
+    act(() => useGameStore.setState({ session: s, connection: "reconnecting" }));
+    fireEvent.keyDown(screen.getByTestId("point-picker"), { key: "Enter" });
+    expect(emit).toHaveBeenCalledTimes(1);
+  });
+
   it.each(["image", "audio", "video"] as const)(
     "shows a %s-only final question instead of 'no content'",
     (type) => {

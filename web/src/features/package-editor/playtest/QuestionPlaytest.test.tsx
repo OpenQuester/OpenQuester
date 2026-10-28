@@ -111,8 +111,11 @@ it("explains manual judging according to the selected perspective", async () => 
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  fireEvent.click(screen.getByRole("button", { name: "Make this player answer" }));
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByTestId("buzz"));
+  fireEvent.change(screen.getByRole("textbox", { name: "Your answer" }), {
+    target: { value: "Answer" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Send" }));
   expect(
     screen.getByText("Switch to the showman to judge the submitted answers."),
   ).toBeInTheDocument();

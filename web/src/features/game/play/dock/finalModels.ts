@@ -6,6 +6,7 @@ import {
   isEligible,
   me as findMe,
   myRole,
+  pointPicture,
   remainingFinalThemes,
   seatedPlayers,
 } from "@/game/selectors";
@@ -94,7 +95,9 @@ export function finalAnswerModel({ t, session, myId, reason }: ActionDockContext
     (p) => isEligible(session, p.meta.id) && finalBid(session, p.meta.id) != null,
   );
   const done = players.filter((p) => session.finalSubmitted.includes(p.meta.id)).length;
-  const next = t("dock.final.answerNext");
+  const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
+  const point = !!pointPicture(q);
+  const next = t(point ? "dock.final.pointNext" : "dock.final.answerNext");
   if (role !== "player") {
     return {
       status: t("dock.final.answersIn", { done, total: players.length }),
@@ -117,8 +120,10 @@ export function finalAnswerModel({ t, session, myId, reason }: ActionDockContext
     };
   }
   return {
-    status: t("dock.final.typeAnswer", { amount: formatScore(finalBid(session, myId) ?? 0) }),
-    action: { kind: "timed-answer" },
+    status: t(point ? "dock.final.pointAnswer" : "dock.final.typeAnswer", {
+      amount: formatScore(finalBid(session, myId) ?? 0),
+    }),
+    action: point ? { kind: "info", text: t("point.prompt") } : { kind: "timed-answer" },
     next,
   };
 }

@@ -11,7 +11,7 @@ import { previewTimer, type PreviewCommand, type PreviewRuntime } from "./previe
 export function handleFinal(
   game: PreviewRuntime,
   command: PreviewCommand,
-  sender = game.actor,
+  sender: number,
 ): boolean {
   const phase = phaseOf(game.session);
   const final = game.session.state.finalRoundData;
@@ -165,25 +165,6 @@ function finishFinal(game: PreviewRuntime) {
 
 export function timeoutFinal(game: PreviewRuntime): boolean {
   const phase = phaseOf(game.session);
-  if (phase === "final_elimination") return continueFinal(game, "");
-  if (phase === "final_bidding") {
-    for (const id of PREVIEW_PLAYERS) {
-      if (game.session.state.finalRoundData?.bids[String(id)] == null) bid(game, id, 1);
-    }
-    return true;
-  }
-  if (phase === "final_answering") {
-    for (const id of PREVIEW_PLAYERS)
-      if (!game.session.finalSubmitted.includes(id)) answer(game, id, "", "timeout");
-    return true;
-  }
-  return false;
-}
-
-export function continueFinal(game: PreviewRuntime, text: string): boolean {
-  const phase = phaseOf(game.session);
-  const final = game.session.state.finalRoundData;
-  if (!final) return false;
   if (phase === "final_elimination") {
     const theme = remainingFinalThemes(game.session).find(
       (item) => item.id !== PREVIEW_FINAL_THEME,
@@ -197,24 +178,14 @@ export function continueFinal(game: PreviewRuntime, text: string): boolean {
     return true;
   }
   if (phase === "final_bidding") {
-    const next = PREVIEW_PLAYERS.find((id) => final.bids[String(id)] == null);
-    if (next != null)
-      bid(
-        game,
-        next,
-        Math.min(100, game.session.players.find((p) => p.meta.id === next)?.score ?? 0),
-      );
+    for (const id of PREVIEW_PLAYERS) {
+      if (game.session.state.finalRoundData?.bids[String(id)] == null) bid(game, id, 1);
+    }
     return true;
   }
   if (phase === "final_answering") {
-    answer(game, game.actor, text);
-    return true;
-  }
-  if (phase === "final_reviewing") {
-    if (final.answers.every((item) => item.isCorrect != null || item.autoLoss)) {
-      if (!game.session.state.answerShowData) game.finish();
-      else game.dispatch({ type: "game-finished", payload: {} });
-    }
+    for (const id of PREVIEW_PLAYERS)
+      if (!game.session.finalSubmitted.includes(id)) answer(game, id, "", "timeout");
     return true;
   }
   return false;

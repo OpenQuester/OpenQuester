@@ -13,16 +13,25 @@ export function PointAnswer({ src }: { src: string }) {
   const pending = useGameState((s) => s.pending);
   const online = useGameState((s) => s.connection === "connected");
   const [picked, setPicked] = useState<Spot | null>(null);
-  const event = phaseOf(session) === "all_play_answering" ? "all-play-answer" : "answer-submitted";
+  const phase = phaseOf(session);
+  const event =
+    phase === "all_play_answering"
+      ? "all-play-answer"
+      : phase === "final_answering"
+        ? "final-answer-submit"
+        : "answer-submitted";
   const submitted =
     event === "all-play-answer"
       ? myAllPlayEntry(session, myId)?.submitted
-      : session.submittedAnswer != null;
+      : event === "final-answer-submit"
+        ? session.finalSubmitted.includes(myId)
+        : session.submittedAnswer != null;
   const disabled = session.state.isPaused || !online || pending?.action === event || submitted;
   return (
     <div className="flex flex-col items-center gap-3">
       <p className="m-0 font-semibold text-accent-strong">{t("point.prompt")}</p>
       <PointPicker
+        className="self-center"
         src={src}
         picked={picked}
         onPick={

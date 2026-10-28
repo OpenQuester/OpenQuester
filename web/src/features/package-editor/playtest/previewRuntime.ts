@@ -13,8 +13,8 @@ import {
   PREVIEW_SHOWMAN,
   publicQuestion,
 } from "./previewModel";
-import { continueSpecial, handleSpecial, startSpecial, timeoutSpecial } from "./previewSpecial";
-import { continueFinal, handleFinal, timeoutFinal } from "./previewFinal";
+import { handleSpecial, startSpecial, timeoutSpecial } from "./previewSpecial";
+import { handleFinal, timeoutFinal } from "./previewFinal";
 
 export type PreviewCommand = {
   [K in ClientEventName]: { type: K; payload: ClientEvents[K] };
@@ -36,7 +36,6 @@ export class PreviewRuntime {
   private showingTimer: Timer | null = null;
   private revealTimer: Timer | null = null;
   private perspective: number = PREVIEW_PLAYERS[0];
-  actor: number = PREVIEW_PLAYERS[0];
   readonly answers = new Map<number, string>();
   readonly stakes = new Map<number, number>();
   constructor(
@@ -78,10 +77,6 @@ export class PreviewRuntime {
     if (this.disposed) return;
     this.perspective = id;
     this.publish();
-  }
-  setActor(id: number) {
-    if (this.disposed) return;
-    if (PREVIEW_PLAYERS.some((playerId) => playerId === id)) this.actor = id;
   }
   dispatch(event: ServerEvent) {
     if (this.disposed) return;
@@ -233,7 +228,7 @@ export class PreviewRuntime {
     this.dispatch({
       type: "media-download-status",
       payload: {
-        playerId: this.actor,
+        playerId: PREVIEW_PLAYERS[0],
         mediaDownloaded: true,
         allPlayersReady: true,
         timer: previewTimer(duration),
@@ -398,9 +393,8 @@ export class PreviewRuntime {
     });
     return true;
   }
-  advance(answer: string) {
+  advance() {
     if (this.disposed || this.state.state.isPaused) return;
-    if (continueFinal(this, answer) || continueSpecial(this, answer)) return;
     switch (phaseOf(this.state)) {
       case "choosing":
         this.pick();
@@ -409,10 +403,7 @@ export class PreviewRuntime {
         this.ready();
         break;
       case "showing":
-        if (!this.advanceWait()) this.buzz(this.actor);
-        break;
-      case "answering":
-        if (this.state.state.answeringPlayer === this.actor) this.submit(answer);
+        this.advanceWait();
         break;
       case "reveal":
         this.endRound();

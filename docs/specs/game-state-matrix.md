@@ -135,7 +135,10 @@ When changing gameplay state, make sure:
   `answerPoint` within `answerDeviation` (a share of the width, 5% by
   default). Right +price, wrong −price, no showman ruling; text that isn't a
   number / point goes to the showman. In "everyone answers" questions these
-  answers are ruled when the review starts.
+  answers are ruled when the review starts. In the final round, the browser
+  submits a selected point through `final-answer-submit`, and the showman
+  manually judges it in the final review; no automatic final-point ruling is
+  implied. The first ordered question image is the target.
   With `answerPoint.imageAspectRatio`, distance is `hypot(dx, dy / aspect)`;
   positive radii use the stored width-normalized deviation. For a zero radius,
   both coordinates compare at the web wire precision of three decimals; this

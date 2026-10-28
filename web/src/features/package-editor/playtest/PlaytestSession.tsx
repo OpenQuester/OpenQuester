@@ -5,16 +5,17 @@ import { GameContext } from "@/features/game/GameContext";
 import { GameActionDock } from "@/features/game/play/GameActionDock";
 import { GameStage } from "@/features/game/play/GameStage";
 import { PlayerChips } from "@/features/game/play/PlayerChips";
-import { pointAnswer, type Spot } from "@/features/game/play/PointPicker";
 import { useSettings } from "@/features/settings/settingsStore";
-import { nextChangeAt, timerElapsed } from "@/game/contentPlan";
+import { timerElapsed } from "@/game/contentPlan";
 import type { Question } from "@/game/protocol";
 import type { GameSession } from "@/game/reducer";
-import { canAnswerNow, canBuzz, phaseOf, pointPicture } from "@/game/selectors";
+import { phaseOf } from "@/game/selectors";
 import { PlaytestControls } from "./PlaytestControls";
 import { PREVIEW_FINAL_THEME, PREVIEW_PLAYERS, PREVIEW_SHOWMAN } from "./previewModel";
 import { previewTimer, PreviewRuntime } from "./previewRuntime";
 import { onPlaytestKey } from "./playtestKeyboard";
+import { needsPlayerPerspective } from "./playtestGuidance";
+import { usePlaytestWait } from "./usePlaytestWait";
 
 export function PlaytestSession({
   initial,
@@ -38,9 +39,6 @@ export function PlaytestSession({
     return result;
   });
   const [perspective, setPerspective] = useState<number>(PREVIEW_PLAYERS[0]);
-  const [actor, setActor] = useState<number>(PREVIEW_PLAYERS[0]);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [points, setPoints] = useState<Record<number, Spot>>({});
   const [settingsOpen, setSettingsOpen] = useState(false);
   const session = useStore(game.store, (state) => state.session!);
   const phase = phaseOf(session);
@@ -58,19 +56,7 @@ export function PlaytestSession({
     }, left);
     return () => window.clearTimeout(id);
   }, [game, session.version, session.state.isPaused]);
-  const type = question.type === "choice" ? "choice" : (question.answerType ?? "text");
-  const value = answers[actor] ?? (type === "text" ? t("editor.playtest.testAnswer") : "");
-  const setValue = (answer: string) => setAnswers((old) => ({ ...old, [actor]: answer }));
-  const actorSubmitted =
-    phase === "all_play_answering"
-      ? session.state.allPlay?.entries.some((entry) => entry.playerId === actor && entry.submitted)
-      : phase === "final_answering" && session.finalSubmitted.includes(actor);
-  const needsAnswer =
-    phase === "answering" || phase === "all_play_answering" || phase === "final_answering";
   const waitingForJudge = phase === "answering" && game.session.submittedAnswer != null;
-  const stagePointAvailable =
-    !!pointPicture(session.state.currentQuestion) && canAnswerNow(session, perspective);
-  const actorMismatch = phase === "answering" && session.state.answeringPlayer !== actor;
   const reviewWaiting =
     phase === "all_play_reviewing"
       ? session.state.allPlay?.entries.some((entry) => entry.isCorrect == null)
@@ -78,15 +64,9 @@ export function PlaytestSession({
         session.state.finalRoundData?.answers.some(
           (answer) => answer.isCorrect == null && !answer.autoLoss,
         );
+  const needsPlayer = needsPlayerPerspective(game.session, perspective);
   const finished = phase === "finished";
-  const availability = canBuzz(game.session, actor);
-  const elapsed = timerElapsed(session.state.timer, session.state.isPaused);
-  const waitAvailable =
-    phase === "showing" &&
-    ((session.state.buzzerOpensAtMs ?? 0) > elapsed ||
-      (session.content?.kind === "question" &&
-        nextChangeAt(session.content.plan, elapsed) != null));
-  const actorUnavailable = phase === "showing" && !availability.ok;
+  const waitAvailable = usePlaytestWait(session);
   return (
     <GameContext.Provider
       value={{
@@ -106,52 +86,22 @@ export function PlaytestSession({
         {legacy && <p className="m-0 text-sm text-muted">{t("editor.playtest.legacy")}</p>}
         <PlaytestControls
           perspective={perspective}
-          actor={actor}
-          answerType={type}
-          value={value}
-          options={question.answers ?? []}
-          picture={pointPicture(question)}
-          picked={points[actor] ?? null}
-          showPoint={needsAnswer && !stagePointAvailable && !actorSubmitted && !waitingForJudge}
           settingsOpen={settingsOpen}
           paused={session.state.isPaused}
           finished={finished}
           canContinue={
             !session.state.isPaused &&
-            !finished &&
-            !actorSubmitted &&
-            !waitingForJudge &&
-            !actorMismatch &&
-            !reviewWaiting &&
-            (!actorUnavailable || waitAvailable) &&
-            (!needsAnswer || !!value.trim())
+            (phase === "choosing" || phase === "media" || phase === "reveal" || waitAvailable)
           }
-          canBuzz={!session.state.isPaused && phase === "showing" && availability.ok}
           onPerspective={(id) => {
             setPerspective(id);
             game.setPerspective(id);
           }}
-          onActor={(id) => {
-            setActor(id);
-            game.setActor(id);
-          }}
-          onAnswer={setValue}
-          onPoint={(spot) => {
-            setPoints((old) => ({ ...old, [actor]: spot }));
-            setValue(pointAnswer(spot));
-          }}
           onToggleSettings={() => setSettingsOpen((open) => !open)}
-          onContinue={() => game.advance(value)}
-          onBuzz={() => game.buzz(actor)}
+          onContinue={() => game.advance()}
           onPause={() => game.pause(!session.state.isPaused)}
           onRestart={onRestart}
         />
-        {actorSubmitted && (
-          <p className="m-0 text-sm text-muted">{t("editor.playtest.alreadySubmitted")}</p>
-        )}
-        {actorMismatch && !waitingForJudge && (
-          <p className="m-0 text-sm text-muted">{t("editor.playtest.selectAnswerer")}</p>
-        )}
         {(waitingForJudge || reviewWaiting) && (
           <p className="m-0 text-sm text-muted">
             {t(
@@ -161,8 +111,8 @@ export function PlaytestSession({
             )}
           </p>
         )}
-        {actorUnavailable && !availability.ok && (
-          <p className="m-0 text-sm text-muted">{t(`reasons.${availability.reason}`)}</p>
+        {needsPlayer && (
+          <p className="m-0 text-sm text-muted">{t("editor.playtest.switchToPlayer")}</p>
         )}
         {finished && <p className="m-0 text-sm text-muted">{t("editor.playtest.finished")}</p>}
         <div className="shrink-0">

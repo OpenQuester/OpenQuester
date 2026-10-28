@@ -1,10 +1,12 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { newQuestion } from "../packageDraft";
 import { PlaytestSession } from "./PlaytestSession";
 import { initialPreview, previewQuestion } from "./previewModel";
-import { PreviewRuntime } from "./previewRuntime";
+import { previewTimer, PreviewRuntime } from "./previewRuntime";
+import { usePlaytestWait } from "./usePlaytestWait";
+import { buildContentPlan } from "@/game/contentPlan";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -80,6 +82,9 @@ it("uses one real point control for a normal answer and sends one command", () =
   const command = pointPreview("simple");
   const picker = screen.getByRole("button", { name: "Click where the answer is" });
   expect(screen.getAllByTestId("point-picker")).toHaveLength(1);
+  expect(
+    screen.getAllByRole("img").filter((img) => img.getAttribute("src") === "https://x/image.png"),
+  ).toHaveLength(1);
   fireEvent.keyDown(picker, { key: "Enter" });
   expect(command.mock.calls.filter(([action]) => action.type === "answer-submitted")).toHaveLength(
     1,
@@ -87,7 +92,7 @@ it("uses one real point control for a normal answer and sends one command", () =
   expect(screen.queryByText("Pick a point for the selected player")).not.toBeInTheDocument();
 });
 
-it("keeps all-play point cursors private to the selected perspective and preserves host fallback", () => {
+it("keeps all-play point cursors private to the selected perspective and guides observers", () => {
   const command = pointPreview("everyone");
   const picker = screen.getByRole("button", { name: "Click where the answer is" });
   fireEvent.focus(picker);
@@ -102,9 +107,9 @@ it("keeps all-play point cursors private to the selected perspective and preserv
     1,
   );
   fireEvent.change(screen.getByLabelText("View as"), { target: { value: "1" } });
-  expect(screen.getByText("Pick a point for the selected player")).toBeInTheDocument();
+  expect(screen.getByText("Switch View as to a player who can act.")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("View as"), { target: { value: "5" } });
-  expect(screen.getByText("Pick a point for the selected player")).toBeInTheDocument();
+  expect(screen.getByText("Switch View as to a player who can act.")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("View as"), { target: { value: "2" } });
   fireEvent.keyDown(screen.getByRole("button", { name: "Click where the answer is" }), {
     key: "Enter",
@@ -115,17 +120,85 @@ it("keeps all-play point cursors private to the selected perspective and preserv
   expect(screen.queryByText("Pick a point for the selected player")).not.toBeInTheDocument();
 });
 
-it("retains the prepared point and Continue flow for a final question", () => {
-  pointPreview("final");
-  expect(screen.getByText("Pick a point for the selected player")).toBeInTheDocument();
+it("submits the selected player's final point through the actual control", () => {
+  const command = pointPreview("final");
   const picker = screen.getByRole("button", { name: "Click where the answer is" });
   const next = screen.getByRole("button", { name: "Continue" });
   expect(next).toBeDisabled();
   fireEvent.keyDown(picker, { key: "Enter" });
-  expect(next).toBeEnabled();
-  fireEvent.click(next);
-  expect(
-    screen.getByText("This player has answered. Choose another test player."),
-  ).toBeInTheDocument();
-  expect(screen.queryByText("Pick a point for the selected player")).not.toBeInTheDocument();
+  expect(command.mock.calls.filter(([action]) => action.type === "final-answer-submit")).toEqual([
+    [{ type: "final-answer-submit", payload: { answerText: "0.500,0.500" } }],
+  ]);
+  expect(screen.getByText("Switch View as to a player who can act.")).toBeInTheDocument();
+  expect(next).toBeDisabled();
 });
+
+it("updates Continue at natural content and buzzer boundaries, including pause and resume", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-21T12:00:00Z"));
+  try {
+    const initial = pointPreviewSessionForClock();
+    const { result, rerender, unmount } = renderHook(({ session }) => usePlaytestWait(session), {
+      initialProps: { session: initial },
+    });
+    expect(result.current).toBe(true);
+    act(() => vi.advanceTimersByTime(1030));
+    expect(result.current).toBe(true);
+    act(() => vi.advanceTimersByTime(470));
+    const paused = {
+      ...initial,
+      state: { ...initial.state, isPaused: true, timer: previewTimer(10_000, 1500) },
+    };
+    rerender({ session: paused });
+    expect(result.current).toBe(false);
+    act(() => vi.advanceTimersByTime(10_000));
+    const resumed = {
+      ...paused,
+      state: { ...paused.state, isPaused: false, timer: previewTimer(10_000, 1500) },
+    };
+    rerender({ session: resumed });
+    expect(result.current).toBe(true);
+    act(() => vi.advanceTimersByTime(1530));
+    expect(result.current).toBe(true);
+    act(() => vi.advanceTimersByTime(500));
+    expect(result.current).toBe(false);
+    unmount();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+function pointPreviewSessionForClock() {
+  const question = previewQuestion(newQuestion(100, { text: "Question" }), false, new Map());
+  const initial = initialPreview(
+    false,
+    "Theme",
+    question,
+    {
+      showman: "Host",
+      players: ["P1", "P2", "P3"],
+      spectator: "Watcher",
+      round: "Round",
+      final: "Final",
+      theme: "Theme",
+    },
+    () => 0,
+  );
+  const timer = previewTimer(10_000);
+  initial.state.questionState = "showing";
+  initial.state.timer = timer;
+  initial.state.buzzerOpensAtMs = 3500;
+  const files = [1000, 2000].map((displayTime, order) => ({
+    order,
+    displayTime,
+    file: { md5: String(order), type: "image" as const, link: "https://x/i" },
+  }));
+  initial.content = {
+    kind: "question",
+    plan: buildContentPlan({ files })!,
+    timer,
+    frozenAtMs: null,
+  };
+  return initial;
+}

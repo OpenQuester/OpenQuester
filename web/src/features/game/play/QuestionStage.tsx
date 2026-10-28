@@ -70,7 +70,11 @@ export function QuestionStage() {
             )}
             {/* Fallback (no timeline), the showman's preview, or a caption next to the media. */}
             {!content && !showmanPreview && q?.questionFiles && q.questionFiles.length > 0 && (
-              <QuestionMedia files={q.questionFiles} playing={playing} />
+              <QuestionMedia
+                files={q.questionFiles}
+                playing={playing}
+                replacePointImage={picking ? null : undefined}
+              />
             )}
             {q?.text && (showmanPreview || !textIsStep) && (
               <p className={questionText} data-testid="question-text">

@@ -854,16 +854,14 @@ test("local playtest uses unsaved content, separates roles, and leaves the form 
   await controls.getByLabel("View as").selectOption("1");
   await expect(game.getByTestId("showman-panel")).toContainText("Quiz");
   await controls.getByLabel("View as").selectOption("2");
-  const prepared = controls.getByLabel("Prepared test answer");
-  await prepared.fill("cw ");
-  await prepared.press("Space");
   await expect(game.getByTestId("dock-phase")).toHaveText("Ready to buzz");
-  await prepared.fill("Test answer");
   await controls.getByRole("button", { name: "Continue", exact: true }).click();
   await game.focus();
   await page.keyboard.press("Space");
   await expect(game.getByTestId("dock-phase")).toHaveText("Answering");
-  await controls.getByRole("button", { name: "Continue", exact: true }).click();
+  const answer = game.getByRole("textbox", { name: "Your answer" });
+  await answer.fill("Test answer");
+  await game.getByRole("button", { name: "Send", exact: true }).click();
   await controls.getByLabel("View as").selectOption("1");
   await expect(game.getByTestId("showman-panel")).toContainText("Test answer");
   await game.focus();
@@ -877,8 +875,7 @@ test("local playtest uses unsaved content, separates roles, and leaves the form 
   await game.focus();
   await page.keyboard.press("Space");
   await controls.getByLabel("View as").selectOption("1");
-  const hostInput = controls.getByLabel("Prepared test answer");
-  await hostInput.focus();
+  await controls.getByLabel("View as").focus();
   await page.keyboard.press("w");
   await expect(game.getByTestId("dock-phase")).toHaveText("Answering");
   await game.focus();
@@ -909,10 +906,18 @@ test("mobile playtest presents the real point picker and local final input", asy
     await page.screenshot({ path: join(dir, "playtest-final-375.png"), animations: "disabled" });
   }
   const controls = game.getByRole("group", { name: "Simulation controls" });
-  for (let i = 0; i < 5; i++)
-    await controls.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
   await controls.getByRole("button", { name: "Test settings" }).click();
+  const view = controls.getByLabel("View as");
+  await view.selectOption({ label: "Showman" });
+  await game.getByTestId("final-theme").filter({ hasText: "Test theme 1" }).click();
+  await game.getByTestId("final-theme").filter({ hasText: "Test theme 2" }).click();
+  for (const player of ["Player 1", "Player 2", "Player 3"]) {
+    await view.selectOption({ label: player });
+    await game.getByRole("textbox", { name: "Your bid" }).fill("100");
+    await game.getByRole("button", { name: "Place bid" }).click();
+  }
+  await view.selectOption({ label: "Player 1" });
+  await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
   const picker = game.getByTestId("point-picker").filter({ visible: true });
   await expect(picker).toBeVisible();
   if (dir) {
@@ -923,10 +928,7 @@ test("mobile playtest presents the real point picker and local final input", asy
     });
   }
   await picker.click();
-  await controls.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(
-    game.getByText("This player has answered. Choose another test player."),
-  ).toBeVisible();
+  await expect(game.getByText("Switch View as to a player who can act.")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(form).toBeVisible();
 });
@@ -945,7 +947,7 @@ test("mobile regular point playtest uses the gameplay picker", async ({ page }) 
   await next.click();
   await next.click();
   await next.click();
-  await controls.getByRole("button", { name: "Make this player answer" }).click();
+  await game.getByTestId("buzz").click();
   const picker = game.getByTestId("point-picker").filter({ visible: true });
   await expect(picker).toBeVisible();
   const dir = process.env.OQ_MEDIA_SCREENSHOTS;

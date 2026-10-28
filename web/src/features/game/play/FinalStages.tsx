@@ -3,7 +3,15 @@ import type { FinalAnswer } from "@/game/protocol";
 import { cn } from "@/lib/cn";
 import { useTranslation } from "react-i18next";
 
-import { finalBid, finalPlayers, findPlayer, myRole, remainingFinalThemes } from "@/game/selectors";
+import {
+  finalBid,
+  finalPlayers,
+  findPlayer,
+  isEligible,
+  myRole,
+  pointPicture,
+  remainingFinalThemes,
+} from "@/game/selectors";
 import { formatScore, formatSigned } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
 
@@ -12,6 +20,7 @@ import { AnswerReviewActions, ReviewedCorrectAnswer } from "./stages/AnswerRevie
 import { stageStyles } from "./stages/stageStyles";
 import { QuestionMedia } from "./QuestionMedia";
 import { ShowmanInstruction } from "./question/ShowmanInstruction";
+import { PointAnswer } from "./question/PointAnswer";
 
 /** Players take turns removing themes; the last one left is the final question. */
 export function FinalThemesStage() {
@@ -145,12 +154,25 @@ export function FinalAnswerStage() {
   const { myId } = useGame();
   const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
   const hasMedia = (q?.questionFiles?.length ?? 0) > 0;
+  const picture = pointPicture(q);
+  const picking =
+    picture &&
+    myRole(session, myId) === "player" &&
+    isEligible(session, myId) &&
+    finalBid(session, myId) != null &&
+    !session.finalSubmitted.includes(myId);
   return (
     <section className={stageStyles.finalQuestion}>
       <ThemeLine />
       {myRole(session, myId) === "showman" && <ShowmanInstruction comment={q?.questionComment} />}
       {/* Final questions skip the regular stage, so their media is shown here */}
-      {hasMedia && <QuestionMedia files={q!.questionFiles!} playing={!session.state.isPaused} />}
+      {hasMedia && (
+        <QuestionMedia
+          files={q!.questionFiles!}
+          playing={!session.state.isPaused}
+          replacePointImage={picking ? <PointAnswer key={myId} src={picture} /> : undefined}
+        />
+      )}
       {(q?.text || !hasMedia) && (
         <p className={stageStyles.finalQuestionText} data-testid="question-text">
           {q?.text || t("question.noContent")}

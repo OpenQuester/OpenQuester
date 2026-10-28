@@ -63,7 +63,7 @@ export function startSpecial(game: PreviewRuntime): boolean {
 export function handleSpecial(
   game: PreviewRuntime,
   command: PreviewCommand,
-  sender = game.actor,
+  sender: number,
 ): boolean {
   const phase = phaseOf(game.session);
   const state = game.session.state;
@@ -261,7 +261,31 @@ export function timeoutSpecial(game: PreviewRuntime): boolean {
       );
     return true;
   }
-  if (phase === "secret_transfer") return continueSpecial(game, "");
+  if (phase === "secret_transfer") {
+    const secret = game.session.state.secretQuestionData;
+    if (secret?.priceSelection)
+      handleSpecial(
+        game,
+        {
+          type: "secret-question-price",
+          payload: { price: secret.priceSelection.allowedPrices[0]! },
+        },
+        secret.priceSelection.playerId,
+      );
+    else
+      handleSpecial(
+        game,
+        {
+          type: "secret-question-transfer",
+          payload: {
+            targetPlayerId:
+              secret?.transferType === "exceptCurrent" ? PREVIEW_PLAYERS[1] : PREVIEW_PLAYERS[0],
+          },
+        },
+        PREVIEW_SHOWMAN,
+      );
+    return true;
+  }
   return false;
 }
 
@@ -281,58 +305,4 @@ function review(game: PreviewRuntime, id: number, correct: boolean) {
     },
   });
   if (game.session.state.allPlay?.entries.every((item) => item.isCorrect != null)) game.finish();
-}
-
-export function continueSpecial(game: PreviewRuntime, answerText: string): boolean {
-  const phase = phaseOf(game.session);
-  if (phase === "secret_transfer") {
-    const secret = game.session.state.secretQuestionData;
-    if (secret?.priceSelection)
-      handleSpecial(
-        game,
-        {
-          type: "secret-question-price",
-          payload: { price: secret.priceSelection.allowedPrices[0]! },
-        },
-        secret.priceSelection.playerId,
-      );
-    else
-      handleSpecial(
-        game,
-        {
-          type: "secret-question-transfer",
-          payload: {
-            targetPlayerId:
-              secret?.transferType === "exceptCurrent" && game.actor === PREVIEW_PLAYERS[0]
-                ? PREVIEW_PLAYERS[1]
-                : game.actor,
-          },
-        },
-        PREVIEW_SHOWMAN,
-      );
-    return true;
-  }
-  if (phase === "stake_bidding") {
-    const info = stakeInfo(game.session);
-    if (info) bid(game, info.stake.highestBid == null ? "normal" : "pass", info.minBid);
-    return true;
-  }
-  if (phase === "all_play_bidding") {
-    const next = game.session.state.allPlay?.entries.find((entry) => entry.stake == null);
-    if (next)
-      stake(
-        game,
-        next.playerId,
-        Math.min(
-          Math.max(game.question.price ?? 0, 1),
-          allPlayMaxStake(game.session, next.playerId),
-        ),
-      );
-    return true;
-  }
-  if (phase === "all_play_answering") {
-    answer(game, game.actor, answerText);
-    return true;
-  }
-  return phase === "all_play_reviewing";
 }

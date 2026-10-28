@@ -69,6 +69,121 @@ describe("Dock", () => {
     },
   );
 
+  it.each(["all-play", "final"] as const)(
+    "isolates %s answer drafts across perspectives and timer submission",
+    (mode) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-21T12:00:00Z"));
+      try {
+        const entries = [ALICE, BOB].map((playerId) => ({
+          playerId,
+          stake: null,
+          answer: null,
+          submitted: false,
+          isCorrect: null,
+          scoreChange: null,
+        }));
+        const s = session({
+          currentRound: round(mode === "final" ? "final" : "simple"),
+          currentQuestion: question(100),
+          questionState: mode === "final" ? "answering" : "showing",
+          timer: timer(2000),
+          ...(mode === "final"
+            ? {
+                finalRoundData: {
+                  phase: "answering" as const,
+                  bids: { [ALICE]: 100, [BOB]: 100 },
+                  answers: [],
+                  turnOrder: [ALICE, BOB],
+                  eliminatedThemes: [],
+                },
+              }
+            : {
+                allPlay: {
+                  mode: "noRisk" as const,
+                  questionId: 100,
+                  price: 100,
+                  maxStake: null,
+                  priceMultiplier: null,
+                  entries,
+                },
+              }),
+        });
+        const emit = vi.fn();
+        const connection = { emit, connected: true } as unknown as GameConnection;
+        useGameStore.setState({ session: s, connection: "connected", pending: null });
+        const ui = (myId: number) => (
+          <GameContext.Provider value={{ connection, myId }}>
+            <GameActionDock />
+          </GameContext.Provider>
+        );
+        const { rerender, unmount } = render(ui(ALICE));
+        fireEvent.change(screen.getByRole("textbox"), { target: { value: "private player one" } });
+        rerender(ui(BOB));
+        expect(screen.getByRole("textbox")).toHaveValue("");
+        fireEvent.change(screen.getByRole("textbox"), { target: { value: "player two" } });
+        act(() => vi.advanceTimersByTime(1250));
+        expect(emit).toHaveBeenCalledExactlyOnceWith(
+          mode === "final" ? "final-answer-submit" : "all-play-answer",
+          { answerText: "player two" },
+        );
+        unmount();
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each(["all-play", "final"] as const)("isolates %s bid drafts across perspectives", (mode) => {
+    const entries = [ALICE, BOB].map((playerId) => ({
+      playerId,
+      stake: null,
+      answer: null,
+      submitted: false,
+      isCorrect: null,
+      scoreChange: null,
+    }));
+    const s = session({
+      currentRound: round(mode === "final" ? "final" : "simple"),
+      questionState: "bidding",
+      timer: timer(60000),
+      ...(mode === "final"
+        ? {
+            finalRoundData: {
+              phase: "bidding" as const,
+              bids: {},
+              answers: [],
+              turnOrder: [ALICE, BOB],
+              eliminatedThemes: [],
+            },
+          }
+        : {
+            allPlay: {
+              mode: "stake" as const,
+              questionId: 100,
+              price: 100,
+              maxStake: null,
+              priceMultiplier: null,
+              entries,
+            },
+          }),
+    });
+    s.players = s.players.map((player) => ({ ...player, score: 1000 }));
+    const connection = { emit: vi.fn(), connected: true } as unknown as GameConnection;
+    useGameStore.setState({ session: s, connection: "connected", pending: null });
+    const ui = (myId: number) => (
+      <GameContext.Provider value={{ connection, myId }}>
+        <GameActionDock />
+      </GameContext.Provider>
+    );
+    const { rerender } = render(ui(ALICE));
+    fireEvent.change(screen.getByRole("textbox", { name: "Your bid" }), {
+      target: { value: "137" },
+    });
+    rerender(ui(BOB));
+    expect(screen.getByRole("textbox", { name: "Your bid" })).not.toHaveValue("137");
+  });
+
   it("requires a fresh secret recipient for a different question and ignores a departed player", async () => {
     const s = session({
       currentRound: round(),
