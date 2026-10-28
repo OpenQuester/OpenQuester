@@ -147,9 +147,10 @@ function QuestionAnswerFields({ q, set, final }: QuestionFieldsProps & { final: 
   const { t } = useTranslation();
   return (
     <>
-      {(final || q.type !== "choice") && (
-        <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
+        {final || q.type !== "choice" ? (
           <LinesField
+            key="answer"
             id="qf-answer"
             label={t("editor.form.answer")}
             help={
@@ -162,18 +163,9 @@ function QuestionAnswerFields({ q, set, final }: QuestionFieldsProps & { final: 
             value={[q.answerText, ...q.rightAnswers].filter(Boolean)}
             onChange={([answerText = "", ...rightAnswers]) => set({ answerText, rightAnswers })}
           />
-          <OptionalTextField
-            id="qf-hint"
-            label={t("editor.form.hint")}
-            help={t("editor.form.hintHelp")}
-            value={q.answerHint}
-            onChange={(value) => set({ answerHint: value })}
-          />
-        </div>
-      )}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {!final && q.type === "choice" && (
+        ) : (
           <LinesField
+            key="right"
             id="qf-right"
             label={t("editor.form.rightAnswers")}
             help={
@@ -199,6 +191,13 @@ function QuestionAnswerFields({ q, set, final }: QuestionFieldsProps & { final: 
           onChange={(wrongAnswers) => set({ wrongAnswers })}
         />
       </div>
+      <OptionalTextField
+        id="qf-hint"
+        label={t("editor.form.hint")}
+        help={t("editor.form.hintHelp")}
+        value={q.answerHint}
+        onChange={(value) => set({ answerHint: value })}
+      />
     </>
   );
 }

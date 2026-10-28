@@ -218,7 +218,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 9 | `question-form/QuestionContent.tsx`, `QuestionTypeSettings.tsx` | U/B: move answer mode before question attachments, verify keyboard order, mode-dependent target and staged data survive switches; coordinate 11/24 later. | Accepted; root and independent QA approved |
 | 10 | `QuestionContent.tsx`, `QuestionFields.tsx`, `questionFormStyles.ts` | B: desktop form widths including 1296 and narrow; price/comment 20/80 by available container, stack with long labels; U: comment/order/validation unchanged. | Accepted; root and independent QA approved |
 | 11 | `QuestionContent.tsx`, `QuestionTypeSettings.tsx` | B/U: question text and mode/help 70–80/20–30 in same wide container row, DOM order before media, narrow stack, preserve focus/state and type-specific targets. | Accepted; root and independent QA approved |
-| 12 | `QuestionContent.tsx`, `LinesField.tsx` | B/U: correct/wrong text side by side, hint below; narrow stack, guidance/error association and multiline cursor. | Planned; not released |
+| 12 | `QuestionContent.tsx`, `LinesField.tsx` | B/U: correct/wrong text side by side, hint below; narrow stack, guidance/error association and multiline cursor. | Accepted; root and independent QA approved |
 | 13 | `QuestionContent.tsx`, `useQuestionForm.ts`, `ui/Field.tsx` | U/B: answer media toggles disabled visual and description; invalid fallback retained without active error, re-enabled/revalidated after last removal, reload and cancel. | Planned; not released |
 | 14 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: semantic answer boundary after question on wide/narrow; use a theme-token separator, no extra decorative wrapper; verify ordering/focus. | Planned; not released |
 | 15 | `QuestionContent.tsx`, `questionFormStyles.ts` | B: attribution group on wide/narrow; theme-token separator, no duplicated semantic grouping. | Planned; not released |
@@ -303,3 +303,7 @@ Root approved patch SHA-256 `59F9D903A2F62D28622D084EB8B6D454E0EBE01ED6F281BF60B
 ### Annotation 11 acceptance
 
 Root approved patch SHA-256 `5C1DB376E4255E46955941EAB9FAE01EA99E1CC48BAE884A48E6A08F24F51982`. Independent QA confirmed wide and narrow geometry, aligned controls, full-width dependent number/point settings and choice text, and preserved focus and draft state. Existing focused tests, typecheck, lint, Prettier and React Doctor passed.
+
+### Annotation 12 acceptance
+
+Root approved patch SHA-256 `BA8B7059CB3CE245A87FC20A90968901DD90155B4EF71F3587D53C8BAACC2F72`. Independent QA verified standard, final and choice layouts, multiline answers, hint and save/reopen. The previously stored showman hint is now editable for choice questions as well. Existing focused test coverage was extended for this behavior.

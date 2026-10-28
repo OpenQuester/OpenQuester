@@ -274,12 +274,15 @@ it("keeps alternative accepted answers when switching to choice and back", async
   const { store } = setup(newQuestion(100, { answerText: "Kyiv", rightAnswers: ["Kiev"] }));
   await userEvent.click(screen.getByRole("button", { name: /^Choice/ }));
   expect(screen.getByLabelText(/Also accept/)).toHaveValue("Kiev");
+  await userEvent.type(screen.getByLabelText(/Hint for the showman/), "Capital city");
   await userEvent.click(screen.getByRole("button", { name: /^Simple/ }));
   expect(screen.getByLabelText("Correct answers")).toHaveValue("Kyiv\nKiev");
+  expect(screen.getByLabelText(/Hint for the showman/)).toHaveValue("Capital city");
   await userEvent.click(screen.getByTestId("question-save"));
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]).toMatchObject({
     answerText: "Kyiv",
     rightAnswers: ["Kiev"],
+    answerHint: "Capital city",
   });
 });
 
