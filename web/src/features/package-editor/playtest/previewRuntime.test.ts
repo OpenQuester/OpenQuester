@@ -68,8 +68,13 @@ describe("local question playtest", () => {
     game.submit("1", game.question.answers![0]!.order);
     expect(game.session.submittedAnswer).toBe("1");
     game.setPerspective(PREVIEW_SHOWMAN);
+    const score = game.session.players.find((p) => p.meta.id === PREVIEW_PLAYERS[0])?.score;
     game.commands.emit("answer-result", { answerType: "skip", scoreResult: 0 });
-    expect(game.session.state.answeredPlayers?.at(-1)?.answerType).toBe("skip");
+    expect(game.session.state.answeredPlayers?.at(-1)).toMatchObject({
+      answerType: "skip",
+      result: 0,
+    });
+    expect(game.session.players.find((p) => p.meta.id === PREVIEW_PLAYERS[0])?.score).toBe(score);
     game.buzz(PREVIEW_PLAYERS[1]);
     game.submit("1", game.question.answers![0]!.order);
     expect(game.session.submittedAnswer).toBe("1");

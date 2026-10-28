@@ -592,8 +592,7 @@
     "double": "×2 {{points}}",
     "correctDoubleLabel": "Правильно, подвійні бали: +{{points}}",
     "wrongDoubleLabel": "Неправильно, подвійний штраф: −{{points}}",
-    "correctZero": "Правильно, 0",
-    "wrongZero": "Неправильно, 0"
+    "skipZero": "Пропустити, 0"
   },
   "bid": {
     "quick": "Швидкі ставки",

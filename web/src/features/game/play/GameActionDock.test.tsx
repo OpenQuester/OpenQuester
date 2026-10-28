@@ -393,6 +393,20 @@ describe("Dock", () => {
     expect(emit).toHaveBeenCalledWith("answer-result", { scoreResult: -100, answerType: "wrong" });
   });
 
+  it("offers a single neutral zero-point ruling and disables it while pending", async () => {
+    const emit = renderDock(showing({ questionState: "answering", answeringPlayer: BOB }), SHOWMAN);
+    const skip = screen.getByRole("button", { name: "Skip, 0" });
+    expect(screen.queryByTestId("judge-correct-zero")).toBeNull();
+    expect(screen.queryByTestId("judge-wrong-zero")).toBeNull();
+    await userEvent.click(skip);
+    expect(emit).toHaveBeenCalledExactlyOnceWith("answer-result", {
+      answerType: "skip",
+      scoreResult: 0,
+    });
+    act(() => useGameStore.setState({ pending: { action: "answer-result", at: Date.now() } }));
+    expect(skip).toBeDisabled();
+  });
+
   it("freezes actions while paused", () => {
     renderDock(showing({ isPaused: true }), ALICE);
     expect(screen.getByTestId("dock-phase")).toHaveTextContent("Paused");

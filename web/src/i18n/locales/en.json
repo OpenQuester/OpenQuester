@@ -580,8 +580,7 @@
     "double": "×2 {{points}}",
     "correctDoubleLabel": "Right, double points: +{{points}}",
     "wrongDoubleLabel": "Wrong, double penalty: −{{points}}",
-    "correctZero": "Right, 0",
-    "wrongZero": "Wrong, 0"
+    "skipZero": "Skip, 0"
   },
   "bid": {
     "quick": "Quick bids",
