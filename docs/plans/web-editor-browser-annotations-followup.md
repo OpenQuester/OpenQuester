@@ -228,7 +228,7 @@ The **Reproduce / smallest change / verification** column is the initial hypothe
 | 19 | `board/RoundHeader.tsx`, `board/packageBoardStyles.ts` | B/U: normal/final heading, controls and long names at available row widths; adjust flex basis/wrap, preserve editing/menus and localized strings. | Accepted; root and independent QA approved |
 | 20 | locales `en/uk/ru`, `QuestionTypeSettings.tsx`, `AllPlayStages.tsx` | U/B: compare authoring/actual all-play stake rules and copy; consistently say all players bid and answer; verify long localized labels. | Accepted; root and independent QA approved |
 | 21 | `game/play/dock/BidControls.tsx`, `DockAction.tsx`, `specialModels.ts`, `allPlayModels.ts`, `finalModels.ts`, selectors | U/B/L: regular auction, all-play and final; suggestions above input+slider, submit below; authoritative min/max/all-in/step, invalid/zero/negative score and pending. No invented increment; reproduce actual server constraints first. | Accepted; root and independent QA approved |
-| 22 | `playtest/PlaytestControls.tsx`, `PlaytestSession.tsx`, `game/play/question/PointAnswer.tsx` | B: point in preview answering/all-play; remove duplicated prepared picker where real selected player can answer, one gesture→one event, preserve host/spectator/final until 27. Verify stage containment separately from 5/23. | Planned; not released |
+| 22 | `playtest/PlaytestControls.tsx`, `PlaytestSession.tsx`, `game/play/question/PointAnswer.tsx` | B: point in preview answering/all-play; remove duplicated prepared picker where real selected player can answer, one gesture→one event, preserve host/spectator/final until 27. Verify stage containment separately from 5/23. | Accepted; root and independent QA approved |
 | 23 | `PlaytestSession.tsx`, `QuestionStage.tsx`, `PointAnswer.tsx`, game stage styles | B/L: all-play point actual flow at 1296–1366×884 and short screens; assert image and text inside background, no dock intersection, reachable controls; use 5 root fix only if verified. | Planned; not released |
 | 24 | `QuestionContent.tsx`, `validatePackage.ts`, `packageDraft.ts`, `QuestionPreview.tsx` | U/B/L: text→number→text retains hidden answers and target, save/reopen/publish, preview and reveal/reconnect. Resolve `noAnswer` warning and target-as-reveal boundary described above; report any needed backend change before edits. | Planned; not released |
 | 25 | `QuestionContent.tsx`, `useQuestionForm.ts` | U/B: move reveal timing next to answer content/media; preserve 13/16 validation, disabled fallback value, keyboard order and scroll/focus. | Planned; not released |
@@ -340,6 +340,7 @@ Root approved patch SHA-256 `5BFC3583399A105CA6483C4A41C5011B4A11072AF39FDFCB83C
 | 18 | `329e21dc` |
 | 19 | `101af804` |
 | 20 | `43f830e7` |
+| 21 | `6010e6a9` |
 
 ### Annotation 16 acceptance
 
@@ -376,3 +377,7 @@ Reproduced baseline in an isolated browser component fixture: score 50 and price
 ### Annotation 21 acceptance
 
 Root approved candidate SHA-256 `CB28A92CB77D46528B8EDA79E9D3F023461E343FFACF7113FD2AF1EEFDE0059A`. Independent QA verified normal auction bid/pass and all-in/pass, final bidding and everyone-stakes scoring against an isolated live backend, plus pause/reconnect draft retention and editor preview at desktop and phone widths. Pending, unusual bounds, missing price and legacy zero/negative values were checked in isolated fixtures. The unaffordable opening wait message was fixture-tested; an actual zero/negative-score game proceeded directly to answering, so that particular UI was not exercised live. Focused tests, typecheck, lint and formatting passed; React Doctor reported 92/100 with no findings in the changed scope.
+
+### Annotation 22 acceptance
+
+Root approved candidate SHA-256 `A22231B308FD498EDA0167005E3668F482B40B04424ECC2CDD83C426370901DF`. The prepared point picker is hidden when the selected perspective can answer on the real question stage, or when the selected test player has already submitted or awaits judging. Showman, spectator and final-round fallback remain available where the stage cannot pick a point. A key on the point-answer component alone resets its local cursor when the perspective changes without remounting the question stage or media. Independent QA verified simple, everyone and final local simulator flows at desktop and phone widths, including one command per gesture. This is simulator evidence, not server verification. Focused tests and checks passed; React Doctor reported 91/100 with no findings in the changed scope. Final point questions still use the prepared picker and Continue pending the broader item 27 work.

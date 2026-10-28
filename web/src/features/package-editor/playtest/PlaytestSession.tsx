@@ -10,7 +10,7 @@ import { useSettings } from "@/features/settings/settingsStore";
 import { nextChangeAt, timerElapsed } from "@/game/contentPlan";
 import type { Question } from "@/game/protocol";
 import type { GameSession } from "@/game/reducer";
-import { canBuzz, phaseOf, pointPicture } from "@/game/selectors";
+import { canAnswerNow, canBuzz, phaseOf, pointPicture } from "@/game/selectors";
 import { PlaytestControls } from "./PlaytestControls";
 import { PREVIEW_FINAL_THEME, PREVIEW_PLAYERS, PREVIEW_SHOWMAN } from "./previewModel";
 import { previewTimer, PreviewRuntime } from "./previewRuntime";
@@ -68,6 +68,8 @@ export function PlaytestSession({
   const needsAnswer =
     phase === "answering" || phase === "all_play_answering" || phase === "final_answering";
   const waitingForJudge = phase === "answering" && game.session.submittedAnswer != null;
+  const stagePointAvailable =
+    !!pointPicture(session.state.currentQuestion) && canAnswerNow(session, perspective);
   const actorMismatch = phase === "answering" && session.state.answeringPlayer !== actor;
   const reviewWaiting =
     phase === "all_play_reviewing"
@@ -110,7 +112,7 @@ export function PlaytestSession({
           options={question.answers ?? []}
           picture={pointPicture(question)}
           picked={points[actor] ?? null}
-          showPoint={needsAnswer}
+          showPoint={needsAnswer && !stagePointAvailable && !actorSubmitted && !waitingForJudge}
           settingsOpen={settingsOpen}
           paused={session.state.isPaused}
           finished={finished}

@@ -35,6 +35,7 @@ export function useQuestionStage() {
   const cue = phase === "showing" && contentDone && !picking;
 
   return {
+    myId,
     s,
     phase,
     role,

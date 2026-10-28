@@ -16,6 +16,7 @@ import { useQuestionStage } from "./question/useQuestionStage";
 export function QuestionStage() {
   const { t } = useTranslation();
   const {
+    myId,
     s,
     phase,
     role,
@@ -54,7 +55,7 @@ export function QuestionStage() {
         ) : (
           <div className={questionContentLayout} key={q?.id ?? "q"}>
             {picking ? (
-              <PointAnswer src={picture!} />
+              <PointAnswer key={myId} src={picture!} />
             ) : showmanPreview ? (
               <QuestionMedia files={q?.questionFiles ?? []} playing={false} />
             ) : (
