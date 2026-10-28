@@ -1474,7 +1474,9 @@
     "picture": "Question picture",
     "prompt": "Click the spot on the picture",
     "cursor": "Cursor at {{x}}% from the left, {{y}}% from the top. Arrow keys move it, Enter picks.",
-    "targetDescription": "Correct point: {{x}}% of the image width from the left, {{y}}% of its height from the top. Tolerance radius: {{radius}}% of the image width."
+    "targetDescription": "Correct point: {{x}}% of the image width from the left, {{y}}% of its height from the top. Tolerance radius: {{radius}}% of the image width.",
+    "imageDimensions": "Image dimensions: {{width}} by {{height}} pixels.",
+    "imageDimensionsUnavailable": "Image dimensions are not yet available."
   },
   "stats": {
     "title": "Your games",

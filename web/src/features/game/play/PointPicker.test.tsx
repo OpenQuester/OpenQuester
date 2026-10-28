@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -53,7 +53,7 @@ describe("PointPicker from the keyboard", () => {
     const { rerender } = render(<PointPicker src="https://x/p" target={{ x: 0, y: 0.75 }} />);
     expect(
       screen.getByText(
-        "Correct point: 0% of the image width from the left, 75% of its height from the top. Tolerance radius: 5% of the image width.",
+        "Correct point: 0% of the image width from the left, 75% of its height from the top. Tolerance radius: 5% of the image width. Image dimensions are not yet available.",
       ),
     ).toHaveClass("sr-only");
     rerender(<PointPicker src="https://x/p" target={{ x: 0, y: 0 }} radius={0} />);
@@ -62,6 +62,35 @@ describe("PointPicker from the keyboard", () => {
     expect(screen.getByText(/Tolerance radius: 0\.000001%/)).toBeInTheDocument();
     rerender(<PointPicker src="https://x/p" />);
     expect(screen.queryByText(/Correct point:/)).toBeNull();
+  });
+
+  it("describes only the current decoded image dimensions and forwards its load", () => {
+    const onImageLoad = vi.fn();
+    const target = { x: 0.5, y: 0.5 };
+    const { rerender } = render(
+      <PointPicker src="https://x/wide" target={target} onImageLoad={onImageLoad} />,
+    );
+    const img = screen.getByRole("img");
+    expect(screen.getByText(/Image dimensions are not yet available/)).toBeInTheDocument();
+    Object.defineProperty(img, "naturalWidth", { value: 400, configurable: true });
+    Object.defineProperty(img, "naturalHeight", { value: 200, configurable: true });
+    fireEvent.load(img);
+    expect(screen.getByText(/Image dimensions: 400 by 200 pixels/)).toBeInTheDocument();
+    expect(onImageLoad).toHaveBeenLastCalledWith(400, 200);
+
+    rerender(<PointPicker src="https://x/tall" target={target} onImageLoad={onImageLoad} />);
+    expect(screen.queryByText(/400 by 200/)).toBeNull();
+    expect(screen.getByText(/Image dimensions are not yet available/)).toBeInTheDocument();
+    Object.defineProperty(img, "naturalWidth", { value: 200, configurable: true });
+    Object.defineProperty(img, "naturalHeight", { value: 400, configurable: true });
+    fireEvent.load(img);
+    expect(screen.getByText(/Image dimensions: 200 by 400 pixels/)).toBeInTheDocument();
+    expect(onImageLoad).toHaveBeenLastCalledWith(200, 400);
+    fireEvent.error(img);
+    expect(screen.queryByText(/200 by 400/)).toBeNull();
+    expect(screen.getByText(/Image dimensions are not yet available/)).toBeInTheDocument();
+    rerender(<PointPicker src="https://x/tall" />);
+    expect(screen.queryByText(/Image dimensions/)).toBeNull();
   });
 
   it("provides target and cursor descriptions to the interactive picker", async () => {

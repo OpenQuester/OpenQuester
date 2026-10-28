@@ -46,6 +46,11 @@ export function PointPicker({
 }) {
   const { t, i18n } = useTranslation();
   const [hover, setHover] = useState<Spot | null>(null);
+  const [dimensions, setDimensions] = useState<{
+    src: string;
+    width: number;
+    height: number;
+  } | null>(null);
   const spotOf = (e: MouseEvent<HTMLDivElement>): Spot => {
     const r = e.currentTarget.getBoundingClientRect();
     return {
@@ -56,12 +61,18 @@ export function PointPicker({
   const r = radius ?? DEFAULT_POINT_RADIUS;
   const percent = (value: number) =>
     new Intl.NumberFormat(i18n.language, { maximumSignificantDigits: 6 }).format(value * 100);
+  const imageDimensions = dimensions?.src === src ? dimensions : null;
   const targetDescription = target
-    ? t("point.targetDescription", {
-        x: percent(target.x),
-        y: percent(target.y),
-        radius: percent(r),
-      })
+    ? [
+        t("point.targetDescription", {
+          x: percent(target.x),
+          y: percent(target.y),
+          radius: percent(r),
+        }),
+        imageDimensions
+          ? t("point.imageDimensions", imageDimensions)
+          : t("point.imageDimensionsUnavailable"),
+      ].join(" ")
     : undefined;
   const cursorDescription =
     onPick && hover
@@ -114,9 +125,14 @@ export function PointPicker({
         src={src}
         alt={t("point.picture")}
         className={cn("block max-h-[60vh] max-w-full", imageClassName)}
-        onLoad={(event) =>
-          onImageLoad?.(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)
-        }
+        onLoad={(event) => {
+          const image = event.currentTarget;
+          const { naturalWidth: width, naturalHeight: height } = image;
+          if ((!image.currentSrc || image.currentSrc === image.src) && width > 0 && height > 0)
+            setDimensions({ src, width, height });
+          onImageLoad?.(width, height);
+        }}
+        onError={() => setDimensions((current) => (current?.src === src ? null : current))}
       />
       {targetDescription && !onPick && <span className="sr-only">{targetDescription}</span>}
       {target && (
