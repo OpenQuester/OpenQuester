@@ -9,7 +9,7 @@ import { useSettings } from "@/features/settings/settingsStore";
 import { timerElapsed } from "@/game/contentPlan";
 import type { Question } from "@/game/protocol";
 import type { GameSession } from "@/game/reducer";
-import { phaseOf } from "@/game/selectors";
+import { canManuallyJudge, phaseOf } from "@/game/selectors";
 import { PlaytestControls } from "./PlaytestControls";
 import { PREVIEW_FINAL_THEME, PREVIEW_PLAYERS, PREVIEW_SHOWMAN } from "./previewModel";
 import { previewTimer, PreviewRuntime } from "./previewRuntime";
@@ -44,8 +44,12 @@ export function PlaytestSession({
   const phase = phaseOf(session);
   useEffect(() => {
     game.activate();
+    if (phaseOf(game.session) === "choosing") game.pick();
     return () => game.dispose();
   }, [game]);
+  useEffect(() => {
+    if (phase === "media" && !session.state.isPaused) game.ready();
+  }, [game, phase, session.state.isPaused]);
   useEffect(() => {
     const timer = game.activeTimer;
     if (!timer || session.state.isPaused) return;
@@ -56,7 +60,7 @@ export function PlaytestSession({
     }, left);
     return () => window.clearTimeout(id);
   }, [game, session.version, session.state.isPaused]);
-  const waitingForJudge = phase === "answering" && game.session.submittedAnswer != null;
+  const waitingForJudge = canManuallyJudge(game.session) && game.session.hasAnswerSubmission;
   const reviewWaiting =
     phase === "all_play_reviewing"
       ? session.state.allPlay?.entries.some((entry) => entry.isCorrect == null)
@@ -82,26 +86,30 @@ export function PlaytestSession({
         tabIndex={-1}
         onKeyDown={(event) => onPlaytestKey(event, game, perspective)}
       >
-        <p className="m-0 text-sm text-muted">{t("editor.playtest.local")}</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 basis-64">
+            <PlayerChips />
+          </div>
+          <PlaytestControls
+            perspective={perspective}
+            settingsOpen={settingsOpen}
+            paused={session.state.isPaused}
+            finished={finished}
+            canContinue={
+              !session.state.isPaused &&
+              (phase === "choosing" || phase === "media" || phase === "reveal" || waitAvailable)
+            }
+            onPerspective={(id) => {
+              setPerspective(id);
+              game.setPerspective(id);
+            }}
+            onToggleSettings={() => setSettingsOpen((open) => !open)}
+            onContinue={() => game.advance()}
+            onPause={() => game.pause(!session.state.isPaused)}
+            onRestart={onRestart}
+          />
+        </div>
         {legacy && <p className="m-0 text-sm text-muted">{t("editor.playtest.legacy")}</p>}
-        <PlaytestControls
-          perspective={perspective}
-          settingsOpen={settingsOpen}
-          paused={session.state.isPaused}
-          finished={finished}
-          canContinue={
-            !session.state.isPaused &&
-            (phase === "choosing" || phase === "media" || phase === "reveal" || waitAvailable)
-          }
-          onPerspective={(id) => {
-            setPerspective(id);
-            game.setPerspective(id);
-          }}
-          onToggleSettings={() => setSettingsOpen((open) => !open)}
-          onContinue={() => game.advance()}
-          onPause={() => game.pause(!session.state.isPaused)}
-          onRestart={onRestart}
-        />
         {(waitingForJudge || reviewWaiting) && (
           <p className="m-0 text-sm text-muted">
             {t(
@@ -115,9 +123,6 @@ export function PlaytestSession({
           <p className="m-0 text-sm text-muted">{t("editor.playtest.switchToPlayer")}</p>
         )}
         {finished && <p className="m-0 text-sm text-muted">{t("editor.playtest.finished")}</p>}
-        <div className="shrink-0">
-          <PlayerChips />
-        </div>
         <div className="order-2 flex min-h-52 shrink-0 flex-col rounded-md border border-line bg-surface-2 p-3 sm:order-1 sm:grow sm:p-5">
           <GameStage />
         </div>

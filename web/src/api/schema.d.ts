@@ -3773,6 +3773,11 @@ export interface components {
         };
         /** @description Optional media-downloaded payload. Clients that can read media metadata report real audio/video lengths so the server can time the content timeline; the longest report per file wins. */
         SocketIOMediaDownloadedInput: {
+            /**
+             * Format: uuid
+             * @description Required for sequenced final media preparation; stale acknowledgements are ignored.
+             */
+            mediaPreparationId?: string;
             mediaDurations?: {
                 /** @example 32f6abdc2da002d5f992d2b244ca0820 */
                 md5: string;
@@ -3809,6 +3814,11 @@ export interface components {
              * @example null
              */
             textOrder?: number | null;
+            /** @description Additional sequential screen-text steps. Each order must be unique and must not equal textOrder or a question file order. The legacy text and textOrder retain their existing meaning. For final questions with a non-null array, every question audio/video requires an integer displayTime from 1 to 120000 milliseconds. */
+            textItems?: {
+                order: number;
+                text: string;
+            }[] | null;
             /**
              * @description Hint for the answer
              * @example It's in Europe
@@ -3820,6 +3830,8 @@ export interface components {
             answerNumber?: number | null;
             /** @description Point answers: the right spot. Showman only until the answer is revealed */
             answerPoint?: components["schemas"]["AnswerPoint"] | null;
+            /** @description Public order of the question image for point answers. An explicit order must identify exactly one image; null or absence selects the first image by order for legacy questions. This field does not reveal the correct coordinates. */
+            pointImageOrder?: number | null;
             /** @description How far off still counts: an amount for numbers, a fraction of the picture's width for points */
             answerDeviation?: number | null;
             /** @description Other answers that count as right (besides answerText). Only the showman sees them during the question; revealed with the answer */
@@ -4471,6 +4483,8 @@ export interface components {
             contentPlan?: components["schemas"]["QuestionContentPlan"] | null;
             /** @description Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away */
             buzzerOpensAtMs?: number | null;
+            /** @description True when final media readiness timed out before playback started. */
+            timedOut?: boolean;
         };
         /** @description Data sent to all players when player unskips a question */
         SocketIOGameUnskipEventPayload: {
@@ -4968,6 +4982,8 @@ export interface components {
         /** @description Data sent when final round question is revealed. Role-filtered: the showman's copy includes answerText and answerHint so they can judge; players and spectators get the question without the answer. */
         SocketIOFinalQuestionEventDataPayload: {
             questionData: components["schemas"]["FinalRoundQuestionData"];
+            /** @description Preparation timer, present while final media is being loaded. */
+            timer?: components["schemas"]["GameStateTimer"];
         };
         /** @description Data sent when final round answering phase ends */
         SocketIOFinalSubmitEndPayload: {
@@ -5028,6 +5044,15 @@ export interface components {
              */
             themeName: string;
             question: components["schemas"]["PackageQuestion"];
+            /** @description Sequenced final question content on the answering timer; absent for legacy questions. The answer window starts after totalMs. */
+            contentPlan?: components["schemas"]["QuestionContentPlan"] | null;
+            /**
+             * Format: uuid
+             * @description Active final media preparation identifier; use it in media-downloaded.
+             */
+            mediaPreparationId?: string;
+            /** @description True if preparation timed out before playback. */
+            mediaPreparationTimedOut?: boolean;
         };
         /** @description Data for reviewing final round answers */
         AnswerReviewData: {

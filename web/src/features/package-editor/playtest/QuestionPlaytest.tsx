@@ -10,6 +10,7 @@ import {
   type PackageValidationIssue,
 } from "../validatePackage";
 import { preparePreviewQuestion } from "./preparePreview";
+import { FinalMediaDurationError } from "@/features/upload/finalMediaDuration";
 import { PlaytestSession } from "./PlaytestSession";
 import { initialPreview, previewMedia, previewQuestion, type PreviewNames } from "./previewModel";
 
@@ -87,7 +88,7 @@ export function QuestionPlaytest({
     question: ReturnType<typeof previewQuestion>;
     initial: ReturnType<typeof initialPreview>;
   } | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<FinalMediaDurationError | true | null>(null);
   const [run, setRun] = useState(0);
   // Player names are part of the launched game. Keep its media resources and
   // state alive when only the surrounding UI language changes.
@@ -111,7 +112,7 @@ export function QuestionPlaytest({
     const available = new Map([...media].filter(([id]) => needed.has(id)));
     const resources = previewMedia(available);
     const q = previewQuestion(question, final, resources.links);
-    void preparePreviewQuestion(q, controller.signal)
+    void preparePreviewQuestion(q, controller.signal, final)
       .then((ready) => {
         if (!controller.signal.aborted)
           setPrepared({
@@ -119,8 +120,19 @@ export function QuestionPlaytest({
             initial: initialPreview(final, themeName || names.theme, ready, names),
           });
       })
-      .catch(() => {
-        if (!controller.signal.aborted) setFailed(true);
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          const file =
+            error instanceof FinalMediaDurationError ? media.get(error.fileName) : undefined;
+          setFailed(
+            error instanceof FinalMediaDurationError
+              ? new FinalMediaDurationError(
+                  error.reason,
+                  file?.displayName ?? file?.name ?? error.fileName,
+                )
+              : true,
+          );
+        }
       });
     return () => {
       controller.abort();
@@ -130,11 +142,14 @@ export function QuestionPlaytest({
 
   if (issues.length)
     return (
-      <div className="flex flex-col gap-3 p-5" role="alert">
-        <p className="m-0 font-semibold">{t("editor.playtest.invalid")}</p>
-        {issues.map((issue, index) => (
-          <div key={`${issue.code}-${index}`} className="flex flex-wrap items-center gap-3">
-            <span>
+      <div
+        className="flex min-h-full flex-1 flex-col items-center justify-center gap-4 p-5 text-center"
+        role="alert"
+      >
+        <h2 className="m-0 text-lg font-semibold">{t("editor.playtest.invalid")}</h2>
+        <ul className="m-0 max-w-lg list-disc space-y-1 pl-5 text-left text-sm text-soft">
+          {issues.map((issue, index) => (
+            <li key={`${issue.code}-${index}`}>
               {issue.code === "reveal"
                 ? t("editor.form.revealRange")
                 : issue.code === "stakeLimit"
@@ -142,21 +157,25 @@ export function QuestionPlaytest({
                   : issue.code === "deviation"
                     ? t("editor.playtest.deviation")
                     : t(`editor.issues.${issue.code}`, issue.args)}
-            </span>
-            <Button size="sm" onClick={() => onFix(fieldFor[issue.code] ?? "#qf-text")}>
-              {t("editor.playtest.fix")}
-            </Button>
-          </div>
-        ))}
+            </li>
+          ))}
+        </ul>
+        <Button onClick={() => onFix(fieldFor[issues[0]!.code] ?? "#qf-text")}>
+          {t("editor.playtest.fix")}
+        </Button>
       </div>
     );
   if (failed)
     return (
       <div className="flex flex-col items-start gap-3 p-5" role="alert">
-        <p>{t("editor.playtest.mediaError")}</p>
+        <p>
+          {failed instanceof FinalMediaDurationError
+            ? t(`upload.finalMedia.${failed.reason}`, { name: failed.fileName })
+            : t("editor.playtest.mediaError")}
+        </p>
         <Button
           onClick={() => {
-            setFailed(false);
+            setFailed(null);
             setAttempt((n) => n + 1);
           }}
         >

@@ -22,7 +22,11 @@ export function PlaytestControls(props: Props) {
   const { perspective, settingsOpen, paused, canContinue, finished } = props;
   return (
     <>
-      <div className="flex flex-wrap gap-4" role="group" aria-label={t("editor.playtest.controls")}>
+      <div
+        className="flex flex-wrap items-center justify-end gap-2"
+        role="group"
+        aria-label={t("editor.playtest.controls")}
+      >
         <Button
           className="sm:hidden"
           aria-expanded={settingsOpen}
@@ -35,7 +39,7 @@ export function PlaytestControls(props: Props) {
           id="playtest-settings"
           className={cn("flex-wrap gap-4", settingsOpen ? "flex" : "hidden sm:flex")}
         >
-          <label className="flex flex-col gap-1 text-sm">
+          <label className="flex items-center gap-2 whitespace-nowrap text-sm">
             {t("editor.playtest.perspective")}
             <select
               className={inputClass}

@@ -10,6 +10,7 @@ import type * as Upload from "@/features/upload/upload";
 import type { MediaFile } from "@/features/upload/types";
 import { uploadPackage } from "@/features/upload/upload";
 import { PointImageDimensionsError } from "@/features/upload/pointImageDimensions";
+import { FinalMediaDurationError } from "@/features/upload/finalMediaDuration";
 import { emptyPackage, newQuestion, newRound, newTheme } from "./packageDraft";
 import { PublishPackageDialog } from "./PublishPackageDialog";
 import { createPackageEditorStore, PackageEditorContext } from "./packageEditorStore";
@@ -35,6 +36,7 @@ it.each([
   [new ApiError("Storage full", 507), "Storage full"],
   [new ApiError("Invalid content", 400), "upload.serverRejected"],
   [new PointImageDimensionsError(), "upload.pointImageDimensions"],
+  [new FinalMediaDurationError("tooLong", "video"), "upload.finalMedia.tooLong"],
   [new Error("Local failure"), "Error: Local failure"],
 ] as const)(
   "preserves publish error %s and retries as a new package with current compression settings",
@@ -92,7 +94,7 @@ it.each([
     await user.click(screen.getByTestId("publish-confirm"));
     const expected =
       message.startsWith("upload.") || message.startsWith("editor.")
-        ? i18n.t(message, { message: "Invalid content" })
+        ? i18n.t(message, { message: "Invalid content", name: "video" })
         : message;
     expect(await screen.findByRole("alert")).toHaveTextContent(expected);
     expect(store.getState().publishedId).toBe(12);

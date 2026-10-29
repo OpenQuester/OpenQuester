@@ -507,12 +507,13 @@
     "hint": "Hint: {{hint}}",
     "answering": "{{name}} answers:",
     "sayingOutLoud": "Answering out loud",
+    "emptySubmission": "No answer text was sent.",
     "alreadyAnswered": "Already answered",
     "comment": "Instruction for the showman",
     "alsoRight": "Also right: {{answers}}",
     "notRight": "Not right: {{answers}}",
     "number": "Right number: {{number}}{{deviation}}",
-    "autoChecked": "The game checks this answer itself."
+    "autoChecked": "The game checks recognized answers automatically."
   },
   "reveal": {
     "answer": "The answer",
@@ -548,6 +549,7 @@
     "waiting": "waiting"
   },
   "final": {
+    "mediaTimedOut": "Some players could not load the media in time. The question started anyway; some content may be missing.",
     "themesTitle": "Final round themes",
     "themesHelp": "Players take turns removing a theme. The last one left is the final question.",
     "removed": "Removed",
@@ -647,6 +649,8 @@
     },
     "media": {
       "status": "{{ready}} of {{total}} players ready",
+      "finalWait": "Waiting for players to load the final question.",
+      "finalNext": "The final question starts when the media is ready.",
       "next": "The buzzer opens as soon as every player has loaded the question."
     },
     "showing": {
@@ -671,6 +675,12 @@
       "showmanNextEarly": "The buzzer opens when the question finishes. Open it now to let players buzz early."
     },
     "answering": {
+      "autoSubmitted": "{{name}} sent an answer — waiting for the result",
+      "autoSubmittedHelp": "The answer was sent. Wait for the result or skip without points.",
+      "questionLoading": "Waiting for question details.",
+      "autoWait": "{{name}} is answering — wait for their action",
+      "autoWaitHelp": "The player must select, enter, or mark an answer.",
+      "autoWaitNext": "The answer will be checked automatically when possible.",
       "judge": "{{name}} is answering — judge it",
       "showmanNext": "Correct: {{name}} scores and picks next. Wrong: −{{points}} and the buzzer reopens.",
       "showmanNextSingle": "Only {{name}} answers this one. Either way the answer is revealed next.",
@@ -681,9 +691,9 @@
       "send": "Send",
       "sent": "Sent ✓",
       "giveUp": "Give up",
-      "autoNext": "Valid answers are checked automatically; the showman reviews unrecognized answers.",
+      "autoNext": "Recognized answers are checked automatically. If no result arrives, the showman can skip without points.",
       "youNext": "The showman judges your answer. Wrong costs points and the buzzer reopens for the others.",
-      "choiceNext": "Your answer will be checked; the showman may need to review it.",
+      "choiceNext": "Recognized answers are checked automatically. If no result arrives, the showman can skip without points.",
       "youNextSingle": "The showman judges your answer. Right or wrong, the answer is revealed next.",
       "other": "{{name}} is answering",
       "wait": "Wait for the showman's call",
@@ -745,6 +755,9 @@
       "answerLocked": "Answer locked in",
       "answersIn": "{{done}} of {{total}} answers in",
       "answerShowman": "Players are answering",
+      "contentPlaying": "Question in progress",
+      "contentWait": "Watch the question first.",
+      "contentNext": "Answering opens after the question finishes.",
       "answerNext": "Answers are revealed in the review. Whatever you typed is sent when time runs out.",
       "reviewStatus": "{{done}} of {{total}} answers judged",
       "reviewShowman": "Judge each answer on the stage",
@@ -797,6 +810,10 @@
     "showmanHelp": "Manage a player to fix their score, give them the turn, move them to spectators or remove them."
   },
   "upload": {
+    "finalMedia": {
+      "unavailable": "Could not read the duration of {{name}} for the final question. Check the file and try again.",
+      "tooLong": "The duration for {{name}} exceeds two minutes. Shorten the file or its display time for the final question."
+    },
     "pointImageDimensions": "Could not read the first image dimensions for a point answer. Check the image and try again.",
     "back": "Packages",
     "title": "Upload a package",
@@ -1009,8 +1026,8 @@
       "loading": "Preparing question media…",
       "mediaError": "The question media could not be loaded. Check the files and try again.",
       "retry": "Try again",
-      "fix": "Return to this field",
-      "invalid": "Complete these fields to run this scenario:",
+      "fix": "Return to editing",
+      "invalid": "This question is not finished yet.",
       "perspective": "View as",
       "player": "Player {{number}}",
       "showman": "Showman",
@@ -1042,7 +1059,7 @@
       "mediaOnly": "Media answer",
       "openFull": "Select the question for the full preview.",
       "answer": "Answer",
-      "pointAnswer": "Point on image 1 · {{x}}%, {{y}}%",
+      "pointAnswer": "Point on image",
       "pointUnavailable": "The point or its image is unavailable.",
       "noAnswer": "No answer yet",
       "noQuestion": "No question text or media yet",
@@ -1055,6 +1072,10 @@
       "readOnly": "Preview · {{rounds}} rounds · {{questions}} questions · read only"
     },
     "media": {
+      "dragFile": "Drag file {{number}} to reorder",
+      "moveEarlier": "Move file {{number}} earlier",
+      "moveLater": "Move file {{number}} later",
+      "pointUndoConfirm": "Undo changes the picture for the correct point. The current point will be cleared. Continue?",
       "sizeUnknown": "Size unknown",
       "image": "Image",
       "audio": "Audio",
@@ -1149,13 +1170,23 @@
       "answerNumberMissing": "Enter the right number",
       "deviation": "Allowed difference",
       "deviationHelp": "0 means exactly this number.",
-      "pointHelp": "Click the right spot on the question's first picture.",
+      "pointHelp": "Click the right spot on the selected picture.",
       "radius": "Answer radius",
       "radiusLoading": "Loading image dimensions…",
       "radiusValue": "{{percent}}% · {{pixels}} px radius",
       "radiusLegacy": "This radius exceeds the slider range. It stays unchanged until you adjust it.",
       "pointLegacy": "This published point uses legacy checking until you publish it again from the web editor.",
       "pointNeedsImage": "Add a picture to the question first."
+    },
+    "timeline": {
+      "add": "Add text step",
+      "text": "Additional text {{number}}",
+      "earlier": "Move step {{number}} earlier",
+      "later": "Move step {{number}} later",
+      "remove": "Remove text step {{number}}",
+      "mainFirstHelp": "Shown first, before the media and other text steps.",
+      "moveHandle": "Drag to reorder, or use the arrow keys",
+      "moveStatus": "Moved to position {{number}}"
     },
     "move": {
       "questionTitle": "Move question",
@@ -1472,8 +1503,13 @@
   "point": {
     "pick": "Click where the answer is",
     "picture": "Question picture",
+    "pictureWaiting": "Wait for the target picture to appear.",
+    "pictureUnavailable": "The target picture is unavailable. Ask the showman to skip.",
     "prompt": "Click the spot on the picture",
     "cursor": "Cursor at {{x}}% from the left, {{y}}% from the top. Arrow keys move it, Enter picks.",
+    "pickedDescription": "Your selected point: {{x}}% of the image width from the left, {{y}}% of its height from the top.",
+    "answerDescription": "{{name}} selected {{x}}% of the image width from the left, {{y}}% of its height from the top.",
+    "finalPictureUnavailable": "The target picture is unavailable. You cannot submit a point answer.",
     "targetDescription": "Correct point: {{x}}% of the image width from the left, {{y}}% of its height from the top. Tolerance radius: {{radius}}% of the image width.",
     "imageDimensions": "Image dimensions: {{width}} by {{height}} pixels.",
     "imageDimensionsUnavailable": "Image dimensions are not yet available."

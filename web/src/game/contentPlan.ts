@@ -26,6 +26,7 @@ export function textDuration(text: string): number {
 export function buildContentPlan(source: {
   text?: string | null;
   textOrder?: number | null;
+  textItems?: readonly { order: number; text: string }[] | null;
   files?: QuestionFile[] | null;
 }): ContentPlan | null {
   type Entry = { item: ContentPlanItem; wait: boolean; key: number; tie: number };
@@ -60,6 +61,21 @@ export function buildContentPlan(source: {
       },
       wait: true,
       key: source.textOrder,
+      tie: 0,
+    });
+  }
+  for (const item of source.textItems ?? []) {
+    const value = item.text.trim();
+    if (!value) continue;
+    entries.push({
+      item: {
+        kind: "text",
+        order: item.order,
+        placement: "screen",
+        durationMs: textDuration(value),
+      },
+      wait: true,
+      key: item.order,
       tie: 0,
     });
   }

@@ -7,6 +7,7 @@ import { useMe } from "@/features/auth/useMe";
 import { useSettings } from "@/features/settings/settingsStore";
 import { uploadPackage, type UploadProgress } from "@/features/upload/upload";
 import { PointImageDimensionsError } from "@/features/upload/pointImageDimensions";
+import { FinalMediaDurationError } from "@/features/upload/finalMediaDuration";
 import { toParsed } from "../packageMedia";
 import { usePackageEditor } from "../packageEditorStore";
 import { playableNumericContent } from "../numericAnswer";
@@ -18,6 +19,8 @@ export type PublishStep =
   | { kind: "failed"; error: string };
 
 function publishError(err: unknown, replace: boolean, t: TFunction): string {
+  if (err instanceof FinalMediaDurationError)
+    return t(`upload.finalMedia.${err.reason}`, { name: err.fileName });
   if (err instanceof PointImageDimensionsError) return t("upload.pointImageDimensions");
   if (!(err instanceof ApiError)) return String(err);
   if (err.status === 0) return t("upload.networkError");

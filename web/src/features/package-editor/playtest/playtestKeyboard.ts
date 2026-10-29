@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from "react";
-import { canBuzz, myRole, phaseOf, questionValue } from "@/game/selectors";
+import { canBuzz, canManuallyJudge, myRole, phaseOf, questionValue } from "@/game/selectors";
 import type { PreviewRuntime } from "./previewRuntime";
 
 /** Shortcuts stay inside this preview; live-game listeners retain their dialog guard. */
@@ -47,7 +47,7 @@ export function onPlaytestKey(
   if (
     role === "showman" &&
     phase === "answering" &&
-    !session.state.isPaused &&
+    canManuallyJudge(session) &&
     (key === "c" || key === "w")
   ) {
     event.preventDefault();
@@ -59,6 +59,7 @@ export function onPlaytestKey(
     return;
   }
   if (/^[1-9]$/.test(key)) {
+    if (phase === "answering" && !session.state.currentQuestion) return;
     const button = event.currentTarget.querySelector<HTMLButtonElement>(
       `[data-option="${key}"]:not(:disabled)`,
     );

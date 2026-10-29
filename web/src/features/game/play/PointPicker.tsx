@@ -31,8 +31,10 @@ export function PointPicker({
   target,
   radius = DEFAULT_POINT_RADIUS,
   picked,
+  markers = [],
   className,
   imageClassName,
+  fitFrame = false,
   onImageLoad,
 }: {
   src: string;
@@ -40,8 +42,11 @@ export function PointPicker({
   target?: Spot | null;
   radius?: number | null;
   picked?: Spot | null;
+  markers?: (Spot & { id: number; name: string; correct: boolean | null })[];
   className?: string;
   imageClassName?: string;
+  /** Fit the image itself to the surrounding media frame, keeping click coordinates on the image. */
+  fitFrame?: boolean;
   onImageLoad?: (width: number, height: number) => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -106,6 +111,11 @@ export function PointPicker({
   return (
     <div
       className={cn(questionStyles.picture, onPick && questionStyles.pointPicker, className)}
+      style={
+        fitFrame && imageDimensions
+          ? { width: `min(100%, calc(100cqh * ${imageDimensions.width / imageDimensions.height}))` }
+          : undefined
+      }
       onClick={onPick ? (e) => onPick(spotOf(e)) : undefined}
       onMouseMove={onPick ? (e) => setHover(spotOf(e)) : undefined}
       onMouseLeave={() => setHover(null)}
@@ -124,7 +134,11 @@ export function PointPicker({
       <img
         src={src}
         alt={t("point.picture")}
-        className={cn("block max-h-[60vh] max-w-full", imageClassName)}
+        className={cn(
+          "block max-h-[60vh] max-w-full rounded-lg",
+          fitFrame && imageDimensions && "w-full max-h-none",
+          imageClassName,
+        )}
         onLoad={(event) => {
           const image = event.currentTarget;
           const { naturalWidth: width, naturalHeight: height } = image;
@@ -135,24 +149,75 @@ export function PointPicker({
         onError={() => setDimensions((current) => (current?.src === src ? null : current))}
       />
       {targetDescription && !onPick && <span className="sr-only">{targetDescription}</span>}
+      {picked && !onPick && (
+        <span className="sr-only">
+          {t("point.pickedDescription", { x: percent(picked.x), y: percent(picked.y) })}
+        </span>
+      )}
       {target && (
-        <span
-          className={questionStyles.correctPoint}
-          style={{
-            left: `${target.x * 100}%`,
-            top: `${target.y * 100}%`,
-            width: `${r * 200}%`,
-          }}
-          data-testid="point-target"
-        />
+        <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
+          <span
+            className={questionStyles.correctPoint}
+            style={{
+              left: `${target.x * 100}%`,
+              top: `${target.y * 100}%`,
+              width: `${r * 200}%`,
+            }}
+            data-testid="point-target"
+          />
+        </span>
       )}
       {(picked ?? hover) && (
         <span
-          className={cn(questionStyles.chosenPoint, picked ? "bg-accent" : "bg-accent/50")}
+          className={cn(
+            questionStyles.chosenPoint,
+            picked ? "bg-info motion-safe:animate-pulse" : "bg-accent/50",
+          )}
           style={{ left: `${(picked ?? hover)!.x * 100}%`, top: `${(picked ?? hover)!.y * 100}%` }}
           data-testid={picked ? "point-picked" : undefined}
         />
       )}
+      {markers.map((marker) => (
+        <span
+          key={marker.id}
+          className="pointer-events-none absolute inset-0"
+          data-testid="point-answer-marker"
+        >
+          <span
+            aria-hidden
+            className={cn(
+              questionStyles.chosenPoint,
+              "motion-safe:animate-pulse",
+              marker.correct === true ? "bg-success" : "bg-info",
+            )}
+            style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
+            data-testid="point-answer-dot"
+          />
+          <span
+            aria-hidden
+            className={cn("absolute w-32 max-w-full", marker.x > 0.5 && "text-right")}
+            style={{
+              left: `clamp(0px, calc(${marker.x * 100}% ${marker.x > 0.5 ? "- 0.75rem - min(8rem, 100%)" : "+ 0.75rem"}), max(0px, calc(100% - min(8rem, 100%))))`,
+              top: `clamp(0px, calc(${marker.y * 100}% ${marker.y > 0.85 ? "- 1.75rem" : "+ 0.5rem"}), max(0px, calc(100% - 1.5rem)))`,
+            }}
+            data-testid="point-answer-label"
+          >
+            <span className="inline-block max-w-full truncate rounded-sm bg-surface px-1.5 py-0.5 text-xs font-semibold text-text shadow">
+              {marker.name}
+            </span>
+          </span>
+          <span className="sr-only">
+            {t("point.answerDescription", {
+              name: marker.name,
+              x: percent(marker.x),
+              y: percent(marker.y),
+            })}
+            {marker.correct == null
+              ? ""
+              : ` : ${t(marker.correct ? "judge.correct" : "judge.wrong")}`}
+          </span>
+        </span>
+      ))}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import { canBuzz, myRole, phaseOf, questionValue } from "@/game/selectors";
+import { canBuzz, canManuallyJudge, myRole, phaseOf, questionValue } from "@/game/selectors";
 import { useGameStore } from "@/game/store";
 
 import { useGame } from "../GameContext";
@@ -50,7 +50,10 @@ export function useHotkeys({ onChat, onMenu }: { onChat: () => void; onMenu: () 
       if (
         role === "showman" &&
         phase === "answering" &&
-        !session.state.isPaused &&
+        canManuallyJudge(session) &&
+        connection.connected &&
+        useGameStore.getState().connection === "connected" &&
+        useGameStore.getState().pending?.action !== "answer-result" &&
         (key === "c" || key === "w")
       ) {
         e.preventDefault();
@@ -61,6 +64,7 @@ export function useHotkeys({ onChat, onMenu }: { onChat: () => void; onMenu: () 
         return;
       }
       if (/^[1-9]$/.test(key)) {
+        if (phase === "answering" && !session.state.currentQuestion) return;
         const btn = document.querySelector<HTMLButtonElement>(
           `[data-option="${key}"]:not(:disabled)`,
         );

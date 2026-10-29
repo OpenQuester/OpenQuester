@@ -12,7 +12,7 @@ export function HostGameControls({
   onBoardEdit?: () => void;
 }) {
   const { t } = useTranslation();
-  const { connection, phase, paused, boardEdit, setBoardEdit, canUndo } = tools;
+  const { connection, phase, paused, boardEdit, setBoardEdit, canUndo, session } = tools;
   const pausedReason = paused ? t("reasons.paused") : undefined;
   return (
     <section className={gamePanelStyles.hostActions} aria-label={t("menu.host")}>
@@ -20,7 +20,7 @@ export function HostGameControls({
       <GamePauseButton />
       {(phase === "showing" ||
         phase === "answering" ||
-        phase === "media" ||
+        (phase === "media" && session.state.currentRound?.type !== "final") ||
         phase === "stake_bidding" ||
         phase === "all_play_answering" ||
         phase === "secret_transfer") && (

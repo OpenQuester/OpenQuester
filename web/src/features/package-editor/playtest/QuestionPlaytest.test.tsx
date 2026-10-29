@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { newQuestion } from "../packageDraft";
 import { QuestionPlaytest } from "./QuestionPlaytest";
@@ -9,6 +9,46 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   await i18n.changeLanguage("en");
+});
+
+it("explains an unreadable final media duration and allows retry", async () => {
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(function (
+    this: HTMLMediaElement,
+  ) {
+    if (this.getAttribute("src")) queueMicrotask(() => this.dispatchEvent(new Event("error")));
+  });
+  const q = newQuestion(null, {
+    text: "Question",
+    answerText: "Answer",
+    questionFiles: [{ md5: "clip", type: "video", displayTime: null }],
+  });
+  render(
+    <QuestionPlaytest
+      question={q}
+      final
+      themeName="Final"
+      canSave
+      onFix={() => {}}
+      media={
+        new Map([
+          [
+            "clip",
+            {
+              md5: "clip",
+              type: "video",
+              name: "clip.webm",
+              bytes: new Uint8Array(),
+              url: "https://example.test/clip",
+            },
+          ],
+        ])
+      }
+    />,
+  );
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Could not read the duration of clip.webm",
+  );
+  expect(screen.getByRole("button", { name: /try again/i })).toBeEnabled();
 });
 
 it("keeps a running preview's image alive across language changes and releases it on close", async () => {
@@ -81,14 +121,9 @@ it("runs and pauses the question and reveal clocks and clears them on close", as
     />,
   );
   await screen.findByTestId("question-playtest");
+  await waitFor(() => expect(screen.getByTestId("dock-phase")).toHaveTextContent("Ready to buzz"));
   vi.useFakeTimers({
     toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"],
-  });
-  await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  });
-  await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   });
   expect(screen.getByTestId("dock-phase")).toHaveTextContent("Ready to buzz");
   fireEvent.click(screen.getByRole("button", { name: /^Pause$/ }));
@@ -107,7 +142,7 @@ it("runs and pauses the question and reveal clocks and clears them on close", as
   expect(screen.getByTestId("dock-phase")).toHaveTextContent("Game over");
   expect(screen.getByRole("button", { name: "Pause" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Restart" }));
-  expect(screen.getByTestId("dock-phase")).toHaveTextContent("Choosing");
+  expect(screen.getByTestId("dock-phase")).toHaveTextContent("Ready to buzz");
   view.unmount();
   expect(vi.getTimerCount()).toBe(0);
 });

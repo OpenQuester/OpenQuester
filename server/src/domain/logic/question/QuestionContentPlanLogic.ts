@@ -79,6 +79,22 @@ export class QuestionContentPlanLogic {
       });
     }
 
+    for (const item of source.textItems ?? []) {
+      const text = item.text.trim();
+      if (!text) continue;
+      entries.push({
+        item: {
+          kind: QuestionContentItemKind.TEXT,
+          order: item.order,
+          placement: ContentPlacement.SCREEN,
+          durationMs: this.textDuration(text)
+        },
+        waitForFinish: true,
+        sortKey: item.order,
+        tieBreak: 0
+      });
+    }
+
     if (entries.length === 0) {
       return null;
     }
@@ -133,6 +149,7 @@ export class QuestionContentPlanLogic {
           {
             text: question.text,
             textOrder: question.textOrder,
+            textItems: question.textItems,
             files: question.questionFiles
           },
           game.gameState.mediaDurations ?? null

@@ -1,6 +1,7 @@
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import type { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
+import type { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 
 /**
  * Interface for final round question data
@@ -11,6 +12,11 @@ export interface FinalRoundQuestionData {
   themeId: number;
   themeName: string;
   question: SimplePackageQuestionDTO;
+  /** Present for sequenced questions; its position is the answering timer's elapsed time. */
+  contentPlan?: QuestionContentPlanDTO | null;
+  /** Unique to an active final media preparation; absent after it completes. */
+  mediaPreparationId?: string;
+  mediaPreparationTimedOut?: boolean;
 }
 
 /** Public final-question data together with its server-side answer data. */

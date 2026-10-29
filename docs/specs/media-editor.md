@@ -84,13 +84,26 @@ filter support.
 
 The upload optimizer uses the same animated-image detection as the editor
 (GIF, APNG, animated WebP and AVIF sequences). Source bytes remain unchanged.
-Attachment duration fields retain fractional/comma input while typing. Removing
-the first question image clears a point-answer target tied to that image.
+Attachment duration fields retain fractional/comma input while typing. Question
+media and additional text steps share one ordered card list. The main question
+text always comes first and has no card or position control. Opening an older
+question with main text normalizes only the form's local sequence; Save persists
+that sequence, while Cancel leaves the saved draft unchanged. Legacy media-only
+questions retain their playback format until text steps are added. Dragging a compact grip shows
+the card preview and insertion edge used by the package board. The same grip
+supports touch dragging and arrow-key movement without opening a menu. Images
+themselves are not native file-drag sources. Additional text cards resize only
+vertically, up to 240 pixels, then scroll internally.
+Opening an existing question preserves its point target. Changing its image
+set/order or switching to point mode automatically selects the last image.
+Changing the target occurrence clears the old coordinates; moving only text or
+audio does not. Undo restores the previous target and coordinates, with a
+confirmation only when that would discard a newly chosen point.
 Replacing an attachment keeps its Edit button mounted so focus can return.
 The point-radius slider uses the displayed image dimensions: at 100%, the
 diameter is 120% of its larger dimension. Existing radii remain unchanged
 until adjusted, including values beyond the slider's range. Publication
-measures the final accepted or optimized first image for server checking.
+measures the final accepted or optimized target image for server checking.
 
 ### Video and audio
 
@@ -144,7 +157,7 @@ Keep a discriminated image/audio/video edit state, native Canvas composition,
 the existing image worker and Mediabunny conversion. Guard callbacks against
 closed forms, superseded requests and changed destinations. A processed file
 gets a fresh MD5 and an extension matching its encoding. Preserve order,
-displayTime, placement and waitForFinish. Rotating or cropping the first question image of
+displayTime, placement and waitForFinish. Rotating or cropping the target question image of
 a picture-point answer clears its target and requires reselection before Publish.
 Picture-point hit coordinates use the displayed image bounds. Its wrapper must
 shrink to the image even inside flex layouts; the target is a CSS square with

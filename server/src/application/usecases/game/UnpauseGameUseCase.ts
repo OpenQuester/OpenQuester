@@ -8,9 +8,11 @@ import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import {
   type EmptyInputData,
-  type GameUnpauseBroadcastData,
+  type GameUnpauseBroadcastData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { GamePhase, getGamePhase, TransitionTrigger } from "domain/state-machine/types";
 
 /**
  * Handles unpausing a game.
@@ -18,13 +20,15 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
  * Validates showman role and game state, loads the saved timer,
  * then builds timer unpause mutations.
  */
-export class UnpauseGameUseCase
-  implements GameActionHandler<EmptyInputData, GameUnpauseBroadcastData>
-{
+export class UnpauseGameUseCase implements GameActionHandler<
+  EmptyInputData,
+  GameUnpauseBroadcastData
+> {
   constructor(
     private readonly socketGameTimerService: SocketGameTimerService,
     private readonly gameService: GameService,
-    private readonly socketGameValidationService: SocketGameValidationService
+    private readonly socketGameValidationService: SocketGameValidationService,
+    private readonly phaseTransitionRouter: PhaseTransitionRouter
   ) {}
 
   public async execute(
@@ -41,10 +45,21 @@ export class UnpauseGameUseCase
     const questionState = game.gameState.questionState;
     const savedTimer = await this.gameService.getTimer(game.id, questionState!);
 
-    const { result, timerMutations } =
-      this.socketGameTimerService.buildUnpauseTimerMutations(game, savedTimer);
+    const { result, timerMutations } = this.socketGameTimerService.buildUnpauseTimerMutations(
+      game,
+      savedTimer
+    );
 
     const unpauseData: GameUnpauseBroadcastData = { timer: result.data.timer };
+
+    const transition =
+      getGamePhase(game) === GamePhase.FINAL_MEDIA_DOWNLOADING
+        ? await this.phaseTransitionRouter.tryTransition({
+            game,
+            trigger: TransitionTrigger.CONDITION_MET,
+            triggeredBy: { isSystem: true }
+          })
+        : null;
 
     return {
       success: true,
@@ -52,10 +67,10 @@ export class UnpauseGameUseCase
       mutations: [
         DataMutationConverter.saveGameMutation(game),
         ...DataMutationConverter.mutationFromTimerMutations(timerMutations),
-        ...DataMutationConverter.mutationFromSocketBroadcasts(
-          result.broadcasts
-        ),
-      ],
+        ...DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts),
+        ...DataMutationConverter.mutationFromTimerMutations(transition?.timerMutations),
+        ...DataMutationConverter.mutationFromServiceBroadcasts(transition?.broadcasts, game.id)
+      ]
     };
   }
 }

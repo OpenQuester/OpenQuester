@@ -44,7 +44,12 @@ export function allPlayStakeModel({
   };
 }
 
-export function allPlayAnswerModel({ t, session, myId }: ActionDockContext): ActionDockModel {
+export function allPlayAnswerModel({
+  t,
+  session,
+  myId,
+  pointImageReady,
+}: ActionDockContext): ActionDockModel {
   const entries = session.state.allPlay?.entries ?? [];
   const done = entries.filter((e) => e.submitted).length;
   const mine = myAllPlayEntry(session, myId);
@@ -73,6 +78,14 @@ export function allPlayAnswerModel({ t, session, myId }: ActionDockContext): Act
     };
   }
   const q = session.state.currentQuestion;
+  if (q?.answerType === "point" && !pointPicture(q)) {
+    const message = t("point.finalPictureUnavailable");
+    return { status: message, action: { kind: "info", text: message }, next: "" };
+  }
+  if (q?.answerType === "point" && pointImageReady === false) {
+    const message = t("point.pictureWaiting");
+    return { status: message, action: { kind: "info", text: message }, next: "" };
+  }
   return {
     status: t("dock.allPlay.typeAnswer"),
     action: pointPicture(q)

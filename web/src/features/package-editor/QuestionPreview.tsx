@@ -1,15 +1,16 @@
 import { packageEditorStyles } from "./packageEditorStyles";
 import { layoutStyles } from "@/ui/layoutStyles";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/ui/Badge";
-import type { DraftQuestion } from "./packageDraft";
+import { draftPointImage, type DraftQuestion } from "./packageDraft";
 import { MediaIcon, AttachmentPreview } from "./AttachmentPreview";
 import { questionTypeDetail } from "./questionPresentation";
 import { useMediaFile } from "./packageEditorStore";
 import { numericAnswerText } from "./numericAnswer";
 import { correctChoice } from "./choiceCorrectness";
+import { DEFAULT_POINT_RADIUS } from "@/features/game/play/PointPicker";
 
 /** Everything a question shows, read-only: used in the inspector and full previews. */
 export function QuestionPreview({
@@ -19,8 +20,14 @@ export function QuestionPreview({
   question: DraftQuestion;
   final?: boolean;
 }) {
-  const image = q.questionFiles.find((file) => file.type === "image");
-  return <QuestionPreviewContent key={`${q.id}:${image?.md5 ?? ""}`} question={q} final={final} />;
+  const image = draftPointImage(q);
+  return (
+    <QuestionPreviewContent
+      key={`${q.id}:${image?.occurrenceId ?? image?.md5 ?? ""}`}
+      question={q}
+      final={final}
+    />
+  );
 }
 
 function QuestionPreviewContent({
@@ -30,18 +37,20 @@ function QuestionPreviewContent({
   question: DraftQuestion;
   final?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const descriptionId = useId();
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [pinned, setPinned] = useState(false);
+  const previewText = q.text.trim() || q.textItems?.find((item) => item.text.trim())?.text || "";
   const type = final ? "simple" : q.type;
   const detail = final ? "" : questionTypeDetail(q, t);
   const pointAnswer = type !== "choice" && q.answerType === "point";
   const numberAnswer = type !== "choice" && q.answerType === "number";
   const numberText = numberAnswer ? numericAnswerText(q.answerNumber) : null;
   const selectedChoice = type === "choice" ? correctChoice(q) : undefined;
-  const imageIndex = q.questionFiles.findIndex((file) => file.type === "image");
-  const image = q.questionFiles[imageIndex];
+  const image = draftPointImage(q);
+  const imageIndex = image ? q.questionFiles.indexOf(image) : -1;
   const imageFile = useMediaFile(pointAnswer ? image?.md5 : undefined);
   const target = q.answerPoint;
   const validTarget =
@@ -49,6 +58,15 @@ function QuestionPreviewContent({
     [target.x, target.y].every((value) => Number.isFinite(value) && value >= 0 && value <= 1);
   const canShowPoint = pointAnswer && image && imageFile && validTarget;
   const showPoint = canShowPoint && (hovered || focused || pinned);
+  let pointDescription: string | undefined;
+  if (canShowPoint && target) {
+    const format = new Intl.NumberFormat(i18n.language, { maximumSignificantDigits: 6 });
+    pointDescription = t("point.targetDescription", {
+      x: format.format(target.x * 100),
+      y: format.format(target.y * 100),
+      radius: format.format((q.answerDeviation ?? DEFAULT_POINT_RADIUS) * 100),
+    });
+  }
   return (
     <div className="flex flex-col gap-4">
       <div className={layoutStyles.actions}>
@@ -57,8 +75,8 @@ function QuestionPreviewContent({
         )}
         {type !== "simple" && <Badge tone="accent">{t(`questionTypes.${type}`)}</Badge>}
       </div>
-      {q.text.trim() ? (
-        <p className={cn(packageEditorStyles.questionPreviewText, "text-lg")}>{q.text}</p>
+      {previewText ? (
+        <p className={cn(packageEditorStyles.questionPreviewText, "text-lg")}>{previewText}</p>
       ) : q.questionFiles.length === 0 ? (
         <p className="m-0 text-sm text-danger">{t("editor.preview.noQuestion")}</p>
       ) : null}
@@ -105,27 +123,30 @@ function QuestionPreviewContent({
         </span>
         {pointAnswer ? (
           canShowPoint && target ? (
-            <button
-              type="button"
-              className="self-start rounded-sm text-left font-semibold underline decoration-dotted underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-              aria-pressed={pinned}
-              onMouseEnter={() => setHovered(true)}
-              onMouseLeave={() => setHovered(false)}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              onClick={() => {
-                setPinned(!pinned);
-                if (pinned) {
-                  setHovered(false);
-                  setFocused(false);
-                }
-              }}
-            >
-              {t("editor.preview.pointAnswer", {
-                x: Math.round(target.x * 1000) / 10,
-                y: Math.round(target.y * 1000) / 10,
-              })}
-            </button>
+            <>
+              <button
+                type="button"
+                className="self-start rounded-sm text-left font-semibold underline decoration-dotted underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                aria-pressed={pinned}
+                aria-describedby={descriptionId}
+                onMouseEnter={() => setHovered(true)}
+                onMouseLeave={() => setHovered(false)}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                onClick={() => {
+                  setPinned(!pinned);
+                  if (pinned) {
+                    setHovered(false);
+                    setFocused(false);
+                  }
+                }}
+              >
+                {t("editor.preview.pointAnswer")}
+              </button>
+              <span id={descriptionId} className="sr-only">
+                {pointDescription}
+              </span>
+            </>
           ) : (
             <span className="text-sm text-warning">{t("editor.preview.pointUnavailable")}</span>
           )

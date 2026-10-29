@@ -13,9 +13,11 @@ import {
 } from "./shell/PackageEditorStatus";
 import { usePackageEditorShell } from "./shell/usePackageEditorShell";
 import { useInspectorResize } from "./shell/useInspectorResize";
+import { useDragAutoScroll } from "./packageDragDrop";
 
 /** `header` replaces the editing header, e.g. for a read-only preview. */
 export function PackageEditorShell({ header }: { header?: React.ReactNode } = {}) {
+  useDragAutoScroll();
   const { containerRef, outlineRef, fits, ...resize } = useInspectorResize();
   const shell = usePackageEditorShell(fits);
   const {
@@ -53,7 +55,7 @@ export function PackageEditorShell({ header }: { header?: React.ReactNode } = {}
       )}
 
       <div ref={containerRef} className="flex min-h-0 flex-1">
-        <aside ref={outlineRef} className={packageEditorShellStyles.outline}>
+        <aside ref={outlineRef} className={packageEditorShellStyles.outline} data-editor-scroll>
           <PackageOutline
             report={report}
             onAddRound={addRound}
@@ -62,7 +64,7 @@ export function PackageEditorShell({ header }: { header?: React.ReactNode } = {}
           />
         </aside>
 
-        <main id="main" className="min-w-0 flex-1 overflow-y-auto">
+        <main id="main" className="min-w-0 flex-1 overflow-y-auto" data-editor-scroll>
           <div className={packageEditorShellStyles.workspace}>
             <DraftSaveFailure onExport={exportDraft} />
             {exportError && (

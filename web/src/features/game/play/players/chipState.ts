@@ -13,6 +13,7 @@ export function chipState(
   session: GameSession,
   p: Player,
   t: (k: string, o?: Record<string, unknown>) => string,
+  finalContentPlaying = false,
 ): ChipState {
   const id = p.meta.id;
   const s = session.state;
@@ -75,7 +76,9 @@ export function chipState(
     case "final_answering":
       return session.finalSubmitted.includes(id)
         ? { tag: t("chips.answered"), hot: false, dim: false }
-        : { tag: t("chips.typing"), hot: true, dim: false };
+        : finalContentPlaying
+          ? { tag: t("stake.waiting"), hot: false, dim: false }
+          : { tag: t("chips.typing"), hot: true, dim: false };
     default:
       return none;
   }

@@ -75,7 +75,7 @@ export async function optimizePackage(
         cache.set(file.md5, out);
       }
       if (out) {
-        remap.set(file.md5, out);
+        remap.set(file.md5, { ...out, displayName: file.displayName ?? file.name });
         progress.bytesAfter -= file.bytes.byteLength - out.bytes.byteLength;
       }
       progress.done += 1;

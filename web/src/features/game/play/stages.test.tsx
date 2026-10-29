@@ -21,6 +21,21 @@ function renderStage(s: GameSession, ui: ReactNode, myId = ALICE) {
   return emit;
 }
 
+it.each([SHOWMAN, ALICE, BOB, SAM])(
+  "shows question loading rather than missing content during answering for role %s",
+  (id) => {
+    const game = session({
+      currentRound: round(),
+      questionState: "answering",
+      currentQuestion: null,
+      answeringPlayer: ALICE,
+    });
+    renderStage(game, <QuestionStage />, id);
+    expect(screen.getAllByText("Waiting for question details.").length).toBeGreaterThan(0);
+    expect(screen.queryByText("No question content")).toBeNull();
+  },
+);
+
 it("shows the instruction openly to the showman and omits it from public reveal", () => {
   const game = session({
     currentRound: round(),

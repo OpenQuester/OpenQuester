@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GameConnection } from "@/game/connection";
 import { ALICE, BOB, question, round, SAM, session, SHOWMAN, timer } from "@/game/fixtures";
-import type { GameSession } from "@/game/reducer";
+import { reduce, type GameSession } from "@/game/reducer";
 import { useGameStore } from "@/game/store";
 
 import { GameContext } from "../GameContext";
@@ -34,6 +34,28 @@ const showing = (extra = {}) =>
 
 describe("Dock", () => {
   beforeEach(() => useGameStore.setState({ session: null, pending: null }));
+
+  it.each([ALICE, SHOWMAN])("explains final media readiness for player or showman %s", (id) => {
+    const s = session({
+      currentRound: round("final"),
+      questionState: "media_downloading",
+      finalRoundData: {
+        phase: "answering",
+        bids: {},
+        answers: [],
+        turnOrder: [ALICE],
+        eliminatedThemes: [],
+      },
+    });
+    renderDock(s, id);
+    expect(
+      screen.getAllByText("The final question starts when the media is ready.").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByTestId("dock-info")).toHaveTextContent(
+      "Waiting for players to load the final question.",
+    );
+    expect(screen.queryByText(/buzzer opens/i)).not.toBeInTheDocument();
+  });
 
   it.each(["bidding", "answering"] as const)(
     "preserves a final %s draft across pause and reconnect",
@@ -264,16 +286,43 @@ describe("Dock", () => {
         showing({
           questionState: "answering",
           answeringPlayer: ALICE,
-          currentQuestion: question(100, { answerType }),
+          currentQuestion: question(100, {
+            answerType,
+            questionFiles: [
+              {
+                order: 0,
+                displayTime: null,
+                file: { md5: "image", type: "image", link: "/image.png" },
+              },
+            ],
+          }),
         }),
         ALICE,
       );
       expect(
-        screen.getAllByText(/checked automatically; the showman reviews unrecognized answers/i)
+        screen.getAllByText(/checked automatically\. If no result arrives, the showman can skip/i)
           .length,
       ).toBeGreaterThan(0);
     },
   );
+
+  it("does not turn an unavailable explicit point image into a text answer", () => {
+    const invalid = question(100, {
+      answerType: "point",
+      pointImageOrder: 3,
+      questionFiles: [
+        { order: 0, displayTime: null, file: { md5: "image", type: "image", link: "/image.png" } },
+      ],
+    });
+    renderDock(
+      showing({ questionState: "answering", answeringPlayer: ALICE, currentQuestion: invalid }),
+      ALICE,
+    );
+    expect(
+      screen.getAllByText("The target picture is unavailable. Ask the showman to skip.").length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).toBeNull();
+  });
 
   it("explains automatic checking during everyone-answer review", () => {
     renderDock(
@@ -384,6 +433,131 @@ describe("Dock", () => {
       ALICE,
     );
     expect(screen.getByTestId("dock-info")).toHaveTextContent("You already answered this one");
+  });
+
+  it.each([
+    { type: "simple" as const, answerType: "number" as const },
+    { type: "simple" as const, answerType: "point" as const },
+    { type: "choice" as const, answerType: "text" as const },
+  ])(
+    "allows only neutral skip for automatic-format answers before and after submission: %o",
+    async (q) => {
+      const s = showing({
+        questionState: "answering",
+        answeringPlayer: BOB,
+        currentQuestion: question(100, q),
+      });
+      const emit = renderDock(s, SHOWMAN);
+      expect(screen.getByText("The player must select, enter, or mark an answer.")).toBeVisible();
+      expect(screen.queryByTestId("judge-correct")).toBeNull();
+      expect(screen.queryByTestId("judge-wrong")).toBeNull();
+      await userEvent.click(screen.getByTestId("judge-skip"));
+      expect(emit).toHaveBeenCalledWith("answer-result", { answerType: "skip", scoreResult: 0 });
+      for (const answerText of [null, "42"]) {
+        act(() =>
+          useGameStore.setState({
+            session: reduce(s, { type: "answer-submitted", payload: { answerText } }),
+          }),
+        );
+        expect(screen.queryByTestId("judge-correct")).toBeNull();
+        expect(screen.queryByTestId("judge-wrong")).toBeNull();
+        expect(
+          screen.getByText("The answer was sent. Wait for the result or skip without points."),
+        ).toBeVisible();
+      }
+    },
+  );
+
+  it.each(["text", "point"] as const)(
+    "waits for question-data before deciding how to judge %s",
+    (answerType) => {
+      const state = showing({
+        currentQuestion: null,
+        questionState: "answering",
+        answeringPlayer: BOB,
+      });
+      renderDock(state, SHOWMAN);
+      expect(screen.getAllByText("Waiting for question details.").length).toBeGreaterThan(0);
+      expect(screen.queryByTestId("judge-correct")).toBeNull();
+      expect(screen.getByTestId("judge-skip")).toBeVisible();
+      const received = reduce(state, {
+        type: "question-data",
+        payload: { data: question(100, { answerType }), timer: timer() },
+      });
+      act(() => useGameStore.setState({ session: received }));
+      if (answerType === "text") expect(screen.getByTestId("judge-correct")).toBeVisible();
+      else {
+        expect(screen.queryByTestId("judge-correct")).toBeNull();
+        expect(screen.getByText("The player must select, enter, or mark an answer.")).toBeVisible();
+      }
+    },
+  );
+
+  it.each([
+    { label: "text", data: { answerType: "text" as const }, expected: "input" },
+    { label: "number", data: { answerType: "number" as const }, expected: "input" },
+    { label: "choice", data: { type: "choice" as const }, expected: "choice" },
+    {
+      label: "point",
+      data: {
+        answerType: "point" as const,
+        questionFiles: [
+          {
+            order: 0,
+            displayTime: null,
+            file: { md5: "x", type: "image" as const, link: "https://x/map.png" },
+          },
+        ],
+      },
+      expected: "point",
+    },
+  ])(
+    "waits for $label question data before offering the answerer an input",
+    ({ data, expected }) => {
+      const state = showing({
+        currentQuestion: null,
+        questionState: "answering",
+        answeringPlayer: ALICE,
+      });
+      const emit = renderDock(state, ALICE);
+      expect(screen.getByTestId("dock-info")).toHaveTextContent("Waiting for question details.");
+      expect(screen.queryByRole("textbox")).toBeNull();
+      expect(screen.queryByRole("button", { name: /send/i })).toBeNull();
+      expect(emit).not.toHaveBeenCalled();
+      const received = reduce(state, {
+        type: "question-data",
+        payload: { data: question(100, data), timer: timer() },
+      });
+      act(() => useGameStore.setState({ session: received }));
+      if (expected === "input") expect(screen.getByRole("textbox")).toBeVisible();
+      else expect(screen.queryByRole("textbox")).toBeNull();
+      if (expected === "point") expect(screen.getByTestId("dock-info")).toHaveTextContent(/click/i);
+      if (expected === "choice")
+        expect(screen.getByTestId("dock-info")).toHaveTextContent(/option/i);
+    },
+  );
+
+  it.each([BOB, SAM])("shows waiting details to other player and spectator %s", (id) => {
+    renderDock(
+      showing({ currentQuestion: null, questionState: "answering", answeringPlayer: ALICE }),
+      id,
+    );
+    expect(screen.getByTestId("dock-info")).toHaveTextContent("Waiting for question details.");
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("only shows the Space hint after the buzzer opens", () => {
+    const s = showing({ buzzerOpensAtMs: 10_000 });
+    renderDock(s, ALICE);
+    const button = screen.getByTestId("buzz");
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveTextContent("Space");
+    act(() =>
+      useGameStore.setState({
+        session: reduce(s, { type: "buzzer-open", payload: { buzzerOpensAtMs: 0 } }),
+      }),
+    );
+    expect(screen.getByTestId("buzz")).toHaveTextContent("Space");
   });
 
   it("lets the showman judge with the question value", async () => {

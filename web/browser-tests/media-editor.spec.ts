@@ -44,9 +44,10 @@ async function seed(
   remote = false,
   size = { width: 400, height: 240 },
   final = false,
+  legacyCaption = false,
 ) {
   const result = await page.evaluate(
-    async ({ shared, remote, size, final }) => {
+    async ({ shared, remote, size, final, legacyCaption }) => {
       const d = "/src/features/package-editor/draftStorage.ts",
         m = "/src/features/package-editor/packageDraft.ts",
         a = "/src/features/upload/archive.ts";
@@ -78,6 +79,9 @@ async function seed(
             text: "Name this artwork",
             answerText: "Quiz",
             questionFiles: [media],
+            ...(legacyCaption
+              ? { mainTextFirst: undefined, textItems: undefined, textPosition: null }
+              : {}),
           }),
           ...(shared
             ? [
@@ -104,7 +108,7 @@ async function seed(
       ]);
       return { id, md5, bytes: [...bytes] };
     },
-    { shared, remote, size, final },
+    { shared, remote, size, final, legacyCaption },
   );
   await page.goto(`/packages/editor/${result.id}`);
   await page.getByTestId("question-card").first().press("Control+Enter");
@@ -564,6 +568,7 @@ test("editor video retains working controls in fullscreen", async ({ page }) => 
   await expect(player.getByRole("button", { name: "Unmute", exact: true })).toBeVisible();
   await player.getByRole("button", { name: "Unmute", exact: true }).click();
   const volume = player.getByRole("slider", { name: "Volume" });
+  expect((await volume.boundingBox())!.width).toBeLessThanOrEqual(112);
   await volume.focus();
   await volume.press("Home");
   await expect(volume).toHaveValue("0");
@@ -759,7 +764,8 @@ test("closing nested preview restores focus without scrolling the question form"
 test("local playtest uses unsaved content, separates roles, and leaves the form mounted", async ({
   page,
 }) => {
-  const source = await seed(page, false, false, { width: 1200, height: 900 });
+  // A legacy caption is now shown as the first step in the editor preview.
+  const source = await seed(page, false, false, { width: 1200, height: 900 }, false, true);
   const calls: string[] = [];
   const form = page.getByTestId("question-dialog");
   const unsaved = "Unsaved interactive question";
@@ -771,42 +777,17 @@ test("local playtest uses unsaved content, separates roles, and leaves the form 
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.startsWith("/v1/")) calls.push(request.url());
   });
-  const cell = game.locator('[data-question-id="100"]');
-  const position = await cell.evaluate((node) => ({
-    row: node.parentElement?.parentElement?.getAttribute("aria-label"),
-    text: node.textContent,
-  }));
+  const controls = game.getByRole("group", { name: "Simulation controls" });
+  await expect(game.getByTestId("question-text")).toHaveText(unsaved);
+  await controls.getByRole("button", { name: "Pause", exact: true }).click();
   const dir = process.env.OQ_MEDIA_SCREENSHOTS;
   for (const width of [375, 768, 1440, 1920]) {
     await page.setViewportSize({ width, height: 900 });
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1))
       .toBe(false);
-    expect(
-      await cell.evaluate((node) => ({
-        row: node.parentElement?.parentElement?.getAttribute("aria-label"),
-        text: node.textContent,
-      })),
-    ).toEqual(position);
-    const chips = game.getByRole("list", { name: "Scores" });
-    expect((await chips.boundingBox())!.height).toBeGreaterThan(30);
-    const board = game.getByRole("table");
-    const lastCell = game.getByTestId("board-cell").last();
-    const lastBox = (await lastCell.boundingBox())!,
-      boardBox = (await board.boundingBox())!;
-    expect(lastBox.y + lastBox.height).toBeLessThanOrEqual(boardBox.y + boardBox.height + 1);
-    if (dir) {
-      mkdirSync(dir, { recursive: true });
-      await page.screenshot({
-        path: join(dir, `playtest-board-${width}.png`),
-        animations: "disabled",
-      });
-    }
+    await expect(game.getByRole("list", { name: "Scores" })).toBeVisible();
   }
-  const controls = game.getByRole("group", { name: "Simulation controls" });
-  await controls.getByRole("button", { name: "Continue", exact: true }).click();
-  await controls.getByRole("button", { name: "Continue", exact: true }).click();
-  await controls.getByRole("button", { name: "Pause", exact: true }).click();
   await expect(game.getByTestId("question-text")).toHaveText(unsaved);
   const question = game.getByRole("region", { name: "Question" });
   const stage = question.locator("../..");
@@ -814,35 +795,37 @@ test("local playtest uses unsaved content, separates roles, and leaves the form 
   const text = game.getByTestId("question-text");
   const dock = game.getByTestId("dock");
   const scroller = preview.locator(".overflow-y-auto").first();
-  await expect(media).toBeVisible();
-  for (const [width, height] of [
-    [1366, 884],
-    [1296, 700],
-  ] as const) {
-    await page.setViewportSize({ width, height });
-    for (const content of [media, text, dock]) {
-      const box = (await content.boundingBox())!;
-      const stageBox = (await stage.boundingBox())!;
-      const dockBox = (await dock.boundingBox())!;
-      expect(stageBox.y + stageBox.height).toBeLessThanOrEqual(dockBox.y + 1);
-      if (content !== dock) {
-        expect(box.y).toBeGreaterThanOrEqual(stageBox.y);
-        expect(box.y + box.height).toBeLessThanOrEqual(stageBox.y + stageBox.height + 1);
-      }
-      for (const edge of ["start", "end"] as const) {
-        await content.evaluate(
-          (element, block) => element.scrollIntoView({ block, behavior: "instant" }),
-          edge,
-        );
-        const visibleBox = (await content.boundingBox())!;
-        const scrollBox = (await scroller.boundingBox())!;
-        const edgeY = edge === "start" ? visibleBox.y : visibleBox.y + visibleBox.height;
-        expect(edgeY).toBeGreaterThanOrEqual(scrollBox.y - 3);
-        expect(edgeY).toBeLessThanOrEqual(scrollBox.y + scrollBox.height + 3);
+  await expect(media).toHaveCount(0);
+  const checkLayout = async (contents: Array<typeof text>) => {
+    for (const [width, height] of [
+      [1366, 884],
+      [1296, 700],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      for (const content of [...contents, dock]) {
+        const box = (await content.boundingBox())!;
+        const stageBox = (await stage.boundingBox())!;
+        const dockBox = (await dock.boundingBox())!;
+        expect(stageBox.y + stageBox.height).toBeLessThanOrEqual(dockBox.y + 1);
+        if (content !== dock) {
+          expect(box.y).toBeGreaterThanOrEqual(stageBox.y);
+          expect(box.y + box.height).toBeLessThanOrEqual(stageBox.y + stageBox.height + 1);
+        }
+        for (const edge of ["start", "end"] as const) {
+          await content.evaluate(
+            (element, block) => element.scrollIntoView({ block, behavior: "instant" }),
+            edge,
+          );
+          const visibleBox = (await content.boundingBox())!;
+          const scrollBox = (await scroller.boundingBox())!;
+          const edgeY = edge === "start" ? visibleBox.y : visibleBox.y + visibleBox.height;
+          expect(edgeY).toBeGreaterThanOrEqual(scrollBox.y - 3);
+          expect(edgeY).toBeLessThanOrEqual(scrollBox.y + scrollBox.height + 3);
+        }
       }
     }
-  }
-  await controls.getByRole("button", { name: "Resume", exact: true }).click();
+  };
+  await checkLayout([text]);
 
   if (dir) {
     await page.setViewportSize({ width: 375, height: 900 });
@@ -850,6 +833,11 @@ test("local playtest uses unsaved content, separates roles, and leaves the form 
     await page.screenshot({ path: join(dir, "playtest-question-375.png"), animations: "disabled" });
     await page.setViewportSize({ width: 1920, height: 900 });
   }
+  await controls.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect(media).toBeVisible();
+  await controls.getByRole("button", { name: "Pause", exact: true }).click();
+  await checkLayout([media]);
+  await controls.getByRole("button", { name: "Resume", exact: true }).click();
   await expect(game.getByTestId("showman-panel")).toHaveCount(0);
   await controls.getByLabel("View as").selectOption("1");
   await expect(game.getByTestId("showman-panel")).toContainText("Quiz");
@@ -871,9 +859,10 @@ test("local playtest uses unsaved content, separates roles, and leaves the form 
   await controls.getByRole("button", { name: "Restart" }).click();
   await controls.getByRole("button", { name: "Continue", exact: true }).click();
   await controls.getByRole("button", { name: "Continue", exact: true }).click();
-  await controls.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(game.getByTestId("dock-status")).toHaveText("Buzzer is open");
   await game.focus();
   await page.keyboard.press("Space");
+  await expect(game.getByTestId("dock-phase")).toHaveText("Answering");
   await controls.getByLabel("View as").selectOption("1");
   await controls.getByLabel("View as").focus();
   await page.keyboard.press("w");
@@ -918,8 +907,10 @@ test("mobile playtest presents the real point picker and local final input", asy
   }
   await view.selectOption({ label: "Player 1" });
   await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
+  await expect(game.getByTestId("dock-info")).toHaveText("Watch the question first.");
+  await expect(game.getByTestId("point-picker")).toHaveCount(0);
   const picker = game.getByTestId("point-picker").filter({ visible: true });
-  await expect(picker).toBeVisible();
+  await expect(picker).toBeVisible({ timeout: 10_000 });
   if (dir) {
     await picker.scrollIntoViewIfNeeded();
     await page.screenshot({
@@ -944,9 +935,12 @@ test("mobile regular point playtest uses the gameplay picker", async ({ page }) 
   await expect(game).toBeVisible();
   const controls = game.getByRole("group", { name: "Simulation controls" });
   const next = controls.getByRole("button", { name: "Continue", exact: true });
+  await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
   await next.click();
+  await expect(game.getByTestId("content-stage").locator("img")).toBeVisible();
+  await expect(next).toBeEnabled();
   await next.click();
-  await next.click();
+  await expect(game.getByTestId("dock-status")).toHaveText("Buzzer is open");
   await game.getByTestId("buzz").click();
   const picker = game.getByTestId("point-picker").filter({ visible: true });
   await expect(picker).toBeVisible();
@@ -1007,11 +1001,6 @@ test("playtest pauses parent media, isolates volume, and releases its own media 
   const game = page.getByTestId("question-playtest");
   await expect(game).toBeVisible();
   await expect.poll(() => parentVideo.evaluate((el: HTMLVideoElement) => el.paused)).toBe(true);
-  const next = game
-    .getByRole("group", { name: "Simulation controls" })
-    .getByRole("button", { name: "Continue", exact: true });
-  await next.click();
-  await next.click();
   const video = game.getByTestId("media-video"),
     handle = await video.elementHandle();
   await expect(video).toBeVisible();
@@ -1046,7 +1035,7 @@ test("playtest keyboard input and invalid-field return stay inside the editor", 
   await form.getByRole("button", { name: "Preview", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Interactive game preview" });
   await expect(dialog.getByRole("alert")).toBeVisible();
-  await dialog.getByRole("button", { name: "Return to this field" }).focus();
+  await dialog.getByRole("button", { name: "Return to editing" }).focus();
   await page.keyboard.press("Enter");
   await expect(form.locator("#qf-number")).toBeFocused();
   await form.locator("#qf-number").fill("42");
@@ -1056,10 +1045,10 @@ test("playtest keyboard input and invalid-field return stay inside the editor", 
   const next = game
     .getByRole("group", { name: "Simulation controls" })
     .getByRole("button", { name: "Continue", exact: true });
+  await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
   await next.focus();
   await page.keyboard.press("Enter");
-  await page.keyboard.press("Enter");
-  await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
+  await expect(game.getByTestId("content-stage").locator("img")).toBeVisible();
   await page.keyboard.press("Control+Enter");
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
@@ -1815,4 +1804,81 @@ test("point radius reaches 60 percent of the larger image dimension", async ({ p
       await page.screenshot({ path: join(dir, `point-radius-${width}.png`) });
     }
   }
+});
+
+test("secret playtest starts its media sequence after transfer", async ({ page }) => {
+  const { id } = await seed(page);
+  await page.goto("/");
+  await page.evaluate(
+    async ({ id, video }) => {
+      const path = "/src/features/package-editor/draftStorage.ts";
+      const { loadDraft, saveDraft } = (await import(path)) as typeof Drafts;
+      const draft = (await loadDraft(id))!;
+      const question = draft.pkg.rounds[0]!.themes[0]!.questions[0]!;
+      question.type = "secret";
+      const file = question.questionFiles[0]!;
+      const archivePath = "/src/features/upload/archive.ts";
+      const { md5Hex } = (await import(archivePath)) as typeof Archive;
+      const bytes = new Uint8Array(video);
+      const md5 = md5Hex(bytes);
+      question.questionFiles = [
+        ...Array.from({ length: 2 }, () => ({ ...file, displayTime: 3000, waitForFinish: true })),
+        { md5, type: "video", displayTime: null, waitForFinish: true },
+      ];
+      await saveDraft(draft, [{ md5, type: "video", name: "clip.webm", bytes }]);
+    },
+    { id, video: [...readFileSync("e2e/fixtures/clip.webm")] },
+  );
+  await page.goto(`/packages/editor/${id}`);
+  await page.getByTestId("question-card").first().press("Control+Enter");
+  await page
+    .getByTestId("question-dialog")
+    .getByRole("button", { name: "Preview", exact: true })
+    .click();
+  const game = page.getByTestId("question-playtest");
+  await game.getByRole("radio", { name: /Player 2/ }).click();
+  await game.getByTestId("secret-give").click();
+  await expect(game.getByText("Part 1 of 4")).toBeVisible();
+  await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
+  await expect(game.getByText("Part 2 of 4")).toBeVisible({ timeout: 6000 });
+  await expect(game.getByTestId("content-stage").locator("img")).toBeVisible();
+  await expect(game.getByText("Part 3 of 4")).toBeVisible({ timeout: 6000 });
+  await expect(game.getByTestId("content-stage").locator("img")).toBeVisible();
+  await expect(game.getByText("Part 4 of 4")).toBeVisible({ timeout: 6000 });
+  await expect
+    .poll(() =>
+      game.getByTestId("media-video").evaluate((video: HTMLVideoElement) => video.currentTime),
+    )
+    .toBeGreaterThan(0);
+});
+
+test("all-play preview waits for real stakes then starts the question automatically", async ({
+  page,
+}) => {
+  await seed(page);
+  const form = page.getByTestId("question-dialog");
+  await form.getByRole("button", { name: /^Stake / }).click();
+  await form.getByLabel("Everyone bids and answers").check();
+  await form.getByRole("button", { name: "Preview", exact: true }).click();
+  const game = page.getByTestId("question-playtest");
+  const controls = game.getByRole("group", { name: "Simulation controls" });
+  const view = controls.getByLabel("View as");
+  await expect(game.getByTestId("dock-phase")).toHaveText("Everyone · stakes");
+  for (const player of ["Player 1", "Player 2", "Player 3"]) {
+    await view.selectOption({ label: player });
+    await game.getByTestId("bid-submit").click();
+  }
+  await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
+  await expect(game.getByTestId("dock-phase")).toHaveText("Everyone answers");
+});
+
+test("no-risk all-play preview starts without Continue", async ({ page }) => {
+  await seed(page);
+  const form = page.getByTestId("question-dialog");
+  await form.getByRole("button", { name: /^No risk / }).click();
+  await form.getByLabel("Everyone plays it").check();
+  await form.getByRole("button", { name: "Preview", exact: true }).click();
+  const game = page.getByTestId("question-playtest");
+  await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
+  await expect(game.getByTestId("dock-phase")).toHaveText("Everyone answers");
 });

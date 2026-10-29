@@ -89,7 +89,13 @@ export function finalBidModel({
   };
 }
 
-export function finalAnswerModel({ t, session, myId, reason }: ActionDockContext): ActionDockModel {
+export function finalAnswerModel({
+  t,
+  session,
+  myId,
+  reason,
+  finalContentPlaying,
+}: ActionDockContext): ActionDockModel {
   const role = myRole(session, myId);
   const players = seatedPlayers(session).filter(
     (p) => isEligible(session, p.meta.id) && finalBid(session, p.meta.id) != null,
@@ -98,6 +104,13 @@ export function finalAnswerModel({ t, session, myId, reason }: ActionDockContext
   const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
   const point = !!pointPicture(q);
   const next = t(point ? "dock.final.pointNext" : "dock.final.answerNext");
+  if (finalContentPlaying) {
+    return {
+      status: t("dock.final.contentPlaying"),
+      action: { kind: "info", text: t("dock.final.contentWait") },
+      next: t("dock.final.contentNext"),
+    };
+  }
   if (role !== "player") {
     return {
       status: t("dock.final.answersIn", { done, total: players.length }),
@@ -116,6 +129,13 @@ export function finalAnswerModel({ t, session, myId, reason }: ActionDockContext
     return {
       status: t("dock.final.answerLocked"),
       action: { kind: "info", text: t("dock.final.waitOthers", { done, total: players.length }) },
+      next,
+    };
+  }
+  if (q?.answerType === "point" && !point) {
+    return {
+      status: t("point.finalPictureUnavailable"),
+      action: { kind: "info", text: t("point.finalPictureUnavailable") },
       next,
     };
   }

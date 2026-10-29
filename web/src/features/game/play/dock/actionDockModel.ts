@@ -16,6 +16,7 @@ export type DockAction =
   | { kind: "show-question"; early: boolean; opening: boolean; revealing: boolean }
   | { kind: "buzz"; early: boolean; answering: boolean; passing: boolean; canPass: boolean }
   | { kind: "judge"; value: number; wrong: number; pending: boolean }
+  | { kind: "judge-wait"; pending: boolean; message: string }
   | {
       kind: "answer";
       mode: "choice" | "point" | "number" | "text";
@@ -50,4 +51,6 @@ export interface ActionDockContext {
   reason: (reason: DisabledReason) => string;
   buzzer: BuzzerTiming;
   secretTarget: number | null;
+  finalContentPlaying?: boolean;
+  pointImageReady?: boolean;
 }

@@ -85,9 +85,7 @@ export class ThemeEliminateUseCase implements GameActionHandler<
         game,
         trigger: TransitionTrigger.CONDITION_MET,
         triggeredBy: { isSystem: true },
-        resources: await this.transitionResourceService.getFinalRoundQuestionData(
-          game
-        )
+        resources: await this.transitionResourceService.getFinalRoundQuestionData(game)
       });
 
       const biddingPhaseResult = BiddingInitializationLogic.buildResult({
@@ -116,7 +114,14 @@ export class ThemeEliminateUseCase implements GameActionHandler<
       }
 
       // If all players auto-bid, emit question data and bidding → answering transition
-      if (biddingPhaseResult.questionData) {
+      if (biddingPhaseResult.questionData?.mediaPreparationId) {
+        mutations.push(
+          ...DataMutationConverter.mutationFromServiceBroadcasts(
+            biddingTransitionResult?.broadcasts,
+            game.id
+          )
+        );
+      } else if (biddingPhaseResult.questionData) {
         mutations.push(
           DataMutationConverter.gameBroadcastMutation(
             game.id,

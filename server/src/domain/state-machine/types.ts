@@ -37,6 +37,7 @@ export enum GamePhase {
   // Final round
   FINAL_THEME_ELIMINATION = "final-theme-elimination",
   FINAL_BIDDING = "final-bidding",
+  FINAL_MEDIA_DOWNLOADING = "final-media-downloading",
   FINAL_ANSWERING = "final-answering",
   FINAL_REVIEWING = "final-reviewing",
 
@@ -225,6 +226,8 @@ export function getGamePhase(game: Game): GamePhase {
         return GamePhase.FINAL_THEME_ELIMINATION;
       case QuestionState.BIDDING:
         return GamePhase.FINAL_BIDDING;
+      case QuestionState.MEDIA_DOWNLOADING:
+        return GamePhase.FINAL_MEDIA_DOWNLOADING;
       case QuestionState.ANSWERING:
         return GamePhase.FINAL_ANSWERING;
       case QuestionState.REVIEWING:

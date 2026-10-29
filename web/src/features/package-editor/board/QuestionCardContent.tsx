@@ -71,10 +71,11 @@ export function QuestionCardContent({
         className={cn(
           "text-[13px] leading-snug [overflow-wrap:anywhere]",
           cards ? "line-clamp-3 font-medium" : "line-clamp-2 text-soft",
-          !q.text.trim() && "text-faint italic",
+          !q.text.trim() && !q.textItems?.some((item) => item.text.trim()) && "text-faint italic",
         )}
       >
         {q.text.trim() ||
+          q.textItems?.find((item) => item.text.trim())?.text ||
           (q.questionFiles.length
             ? t(`editor.media.${q.questionFiles[0]!.type}`)
             : t("editor.board.noText"))}
@@ -97,7 +98,7 @@ export function QuestionCardContent({
       {issue && issue !== "info" && !selected && (
         <span
           className={cn(
-            "text-[11px] font-semibold",
+            "text-[12px] font-semibold",
             issue === "critical" ? "text-danger" : "text-warning",
           )}
         >

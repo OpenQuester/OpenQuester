@@ -177,7 +177,7 @@ export function EditorMediaPlayer({
           </button>
           <input
             type="range"
-            className="min-w-0 flex-1"
+            className="min-w-0 w-full max-w-28"
             aria-label={t("editor.player.volume")}
             min={0}
             max={1}

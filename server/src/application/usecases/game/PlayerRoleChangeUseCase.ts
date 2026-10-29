@@ -10,20 +10,24 @@ import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   type PlayerRoleChangeBroadcastData,
-  type PlayerRoleChangeInputData,
+  type PlayerRoleChangeInputData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameValidator } from "domain/validators/GameValidator";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { GamePhase, getGamePhase, TransitionTrigger } from "domain/state-machine/types";
+import { AnsweringPlayerLeaveLogic } from "domain/logic/player-leave/AnsweringPlayerLeaveLogic";
 
 /**
  * Handles player role change requests.
  */
-export class PlayerRoleChangeUseCase
-  implements
-    GameActionHandler<PlayerRoleChangeInputData, PlayerRoleChangeBroadcastData>
-{
+export class PlayerRoleChangeUseCase implements GameActionHandler<
+  PlayerRoleChangeInputData,
+  PlayerRoleChangeBroadcastData
+> {
   constructor(
     private readonly validationService: SocketGameValidationService,
-    private readonly playerGameStatsService: PlayerGameStatsService
+    private readonly playerGameStatsService: PlayerGameStatsService,
+    private readonly phaseTransitionRouter: PhaseTransitionRouter
   ) {}
 
   public async execute(
@@ -36,7 +40,7 @@ export class PlayerRoleChangeUseCase
 
     const targetPlayerId = payload.playerId ?? currentPlayer.meta.id;
     const targetPlayer = game.getPlayer(targetPlayerId, {
-      fetchDisconnected: false,
+      fetchDisconnected: false
     });
 
     if (!targetPlayer) {
@@ -50,32 +54,41 @@ export class PlayerRoleChangeUseCase
       game
     );
 
-    const mutation = PlayerRoleChangeLogic.processRoleChange(
+    const autoLoss =
+      getGamePhase(game) === GamePhase.FINAL_MEDIA_DOWNLOADING &&
+      targetPlayer.role === PlayerRole.PLAYER &&
+      payload.newRole !== PlayerRole.PLAYER &&
+      AnsweringPlayerLeaveLogic.processFinalRoundAutoLoss(game, targetPlayerId);
+    const autoLossBroadcasts = AnsweringPlayerLeaveLogic.buildFinalRoundResult({
       game,
-      targetPlayer,
-      payload.newRole
-    );
+      userId: targetPlayerId,
+      wasProcessed: autoLoss,
+      transitionResult: null
+    }).broadcasts;
+    const mutation = PlayerRoleChangeLogic.processRoleChange(game, targetPlayer, payload.newRole);
 
     // Handle statistics based on role change
     if (payload.newRole === PlayerRole.PLAYER) {
-      await this.playerGameStatsService.clearPlayerLeftAtTime(
-        game.id,
-        targetPlayerId
-      );
+      await this.playerGameStatsService.clearPlayerLeftAtTime(game.id, targetPlayerId);
     } else if (payload.newRole === PlayerRole.SPECTATOR && mutation.wasPlayer) {
-      await this.playerGameStatsService.endPlayerSession(
-        game.id,
-        targetPlayerId,
-        new Date()
-      );
+      await this.playerGameStatsService.endPlayerSession(game.id, targetPlayerId, new Date());
     }
 
     const result = PlayerRoleChangeLogic.buildResult({ game, targetPlayer });
 
+    const transition =
+      getGamePhase(game) === GamePhase.FINAL_MEDIA_DOWNLOADING && !game.gameState.isPaused
+        ? await this.phaseTransitionRouter.tryTransition({
+            game,
+            trigger: TransitionTrigger.CONDITION_MET,
+            triggeredBy: { playerId: targetPlayerId, isSystem: false }
+          })
+        : null;
+
     const broadcastData: PlayerRoleChangeBroadcastData = {
       playerId: result.data.targetPlayer.meta.id,
       newRole: payload.newRole,
-      players: result.data.players,
+      players: result.data.players
     };
 
     return {
@@ -83,10 +96,11 @@ export class PlayerRoleChangeUseCase
       data: broadcastData,
       mutations: [
         DataMutationConverter.saveGameMutation(game),
-        ...DataMutationConverter.mutationFromSocketBroadcasts(
-          result.broadcasts
-        ),
-      ],
+        ...DataMutationConverter.mutationFromServiceBroadcasts(autoLossBroadcasts, game.id),
+        ...DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts),
+        ...DataMutationConverter.mutationFromTimerMutations(transition?.timerMutations),
+        ...DataMutationConverter.mutationFromServiceBroadcasts(transition?.broadcasts, game.id)
+      ]
     };
   }
 }

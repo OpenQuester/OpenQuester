@@ -52,6 +52,8 @@ export interface GameSession {
   finished: boolean;
   /** Text the answering player typed, shown to the showman. */
   submittedAnswer: string | null;
+  /** A regular answer-submitted event arrived, even when its text was null. */
+  hasAnswerSubmission: boolean;
   /** Most recent judged answer, for result feedback. */
   lastResult: (AnsweredPlayer & { key: number }) | null;
   /** Final round: players whose answer is in (text hidden until review). */
@@ -87,6 +89,11 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
       state.questionState === "answering" && state.currentRound?.type !== "final" && !state.allPlay
         ? (state.submittedAnswer ?? null)
         : null,
+    hasAnswerSubmission:
+      state.questionState === "answering" &&
+      state.currentRound?.type !== "final" &&
+      !state.allPlay &&
+      state.submittedAnswer != null,
     lastResult: null,
     finalSubmitted: finalData ? finalData.answers.map((a) => a.playerId) : [],
     finalAutoLoss: finalData
@@ -109,6 +116,7 @@ function questionPlan(question: Question | null, sent: ContentPlan | null | unde
   return buildContentPlan({
     text: question.text,
     textOrder: question.textOrder,
+    textItems: question.textItems,
     files: question.questionFiles,
   });
 }
@@ -238,6 +246,7 @@ function backToChoosing(session: GameSession): GameSession {
       buzzerLocks: null,
     }),
     submittedAnswer: null,
+    hasAnswerSubmission: false,
     content: null,
     players: session.players.map((p) => ({ ...p, mediaDownloaded: false })),
   };
@@ -306,6 +315,7 @@ function onQuestionData(
       allPlay: s.allPlay?.questionId === data.id ? s.allPlay : null,
     }),
     submittedAnswer: newPick ? null : session.submittedAnswer,
+    hasAnswerSubmission: newPick ? false : session.hasAnswerSubmission,
     content: questionContent(session, questionState, data, timer, sentPlan, newPick),
     players:
       newPick && questionState === "media_downloading"
@@ -335,7 +345,9 @@ function questionContent(
   // While someone answers, this event carries the answer timer, not the
   // question's: the position is unknown until the question resumes.
   const running =
-    newPick || questionState === "showing" || isDirectAnswer({ ...session.state, questionState });
+    newPick ||
+    questionState === "showing" ||
+    isDirectAnswer({ ...session.state, questionState, currentQuestion: question });
   return { kind: "question", plan, timer: running ? timer : null, frozenAtMs: null };
 }
 
@@ -436,8 +448,15 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       return patchState(session, { readyPlayers: event.payload.readyPlayers });
 
     case "media-download-status": {
-      const { playerId, mediaDownloaded, allPlayersReady, timer, contentPlan, buzzerOpensAtMs } =
-        event.payload;
+      const {
+        playerId,
+        mediaDownloaded,
+        allPlayersReady,
+        timer,
+        contentPlan,
+        buzzerOpensAtMs,
+        timedOut,
+      } = event.payload;
       let players = session.players;
       if (allPlayersReady) {
         players = players.map((p) => (p.role === "player" ? { ...p, mediaDownloaded: true } : p));
@@ -446,6 +465,22 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       }
       const next = { ...session, players };
       if (allPlayersReady && s.questionState === "media_downloading") {
+        if (
+          s.currentRound?.type === "final" &&
+          s.finalRoundData?.questionData?.mediaPreparationId
+        ) {
+          const final = s.finalRoundData;
+          return patchState(
+            patchFinal(next, {
+              questionData: {
+                ...final.questionData!,
+                contentPlan: contentPlan ?? final.questionData!.contentPlan,
+                mediaPreparationTimedOut: !!timedOut,
+              },
+            }),
+            { questionState: "answering", timer: timer ?? s.timer },
+          );
+        }
         const plan = questionPlan(s.currentQuestion, contentPlan);
         const clock = timer ?? s.timer;
         return {
@@ -495,6 +530,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           timer: event.payload.timer,
         }),
         submittedAnswer: null,
+        hasAnswerSubmission: false,
         content: freeze(session.content, s.isPaused),
       };
 
@@ -505,6 +541,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           submittedChoiceOrder: event.payload.choiceOrder ?? null,
         }),
         submittedAnswer: event.payload.answerText,
+        hasAnswerSubmission: true,
       };
 
     case "answer-result": {
@@ -530,6 +567,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         }),
         players,
         submittedAnswer: null,
+        hasAnswerSubmission: false,
         lastResult: { ...result, key: session.version + 1 },
         // The server restores the showing timer: the content picks up there.
         content:
@@ -558,6 +596,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           skippedPlayers: null,
           timer: null,
         }),
+        hasAnswerSubmission: false,
         content: revealPlan
           ? {
               kind: "answer",
@@ -835,6 +874,22 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
 
     case "final-question-data": {
       const next = patchFinal(session, { questionData: event.payload.questionData });
+      if (event.payload.questionData.mediaPreparationId) {
+        const samePreparation =
+          s.questionState === "media_downloading" &&
+          s.finalRoundData?.questionData?.mediaPreparationId ===
+            event.payload.questionData.mediaPreparationId;
+        return {
+          ...patchState(patchFinal(next, { phase: "answering" }), {
+            currentQuestion: event.payload.questionData.question,
+            questionState: "media_downloading",
+            timer: event.payload.timer ?? (samePreparation ? s.timer : null),
+          }),
+          players: samePreparation
+            ? next.players
+            : next.players.map((p) => (p.role === "player" ? { ...p, mediaDownloaded: false } : p)),
+        };
+      }
       return patchState(next, { currentQuestion: event.payload.questionData.question });
     }
 
@@ -898,6 +953,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         ...session,
         state: { ...state, isPaused: state.isPaused ?? s.isPaused },
         submittedAnswer: null,
+        hasAnswerSubmission: false,
         finalSubmitted: [],
         finalAutoLoss: {},
         players: session.players.map((p) => ({ ...p, mediaDownloaded: false })),

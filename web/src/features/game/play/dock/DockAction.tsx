@@ -87,7 +87,9 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
                 : action.early
                   ? t("dock.showing.waitButton")
                   : t("dock.showing.buzz")}
-              <kbd className="hidden font-mono text-sm md:inline">{t("keys.space")}</kbd>
+              {!action.early && !action.answering && (
+                <kbd className="hidden font-mono text-sm md:inline">{t("keys.space")}</kbd>
+              )}
             </Button>
             {action.canPass && (
               <Button
@@ -106,6 +108,21 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
               {t("dock.showing.earlyHint")}
             </p>
           )}
+        </div>
+      );
+    case "judge-wait":
+      return (
+        <div className={actionStack}>
+          <DockInfo>{action.message}</DockInfo>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={action.pending}
+            onClick={() => connection.emit("answer-result", { answerType: "skip", scoreResult: 0 })}
+            data-testid="judge-skip"
+          >
+            {t("judge.skipZero")}
+          </Button>
         </div>
       );
     case "judge":

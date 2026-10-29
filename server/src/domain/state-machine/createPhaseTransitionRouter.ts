@@ -10,6 +10,7 @@ import { ChoosingToMediaDownloadingHandler } from "domain/state-machine/handlers
 import { AnsweringToShowingAnswerHandler } from "domain/state-machine/handlers/regular-round/AnsweringToShowingAnswerHandler";
 import { AnsweringToShowingHandler } from "domain/state-machine/handlers/regular-round/AnsweringToShowingHandler";
 import { MediaDownloadingToShowingHandler } from "domain/state-machine/handlers/regular-round/MediaDownloadingToShowingHandler";
+import { FinalMediaToAnsweringHandler } from "domain/state-machine/handlers/final-round/FinalMediaToAnsweringHandler";
 import { ShowingAnswerToGameFinishHandler } from "domain/state-machine/handlers/regular-round/ShowingAnswerToGameFinishHandler";
 import { ShowingAnswerToChoosingHandler } from "domain/state-machine/handlers/regular-round/ShowingAnswerToChoosingHandler";
 import { ShowingAnswerToThemeEliminationHandler } from "domain/state-machine/handlers/regular-round/ShowingAnswerToThemeEliminationHandler";
@@ -30,9 +31,7 @@ import { ILogger } from "shared/logging/ILogger";
  * This is the single place where all handlers are registered.
  * Add new handlers here as they are implemented.
  */
-export function createPhaseTransitionRouter(
-  logger: ILogger
-): PhaseTransitionRouter {
+export function createPhaseTransitionRouter(logger: ILogger): PhaseTransitionRouter {
   const handlers: TransitionHandler[] = [
     // =========================================================================
     // Final Round Transitions
@@ -85,6 +84,7 @@ export function createPhaseTransitionRouter(
 
     // Media download complete/timeout: MEDIA_DOWNLOADING → SHOWING
     new MediaDownloadingToShowingHandler(),
+    new FinalMediaToAnsweringHandler(),
 
     // =========================================================================
     // Special Question Transitions

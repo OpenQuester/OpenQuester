@@ -1,3 +1,4 @@
+import { draftPointImage } from "./packageDraft";
 import { questionMedia, type DraftPackage, type DraftQuestion } from "./packageDraft";
 
 /**
@@ -173,7 +174,12 @@ export function checkQuestion(
   ) => void,
   hasMedia: (md5: string) => boolean,
 ) {
-  if (!q.text.trim() && q.questionFiles.length === 0) add("critical", "questionEmpty");
+  if (
+    !q.text.trim() &&
+    !q.textItems?.some((item) => item.text.trim()) &&
+    q.questionFiles.length === 0
+  )
+    add("critical", "questionEmpty");
   if (!final) {
     if (q.price == null) add("critical", "noPrice");
     else if (q.price < 0 || q.price > MAX_PRICE) add("critical", "priceRange", { max: MAX_PRICE });
@@ -208,7 +214,7 @@ export function checkQuestion(
   if (type !== "choice" && q.answerType === "number" && !Number.isFinite(q.answerNumber))
     add("critical", "numberAnswerMissing");
   if (type !== "choice" && q.answerType === "point") {
-    const hasPicture = q.questionFiles.some((f) => f.type === "image");
+    const hasPicture = !!draftPointImage(q);
     const validPoint =
       q.answerPoint &&
       [q.answerPoint.x, q.answerPoint.y].every(

@@ -50,12 +50,25 @@ A package should be considered broken when any of these are true:
 The web editor and `.oq` reader preserve a selected number/point answer mode
 even when its target is incomplete. Drafts remain editable; critical validation
 blocks publishing instead of silently changing the mode to text.
-Before web publication, the first question image is decoded after optional
+Before web publication, the target question image is decoded after optional
 optimization to attach its oriented width/height ratio to a point target. A
 decode failure keeps the draft or imported source available for retry and
 prevents the create/replace request. Existing metadata-free packages keep
 their legacy checking until web republication. The optional field is not yet
 generated into the excluded Dart client; a Flutter rewrite can omit it.
+
+`pointImageOrder` optionally identifies exactly one question image by its public
+order; a missing, ambiguous, or non-image explicit reference is rejected. A null
+or absent reference retains the first ordered image for legacy questions.
+`textItems` optionally adds standalone text steps; each item must have nonblank
+text and a distinct nonnegative integer order which does not collide with the
+main `textOrder` or question files. Null/absent `textItems` retains legacy
+ordering, including pre-existing text/file ties. Answer coordinates remain
+private until answer reveal, while the target image order and text steps are
+public question content.
+For final questions with non-null `textItems`, every question audio/video must
+also have an integer `displayTime` between 1 and 120,000 milliseconds; this
+keeps the authoritative final timeline from truncating unknown-length media.
 
 The web question form edits text answers in one **Correct answers** list, one
 accepted answer per line. The first is `answerText`, the rest are

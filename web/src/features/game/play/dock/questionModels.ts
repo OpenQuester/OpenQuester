@@ -5,6 +5,7 @@ import { allPlayRevealText } from "../allPlayRevealText";
 
 import {
   canBuzz,
+  canManuallyJudge,
   hasSkipped,
   isSingleAnswerer,
   pointPicture,
@@ -91,12 +92,34 @@ export function answeringModel({
   name,
   value,
   sending,
+  pointImageReady,
 }: ActionDockContext): ActionDockModel {
   const s = session.state;
   const answerer = s.answeringPlayer;
   const q = s.currentQuestion;
   const single = isSingleAnswerer(q);
   if (role === "showman") {
+    if (!canManuallyJudge(session)) {
+      const message = t(
+        !q
+          ? "dock.answering.questionLoading"
+          : session.hasAnswerSubmission
+            ? "dock.answering.autoSubmittedHelp"
+            : "dock.answering.autoWaitHelp",
+      );
+      return {
+        status: !q
+          ? message
+          : t(
+              session.hasAnswerSubmission
+                ? "dock.answering.autoSubmitted"
+                : "dock.answering.autoWait",
+              { name: name(answerer) },
+            ),
+        action: { kind: "judge-wait", pending: sending("answer-result"), message },
+        next: q && !session.hasAnswerSubmission ? t("dock.answering.autoWaitNext") : "",
+      };
+    }
     const wrong = wrongCostsPoints(session) ? -value : 0;
     return {
       status: t("dock.answering.judge", { name: name(answerer) }),
@@ -111,6 +134,18 @@ export function answeringModel({
                 points: formatScore(value),
               }),
     };
+  }
+  if (!q) {
+    const message = t("dock.answering.questionLoading");
+    return { status: message, action: { kind: "info", text: message }, next: "" };
+  }
+  if (answerer === myId && q.answerType === "point" && !pointPicture(q)) {
+    const message = t("point.pictureUnavailable");
+    return { status: message, action: { kind: "info", text: message }, next: "" };
+  }
+  if (answerer === myId && q.answerType === "point" && pointImageReady === false) {
+    const message = t("point.pictureWaiting");
+    return { status: message, action: { kind: "info", text: message }, next: "" };
   }
   if (answerer === myId) {
     return {

@@ -1,6 +1,6 @@
 import { questionStyles } from "./questionStyles";
 import { useTranslation } from "react-i18next";
-import { findPlayer, pointPicture } from "@/game/selectors";
+import { findPlayer, pointPicture, requiresAnswerSubmission } from "@/game/selectors";
 import { formatSigned } from "@/lib/format";
 import { useSession } from "../../GameContext";
 import { PointPicker } from "../PointPicker";
@@ -22,7 +22,7 @@ export function ShowmanPanel() {
       <div className="flex flex-col gap-1">
         <span className="text-sm text-muted">{t("showman.answer")}</span>
         <span className={questionStyles.showmanAnswer} data-testid="showman-answer">
-          {q?.answerText || t("showman.noAnswerText")}
+          {q ? q.answerText || t("showman.noAnswerText") : t("dock.answering.questionLoading")}
         </span>
         {q?.answerHint && (
           <span className="text-sm text-soft">{t("showman.hint", { hint: q.answerHint })}</span>
@@ -63,7 +63,15 @@ export function ShowmanPanel() {
             {t("showman.answering", { name: answering.meta.username })}
           </span>
           <span className="text-lg [overflow-wrap:anywhere]">
-            {session.submittedAnswer ? `“${session.submittedAnswer}”` : t("showman.sayingOutLoud")}
+            {session.submittedAnswer
+              ? `“${session.submittedAnswer}”`
+              : session.hasAnswerSubmission
+                ? t("showman.emptySubmission")
+                : !q
+                  ? t("dock.answering.questionLoading")
+                  : requiresAnswerSubmission(q)
+                    ? t("dock.answering.autoWaitHelp")
+                    : t("showman.sayingOutLoud")}
           </span>
         </div>
       )}

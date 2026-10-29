@@ -43,6 +43,24 @@ Names in code may differ. Use nearby enums/types as the implementation source of
 | Finished | Start/rematch/share/admin actions | See results/rematch/share | See results | “Game already finished” | winner, podium, summary, score deltas |
 | Paused/reconnecting | Resume or wait | Reconnecting/waiting | Reconnecting/waiting | “Game paused”, “Connection lost” | reconnect banner, restored state |
 
+For final questions with non-null `textItems` (including an empty array), the
+server sends `finalRoundData.questionData.contentPlan` with the public question.
+When the question has files, players first preload them during a 30-second media
+readiness barrier. The showman and spectators do not block it; a timeout starts
+playback and displays a persistent warning that some media may not have loaded.
+Readiness is tied to this preparation attempt, and rejoining players preload
+again. The barrier, timer and plan survive pause and rejoin.
+It sequences the main text and additional text by order alongside media on the
+answering timer. The answer window begins after `contentPlan.totalMs`; submissions
+before then are rejected. Pause/resume and rejoin use the same timer and plan.
+Without media-duration reports in final rounds, every audio/video in a sequenced
+final question must provide `displayTime` as an integer from 1 to 120,000 ms.
+Null or absent `textItems` preserves legacy final behavior.
+Flutter has not been updated for the new `textItems` contract and does not send
+the final preparation nonce. In a mixed game, the new final can therefore wait
+for the 30-second timeout, and the older client does not synchronize the
+sequenced playback. Legacy questions retain their existing behavior.
+
 ## Required frontend behavior
 
 ### Media: current protocol vs product target
@@ -160,7 +178,8 @@ When changing gameplay state, make sure:
   answers are ruled when the review starts. In the final round, the browser
   submits a selected point through `final-answer-submit`, and the showman
   manually judges it in the final review; no automatic final-point ruling is
-  implied. The first ordered question image is the target.
+  implied. `pointImageOrder` identifies the target question image; when absent or
+  null, the first ordered question image remains the legacy target.
   During final review the showman sees the target, tolerance and each valid
   submitted position. On rejoin the server sends the full final question only
   to the joining showman after the public game snapshot; players and spectators
@@ -170,12 +189,19 @@ When changing gameplay state, make sure:
   both coordinates compare at the web wire precision of three decimals; this
   is not an additional tolerance radius. Legacy points without aspect metadata
   keep their original normalized-coordinate distance. Web publication measures
-  the first final image and adds the aspect; no existing package is backfilled.
+  the target image and adds the aspect; no existing package is backfilled.
   During a normal or all-play point-answer reveal, `answerShowData.answerPointImage`
-  retains the first question image URL for players who join or reload after the
+  retains the target question image URL for players who join or reload after the
   active question is cleared. Point coordinates and radius remain answer-reveal
-  data; no additional answer metadata is exposed before reveal. Older reveal
-  payloads without the optional image URL remain valid.
+  data; no additional answer metadata is exposed before reveal. The browser keeps
+  the current player's selected point locally while waiting, and renders available
+  submitted points with player names and the authoritative ruling at reveal. A
+  local selection is not guaranteed to survive rejoin. Older reveal payloads
+  without the optional image URL remain valid.
+  Entering point-answer input keeps the current image frame, background and
+  step indicator stable; click coordinates use the image bounds inside that
+  frame. A reveal with the respondent's visible marker omits the duplicate raw
+  coordinate answer line, while screen-reader descriptions retain coordinates.
 - **Showman instruction:** the web UI places `questionComment` before question
   content for the showman, including final answer and review phases, and omits
   it from public answer reveal. This UI visibility does not make the field

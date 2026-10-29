@@ -76,9 +76,11 @@ export function PackageEditorHeader({
         </span>
       </div>
       <div className={packageEditorShellStyles.historyActions}>
-        <PackageEditorIconButton label={t("editor.outline.details")} onClick={onDetails}>
-          <EditIcon size={18} />
-        </PackageEditorIconButton>
+        <div className="lg:hidden">
+          <PackageEditorIconButton label={t("editor.outline.details")} onClick={onDetails}>
+            <EditIcon size={18} />
+          </PackageEditorIconButton>
+        </div>
         <PackageEditorIconButton label={t("editor.undo")} onClick={undo} disabled={!canUndo}>
           <UndoIcon size={18} />
         </PackageEditorIconButton>

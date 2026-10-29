@@ -8,7 +8,7 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionContext,
+  TransitionContext
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
@@ -18,6 +18,7 @@ import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { FinalAnsweringToReviewingMutationData } from "domain/types/socket/transition/final";
+import { FinalContentLogic } from "domain/logic/final-round/FinalContentLogic";
 
 /**
  * Handles transition from FINAL_ANSWERING to FINAL_REVIEWING phase.
@@ -62,7 +63,9 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
     }
 
     // 3. All eligible players must have submitted answers (including auto-loss)
-    return FinalRoundStateManager.areAllAnswersSubmitted(game);
+    return (
+      FinalContentLogic.isComplete(game) && FinalRoundStateManager.areAllAnswersSubmitted(game)
+    );
   }
 
   protected override validate(ctx: TransitionContext): void {
@@ -77,13 +80,12 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
     FinalRoundStateManager.transitionToPhase(game, FinalRoundPhase.REVIEWING);
 
     // Get all reviews for showman
-    const allReviews =
-      FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game);
+    const allReviews = FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game);
 
     return {
       data: {
-        allReviews,
-      } satisfies FinalAnsweringToReviewingMutationData,
+        allReviews
+      } satisfies FinalAnsweringToReviewingMutationData
     };
   }
 
@@ -96,7 +98,7 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
 
     return {
       timer: undefined,
-      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }],
+      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }]
     };
   }
 
@@ -106,8 +108,7 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
     _timerResult: TimerResult
   ): BroadcastEvent[] {
     const broadcasts: BroadcastEvent[] = [];
-    const mutationData =
-      mutationResult.data as FinalAnsweringToReviewingMutationData;
+    const mutationData = mutationResult.data as FinalAnsweringToReviewingMutationData;
 
     const allReviews = mutationData.allReviews;
 
@@ -118,9 +119,9 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
         phase: FinalRoundPhase.ANSWERING,
         // If all answers already reviewed (all auto-loss), transition to finish will happen in service layer
         nextPhase: FinalRoundPhase.REVIEWING,
-        allReviews,
+        allReviews
       } satisfies FinalSubmitEndEventData,
-      room: ctx.game.id,
+      room: ctx.game.id
     });
 
     return broadcasts;

@@ -141,6 +141,8 @@ export interface Question {
   text?: string | null;
   /** Position of the text in the content order; null keeps it as a caption. */
   textOrder?: number | null;
+  /** Additional text steps in the same order space as question files. */
+  textItems?: { order: number; text: string }[] | null;
   /** Showman only. */
   answerHint?: string | null;
   /** How the answer is given: typed/said, a number, or a spot on the picture. */
@@ -148,6 +150,8 @@ export interface Question {
   /** Showman only: the right number / spot, and how far off still counts. */
   answerNumber?: number | null;
   answerPoint?: { x: number; y: number; imageAspectRatio?: number } | null;
+  /** Order of the target image; omitted on legacy questions. */
+  pointImageOrder?: number | null;
   answerDeviation?: number | null;
   /** Showman only: other right answers and known wrong answers. */
   rightAnswers?: string[] | null;
@@ -211,6 +215,10 @@ export interface FinalQuestionData {
   themeId: number;
   themeName: string;
   question: Question;
+  /** Present for final questions with an ordered content timeline. */
+  contentPlan?: ContentPlan | null;
+  mediaPreparationId?: string | null;
+  mediaPreparationTimedOut?: boolean;
 }
 
 export interface FinalRoundData {
@@ -371,6 +379,7 @@ export interface ServerEvents {
     timer: Timer | null;
     contentPlan?: ContentPlan | null;
     buzzerOpensAtMs?: number | null;
+    timedOut?: boolean;
   };
   "question-data": {
     data: Question;
@@ -453,7 +462,7 @@ export interface ServerEvents {
   "theme-eliminate": { themeId: number; eliminatedBy: number; nextPlayerId: number | null };
   "final-phase-complete": { phase: FinalPhase; nextPhase?: FinalPhase; timer?: Timer };
   "final-bid-submit": { playerId: number; bidAmount: number; isAutomatic?: boolean };
-  "final-question-data": { questionData: FinalQuestionData };
+  "final-question-data": { questionData: FinalQuestionData; timer?: Timer | null };
   "final-answer-submit": { playerId: number };
   "final-auto-loss": { playerId: number; reason: "empty_answer" | "timeout" };
   "final-submit-end": {
@@ -496,7 +505,9 @@ export interface ClientEvents {
   "next-round": undefined;
   "player-ready": undefined;
   "player-unready": undefined;
-  "media-downloaded": { mediaDurations?: { md5: string; durationMs: number }[] } | undefined;
+  "media-downloaded":
+    | { mediaDurations?: { md5: string; durationMs: number }[]; mediaPreparationId?: string }
+    | undefined;
   "question-pick": { questionId: number };
   "question-answer": undefined;
   "answer-submitted": { answerText: string | null; choiceOrder?: number };

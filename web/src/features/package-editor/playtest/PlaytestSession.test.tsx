@@ -121,7 +121,10 @@ it("keeps all-play point cursors private to the selected perspective and guides 
 });
 
 it("submits the selected player's final point through the actual control", () => {
+  vi.useFakeTimers();
   const command = pointPreview("final");
+  expect(screen.queryByRole("button", { name: "Click where the answer is" })).toBeNull();
+  act(() => vi.advanceTimersByTime(6_000));
   const picker = screen.getByRole("button", { name: "Click where the answer is" });
   const next = screen.getByRole("button", { name: "Continue" });
   expect(next).toBeDisabled();
@@ -131,6 +134,7 @@ it("submits the selected player's final point through the actual control", () =>
   ]);
   expect(screen.getByText("Switch View as to a player who can act.")).toBeInTheDocument();
   expect(next).toBeDisabled();
+  vi.useRealTimers();
 });
 
 it("updates Continue at natural content and buzzer boundaries, including pause and resume", () => {

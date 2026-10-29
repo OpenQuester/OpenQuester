@@ -22,7 +22,7 @@ import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpiration
 import { StakeBiddingTimeoutLogic } from "domain/logic/timer/StakeBiddingTimeoutLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
-import { type TransitionResources, TransitionTrigger } from "domain/state-machine/types";
+import { GamePhase, type TransitionResources, TransitionTrigger } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -99,6 +99,15 @@ export class TimerExpirationService {
     await this.gameService.updateGame(game);
 
     const timer = transitionResult.timer ?? null;
+
+    if (transitionResult.fromPhase === GamePhase.FINAL_MEDIA_DOWNLOADING) {
+      return {
+        success: true,
+        game,
+        broadcasts: transitionResult.broadcasts,
+        timerMutations: transitionResult.timerMutations
+      };
+    }
 
     return {
       success: true,

@@ -23,6 +23,7 @@ export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: (
   const { q, final, media, requestClose, save } = form;
   const [preview, setPreview] = useState(false);
   const fields = useRef<HTMLDivElement>(null);
+  const undoButton = useRef<HTMLButtonElement>(null);
   const previewFocus = useRef<string | null>(null);
   const storedMedia = usePackageEditor((s) => s.media);
   const previewMedia = useMemo(
@@ -45,6 +46,7 @@ export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: (
               data-testid="question-dialog"
               onEscapeKeyDown={(e) => {
                 e.preventDefault();
+                if (fields.current?.querySelector("[data-timeline-dragging]")) return;
                 requestClose();
               }}
               onKeyDown={(e) => {
@@ -68,7 +70,8 @@ export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: (
                 ) {
                   e.preventDefault();
                   e.stopPropagation();
-                  form.undoMedia();
+                  if (target === undoButton.current) undoButton.current.click();
+                  else form.undoMedia();
                 }
                 if (!preview && e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault();
@@ -90,7 +93,7 @@ export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: (
                   </div>
                 </div>
 
-                <QuestionFooter form={form} onClose={onClose} />
+                <QuestionFooter form={form} onClose={onClose} undoButton={undoButton} />
                 <Dialog
                   open={preview}
                   onOpenChange={setPreview}

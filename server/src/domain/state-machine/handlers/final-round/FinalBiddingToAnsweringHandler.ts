@@ -1,4 +1,6 @@
 import { timerKey } from "domain/constants/redisKeys";
+import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
+import { randomUUID } from "node:crypto";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -23,6 +25,8 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { FinalBiddingToAnsweringMutationData } from "domain/types/socket/transition/final";
 import { ClientError } from "domain/errors/ClientError";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
+import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 
 /**
  * Handles transition from FINAL_BIDDING to FINAL_ANSWERING phase.
@@ -83,10 +87,30 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     // Transition to answering phase
     FinalRoundStateManager.transitionToPhase(game, FinalRoundPhase.ANSWERING);
 
-    const questionData = ctx.resources?.finalRoundQuestionData ?? null;
+    const originalQuestionData = ctx.resources?.finalRoundQuestionData ?? null;
 
-    if (!questionData) {
+    if (!originalQuestionData) {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
+    }
+
+    const question = originalQuestionData.question;
+    const questionData =
+      question.textItems == null
+        ? originalQuestionData
+        : {
+            ...originalQuestionData,
+            contentPlan: QuestionContentPlanLogic.build({
+              text: question.text,
+              textOrder: question.textOrder,
+              textItems: question.textItems,
+              files: question.questionFiles
+            })
+          };
+
+    if (question.textItems != null && (question.questionFiles?.length ?? 0) > 0) {
+      questionData.mediaPreparationId = randomUUID();
+      MediaDownloadLogic.resetAllPlayerStatus(game);
+      game.setQuestionState(QuestionState.MEDIA_DOWNLOADING);
     }
 
     // Store question data in game state so joining players can access it
@@ -106,8 +130,12 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    // Setup the answering timer (75 seconds for final round)
-    const timer = new GameStateTimer(game.settings.timers.finalAnswerMs);
+    const durationMs =
+      game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING
+        ? MEDIA_DOWNLOAD_TIMEOUT
+        : game.settings.timers.finalAnswerMs +
+          (game.gameState.finalRoundData?.questionData?.contentPlan?.totalMs ?? 0);
+    const timer = new GameStateTimer(durationMs);
     game.gameState.timer = timer.start();
 
     return {
@@ -118,7 +146,7 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: game.settings.timers.finalAnswerMs
+          pxTtl: durationMs
         }
       ]
     };
@@ -139,24 +167,25 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     broadcasts.push({
       event: SocketIOGameEvents.FINAL_QUESTION_DATA,
       data: {
-        questionData: fullQuestion ? { ...questionData, question: fullQuestion } : questionData
+        questionData: fullQuestion ? { ...questionData, question: fullQuestion } : questionData,
+        ...(questionData.mediaPreparationId ? { timer: timerResult.timer } : {})
       } satisfies FinalQuestionEventData,
       room: ctx.game.id,
       roleFilter: Boolean(fullQuestion)
     });
 
     // 2. Emit phase complete event
-    broadcasts.push({
-      event: SocketIOGameEvents.FINAL_PHASE_COMPLETE,
-      data: {
-        phase: FinalRoundPhase.BIDDING,
-        nextPhase: FinalRoundPhase.ANSWERING,
-        timer: timerResult.timer
-      } satisfies FinalPhaseCompleteEventData,
-      room: ctx.game.id
-    });
+    if (!questionData.mediaPreparationId)
+      broadcasts.push({
+        event: SocketIOGameEvents.FINAL_PHASE_COMPLETE,
+        data: {
+          phase: FinalRoundPhase.BIDDING,
+          nextPhase: FinalRoundPhase.ANSWERING,
+          timer: timerResult.timer
+        } satisfies FinalPhaseCompleteEventData,
+        room: ctx.game.id
+      });
 
     return broadcasts;
   }
-
 }

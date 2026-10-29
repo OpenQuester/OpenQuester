@@ -1,3 +1,4 @@
+import { pointImage } from "@/lib/pointImage";
 import { serverNow } from "@/lib/clock";
 
 import { timerElapsed } from "./contentPlan";
@@ -49,6 +50,7 @@ export function phaseOf(session: GameSession): Phase {
   const s = session.state;
   if (session.finished) return "finished";
   if (!s.currentRound) return "lobby";
+  if (s.currentRound.type === "final" && s.questionState === "media_downloading") return "media";
   if (s.currentRound.type === "final" && s.finalRoundData) {
     switch (s.finalRoundData.phase) {
       case "theme_elimination":
@@ -180,6 +182,24 @@ export function canBuzz(session: GameSession, myId: number, connected = true): A
   if (hasSkipped(session, myId)) return no("skipped");
   if (buzzerLockLeft(session, myId) > 0) return no("false_start");
   return OK;
+}
+
+/** These formats need the answering player to submit through the game. */
+export function requiresAnswerSubmission(question: Question | null | undefined): boolean {
+  return (
+    question?.type === "choice" ||
+    question?.answerType === "number" ||
+    question?.answerType === "point"
+  );
+}
+
+/** Manual judging is available for oral/text answers. */
+export function canManuallyJudge(session: GameSession): boolean {
+  const { state } = session;
+  if (phaseOf(session) !== "answering" || state.isPaused || state.answeringPlayer == null)
+    return false;
+  if (!state.currentQuestion) return false;
+  return !requiresAnswerSubmission(state.currentQuestion);
 }
 
 /** Can I pick this cell on the board? */
@@ -349,9 +369,7 @@ export function roundTimeLeft(session: GameSession, now = serverNow()): number |
 /** The picture a point answer is given on: the question's first image. */
 export function pointPicture(question: Question | null | undefined): string | null {
   if (question?.answerType !== "point") return null;
-  const image = [...(question.questionFiles ?? [])]
-    .sort((a, b) => a.order - b.order)
-    .find((f) => f.file.type === "image");
+  const image = pointImage(question.questionFiles, question.pointImageOrder);
   return image?.file.link ?? null;
 }
 

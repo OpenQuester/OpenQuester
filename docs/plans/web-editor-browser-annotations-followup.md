@@ -1,6 +1,49 @@
 # React editor and game preview: 36 browser annotations
 
-Status: implementation in progress; the per-item ledger below is the current status. Starting revision: `71a6eab30b62e61c4f9e40c334ad5fca8fb3d2bf`, draft PR [#484](https://github.com/OpenQuester/OpenQuester/pull/484). This follow-up supersedes earlier acceptance only for the newly reported cases; previous checks are historical evidence, not proof these cases work.
+Status: the original 36 annotations were delivered through `603e0b5a`; the 2026-10-29 follow-up below covers subsequent browser comments. Starting revision: `71a6eab30b62e61c4f9e40c334ad5fca8fb3d2bf`, draft PR [#484](https://github.com/OpenQuester/OpenQuester/pull/484). Earlier acceptance and verification records remain historical evidence.
+
+## 2026-10-29 browser follow-up
+
+The user authorized the later React and server fixes, explicitly excluded Flutter
+and generated Dart, and authorized committing and pushing the accumulated work
+to this draft PR after review and verification. The original release procedure
+and service state below describe the earlier execution, not a current pause or
+approval requirement. The preserved local app now runs at `127.0.0.1:5173` with
+its API on port 3001; verification uses separate browser contexts and databases.
+
+The follow-up compacts preview controls and incomplete-question feedback, starts
+ordinary previews automatically, starts secret-question media after transfer,
+bounds volume sliders, adds board drag scrolling, and removes the duplicate
+package-details action. Structured number, choice and point answers wait for
+the player's own input; the host can skip, while the existing all-play/final
+review rules remain. Point picks retain player markers and stable image-frame
+geometry across Buzz, and reveal omits redundant visible coordinate strings.
+
+Question media and additional text now share one ordered card list. Main text
+always comes first in the form and has no card or position toggle. A legacy
+question with main text adopts this sequence on explicit Save; Cancel preserves
+the draft, and media-only legacy finals keep their prior format. Grips support
+mouse, touch and keyboard reordering without opening menus. Additional text
+cards resize vertically up to 240 pixels. Existing point targets survive opening;
+changing the image set/order automatically selects the last image, and undo
+restores the prior point and radius without overwriting unrelated edits.
+
+The additive `textItems` and `pointImageOrder` fields round-trip through drafts,
+archives, API types and PostgreSQL. New final sequences synchronize playback to
+the server clock and wait for media readiness, including pause/rejoin and stale
+ACK cases. Final audio/video duration is measured before publication and limited
+to 120 seconds per file. Flutter remains unsupported for these new sequence and
+readiness fields; mixed-client new finals can wait for the 30-second timeout and
+display content out of sync. Legacy published packages are not backfilled.
+
+Independent reviews found and corrected point-radius undo, legacy main-text
+ordering after media removal, Escape propagation during drag handling, and
+unpause shortening a final media-readiness timer after auto-loss and rejoin.
+A sequenced final with no timed content also now completes after unpause when
+all players have left. Both timer regressions were reproduced through queued
+Socket.IO transport before their fixes.
+Final verification for this follow-up is recorded in the PR description; the
+older counts and candidate hashes below must not be attributed to its new head.
 
 ## Ownership and boundaries
 

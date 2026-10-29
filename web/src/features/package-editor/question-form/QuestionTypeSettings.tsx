@@ -2,7 +2,7 @@ import { questionFormStyles } from "./questionFormStyles";
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import type { QuestionFieldsProps } from "./questionUpdates";
-import type { DraftQuestion } from "../packageDraft";
+import { draftPointImage, type DraftQuestion, type DraftMedia } from "../packageDraft";
 import { FieldError, inputClass, Label } from "@/ui/Field";
 import { DEFAULT_POINT_RADIUS, PointPicker } from "@/features/game/play/PointPicker";
 import { mediaUrl } from "../packageMedia";
@@ -117,7 +117,8 @@ export function AnswerModeField({ q, set }: QuestionFieldsProps) {
 /** Numeric and point settings need the full width below the mode. */
 export function AnswerCheckFields({ q, set }: QuestionFieldsProps) {
   const { t } = useTranslation();
-  const image = q.questionFiles.find((f) => f.type === "image");
+  const lastImage = q.questionFiles.filter((file) => file.type === "image").at(-1);
+  const image = q.pointImageId !== undefined || q.answerPoint ? draftPointImage(q) : lastImage;
   const file = useMediaFile(image?.md5);
   const src = mediaUrl(file);
   if (q.answerType === "text") return null;
@@ -141,17 +142,31 @@ export function AnswerCheckFields({ q, set }: QuestionFieldsProps) {
           />
         </div>
       )}
-      {q.answerType === "point" &&
-        (src ? (
-          <PointRadiusSettings key={src} src={src} q={q} set={set} />
-        ) : (
-          <FieldError>{t("editor.form.pointNeedsImage")}</FieldError>
-        ))}
+      {q.answerType === "point" && (
+        <>
+          {src && image ? (
+            <PointRadiusSettings
+              key={`${src}:${image.occurrenceId}`}
+              src={src}
+              q={q}
+              set={set}
+              image={image}
+            />
+          ) : (
+            <FieldError>{t("editor.form.pointNeedsImage")}</FieldError>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
-function PointRadiusSettings({ src, q, set }: QuestionFieldsProps & { src: string }) {
+function PointRadiusSettings({
+  src,
+  q,
+  set,
+  image,
+}: QuestionFieldsProps & { src: string; image: DraftMedia }) {
   const { t } = useTranslation();
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const radius = q.answerDeviation ?? DEFAULT_POINT_RADIUS;
@@ -168,6 +183,7 @@ function PointRadiusSettings({ src, q, set }: QuestionFieldsProps & { src: strin
         onImageLoad={(width, height) => setSize(width > 0 && height > 0 ? { width, height } : null)}
         onPick={(spot) =>
           set({
+            pointImageId: image.occurrenceId,
             answerPoint: {
               x: Number(spot.x.toFixed(3)),
               y: Number(spot.y.toFixed(3)),

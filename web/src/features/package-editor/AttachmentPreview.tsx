@@ -30,11 +30,13 @@ export function AttachmentPreview({
   small,
   className,
   point,
+  disableImageDrag,
 }: {
   media: Pick<DraftMedia, "md5" | "type">;
   small?: boolean;
   className?: string;
   point?: { target: Spot | null; radius: number | null };
+  disableImageDrag?: boolean;
 }) {
   const { t } = useTranslation();
   const file = useMediaFile(media.md5);
@@ -77,6 +79,7 @@ export function AttachmentPreview({
         <img
           src={url}
           alt=""
+          draggable={disableImageDrag ? false : undefined}
           loading="lazy"
           className={cn("rounded-sm bg-surface-3 object-contain", className)}
         />

@@ -1,9 +1,14 @@
 import { useContext, useRef, useState, type DragEvent } from "react";
 import { StagedMediaContext } from "../packageEditorStore";
 import { useOpenMedia } from "../media-editor/useStagedMedia";
-import type { DraftMedia } from "../packageDraft";
+import { newId, type DraftMedia, type DraftQuestion } from "../packageDraft";
 import { usePackageEditor } from "../packageEditorStore";
-import { changeMedia, type ApplyMediaChange, type MediaSlot } from "./questionMediaHistory";
+import {
+  changeMedia,
+  moveMedia,
+  type ApplyMediaChange,
+  type MediaSlot,
+} from "./questionMediaHistory";
 export type QuestionMediaListProps = {
   label: string;
   help: string;
@@ -15,9 +20,17 @@ export type QuestionMediaListProps = {
   onChange: (update: (files: DraftMedia[]) => DraftMedia[]) => void;
   slot: MediaSlot;
   applyMedia: ApplyMediaChange;
+  point?: DraftQuestion["answerPoint"];
+  pointImageId?: string;
 };
 /** Stage occurrence-specific changes; every async result reads the latest list. */
-export function useQuestionMedia({ label, onChange, slot, applyMedia }: QuestionMediaListProps) {
+export function useQuestionMedia({
+  label,
+  files,
+  onChange,
+  slot,
+  applyMedia,
+}: QuestionMediaListProps) {
   const stored = usePackageEditor((s) => s.media);
   const staged = useContext(StagedMediaContext);
   const openMedia = useOpenMedia();
@@ -27,6 +40,7 @@ export function useQuestionMedia({ label, onChange, slot, applyMedia }: Question
   const add = (list: FileList | File[]) =>
     openMedia([...list], label, ({ file }) => {
       const added = {
+        occurrenceId: newId(),
         md5: file.md5,
         type: file.type,
         displayTime: file.type === "image" ? 5000 : null,
@@ -57,9 +71,10 @@ export function useQuestionMedia({ label, onChange, slot, applyMedia }: Question
   };
   const setDisplayTime = (i: number, value: string) => {
     const s = Number(value.replace(",", "."));
+    const id = files[i]?.occurrenceId;
     onChange((current) =>
       current.map((f, j) =>
-        j === i
+        (id ? f.occurrenceId === id : j === i)
           ? {
               ...f,
               displayTime: value === "" || Number.isNaN(s) ? null : Math.round(s * 1000),
@@ -68,16 +83,31 @@ export function useQuestionMedia({ label, onChange, slot, applyMedia }: Question
       ),
     );
   };
+  const move = (id: string, destination: number) => {
+    const next = moveMedia(files, id, destination);
+    if (next === files) return;
+    applyMedia(
+      changeMedia(slot, {
+        kind: "move",
+        occurrenceId: id,
+        destination,
+      }),
+    );
+  };
   const canEdit = (m: DraftMedia) => !!staged?.has(m.md5) || stored.has(m.md5);
   return {
     inputRef: input,
     over,
     setOver,
-    remove: (index: number) => applyMedia(changeMedia(slot, { kind: "remove", index })),
+    remove: (index: number) =>
+      applyMedia(
+        changeMedia(slot, { kind: "remove", index, occurrenceId: files[index]?.occurrenceId }),
+      ),
     add,
     onDrop,
     edit,
     canEdit,
     setDisplayTime,
+    move,
   };
 }

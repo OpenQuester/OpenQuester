@@ -145,6 +145,74 @@ it("shows a judged attempt from a rejoined forced reveal and removes it after un
 });
 
 describe("point answer reveal", () => {
+  it("uses the labeled marker instead of raw coordinates, while keeping score and accessible details", () => {
+    const store = createGameStore();
+    store.setState({
+      session: session({
+        currentRound: round(),
+        questionState: "showing_answer",
+        currentQuestion: null,
+        answerShowData: {
+          answerText: "Center",
+          answerFiles: null,
+          nextTurnPlayerId: ALICE,
+          answerPoint: { x: 0.5, y: 0.5 },
+          answerPointImage: "/point.png",
+          answerResult: {
+            player: ALICE,
+            answerType: "correct",
+            result: 100,
+            score: 100,
+            answerText: "0.514,0.469",
+          },
+        },
+      }),
+    });
+    render(
+      <GameContext.Provider
+        value={{ store, myId: ALICE, connection: { connected: true, emit: () => {} } }}
+      >
+        <AnswerReveal />
+      </GameContext.Provider>,
+    );
+    expect(screen.queryByTestId("submitted-answer")).toBeNull();
+    expect(screen.getByTestId("point-answer-marker")).toHaveTextContent("user2");
+    expect(screen.getByText(/answers correctly/)).toHaveTextContent("+100");
+    expect(screen.getByText(/user2 selected/)).toHaveClass("sr-only");
+  });
+
+  it("retains a point answer when the marker cannot be displayed", () => {
+    const store = createGameStore();
+    store.setState({
+      session: session({
+        currentRound: round(),
+        questionState: "showing_answer",
+        currentQuestion: null,
+        answerShowData: {
+          answerText: null,
+          answerFiles: null,
+          nextTurnPlayerId: ALICE,
+          answerPoint: { x: 0.5, y: 0.5 },
+          answerPointImage: null,
+          answerResult: {
+            player: ALICE,
+            answerType: "wrong",
+            result: -100,
+            score: -100,
+            answerText: "0.514,0.469",
+          },
+        },
+      }),
+    });
+    render(
+      <GameContext.Provider
+        value={{ store, myId: ALICE, connection: { connected: true, emit: () => {} } }}
+      >
+        <AnswerReveal />
+      </GameContext.Provider>,
+    );
+    expect(screen.getByTestId("submitted-answer")).toHaveTextContent("0.514,0.469");
+  });
   it("restores the image and radius from a rejoined snapshot without a current question", () => {
     const store = createGameStore();
     store.setState({

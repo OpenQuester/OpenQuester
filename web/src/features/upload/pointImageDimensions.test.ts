@@ -131,4 +131,13 @@ it("measures the first image by question order and replaces stale metadata", asy
   expect(measured.content.rounds[0]!.themes[0]!.questions[0]!.answerPoint?.imageAspectRatio).toBe(
     0.5,
   );
+  content.rounds[0]!.themes[0]!.questions[0]!.pointImageOrder = 2;
+  const selected = await withPointImageDimensions({ format: "oq", content, files, warnings: [] });
+  expect(selected.content.rounds[0]!.themes[0]!.questions[0]!.answerPoint?.imageAspectRatio).toBe(
+    2,
+  );
+  content.rounds[0]!.themes[0]!.questions[0]!.pointImageOrder = 999;
+  await expect(
+    withPointImageDimensions({ format: "oq", content, files, warnings: [] }),
+  ).rejects.toBeInstanceOf(PointImageDimensionsError);
 });

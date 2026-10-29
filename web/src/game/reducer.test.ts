@@ -433,6 +433,33 @@ describe("reducer: special questions", () => {
   });
 });
 
+describe("answer submission presence", () => {
+  it("keeps null submissions distinguishable until this answer ends", () => {
+    const initial = session({
+      currentRound: round(),
+      currentQuestion: question(100, { answerType: "number" }),
+      questionState: "answering",
+      answeringPlayer: ALICE,
+    });
+    expect(initial.hasAnswerSubmission).toBe(false);
+    const submitted = reduce(initial, { type: "answer-submitted", payload: { answerText: null } });
+    expect(submitted.hasAnswerSubmission).toBe(true);
+    const nextAnswerer = reduce(submitted, {
+      type: "question-answer",
+      payload: { userId: BOB, timer: timer() },
+    });
+    expect(nextAnswerer.hasAnswerSubmission).toBe(false);
+    const restored = session({
+      currentRound: round(),
+      currentQuestion: question(100, { answerType: "number" }),
+      questionState: "answering",
+      answeringPlayer: ALICE,
+      submittedAnswer: "",
+    });
+    expect(restored.hasAnswerSubmission).toBe(true);
+  });
+});
+
 describe("reducer: final round", () => {
   const final = () =>
     session({
@@ -447,6 +474,43 @@ describe("reducer: final round", () => {
         eliminatedThemes: [],
       },
     });
+
+  it("waits for final media and records a forced start before showing the question", () => {
+    const q = question(110, { text: "Final" });
+    let s = reduce(final(), {
+      type: "final-question-data",
+      payload: {
+        questionData: { themeId: 11, themeName: "Final", question: q, mediaPreparationId: "prep" },
+        timer: timer(30_000),
+      },
+    });
+    expect(phaseOf(s)).toBe("media");
+    expect(s.state.finalRoundData?.phase).toBe("answering");
+    const preparingTimer = s.state.timer;
+    s.players.find((player) => player.meta.id === ALICE)!.mediaDownloaded = true;
+    s = reduce(s, {
+      type: "final-question-data",
+      payload: {
+        questionData: { themeId: 11, themeName: "Final", question: q, mediaPreparationId: "prep" },
+      },
+    });
+    expect(s.state.timer).toEqual(preparingTimer);
+    expect(s.players.find((player) => player.meta.id === ALICE)?.mediaDownloaded).toBe(true);
+    const answerTimer = timer(80_000);
+    s = reduce(s, {
+      type: "media-download-status",
+      payload: {
+        playerId: ALICE,
+        mediaDownloaded: false,
+        allPlayersReady: true,
+        timer: answerTimer,
+        timedOut: true,
+      },
+    });
+    expect(phaseOf(s)).toBe("final_answering");
+    expect(s.state.timer).toEqual(answerTimer);
+    expect(s.state.finalRoundData?.questionData?.mediaPreparationTimedOut).toBe(true);
+  });
 
   it("eliminates themes, collects bids and answers, then reviews", () => {
     let s = reduce(final(), {

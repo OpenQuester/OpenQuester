@@ -109,6 +109,8 @@ export function toContent(
       price: num(q.price),
       text: str(q.text),
       textOrder: num(q.textOrder),
+      ...(q.textItems != null ? { textItems: readTextItems(q.textItems) } : {}),
+      ...(q.pointImageOrder != null ? { pointImageOrder: num(q.pointImageOrder) ?? -1 } : {}),
       questionComment: str(q.questionComment),
       answerText: str(q.answerText),
       answerHint: str(q.answerHint),
@@ -206,6 +208,16 @@ export function toContent(
       .filter(isObject)
       .map((r, i) => round(r, i)),
   };
+}
+
+function readTextItems(value: unknown): { order: number; text: string }[] {
+  if (!Array.isArray(value)) throw new Error("badContentJson");
+  return value.map((item) => {
+    if (!isObject(item) || typeof item.order !== "number" || typeof item.text !== "string") {
+      throw new Error("badContentJson");
+    }
+    return { order: item.order, text: item.text };
+  });
 }
 
 function answerCheckOf(q: Json): Partial<UploadQuestion> {

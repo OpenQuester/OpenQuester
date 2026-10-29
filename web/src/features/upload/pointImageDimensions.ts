@@ -1,3 +1,4 @@
+import { pointImage } from "@/lib/pointImage";
 import { detectMediaMime } from "./archive";
 import type { MediaFile, ParsedPackage, UploadQuestion, UploadRound, UploadTheme } from "./types";
 
@@ -51,10 +52,8 @@ export async function withPointImageDimensions(parsed: ParsedPackage): Promise<P
   const dimensions = new Map<string, Promise<number>>();
   const question = async (q: UploadQuestion): Promise<UploadQuestion> => {
     if (q.answerType !== "point" || !q.answerPoint) return q;
-    const first = q.questionFiles
-      ?.filter((f) => f.file.type === "image")
-      .sort((a, b) => a.order - b.order)[0];
-    const file = first && parsed.files.get(first.file.md5.toLowerCase());
+    const selected = pointImage(q.questionFiles, q.pointImageOrder);
+    const file = selected && parsed.files.get(selected.file.md5.toLowerCase());
     if (!file) throw new PointImageDimensionsError();
     let result = dimensions.get(file.md5);
     if (!result) {

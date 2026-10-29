@@ -48,7 +48,12 @@ test("point inspector follows the visible portrait image when resized", async ({
   await page.getByTestId("question-card").first().click();
   const inspector = page.getByTestId("inspector");
   const handle = page.locator('[role="separator"][aria-controls="package-editor-inspector"]');
-  const control = inspector.getByRole("button", { name: /Point on image 1/ });
+  const control = inspector.getByRole("button", { name: "Point on image", exact: true });
+  await control.focus();
+  await expect(control).toBeFocused();
+  await expect(control).toHaveAccessibleDescription(
+    "Correct point: 8% of the image width from the left, 90% of its height from the top. Tolerance radius: 20% of the image width.",
+  );
   const picture = inspector.getByTestId("point-picker").locator("img");
   await picture.evaluate((img: HTMLImageElement) => img.decode());
 
@@ -62,6 +67,11 @@ test("point inspector follows the visible portrait image when resized", async ({
     await control.hover();
     const marker = inspector.getByTestId("point-target");
     await expect(marker).toBeVisible();
+    await expect(
+      inspector.getByTestId("point-picker").getByText(/Correct point: 8% of the image width/),
+    ).toContainText(
+      "Correct point: 8% of the image width from the left, 90% of its height from the top. Tolerance radius: 20% of the image width.",
+    );
     const imageBox = (await picture.boundingBox())!;
     const markerBox = (await marker.boundingBox())!;
     expect(imageBox.width).toBeGreaterThan(0);

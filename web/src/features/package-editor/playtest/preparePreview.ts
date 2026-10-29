@@ -1,5 +1,11 @@
+import { pointImage } from "@/lib/pointImage";
 import { preloadQuestionMedia } from "@/game/media";
 import type { Question } from "@/game/protocol";
+import {
+  FinalMediaDurationError,
+  readFinalMediaDuration,
+  withFinalQuestionDurations,
+} from "@/features/upload/finalMediaDuration";
 
 /** Read the current decoded image, without updating or saving the draft. */
 function aspectOf(src: string, signal: AbortSignal): Promise<number> {
@@ -30,7 +36,17 @@ function aspectOf(src: string, signal: AbortSignal): Promise<number> {
 export async function preparePreviewQuestion(
   question: Question,
   signal: AbortSignal,
+  final = false,
 ): Promise<Question> {
+  if (final) {
+    const files = question.questionFiles ?? [];
+    question = await withFinalQuestionDurations(question, (item) => {
+      const src = files.find((file) => file.order === item.order)?.file.link;
+      if (!src || item.file.type === "image")
+        throw new FinalMediaDurationError("unavailable", item.file.md5);
+      return readFinalMediaDuration(src, item.file.type, item.file.md5, signal);
+    });
+  }
   const [questionDurations, answerDurations] = await Promise.all([
     preloadQuestionMedia(question, signal),
     preloadQuestionMedia({ ...question, questionFiles: question.answerFiles }, signal),
@@ -46,11 +62,9 @@ export async function preparePreviewQuestion(
     })) ?? null;
   let answerPoint = question.answerPoint;
   if (question.answerType === "point" && answerPoint) {
-    const first = [...(question.questionFiles ?? [])]
-      .sort((a, b) => a.order - b.order)
-      .find((item) => item.file.type === "image");
-    if (!first?.file.link) throw new Error("previewMedia");
-    answerPoint = { ...answerPoint, imageAspectRatio: await aspectOf(first.file.link, signal) };
+    const selected = pointImage(question.questionFiles, question.pointImageOrder);
+    if (!selected?.file.link) throw new Error("previewMedia");
+    answerPoint = { ...answerPoint, imageAspectRatio: await aspectOf(selected.file.link, signal) };
   }
   return {
     ...question,

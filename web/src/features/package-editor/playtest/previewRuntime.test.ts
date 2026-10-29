@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { newQuestion } from "../packageDraft";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
 import { initialPreview, PREVIEW_PLAYERS, PREVIEW_SHOWMAN, previewQuestion } from "./previewModel";
-import { PreviewRuntime } from "./previewRuntime";
+import { previewTimer, PreviewRuntime } from "./previewRuntime";
 import { needsPlayerPerspective } from "./playtestGuidance";
 import { useGameStore } from "@/game/store";
 import { choosing } from "@/game/fixtures";
+import { positionAt } from "@/game/contentPlan";
 
 const names = {
   showman: "Host",
@@ -318,6 +319,33 @@ describe("local question playtest", () => {
     expect(game.session.state.currentQuestion?.price).toBe(300);
   });
 
+  it.each([false, true])(
+    "starts secret media from the first part after transfer (custom price: %s)",
+    (customPrice) => {
+      const game = setup({
+        type: "secret",
+        allowedPrices: customPrice ? [300, 500] : [],
+        questionFiles: [
+          { md5: "one", type: "image", displayTime: 5_000 },
+          { md5: "two", type: "image", displayTime: 5_000 },
+          { md5: "three", type: "video", displayTime: 5_000 },
+        ],
+      });
+      game.advance();
+      game.commands.emit("secret-question-transfer", { targetPlayerId: PREVIEW_PLAYERS[1] });
+      if (customPrice) {
+        game.setPerspective(PREVIEW_PLAYERS[1]);
+        game.commands.emit("secret-question-price", { price: 300 });
+      }
+      const content = game.session.content;
+      expect(content?.timer).toEqual(game.session.state.timer);
+      expect(content?.timer).not.toBeNull();
+      expect(positionAt(content!.plan, 0).index).toBe(0);
+      expect(positionAt(content!.plan, 5_001).index).toBe(1);
+      expect(positionAt(content!.plan, 10_001).index).toBe(2);
+    },
+  );
+
   it("runs an auction before the stake winner answers", () => {
     const game = setup({ type: "stake" });
     game.advance();
@@ -475,6 +503,11 @@ describe("local question playtest", () => {
     const answerVersion = game.session.version;
     game.advance();
     expect(game.session.version).toBe(answerVersion);
+    game.setPerspective(PREVIEW_PLAYERS[0]);
+    game.commands.emit("final-answer-submit", { answerText: "42" });
+    expect(game.session.state.finalRoundData?.answers).toHaveLength(0);
+    const plan = game.session.state.finalRoundData!.questionData!.contentPlan!;
+    game.setClock(previewTimer(game.session.state.timer!.durationMs, plan.totalMs));
     for (const id of PREVIEW_PLAYERS) {
       game.setPerspective(id);
       game.commands.emit("final-answer-submit", { answerText: "42" });

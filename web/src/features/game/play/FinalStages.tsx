@@ -23,6 +23,8 @@ import { QuestionMedia } from "./QuestionMedia";
 import { ShowmanInstruction } from "./question/ShowmanInstruction";
 import { PointAnswer } from "./question/PointAnswer";
 import { PointPicker } from "./PointPicker";
+import { ContentStage } from "./ContentStage";
+import { useFinalContent } from "./useFinalContent";
 
 /** Players take turns removing themes; the last one left is the final question. */
 export function FinalThemesStage() {
@@ -108,7 +110,13 @@ function ThemeLine() {
   );
 }
 
-function FinalStatuses({ mode }: { mode: "bids" | "answers" }) {
+function FinalStatuses({
+  mode,
+  contentPlaying = false,
+}: {
+  mode: "bids" | "answers";
+  contentPlaying?: boolean;
+}) {
   const { t } = useTranslation();
   const session = useSession();
   const { myId } = useGame();
@@ -122,7 +130,7 @@ function FinalStatuses({ mode }: { mode: "bids" | "answers" }) {
         const label = p.meta.id === myId ? t("common.youCap") : p.meta.username;
         return (
           <li key={p.meta.id}>
-            <Badge tone={done ? "success" : "accent"}>
+            <Badge tone={done ? "success" : contentPlaying ? "neutral" : "accent"}>
               {label} ·{" "}
               {mode === "bids"
                 ? done
@@ -130,7 +138,9 @@ function FinalStatuses({ mode }: { mode: "bids" | "answers" }) {
                   : t("final.bidding")
                 : done
                   ? t("final.answered")
-                  : t("final.typing")}
+                  : contentPlaying
+                    ? t("stake.waiting")
+                    : t("final.typing")}
             </Badge>
           </li>
         );
@@ -155,32 +165,51 @@ export function FinalAnswerStage() {
   const session = useSession();
   const { myId } = useGame();
   const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
+  const { content, playing: contentPlaying } = useFinalContent(session);
   const hasMedia = (q?.questionFiles?.length ?? 0) > 0;
   const picture = pointPicture(q);
   const picking =
     picture &&
+    !contentPlaying &&
     myRole(session, myId) === "player" &&
     isEligible(session, myId) &&
-    finalBid(session, myId) != null &&
-    !session.finalSubmitted.includes(myId);
+    finalBid(session, myId) != null;
   return (
     <section className={stageStyles.finalQuestion}>
       <ThemeLine />
+      {session.state.finalRoundData?.questionData?.mediaPreparationTimedOut && (
+        <p role="alert" className="m-0 text-center text-sm text-accent-strong">
+          {t("final.mediaTimedOut")}
+        </p>
+      )}
       {myRole(session, myId) === "showman" && <ShowmanInstruction comment={q?.questionComment} />}
       {/* Final questions skip the regular stage, so their media is shown here */}
-      {hasMedia && (
-        <QuestionMedia
-          files={q!.questionFiles!}
-          playing={!session.state.isPaused}
-          replacePointImage={picking ? <PointAnswer key={myId} src={picture} /> : undefined}
+      {content && picking ? (
+        <PointAnswer key={myId} src={picture} />
+      ) : content ? (
+        <ContentStage
+          content={content}
+          files={q?.questionFiles ?? []}
+          text={q?.text}
+          textOrder={q?.textOrder}
+          textItems={q?.textItems}
+          paused={session.state.isPaused}
         />
+      ) : (
+        hasMedia && (
+          <QuestionMedia
+            files={q!.questionFiles!}
+            playing={!session.state.isPaused}
+            replacePointImage={picking ? <PointAnswer key={myId} src={picture} /> : undefined}
+          />
+        )
       )}
-      {(q?.text || !hasMedia) && (
+      {(!content || q?.textOrder == null) && (q?.text || (!hasMedia && !q?.textItems?.length)) && (
         <p className={stageStyles.finalQuestionText} data-testid="question-text">
           {q?.text || t("question.noContent")}
         </p>
       )}
-      <FinalStatuses mode="answers" />
+      <FinalStatuses mode="answers" contentPlaying={contentPlaying} />
     </section>
   );
 }

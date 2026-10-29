@@ -57,8 +57,20 @@ export function Dialog({
               "h-[96dvh] max-h-[96dvh] sm:h-[calc(100dvh-32px)] sm:max-h-[calc(100dvh-32px)] sm:w-[calc(100vw-32px)]",
           )}
         >
-          <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-            <RD.Title className="m-0 flex-1 font-display text-xl font-extrabold">{title}</RD.Title>
+          <div
+            className={cn(
+              "flex items-center gap-3 border-b border-line px-5",
+              fullScreen ? "py-1" : "py-4",
+            )}
+          >
+            <RD.Title
+              className={cn(
+                "m-0 flex-1 font-display font-extrabold",
+                fullScreen ? "text-base" : "text-xl",
+              )}
+            >
+              {title}
+            </RD.Title>
             <RD.Close aria-label={closeLabel} className={dialogStyles.standardCloseButton}>
               <CloseIcon size={18} />
             </RD.Close>

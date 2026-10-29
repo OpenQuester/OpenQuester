@@ -8,7 +8,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   FinalAnswerSubmitOutputData,
-  SocketIOFinalAutoLossEventPayload,
+  SocketIOFinalAutoLossEventPayload
 } from "domain/types/socket/events/FinalRoundEventData";
 
 /**
@@ -17,7 +17,7 @@ import {
 export enum AnsweringScenarioType {
   FINAL_ROUND = "final_round",
   REGULAR_ROUND = "regular_round",
-  NOT_APPLICABLE = "not_applicable",
+  NOT_APPLICABLE = "not_applicable"
 }
 
 /**
@@ -56,18 +56,17 @@ export class AnsweringPlayerLeaveLogic {
   /**
    * Validates and determines which answering scenario applies.
    */
-  public static validate(
-    game: Game,
-    userId: number
-  ): AnsweringPlayerLeaveValidation {
+  public static validate(game: Game, userId: number): AnsweringPlayerLeaveValidation {
     // Check for final round answering scenario
     if (
       TransitionGuards.isFinalRound(game) &&
-      TransitionGuards.isQuestionState(game, QuestionState.ANSWERING)
+      (TransitionGuards.isQuestionState(game, QuestionState.ANSWERING) ||
+        (TransitionGuards.isQuestionState(game, QuestionState.MEDIA_DOWNLOADING) &&
+          !!game.gameState.finalRoundData?.questionData?.mediaPreparationId))
     ) {
       return {
         isEligible: true,
-        scenarioType: AnsweringScenarioType.FINAL_ROUND,
+        scenarioType: AnsweringScenarioType.FINAL_ROUND
       };
     }
 
@@ -75,14 +74,14 @@ export class AnsweringPlayerLeaveLogic {
     if (game.gameState.answeringPlayer === userId) {
       return {
         isEligible: true,
-        scenarioType: AnsweringScenarioType.REGULAR_ROUND,
+        scenarioType: AnsweringScenarioType.REGULAR_ROUND
       };
     }
 
     return {
       isEligible: false,
       scenarioType: AnsweringScenarioType.NOT_APPLICABLE,
-      reason: "Player not in answering state",
+      reason: "Player not in answering state"
     };
   }
 
@@ -92,10 +91,7 @@ export class AnsweringPlayerLeaveLogic {
    * Delegates to AutoLossProcessLogic for consistent auto-loss handling.
    */
   public static processFinalRoundAutoLoss(game: Game, userId: number): boolean {
-    const autoLossEntry = AutoLossProcessLogic.processPlayerAutoLoss(
-      game,
-      userId
-    );
+    const autoLossEntry = AutoLossProcessLogic.processPlayerAutoLoss(game, userId);
     return autoLossEntry !== null;
   }
 
@@ -116,9 +112,9 @@ export class AnsweringPlayerLeaveLogic {
     broadcasts.push({
       event: SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
       data: {
-        playerId: userId,
+        playerId: userId
       } satisfies FinalAnswerSubmitOutputData,
-      room: game.id,
+      room: game.id
     });
 
     // Signal auto-loss reason
@@ -126,9 +122,9 @@ export class AnsweringPlayerLeaveLogic {
       event: SocketIOGameEvents.FINAL_AUTO_LOSS,
       data: {
         playerId: userId,
-        reason: FinalAnswerLossReason.EMPTY_ANSWER,
+        reason: FinalAnswerLossReason.EMPTY_ANSWER
       } satisfies SocketIOFinalAutoLossEventPayload,
-      room: game.id,
+      room: game.id
     });
 
     // Add transition broadcasts

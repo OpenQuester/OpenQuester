@@ -1,4 +1,5 @@
 import { phaseOf, remainingFinalThemes } from "@/game/selectors";
+import { buildContentPlan, timerElapsed } from "@/game/contentPlan";
 import type { AnswerReview } from "@/game/protocol";
 import {
   clampPreviewScore,
@@ -47,6 +48,9 @@ export function handleFinal(
     return true;
   }
   if (phase === "final_answering" && command.type === "final-answer-submit") {
+    const plan = final.questionData?.contentPlan;
+    if (plan && timerElapsed(game.session.state.timer, game.session.state.isPaused) < plan.totalMs)
+      return true;
     answer(game, sender, command.payload.answerText);
     return true;
   }
@@ -80,6 +84,16 @@ function bid(game: PreviewRuntime, id: number, value: number) {
     const theme = game.session.state.currentRound?.themes.find(
       (item) => item.id === PREVIEW_FINAL_THEME,
     );
+    const q = game.question;
+    const plan =
+      q.textItems == null
+        ? null
+        : buildContentPlan({
+            text: q.text,
+            textOrder: q.textOrder,
+            textItems: q.textItems,
+            files: q.questionFiles,
+          });
     game.dispatch({
       type: "final-question-data",
       payload: {
@@ -87,12 +101,17 @@ function bid(game: PreviewRuntime, id: number, value: number) {
           themeId: PREVIEW_FINAL_THEME,
           themeName: theme?.name ?? "",
           question: game.question,
+          ...(q.textItems != null ? { contentPlan: plan } : {}),
         },
       },
     });
     game.dispatch({
       type: "final-phase-complete",
-      payload: { phase: "bidding", nextPhase: "answering", timer: previewTimer(75_000) },
+      payload: {
+        phase: "bidding",
+        nextPhase: "answering",
+        timer: previewTimer(75_000 + (plan?.totalMs ?? 0)),
+      },
     });
   }
 }

@@ -5,7 +5,7 @@ import { FieldError, inputClass, Label } from "@/ui/Field";
 import { LinesField } from "../LinesField";
 import { QUESTION_TYPES } from "../packageDraft";
 import { MAX_PRICE } from "../validatePackage";
-import { QuestionCheckbox, NumberField, OptionalTextField } from "./QuestionFields";
+import { NumberField, OptionalTextField } from "./QuestionFields";
 import { QuestionChoiceFields } from "./QuestionChoiceFields";
 import { QuestionMediaList } from "./QuestionMediaList";
 import { AnswerCheckFields, AnswerModeField, QuestionTypeSettings } from "./QuestionTypeSettings";
@@ -51,22 +51,18 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
           help={t("editor.form.questionMediaHelp")}
           files={q.questionFiles}
           slot="questionFiles"
+          point={q.answerPoint}
+          pointImageId={q.pointImageId}
+          timeline={{ q, setQ, applyTimeline: form.applyTimeline }}
           applyMedia={applyMedia}
           onChange={(update) =>
             setQ((prev) => ({ ...prev, questionFiles: update(prev.questionFiles) }))
           }
         />
       </div>
-      {!q.text.trim() && q.questionFiles.length === 0 && (
-        <FieldError>{t("editor.issues.questionEmpty")}</FieldError>
-      )}
-      {q.text.trim() && q.questionFiles.length > 0 && (
-        <QuestionCheckbox
-          checked={q.textPosition != null}
-          onChange={(on) => set({ textPosition: on ? 0 : null })}
-          label={t("editor.form.textFirst")}
-        />
-      )}
+      {!q.text.trim() &&
+        !q.textItems?.some((item) => item.text.trim()) &&
+        q.questionFiles.length === 0 && <FieldError>{t("editor.issues.questionEmpty")}</FieldError>}
       <hr className="m-0 border-0 border-t border-line" />
       {!final && q.type === "choice" && (
         <QuestionChoiceFields q={q} set={set} applyMedia={applyMedia} />
@@ -142,6 +138,7 @@ function QuestionPromptFields({ q, set, final }: QuestionFieldsProps & { final: 
               placeholder={t("editor.form.textPlaceholder")}
               className={cn(inputClass, "min-h-24 resize-y py-3")}
             />
+            <span className="text-sm text-faint">{t("editor.timeline.mainFirstHelp")}</span>
           </div>
         </div>
         {hasAnswerMode && <AnswerModeField q={q} set={set} />}

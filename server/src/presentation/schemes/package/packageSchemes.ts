@@ -1,6 +1,6 @@
 import Joi from "joi";
 
-import { MAX_QUESTION_PRICE_UPLOAD } from "domain/constants/game";
+import { CONTENT_ITEM_MAX_TIME, MAX_QUESTION_PRICE_UPLOAD } from "domain/constants/game";
 import { LIMIT_MAX, LIMIT_MIN, OFFSET_MIN } from "domain/constants/pagination";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { AnswerType } from "domain/enums/package/AnswerType";
@@ -8,6 +8,7 @@ import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { pointImage } from "domain/logic/question/PointImageLogic";
 import { type PackageUploadBody } from "domain/types/dto/package/PackageUploadBody";
 import {
   type PackageQuestionDTO,
@@ -58,6 +59,14 @@ const baseQuestionSchema = Joi.object<PackageQuestionInput>({
   }),
   text: Joi.string().allow(null, ""),
   textOrder: Joi.number().integer().min(0).allow(null),
+  textItems: Joi.array()
+    .items(
+      Joi.object({
+        order: Joi.number().integer().min(0).max(2147483647).required(),
+        text: Joi.string().pattern(/\S/).required()
+      })
+    )
+    .allow(null),
   answerHint: Joi.string().allow(null, ""),
   answerText: Joi.string().allow(null, ""),
   answerType: Joi.string()
@@ -75,8 +84,13 @@ const baseQuestionSchema = Joi.object<PackageQuestionInput>({
       y: Joi.number().min(0).max(1).required(),
       imageAspectRatio: Joi.number().positive()
     }).required(),
-    otherwise: Joi.object({ x: Joi.number().min(0).max(1), y: Joi.number().min(0).max(1), imageAspectRatio: Joi.number().positive() }).allow(null)
+    otherwise: Joi.object({
+      x: Joi.number().min(0).max(1),
+      y: Joi.number().min(0).max(1),
+      imageAspectRatio: Joi.number().positive()
+    }).allow(null)
   }),
+  pointImageOrder: Joi.number().integer().min(0).max(2147483647).allow(null),
   answerDeviation: Joi.number().min(0).allow(null),
   rightAnswers: textList(),
   wrongAnswers: textList(),
@@ -174,14 +188,55 @@ const questionSchema = baseQuestionSchema.keys({
 const validateChoiceKey = (question: PackageQuestionDTO, helpers: Joi.CustomHelpers) => {
   if (
     question.correctChoiceOrder != null &&
-    (question.answers ?? []).filter((answer) => answer.order === question.correctChoiceOrder).length !== 1
+    (question.answers ?? []).filter((answer) => answer.order === question.correctChoiceOrder)
+      .length !== 1
   ) {
     return helpers.error("any.invalid");
   }
   return question;
 };
 
-const questions = Joi.array().items(questionSchema.custom(validateChoiceKey)).required();
+const validateQuestionContent = (question: PackageQuestionDTO, helpers: Joi.CustomHelpers) => {
+  if (
+    question.pointImageOrder != null &&
+    !pointImage(question.questionFiles, question.pointImageOrder)
+  ) {
+    return helpers.error("any.invalid");
+  }
+  const orders = new Set<number>();
+  for (const file of question.questionFiles ?? []) {
+    if (question.textItems != null && orders.has(file.order)) return helpers.error("any.invalid");
+    orders.add(file.order);
+  }
+  if (question.textOrder != null) {
+    if (question.textItems != null && orders.has(question.textOrder)) return helpers.error("any.invalid");
+    orders.add(question.textOrder);
+  }
+  for (const item of question.textItems ?? []) {
+    if (orders.has(item.order)) return helpers.error("any.invalid");
+    orders.add(item.order);
+  }
+  return question;
+};
+
+const validateFinalMediaDuration = (question: PackageQuestionDTO, helpers: Joi.CustomHelpers) => {
+  if (
+    question.textItems != null &&
+    (question.questionFiles ?? []).some(
+      ({ file, displayTime }) =>
+        (file.type === PackageFileType.AUDIO || file.type === PackageFileType.VIDEO) &&
+        (!Number.isInteger(displayTime) ||
+          displayTime! <= 0 ||
+          displayTime! > CONTENT_ITEM_MAX_TIME)
+    )
+  )
+    return helpers.error("any.invalid");
+  return question;
+};
+
+const questions = Joi.array()
+  .items(questionSchema.custom(validateChoiceKey).custom(validateQuestionContent))
+  .required();
 
 // Themes schema with conditional validation for final rounds
 const themes = Joi.array()
@@ -204,11 +259,15 @@ const finalRoundThemes = Joi.array()
       description: Joi.string().allow(null, ""),
       questions: Joi.array()
         .items(
-          questionSchema.keys({
-            type: Joi.string().valid("simple").required(),
-            price: Joi.allow(null).required(), // Final round questions must have null price
-            isHidden: Joi.boolean().valid(false).optional()
-          }).custom(validateChoiceKey)
+          questionSchema
+            .keys({
+              type: Joi.string().valid("simple").required(),
+              price: Joi.allow(null).required(), // Final round questions must have null price
+              isHidden: Joi.boolean().valid(false).optional()
+            })
+            .custom(validateChoiceKey)
+            .custom(validateQuestionContent)
+            .custom(validateFinalMediaDuration)
         )
         .length(1) // Exactly one question per theme in final round
         .required()

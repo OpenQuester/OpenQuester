@@ -21,6 +21,193 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("selects the last image when switching to point answers and clears the previous target", async () => {
+  const { store } = setup(
+    newQuestion(100, {
+      answerType: "text",
+      pointImageId: "first",
+      answerPoint: { x: 0.2, y: 0.4 },
+      questionFiles: [
+        { md5: "first", occurrenceId: "first", type: "image", displayTime: 5000 },
+        { md5: "second", occurrenceId: "second", type: "image", displayTime: 5000 },
+      ],
+    }),
+  );
+  act(() =>
+    store.getState().addMedia([
+      {
+        md5: "first",
+        type: "image",
+        name: "first.png",
+        bytes: new Uint8Array(),
+        url: "/first.png",
+      },
+      {
+        md5: "second",
+        type: "image",
+        name: "second.png",
+        bytes: new Uint8Array(),
+        url: "/second.png",
+      },
+    ]),
+  );
+  await userEvent.setup().selectOptions(screen.getByLabelText("How players answer"), "point");
+  expect(screen.queryByRole("button", { name: "Choose the last picture" })).not.toBeInTheDocument();
+  expect(screen.getByTestId("point-picker").querySelector("img")).toHaveAttribute(
+    "src",
+    "/second.png",
+  );
+  await userEvent.setup().click(screen.getByTestId("question-save"));
+  const saved = store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!;
+  expect(saved).toMatchObject({ pointImageId: "second", answerPoint: null });
+});
+
+it.each(["{Enter}", "{Control>}z{/Control}", "{Meta>}z{/Meta}"])(
+  "moves focus to Cancel after undo (%s) and Tab reaches Save",
+  async (shortcut) => {
+    const image = { md5: "same", type: "image" as const, displayTime: 5000 };
+    setup(newQuestion(100, { questionFiles: [image] }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Remove file" }));
+    const undo = screen.getByRole("button", { name: "Undo media change" });
+    undo.focus();
+    await user.keyboard(shortcut);
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByTestId("question-save")).toHaveFocus();
+  },
+);
+
+it.each(["{Enter}", "{Control>}z{/Control}", "{Meta>}z{/Meta}"])(
+  "keeps focus on Undo when declining (%s) to clear a newly chosen point",
+  async (shortcut) => {
+    const confirm = vi
+      .spyOn(window, "confirm")
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-media");
+    setup(newQuestion(100, { answerType: "point" }));
+    const source = new File([], "target.gif", { type: "image/gif" });
+    Object.defineProperty(source, "arrayBuffer", {
+      value: async () => new TextEncoder().encode("GIF89a").buffer,
+    });
+    const input = screen
+      .getByText("Shown with the question")
+      .parentElement!.querySelector("input")!;
+    fireEvent.change(input, { target: { files: [source] } });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Use unchanged" })).toBeEnabled(),
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Use unchanged" }));
+    const picker = screen.getByTestId("point-picker");
+    act(() => picker.focus());
+    await user.keyboard("{Enter}");
+    const undo = screen.getByRole("button", { name: "Undo media change" });
+    undo.focus();
+    await user.keyboard(shortcut);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(undo).toHaveFocus();
+    expect(undo).toBeVisible();
+    await user.keyboard(shortcut);
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+  },
+);
+
+it("asks before discarding a fresh point and restores the previous target and radius", async () => {
+  const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+  const { store } = setup(
+    newQuestion(100, {
+      answerType: "point",
+      pointImageId: "second",
+      answerPoint: { x: 0.2, y: 0.4 },
+      answerDeviation: 0.05,
+      questionFiles: [
+        { md5: "first", occurrenceId: "first", type: "image", displayTime: 5000 },
+        { md5: "second", occurrenceId: "second", type: "image", displayTime: 5000 },
+      ],
+    }),
+  );
+  act(() =>
+    store.getState().addMedia([
+      {
+        md5: "first",
+        type: "image",
+        name: "first.png",
+        bytes: new Uint8Array(),
+        url: "/first.png",
+      },
+      {
+        md5: "second",
+        type: "image",
+        name: "second.png",
+        bytes: new Uint8Array(),
+        url: "/second.png",
+      },
+    ]),
+  );
+  const user = userEvent.setup();
+  await user.click(screen.getAllByRole("button", { name: "Remove file" })[1]!);
+  screen.getByTestId("point-picker").focus();
+  await user.keyboard("{Enter}");
+  const undo = screen.getByRole("button", { name: "Undo media change" });
+  await user.click(undo);
+  expect(confirm).toHaveBeenCalledTimes(1);
+  expect(screen.getAllByTestId("attachment-card")).toHaveLength(1);
+  await user.click(undo);
+  expect(confirm).toHaveBeenCalledTimes(2);
+  await user.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]).toMatchObject({
+    pointImageId: "second",
+    answerPoint: { x: 0.2, y: 0.4 },
+    answerDeviation: 0.05,
+  });
+});
+
+it("keeps a reassigned point without a confirmation when restoring another image", async () => {
+  const confirm = vi.spyOn(window, "confirm");
+  const { store } = setup(
+    newQuestion(100, {
+      answerType: "point",
+      answerPoint: { x: 0.2, y: 0.4 },
+      pointImageId: "second",
+      questionFiles: [
+        { md5: "first", occurrenceId: "first", type: "image", displayTime: 5000 },
+        { md5: "second", occurrenceId: "second", type: "image", displayTime: 5000 },
+      ],
+    }),
+  );
+  act(() =>
+    store.getState().addMedia([
+      {
+        md5: "first",
+        type: "image",
+        name: "first.png",
+        bytes: new Uint8Array(),
+        url: "/first.png",
+      },
+      {
+        md5: "second",
+        type: "image",
+        name: "second.png",
+        bytes: new Uint8Array(),
+        url: "/second.png",
+      },
+    ]),
+  );
+  const user = userEvent.setup();
+  await user.click(screen.getAllByRole("button", { name: "Remove file" })[0]!);
+  screen.getByTestId("point-picker").focus();
+  await user.keyboard("{Enter}");
+  await user.click(screen.getByRole("button", { name: "Undo media change" }));
+  expect(confirm).not.toHaveBeenCalled();
+  await user.click(screen.getByTestId("question-save"));
+  const saved = store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!;
+  expect(saved.pointImageId).toBe(saved.questionFiles[1]!.occurrenceId);
+  expect(saved.answerPoint).toMatchObject({ x: 0.5, y: 0.5 });
+});
+
 it("undoes a removed point image without undoing later text or another image's timing", async () => {
   const image = { md5: "same", type: "image" as const, displayTime: 5000 };
   const q = newQuestion(100, {
@@ -45,6 +232,7 @@ it("undoes a removed point image without undoing later text or another image's t
   });
   add.focus();
   fireEvent.keyDown(add, { key: "z", ctrlKey: true });
+  expect(add).toHaveFocus();
   expect(screen.getAllByTestId("attachment-card")).toHaveLength(2);
   expect(screen.queryByRole("button", { name: "Undo media change" })).toBeNull();
   await user.click(screen.getByTestId("question-save"));
@@ -75,6 +263,56 @@ it("restores a choice image without changing later option text", async () => {
   const imageButton = within(choices).getByRole("button", { name: "Option A image" });
   imageButton.focus();
   fireEvent.keyDown(imageButton, { key: "z", metaKey: true });
+  await user.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.options[0]).toMatchObject({
+    text: "Edited",
+    file,
+  });
+});
+
+it("shows one shared undo for answer media and restores it without touching the question", async () => {
+  const questionFile = { md5: "question", type: "image" as const, displayTime: 5000 };
+  const answerFile = { md5: "answer", type: "image" as const, displayTime: 5000 };
+  const { store } = setup(
+    newQuestion(100, { questionFiles: [questionFile], answerFiles: [answerFile] }),
+  );
+  const user = userEvent.setup();
+  const answerList = screen.getByText("Shown with the answer").parentElement!.parentElement!;
+  await user.click(within(answerList).getByRole("button", { name: "Remove file" }));
+  const footer = screen.getByTestId("question-dialog").querySelector("footer")!;
+  const undo = within(footer).getByRole("button", { name: "Undo media change" });
+  expect(screen.getAllByRole("button", { name: "Undo media change" })).toHaveLength(1);
+  expect(
+    within(screen.getByTestId("question-media-fields")).queryByRole("button", {
+      name: "Undo media change",
+    }),
+  ).toBeNull();
+  await user.click(undo);
+  await user.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]).toMatchObject({
+    questionFiles: [questionFile],
+    answerFiles: [answerFile],
+  });
+});
+
+it("uses the shared undo for a choice image without reverting option text", async () => {
+  const file = { md5: "choice-image", type: "image" as const };
+  const { store } = setup(
+    newQuestion(100, {
+      type: "choice",
+      options: [
+        { id: "a", text: "A", file },
+        { id: "b", text: "B", file: null },
+      ],
+    }),
+  );
+  const user = userEvent.setup();
+  const choices = screen.getByTestId("choice-fields");
+  await user.click(within(choices).getByRole("button", { name: "Remove file" }));
+  await user.clear(within(choices).getByLabelText("Option A"));
+  await user.type(within(choices).getByLabelText("Option A"), "Edited");
+  const footer = screen.getByTestId("question-dialog").querySelector("footer")!;
+  await user.click(within(footer).getByRole("button", { name: "Undo media change" }));
   await user.click(screen.getByTestId("question-save"));
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.options[0]).toMatchObject({
     text: "Edited",
@@ -145,7 +383,7 @@ it("keeps a fractional media duration while typing and clears the point target w
   await user.click(screen.getAllByRole("button", { name: "Remove file" })[0]!);
   await user.click(screen.getByTestId("question-save"));
   const saved = store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!;
-  expect(saved.questionFiles).toEqual([{ md5: "second", type: "image", displayTime: 1500 }]);
+  expect(saved.questionFiles).toMatchObject([{ md5: "second", type: "image", displayTime: 1500 }]);
   expect(saved.answerPoint).toBeNull();
 });
 
@@ -265,9 +503,7 @@ it("keeps the unsaved question mounted when the preview closes and does not save
   await userEvent.click(opener);
   const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
   await screen.findByTestId("question-playtest");
-  await userEvent.click(within(preview).getByRole("button", { name: /^Continue$/ }));
-  await userEvent.click(within(preview).getByRole("button", { name: /^Continue$/ }));
-  expect(preview).toHaveTextContent("Unsaved");
+  await waitFor(() => expect(preview).toHaveTextContent("Unsaved"));
   await userEvent.keyboard("{Control>}{Enter}{/Control}");
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.text).toBe("Original");
   await userEvent.keyboard("{Escape}");
@@ -277,13 +513,27 @@ it("keeps the unsaved question mounted when the preview closes and does not save
   expect(opener).toHaveFocus();
 });
 
+it("lists all critical problems and returns to the first field", async () => {
+  setup(newQuestion(null, { answerType: "number", answerNumber: null }));
+  await userEvent.click(screen.getByRole("button", { name: "Preview" }));
+  const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
+  const alert = await within(preview).findByRole("alert");
+  expect(alert).toHaveTextContent("This question is not finished yet.");
+  expect(within(alert).getAllByRole("listitem")).toHaveLength(3);
+  expect(alert).toHaveTextContent("The question has no text or media.");
+  expect(alert).toHaveTextContent("The question has no price.");
+  expect(alert).toHaveTextContent("Number answer without the right number");
+  await userEvent.click(within(alert).getByRole("button", { name: "Return to editing" }));
+  await waitFor(() => expect(screen.getByLabelText("Question text")).toHaveFocus());
+});
+
 it("returns focus to the invalid number target when the preview cannot run", async () => {
   const q = newQuestion(100, { text: "Question", answerType: "number", answerNumber: null });
   setup(q);
   await userEvent.click(screen.getByRole("button", { name: "Preview" }));
   const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
   expect(await within(preview).findByRole("alert")).toHaveTextContent(/number/i);
-  await userEvent.click(within(preview).getByRole("button", { name: "Return to this field" }));
+  await userEvent.click(within(preview).getByRole("button", { name: "Return to editing" }));
   await waitFor(() => expect(screen.getByLabelText("Right number")).toHaveFocus());
 });
 
@@ -304,10 +554,10 @@ it("returns focus to a correct-choice radio after deleting the selected option",
   await userEvent.click(screen.getByRole("button", { name: "Remove option A" }));
   await userEvent.click(screen.getByRole("button", { name: "Preview" }));
   const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
-  const issue = within(preview).getByText(
-    "Choose the correct option again before publishing.",
-  ).parentElement!;
-  await userEvent.click(within(issue).getByRole("button", { name: "Return to this field" }));
+  expect(
+    within(preview).getByText("Choose the correct option again before publishing."),
+  ).toBeVisible();
+  await userEvent.click(within(preview).getByRole("button", { name: "Return to editing" }));
   await waitFor(() =>
     expect(within(screen.getByTestId("choice-fields")).getAllByRole("radio")[0]).toHaveFocus(),
   );
@@ -324,10 +574,10 @@ it("returns focus to Add option when a choice repair has no options", async () =
   );
   await userEvent.click(screen.getByRole("button", { name: "Preview" }));
   const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
-  const issue = within(preview).getByText(
-    "Choose the correct option again before publishing.",
-  ).parentElement!;
-  await userEvent.click(within(issue).getByRole("button", { name: "Return to this field" }));
+  expect(
+    within(preview).getByText("Choose the correct option again before publishing."),
+  ).toBeVisible();
+  await userEvent.click(within(preview).getByRole("button", { name: "Return to editing" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "Add option" })).toHaveFocus());
 });
 
@@ -555,7 +805,7 @@ it("does not transfer the correct selection when its option is deleted", async (
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.correctChoiceOptionId).toBeNull();
 });
 
-function setup(question: DraftQuestion, wide = false) {
+function setup(question: DraftQuestion, wide = false, final = false) {
   const listeners = new Set<() => void>();
   const mediaQuery = {
     matches: wide,
@@ -563,7 +813,10 @@ function setup(question: DraftQuestion, wide = false) {
     removeEventListener: (_event: string, listener: () => void) => listeners.delete(listener),
   };
   vi.stubGlobal("matchMedia", () => mediaQuery);
-  const round = { ...newRound("Round"), themes: [newTheme("Theme", [question])] };
+  const round = {
+    ...newRound("Round", final ? "final" : "simple"),
+    themes: [newTheme("Theme", [question])],
+  };
   const store = createPackageEditorStore({
     draftId: "form-test",
     pkg: { ...emptyPackage("Quiz"), rounds: [round] },
@@ -585,6 +838,54 @@ function setup(question: DraftQuestion, wide = false) {
       }),
   };
 }
+
+it("does not migrate a media-only legacy final after typing and clearing the prompt", async () => {
+  const image = { md5: "same", type: "image" as const, displayTime: 5000 };
+  const { store } = setup(
+    newQuestion(null, {
+      text: "",
+      mainTextFirst: undefined,
+      textPosition: null,
+      textItems: undefined,
+      questionFiles: [image],
+      answerText: "Answer",
+    }),
+    false,
+    true,
+  );
+  const user = userEvent.setup();
+  const prompt = screen.getByLabelText("Question text");
+  await user.type(prompt, "A question");
+  await user.clear(prompt);
+  await user.click(screen.getByTestId("question-save"));
+  const saved = toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]!;
+  expect(saved.text).toBeNull();
+  expect(saved.textItems).toBeUndefined();
+  expect(saved.textOrder).toBeNull();
+});
+
+it("saves an added main prompt before media in a legacy media-only final", async () => {
+  const image = { md5: "same", type: "image" as const, displayTime: 5000 };
+  const { store } = setup(
+    newQuestion(null, {
+      text: "",
+      mainTextFirst: undefined,
+      textPosition: null,
+      textItems: undefined,
+      questionFiles: [image],
+      answerText: "Answer",
+    }),
+    false,
+    true,
+  );
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText("Question text"), "A question");
+  await user.click(screen.getByTestId("question-save"));
+  const saved = toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]!;
+  expect(saved.textOrder).toBe(0);
+  expect(saved.textItems).toEqual([]);
+  expect(saved.questionFiles?.[0]?.order).toBe(1);
+});
 
 it("saves decimal answers and tolerance while keeping prices and bids integral", async () => {
   const { store } = setup(
@@ -674,7 +975,7 @@ it.each([
   const original = { md5: "a".repeat(32), type: "image" as const, displayTime: 5000 };
   const { store } = setup(newQuestion(100, { [field]: [original] }));
   const list = screen.getByText(label).parentElement!.parentElement!;
-  const dropArea = list.children[1]!;
+  const dropArea = within(list).getByTestId("attachment-drop-zone");
   const firstBytes = new Uint8Array([1, 2, 3]);
   const secondBytes = new Uint8Array([4, 5, 6]);
   let finishFirst!: (bytes: ArrayBuffer) => void;

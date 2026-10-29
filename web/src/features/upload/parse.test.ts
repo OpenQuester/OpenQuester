@@ -227,6 +227,38 @@ describe("parseSiq", () => {
 });
 
 describe("parseOq", () => {
+  it("preserves ordered text steps and rejects malformed step data", async () => {
+    const question = {
+      type: "simple",
+      order: 0,
+      price: 100,
+      text: "Q",
+      textOrder: 0,
+      textItems: [{ order: 2, text: "Hint" }],
+    };
+    const content = {
+      title: "Text",
+      rounds: [{ name: "R", themes: [{ name: "T", questions: [question] }] }],
+    };
+    const read = (value: unknown) => parseOq({ "content.json": strToU8(JSON.stringify(value)) });
+    const parsed = await read(content);
+    expect(parsed.content.rounds[0]!.themes[0]!.questions[0]!.textItems).toEqual([
+      { order: 2, text: "Hint" },
+    ]);
+    question.textItems = [{ order: 2, text: "" }];
+    expect((await read(content)).content.rounds[0]!.themes[0]!.questions[0]!.textItems).toEqual([
+      { order: 2, text: "" },
+    ]);
+    await expect(
+      read({
+        ...content,
+        rounds: [
+          { name: "R", themes: [{ name: "T", questions: [{ ...question, textItems: "bad" }] }] },
+        ],
+      }),
+    ).rejects.toThrow("badContentJson");
+  });
+
   it("strips server fields, keeps media by hash and downgrades a one-option choice", async () => {
     const md5 = md5Hex(png);
     const content = {

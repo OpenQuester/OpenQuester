@@ -2,6 +2,7 @@ import { questionStyles, questionContentLayout } from "./questionStyles";
 import { useTranslation } from "react-i18next";
 import { ReportQuestionButton } from "@/features/stats/QuestionReporting";
 import { findPlayer, pointPicture } from "@/game/selectors";
+import { parsePointAnswer } from "@/game/pointAnswer";
 import { formatSigned } from "@/lib/format";
 import { useGame, useSession } from "../../GameContext";
 import { ContentStage } from "../ContentStage";
@@ -25,6 +26,30 @@ export function AnswerReveal() {
   const respondent = result ? findPlayer(session, result.player) : undefined;
   const answerText = data?.answerText ?? s.currentQuestion?.answerText ?? null;
   const pointImage = data?.answerPointImage ?? pointPicture(s.currentQuestion);
+  const answers = s.allPlay
+    ? s.allPlay.entries.map((entry) => ({
+        id: entry.playerId,
+        answer: entry.answer,
+        correct: entry.isCorrect,
+      }))
+    : (s.answeredPlayers?.length ? s.answeredPlayers : result ? [result] : []).map((entry) => ({
+        id: entry.player,
+        answer: entry.answerText,
+        correct: entry.answerType === "skip" ? null : entry.answerType === "correct",
+      }));
+  const markers = answers.flatMap(({ id, answer, correct }) => {
+    const spot = answer ? parsePointAnswer(answer) : null;
+    return spot
+      ? [
+          {
+            ...spot,
+            id,
+            name: findPlayer(session, id)?.meta.username ?? `${t("roles.player")} ${id}`,
+            correct: correct ?? null,
+          },
+        ]
+      : [];
+  });
   return (
     <div className={questionContentLayout} data-testid="answer-reveal">
       <span className="text-sm font-semibold uppercase tracking-wider text-muted">
@@ -39,7 +64,13 @@ export function AnswerReveal() {
         />
       )}
       {data?.answerPoint && pointImage && (
-        <PointPicker src={pointImage} target={data.answerPoint} radius={data.answerDeviation} />
+        <PointPicker
+          src={pointImage}
+          target={data.answerPoint}
+          radius={data.answerDeviation}
+          markers={markers}
+          className="self-center"
+        />
       )}
       {!!data?.rightAnswers?.length && (
         <p className="m-0 text-center text-soft">
@@ -67,17 +98,24 @@ export function AnswerReveal() {
               })
             : t("reveal.nobody"))}
       </p>
-      {result?.answerText != null && result.answerText !== "" && (
-        <p
-          className="m-0 text-center text-soft [overflow-wrap:anywhere]"
-          data-testid="submitted-answer"
-        >
-          {t("reveal.submitted", {
-            name: respondent?.meta.username ?? t("roles.player"),
-            answer: result.answerText,
-          })}
-        </p>
-      )}
+      {result?.answerText != null &&
+        result.answerText !== "" &&
+        !(
+          data?.answerPoint &&
+          pointImage &&
+          parsePointAnswer(result.answerText) &&
+          markers.some((marker) => marker.id === result.player)
+        ) && (
+          <p
+            className="m-0 text-center text-soft [overflow-wrap:anywhere]"
+            data-testid="submitted-answer"
+          >
+            {t("reveal.submitted", {
+              name: respondent?.meta.username ?? t("roles.player"),
+              answer: result.answerText,
+            })}
+          </p>
+        )}
       {(!!data?.authors?.length || !!data?.sources?.length) && (
         <p className="m-0 text-center text-sm text-muted" data-testid="answer-credits">
           {[

@@ -11,6 +11,7 @@ import { BuzzerCue, MediaWait } from "./question/QuestionStatus";
 import { ShowmanPanel } from "./question/ShowmanPanel";
 import { ShowmanInstruction } from "./question/ShowmanInstruction";
 import { useQuestionStage } from "./question/useQuestionStage";
+import { pointImage } from "@/lib/pointImage";
 
 /** Question content, the reveal, and the showman's private answer panel. */
 export function QuestionStage() {
@@ -33,6 +34,7 @@ export function QuestionStage() {
     picking,
     cue,
   } = useQuestionStage();
+  const selectedPoint = picking ? pointImage(q?.questionFiles, q?.pointImageOrder) : null;
 
   return (
     <div className={questionStyles.layout}>
@@ -54,9 +56,7 @@ export function QuestionStage() {
           <AnswerReveal />
         ) : (
           <div className={questionContentLayout} key={q?.id ?? "q"}>
-            {picking ? (
-              <PointAnswer key={myId} src={picture!} />
-            ) : showmanPreview ? (
+            {showmanPreview ? (
               <QuestionMedia files={q?.questionFiles ?? []} playing={false} />
             ) : (
               content?.kind === "question" && (
@@ -64,26 +64,46 @@ export function QuestionStage() {
                   content={content}
                   files={q?.questionFiles ?? []}
                   text={q?.text}
+                  textOrder={q?.textOrder}
+                  textItems={q?.textItems}
                   paused={s.isPaused}
+                  pointAnswer={
+                    selectedPoint
+                      ? {
+                          order: selectedPoint.order,
+                          view: <PointAnswer key={myId} src={picture!} />,
+                        }
+                      : undefined
+                  }
                 />
               )
             )}
             {/* Fallback (no timeline), the showman's preview, or a caption next to the media. */}
-            {!content && !showmanPreview && q?.questionFiles && q.questionFiles.length > 0 && (
-              <QuestionMedia
-                files={q.questionFiles}
-                playing={playing}
-                replacePointImage={picking ? null : undefined}
-              />
-            )}
+            {!content &&
+              !showmanPreview &&
+              q?.questionFiles &&
+              q.questionFiles.length > 0 &&
+              (picking ? (
+                <PointAnswer key={myId} src={picture!} />
+              ) : (
+                <QuestionMedia files={q.questionFiles} playing={playing} />
+              ))}
             {q?.text && (showmanPreview || !textIsStep) && (
               <p className={questionText} data-testid="question-text">
                 {q.text}
               </p>
             )}
-            {!q?.text && (!q?.questionFiles || q.questionFiles.length === 0) && (
-              <p className="m-0 text-muted">{t("question.noContent")}</p>
-            )}
+            {!q?.text &&
+              !q?.textItems?.length &&
+              (!q?.questionFiles || q.questionFiles.length === 0) && (
+                <p className="m-0 text-muted">
+                  {t(
+                    !q && phase === "answering"
+                      ? "dock.answering.questionLoading"
+                      : "question.noContent",
+                  )}
+                </p>
+              )}
             {cue && <BuzzerCue />}
             {q?.type === "choice" && q.answers && (
               <AnswerChoices key={`${q.id}:${s.answeringPlayer ?? "open"}`} />

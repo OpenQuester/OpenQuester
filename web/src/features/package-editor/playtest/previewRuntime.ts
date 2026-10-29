@@ -3,7 +3,7 @@ import { buildContentPlan, nextChangeAt, textDuration, timerElapsed } from "@/ga
 import type { ClientEventName, ClientEvents, Question, ServerEvent, Timer } from "@/game/protocol";
 import { reduce, type GameSession } from "@/game/reducer";
 import { canBuzz, phaseOf, questionValue, wrongCostsPoints } from "@/game/selectors";
-import { createGameStore } from "@/game/store";
+import { createGameStore, shouldClearPointSelections } from "@/game/store";
 import { serverNow } from "@/lib/clock";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
 import {
@@ -84,6 +84,8 @@ export class PreviewRuntime {
   }
   dispatch(event: ServerEvent) {
     if (this.disposed) return;
+    if (shouldClearPointSelections(this.state, event))
+      this.store.setState({ pointSelections: { scope: "", byPlayer: {} } });
     this.state = reduce(this.state, event);
     this.publish();
   }
@@ -228,6 +230,7 @@ export class PreviewRuntime {
     const plan = buildContentPlan({
       text: this.question.text,
       textOrder: this.question.textOrder,
+      textItems: this.question.textItems,
       files: this.question.questionFiles,
     });
     const { duration, opensAt } = this.questionTiming();
@@ -245,7 +248,12 @@ export class PreviewRuntime {
   }
   private questionTiming() {
     const q = this.question;
-    const plan = buildContentPlan({ text: q.text, textOrder: q.textOrder, files: q.questionFiles });
+    const plan = buildContentPlan({
+      text: q.text,
+      textOrder: q.textOrder,
+      textItems: q.textItems,
+      files: q.questionFiles,
+    });
     const content = plan?.totalMs ?? 0;
     const caption = q.text?.trim() && q.textOrder == null ? textDuration(q.text.trim()) : 0;
     const opensAt = this.state.settings?.falseStart

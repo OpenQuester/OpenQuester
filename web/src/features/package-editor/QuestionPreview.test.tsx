@@ -91,7 +91,7 @@ it("shows the first image target temporarily or pinned without replacing the ima
     ],
   });
   const { rerender, view } = setup(question);
-  const control = screen.getByRole("button", { name: "Point on image 1 · 25.4%, 75.4%" });
+  const control = screen.getByRole("button", { name: "Point on image" });
   const picker = screen.getByTestId("point-picker");
   const picture = picker.querySelector("img");
   expect(screen.queryByText("stale text")).not.toBeInTheDocument();
@@ -118,19 +118,48 @@ it("shows the first image target temporarily or pinned without replacing the ima
   expect(screen.queryByTestId("point-target")).not.toBeInTheDocument();
   fireEvent.click(control);
   rerender(view({ ...question, questionFiles: [image("second")] }));
-  expect(screen.getByRole("button", { name: /Point on image 1/ })).toHaveAttribute(
+  expect(screen.getByRole("button", { name: /Point on image/ })).toHaveAttribute(
     "aria-pressed",
     "false",
   );
   expect(screen.queryByTestId("point-target")).not.toBeInTheDocument();
   rerender(view(question));
-  expect(screen.getByRole("button", { name: /Point on image 1/ })).toHaveAttribute(
+  expect(screen.getByRole("button", { name: /Point on image/ })).toHaveAttribute(
     "aria-pressed",
     "false",
   );
-  fireEvent.click(screen.getByRole("button", { name: /Point on image 1/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Point on image/ }));
   rerender(view({ ...question, id: "another-question" }));
   expect(screen.queryByTestId("point-target")).not.toBeInTheDocument();
+});
+
+it("describes the target and radius when focused with the keyboard, with unique IDs", async () => {
+  const question = newQuestion(100, {
+    answerType: "point",
+    answerPoint: { x: 0.254, y: 0.754 },
+    questionFiles: [image("first")],
+  });
+  const { rerender, view } = setup(question);
+  rerender(
+    <>
+      {view(question)}
+      {view({ ...question, id: "second-question", answerDeviation: 0.2 })}
+    </>,
+  );
+  const [first, second] = screen.getAllByRole("button", { name: "Point on image" });
+  expect(first!.getAttribute("aria-describedby")).not.toBe(
+    second!.getAttribute("aria-describedby"),
+  );
+  await userEvent.tab();
+  expect(first).toHaveFocus();
+  expect(first).toHaveAccessibleDescription(
+    "Correct point: 25.4% of the image width from the left, 75.4% of its height from the top. Tolerance radius: 5% of the image width.",
+  );
+  await userEvent.tab();
+  expect(second).toHaveFocus();
+  expect(second).toHaveAccessibleDescription(
+    "Correct point: 25.4% of the image width from the left, 75.4% of its height from the top. Tolerance radius: 20% of the image width.",
+  );
 });
 
 it("handles missing or invalid targets and keeps a choice answer when point mode is stale", () => {
@@ -151,5 +180,5 @@ it("handles missing or invalid targets and keeps a choice answer when point mode
   expect(screen.getByText("Actual answer")).toBeInTheDocument();
   expect(screen.queryByTestId("point-picker")).not.toBeInTheDocument();
   rerender(view({ ...question, type: "choice", questionFiles: [image("first")] }, true));
-  expect(screen.getByRole("button", { name: /Point on image 1/ })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Point on image/ })).toBeInTheDocument();
 });

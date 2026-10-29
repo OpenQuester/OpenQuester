@@ -8,6 +8,7 @@ import type { OptimizeProgress } from "./optimize/index";
 import { clearStash, loadStash, stashFiles, unstashFile } from "./stash";
 import type { MediaFile, ParsedPackage } from "./types";
 import { withPointImageDimensions } from "./pointImageDimensions";
+import { withFinalMediaDurations } from "./finalMediaDuration";
 
 export const ACCEPT = ".siq,.oq";
 
@@ -133,6 +134,7 @@ export async function uploadPackage(
     savings = { before: result.bytesBefore, after: result.bytesAfter };
   }
   parsed = await withPointImageDimensions(parsed);
+  parsed = await withFinalMediaDurations(parsed);
   onProgress(idle("creating"));
   // The generated union types are stricter than the server's scheme.
   // Sizes let the server check the storage limits before handing out links.

@@ -5,6 +5,7 @@ import * as RD from "@radix-ui/react-dialog";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/ui/Button";
 import { CheckIcon, CloseIcon } from "@/ui/icons";
+import { useRef, type RefObject } from "react";
 import type { QuestionPath } from "../packageOperations";
 import type { QuestionFormState } from "./useQuestionForm";
 export function QuestionHeader({ at, form }: { at: QuestionPath; form: QuestionFormState }) {
@@ -35,12 +36,15 @@ export function QuestionHeader({ at, form }: { at: QuestionPath; form: QuestionF
 export function QuestionFooter({
   form,
   onClose,
+  undoButton,
 }: {
   form: QuestionFormState;
   onClose: () => void;
+  undoButton: RefObject<HTMLButtonElement | null>;
 }) {
   const { t } = useTranslation();
   const { confirmClose, setConfirmClose, requestClose, save, canSave } = form;
+  const cancel = useRef<HTMLButtonElement>(null);
   return (
     <footer className={questionFormStyles.footer}>
       {confirmClose ? (
@@ -57,11 +61,23 @@ export function QuestionFooter({
         </>
       ) : (
         <>
+          {form.hasMediaUndo && (
+            <Button
+              ref={undoButton}
+              variant="ghost"
+              onClick={() => {
+                if (form.undoMedia()) cancel.current?.focus();
+              }}
+              aria-keyshortcuts="Control+z Meta+z"
+            >
+              {t("mediaEditor.undo")}
+            </Button>
+          )}
           <span className="hidden flex-1 text-sm text-faint sm:block">
             {t("editor.form.saveShortcut")}
           </span>
           <div className={questionFormStyles.actions}>
-            <Button variant="ghost" size="lg" onClick={requestClose}>
+            <Button ref={cancel} variant="ghost" size="lg" onClick={requestClose}>
               {t("editor.cancel")}
             </Button>
             <Button

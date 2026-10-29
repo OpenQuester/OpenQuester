@@ -6,7 +6,7 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   AnswerData,
   AnswerReviewData,
-  AutoLossProcessResult,
+  AutoLossProcessResult
 } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
@@ -41,14 +41,15 @@ export class AutoLossProcessLogic {
    *
    * Returns a single AutoLossEntry if applied, otherwise null.
    */
-  public static processPlayerAutoLoss(
-    game: Game,
-    playerId: number
-  ): AutoLossEntry | null {
+  public static processPlayerAutoLoss(game: Game, playerId: number): AutoLossEntry | null {
     const finalRoundData = FinalRoundStateManager.getFinalRoundData(game);
     if (
       !finalRoundData ||
-      game.gameState.questionState !== QuestionState.ANSWERING
+      (game.gameState.questionState !== QuestionState.ANSWERING &&
+        !(
+          game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING &&
+          finalRoundData.questionData?.mediaPreparationId
+        ))
     ) {
       return null;
     }
@@ -67,9 +68,7 @@ export class AutoLossProcessLogic {
       return null;
     }
 
-    const hasSubmitted = finalRoundData.answers.some(
-      (answer) => answer.playerId === playerId
-    );
+    const hasSubmitted = finalRoundData.answers.some((answer) => answer.playerId === playerId);
     if (hasSubmitted) {
       return null;
     }
@@ -80,18 +79,14 @@ export class AutoLossProcessLogic {
       id: answer.id,
       playerId: answer.playerId,
       answer: answer.answer,
-      autoLoss: answer.autoLoss,
+      autoLoss: answer.autoLoss
     };
 
-    const { scoreChange } = FinalRoundStateManager.reviewAnswer(
-      game,
-      answer.id,
-      false
-    );
+    const { scoreChange } = FinalRoundStateManager.reviewAnswer(game, answer.id, false);
 
     return {
       answerData,
-      scoreChange,
+      scoreChange
     };
   }
 
@@ -111,7 +106,7 @@ export class AutoLossProcessLogic {
     if (game.gameState.questionState !== QuestionState.ANSWERING) {
       return {
         autoLossEntries: [],
-        isPhaseComplete: false,
+        isPhaseComplete: false
       };
     }
 
@@ -133,31 +128,22 @@ export class AutoLossProcessLogic {
 
       if (!hasSubmitted) {
         // Add empty answer as auto-loss (automatically marked by StateManager)
-        const answer = FinalRoundStateManager.addAnswer(
-          game,
-          player.meta.id,
-          "",
-          true
-        );
+        const answer = FinalRoundStateManager.addAnswer(game, player.meta.id, "", true);
 
         // Create answer data (answer.autoLoss is true for empty answers)
         const answerData: AnswerData = {
           id: answer.id,
           playerId: answer.playerId,
           answer: answer.answer,
-          autoLoss: answer.autoLoss,
+          autoLoss: answer.autoLoss
         };
 
         // Immediately mark as incorrect and update score
-        const { scoreChange } = FinalRoundStateManager.reviewAnswer(
-          game,
-          answer.id,
-          false
-        );
+        const { scoreChange } = FinalRoundStateManager.reviewAnswer(game, answer.id, false);
 
         autoLossEntries.push({
           answerData,
-          scoreChange,
+          scoreChange
         });
       }
     }
@@ -167,7 +153,7 @@ export class AutoLossProcessLogic {
 
     return {
       autoLossEntries,
-      isPhaseComplete,
+      isPhaseComplete
     };
   }
 
@@ -186,20 +172,18 @@ export class AutoLossProcessLogic {
       | FinalAnsweringToReviewingMutationData
       | undefined;
 
-    const autoLossReviews: AnswerReviewData[] =
-      mutationResult.autoLossEntries.map((entry) =>
-        FinalRoundPhaseCompletionHelper.createAnswerReviewData(
-          entry.answerData,
-          entry.scoreChange,
-          false
-        )
-      );
+    const autoLossReviews: AnswerReviewData[] = mutationResult.autoLossEntries.map((entry) =>
+      FinalRoundPhaseCompletionHelper.createAnswerReviewData(
+        entry.answerData,
+        entry.scoreChange,
+        false
+      )
+    );
 
     const isReadyForReview = mutationResult.isPhaseComplete;
 
     const allReviews = isReadyForReview
-      ? transitionData?.allReviews ??
-        FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game)
+      ? (transitionData?.allReviews ?? FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game))
       : undefined;
 
     return {
@@ -207,7 +191,7 @@ export class AutoLossProcessLogic {
       autoLossReviews,
       isReadyForReview,
       allReviews,
-      transitionResult,
+      transitionResult
     } satisfies AutoLossProcessResult;
   }
 }
