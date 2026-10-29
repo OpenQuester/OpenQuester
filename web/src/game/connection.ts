@@ -10,6 +10,7 @@ import {
   SERVER_EVENT_NAMES,
   type ClientEventName,
   type ClientEvents,
+  type GameListEvent,
   type PlayerRole,
   type ServerEvent,
 } from "./protocol";
@@ -87,12 +88,14 @@ export class GameConnection {
       useGameStore.getState().setConnection("reconnecting");
     });
     socket.on("error", (payload: unknown) => this.onError(payload));
-    // The lobby-wide games feed tells us when the showman deletes this game.
-    socket.on("games", (payload: { event?: string; data?: { id?: string } }) => {
+    // The lobby-wide games feed tells us when the showman deletes or edits this game.
+    socket.on("games", (payload: GameListEvent) => {
       if (payload?.event === "deleted" && payload.data?.id?.toUpperCase() === this.gameId) {
         useGameStore.getState().markLeft("deleted");
         this.close();
+        return;
       }
+      if (payload?.event === "changed") this.onServerEvent({ type: "games", payload });
     });
 
     for (const name of SERVER_EVENT_NAMES) {

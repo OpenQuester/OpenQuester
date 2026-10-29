@@ -5,6 +5,8 @@ import { Label, Select } from "@/ui/Field";
 import { DeleteGameButton } from "../DeleteGameButton";
 import { PlayersBody } from "./PlayersPanel";
 import { HostGameControls } from "./host/HostGameControls";
+import { HostGameInfo } from "./host/HostGameInfo";
+import { HostGameRules } from "./host/HostGameRules";
 import { useHostTools } from "./host/useHostTools";
 /** Showman tools keep the player-management form mounted across control updates. */
 export function HostTools({
@@ -39,6 +41,8 @@ export function HostTools({
           </Select>
         </section>
       )}
+      {phase !== "finished" && <HostGameRules />}
+      {phase !== "finished" && <HostGameInfo />}
       <PlayersBody compact focusPlayer={focusPlayer} key={focusPlayer ?? "none"} />
       <section className={gamePanelStyles.hostRound}>
         <p className="m-0 text-sm text-muted">{t("menu.hostHelp")}</p>
