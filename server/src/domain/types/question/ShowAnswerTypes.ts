@@ -11,5 +11,7 @@ export interface AnswerRevealDetails {
   authors: string[] | null;
   sources: string[] | null;
   answerPoint: AnswerPointDTO | null;
+  answerPointImage: string | null;
   answerDeviation: number | null;
+  correctChoiceImage: string | null;
 }

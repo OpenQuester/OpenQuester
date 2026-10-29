@@ -1,9 +1,20 @@
 import { questionStyles } from "./questionStyles";
 import { useTranslation } from "react-i18next";
-import { findPlayer, pointPicture } from "@/game/selectors";
+import { findPlayer, pointPicture, requiresAnswerSubmission } from "@/game/selectors";
 import { formatSigned } from "@/lib/format";
 import { useSession } from "../../GameContext";
 import { PointPicker } from "../PointPicker";
+import type { GameSession } from "@/game/reducer";
+import type { TranslateAction } from "../dock/actionDockModel";
+
+function submittedAnswerLabel(session: GameSession, t: TranslateAction): string {
+  if (session.submittedAnswer) return `“${session.submittedAnswer}”`;
+  if (session.hasAnswerSubmission) return t("showman.emptySubmission");
+  const question = session.state.currentQuestion;
+  if (!question) return t("dock.answering.questionLoading");
+  if (requiresAnswerSubmission(question)) return t("dock.answering.autoWaitHelp");
+  return t("showman.sayingOutLoud");
+}
 
 /** Showman-only column: the answer, what the player said, and who buzzed. */
 export function ShowmanPanel() {
@@ -12,6 +23,7 @@ export function ShowmanPanel() {
   const s = session.state;
   const q = s.currentQuestion;
   const answering = findPlayer(session, s.answeringPlayer);
+  const picture = pointPicture(q);
   return (
     <aside
       aria-label={t("showman.panel")}
@@ -22,7 +34,7 @@ export function ShowmanPanel() {
       <div className="flex flex-col gap-1">
         <span className="text-sm text-muted">{t("showman.answer")}</span>
         <span className={questionStyles.showmanAnswer} data-testid="showman-answer">
-          {q?.answerText || t("showman.noAnswerText")}
+          {q ? q.answerText || t("showman.noAnswerText") : t("dock.answering.questionLoading")}
         </span>
         {q?.answerHint && (
           <span className="text-sm text-soft">{t("showman.hint", { hint: q.answerHint })}</span>
@@ -35,9 +47,9 @@ export function ShowmanPanel() {
             })}
           </span>
         )}
-        {q?.answerType === "point" && q.answerPoint && pointPicture(q) && (
+        {q?.answerType === "point" && q.answerPoint && picture && (
           <PointPicker
-            src={pointPicture(q)!}
+            src={picture}
             target={q.answerPoint}
             radius={q.answerDeviation}
             className="max-w-full"
@@ -63,7 +75,7 @@ export function ShowmanPanel() {
             {t("showman.answering", { name: answering.meta.username })}
           </span>
           <span className="text-lg [overflow-wrap:anywhere]">
-            {session.submittedAnswer ? `“${session.submittedAnswer}”` : t("showman.sayingOutLoud")}
+            {submittedAnswerLabel(session, t)}
           </span>
         </div>
       )}
@@ -71,17 +83,12 @@ export function ShowmanPanel() {
         <div className="flex flex-col gap-1 text-sm">
           <span className="text-muted">{t("showman.alreadyAnswered")}</span>
           {(s.answeredPlayers ?? []).map((a, i) => (
-            <span key={i}>
+            <span key={i} className="[overflow-wrap:anywhere]">
               {findPlayer(session, a.player)?.meta.username} · {formatSigned(a.result)}
+              {a.answerText ? ` · “${a.answerText}”` : null}
             </span>
           ))}
         </div>
-      )}
-      {q?.questionComment && (
-        <details className="text-sm">
-          <summary className="cursor-pointer font-semibold">{t("showman.comment")}</summary>
-          <p className="mb-0 mt-2 text-soft">{q.questionComment}</p>
-        </details>
       )}
     </aside>
   );

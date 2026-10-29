@@ -59,6 +59,7 @@ export class GameQuestionMapper {
       answerDelay: question.answerDelay,
       // Players receive the answer format. Correct values stay in the full server-side question.
       answerType: question.answerType ?? null,
+      pointImageOrder: question.pointImageOrder ?? null,
       isHidden: question.isHidden,
       order: question.order,
       price: question.price,
@@ -74,6 +75,7 @@ export class GameQuestionMapper {
       showDelay: question.showDelay,
       text: question.text,
       textOrder: question.textOrder ?? null,
+      textItems: question.textItems ?? null,
       transferType: question.transferType
     };
   }

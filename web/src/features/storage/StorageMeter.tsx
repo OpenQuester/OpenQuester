@@ -6,14 +6,20 @@ import { formatBytes } from "@/lib/format";
 
 import { useMyStorage } from "./useStorage";
 
-/** "312 MB of 1 GB used" with a bar; turns amber at 80 % and red at 100 %. */
+/** Show usage against the effective quota returned by the server. */
 export function StorageMeter({ className }: { className?: string }) {
   const { t } = useTranslation();
   const storage = useMyStorage();
-  if (!storage.data) return null;
+  if (storage.isLoading) return <p className="text-sm text-muted">{t("common.loading")}</p>;
+  if (!storage.data)
+    return (
+      <p role="alert" className="text-sm text-danger">
+        {t("storage.loadFailed")}
+      </p>
+    );
   const { usedBytes, quotaBytes } = storage.data;
   const ratio = quotaBytes === null ? 0 : quotaBytes === 0 ? 1 : usedBytes / quotaBytes;
-  const pct = Math.min(100, Math.round(ratio * 100));
+  const pct = Math.max(0, Math.min(100, Math.round(ratio * 100)));
   return (
     <div className={cn("flex flex-col gap-2", className)} data-testid="storage-meter">
       <div className={layoutStyles.meterHeading}>
@@ -36,7 +42,7 @@ export function StorageMeter({ className }: { className?: string }) {
           <div
             className={cn(
               "h-full rounded-full",
-              ratio >= 1 ? "bg-danger" : ratio >= 0.8 ? "bg-warning" : "bg-info",
+              ratio >= 0.75 ? "bg-danger" : ratio >= 0.5 ? "bg-warning" : "bg-success",
             )}
             style={{ width: `${pct}%` }}
           />

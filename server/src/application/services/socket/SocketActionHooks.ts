@@ -9,6 +9,7 @@ import { GameService } from "application/services/game/GameService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { type Game } from "domain/entities/game/Game";
 import { GameActionType } from "domain/enums/GameActionType";
+import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ShowmanActionLogLogic } from "domain/logic/chat/ShowmanActionLogLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
@@ -21,6 +22,7 @@ import {
   type SecretQuestionTransferResult
 } from "domain/types/question/SecretQuestionTransferTypes";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
+import { type FinalQuestionEventData } from "domain/types/socket/events/FinalRoundEventData";
 import {
   type GameJoinOutputData,
   type GameLeaveBroadcastData
@@ -189,7 +191,24 @@ export class SocketActionHooks {
       );
     }
 
-    await this.emitCurrentQuestionDataToJoinedSocket(action, game);
+    const currentId = game.gameState.timer ? game.gameState.currentQuestion?.id : undefined;
+    const final = game.gameState.finalRoundData;
+    const joinedPlayer = game.getPlayer(action.playerId, { fetchDisconnected: false });
+    const finalId =
+      final?.phase === FinalRoundPhase.REVIEWING && joinedPlayer?.role === PlayerRole.SHOWMAN
+        ? final.questionData?.question?.id
+        : undefined;
+    // Reuse the lookup when both events refer to the same question.
+    const currentQuestion = currentId
+      ? ((await this.packageStore.getQuestionWithTheme(game.id, currentId))?.question ?? null)
+      : null;
+    const finalQuestion = !finalId
+      ? null
+      : finalId === currentId
+        ? currentQuestion
+        : ((await this.packageStore.getQuestionWithTheme(game.id, finalId))?.question ?? null);
+    this.emitCurrentQuestionDataToJoinedSocket(action, game, currentQuestion);
+    this.emitFinalReviewQuestionToShowman(action, game, finalQuestion);
 
     if (data.players.length > 1 && currentUserId) {
       await this.userNotificationRoomService.subscribeGameToUserNotifications(
@@ -199,33 +218,45 @@ export class SocketActionHooks {
     }
   }
 
-  private async emitCurrentQuestionDataToJoinedSocket(
+  private emitFinalReviewQuestionToShowman(
     action: GameAction,
-    game: Game
-  ): Promise<void> {
-    const currentQuestion = game.gameState.currentQuestion;
-    const timer = game.gameState.timer;
-
-    if (!currentQuestion?.id || !timer) {
+    game: Game,
+    question: PackageQuestionDTO | null
+  ): void {
+    const final = game.gameState.finalRoundData;
+    const questionData = final?.questionData;
+    const joinedPlayer = game.getPlayer(action.playerId, { fetchDisconnected: false });
+    if (
+      final?.phase !== FinalRoundPhase.REVIEWING ||
+      joinedPlayer?.role !== PlayerRole.SHOWMAN ||
+      !question ||
+      !questionData
+    ) {
       return;
     }
 
-    const questionWithTheme = await this.packageStore.getQuestionWithTheme(
-      game.id,
-      currentQuestion.id
+    this.realtimeGateway.publish(
+      RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.FINAL_QUESTION_DATA, {
+        questionData: { ...questionData, question: question }
+      } satisfies FinalQuestionEventData)
     );
+  }
 
-    if (!questionWithTheme) {
+  private emitCurrentQuestionDataToJoinedSocket(
+    action: GameAction,
+    game: Game,
+    question: PackageQuestionDTO | null
+  ): void {
+    const timer = game.gameState.timer;
+    if (!question || !timer) {
       return;
     }
 
-    const joinedPlayer = game.getPlayer(action.playerId, {
-      fetchDisconnected: false
-    });
+    const joinedPlayer = game.getPlayer(action.playerId, { fetchDisconnected: false });
     const questionData =
       joinedPlayer?.role === PlayerRole.SHOWMAN
-        ? questionWithTheme.question
-        : GameQuestionMapper.mapToSimpleQuestion(questionWithTheme.question);
+        ? question
+        : GameQuestionMapper.mapToSimpleQuestion(question);
 
     this.realtimeGateway.publish(
       RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.QUESTION_DATA, {

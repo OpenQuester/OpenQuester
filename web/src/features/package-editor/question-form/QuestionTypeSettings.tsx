@@ -1,9 +1,10 @@
 import { questionFormStyles } from "./questionFormStyles";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 import type { QuestionFieldsProps } from "./questionUpdates";
-import type { DraftQuestion } from "../packageDraft";
+import { draftPointImage, type DraftQuestion, type DraftMedia } from "../packageDraft";
 import { FieldError, inputClass, Label } from "@/ui/Field";
-import { PointPicker } from "@/features/game/play/PointPicker";
+import { DEFAULT_POINT_RADIUS, PointPicker } from "@/features/game/play/PointPicker";
 import { mediaUrl } from "../packageMedia";
 import { useMediaFile } from "../packageEditorStore";
 import { QuestionCheckbox, NumberField, PricesField, SecondsField } from "./QuestionFields";
@@ -81,33 +82,19 @@ export function QuestionTypeSettings({ q, set, final }: QuestionFieldsProps & { 
           onChange={(showDelay) => set({ showDelay })}
         />
       )}
-      {type !== "choice" && !final && <AnswerCheckSettings q={q} set={set} />}
-      <span className={questionFormStyles.previewLabel}>{t("editor.form.timing")}</span>
-      {/* No "answer window" here: games time answers with the game's own timer
-          settings, so a per-question value would have no effect */}
-      <div className="grid grid-cols-2 gap-3">
-        <SecondsField
-          id="qf-reveal"
-          label={t("editor.form.showAnswer")}
-          ms={q.showAnswerDuration}
-          onChange={(showAnswerDuration) => set({ showAnswerDuration })}
-        />
-      </div>
     </div>
   );
 }
 
-/** Typed, numeric, or point answers. */
-export function AnswerCheckSettings({ q, set }: QuestionFieldsProps) {
+/** The mode and its explanation stay together beside the question. */
+export function AnswerModeField({ q, set }: QuestionFieldsProps) {
   const { t } = useTranslation();
-  const image = q.questionFiles.find((f) => f.type === "image");
-  const file = useMediaFile(image?.md5);
-  const src = mediaUrl(file);
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-w-0 flex-col gap-1.5">
       <Label htmlFor="qf-answer-type">{t("editor.form.answerType")}</Label>
       <select
         id="qf-answer-type"
+        aria-describedby="qf-answer-type-help"
         value={q.answerType}
         onChange={(e) =>
           set({ answerType: e.target.value as DraftQuestion["answerType"], answerDeviation: null })
@@ -120,6 +107,23 @@ export function AnswerCheckSettings({ q, set }: QuestionFieldsProps) {
           </option>
         ))}
       </select>
+      <span id="qf-answer-type-help" className="text-sm text-faint">
+        {t(`editor.form.answerTypeHelp.${q.answerType}`)}
+      </span>
+    </div>
+  );
+}
+
+/** Numeric and point settings need the full width below the mode. */
+export function AnswerCheckFields({ q, set }: QuestionFieldsProps) {
+  const { t } = useTranslation();
+  const lastImage = q.questionFiles.filter((file) => file.type === "image").at(-1);
+  const image = q.pointImageId !== undefined || q.answerPoint ? draftPointImage(q) : lastImage;
+  const file = useMediaFile(image?.md5);
+  const src = mediaUrl(file);
+  if (q.answerType === "text") return null;
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
       {q.answerType === "number" && (
         <div className="grid grid-cols-2 gap-3">
           <NumberField
@@ -138,27 +142,78 @@ export function AnswerCheckSettings({ q, set }: QuestionFieldsProps) {
           />
         </div>
       )}
-      {q.answerType === "point" &&
-        (src ? (
-          <div className="flex flex-col gap-2">
-            <span className="text-sm text-faint">{t("editor.form.pointHelp")}</span>
-            <PointPicker
+      {q.answerType === "point" && (
+        <>
+          {src && image ? (
+            <PointRadiusSettings
+              key={`${src}:${image.occurrenceId}`}
               src={src}
-              target={q.answerPoint}
-              radius={q.answerDeviation}
-              onPick={(answerPoint) => set({ answerPoint })}
+              q={q}
+              set={set}
+              image={image}
             />
-            <NumberField
-              id="qf-radius"
-              label={t("editor.form.radius")}
-              value={q.answerDeviation == null ? null : Math.round(q.answerDeviation * 100)}
-              help={t("editor.form.radiusHelp")}
-              onChange={(v) => set({ answerDeviation: v == null ? null : v / 100 })}
-            />
-          </div>
-        ) : (
-          <FieldError>{t("editor.form.pointNeedsImage")}</FieldError>
-        ))}
+          ) : (
+            <FieldError>{t("editor.form.pointNeedsImage")}</FieldError>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function PointRadiusSettings({
+  src,
+  q,
+  set,
+  image,
+}: QuestionFieldsProps & { src: string; image: DraftMedia }) {
+  const { t } = useTranslation();
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const radius = q.answerDeviation ?? DEFAULT_POINT_RADIUS;
+  const max = size ? (0.6 * Math.max(size.width, size.height)) / size.width : 0;
+  const percent = max ? (radius / max) * 100 : 0;
+  const pixels = size ? Math.round(radius * size.width) : null;
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm text-faint">{t("editor.form.pointHelp")}</span>
+      <PointPicker
+        src={src}
+        target={q.answerPoint}
+        radius={q.answerDeviation}
+        onImageLoad={(width, height) => setSize(width > 0 && height > 0 ? { width, height } : null)}
+        onPick={(spot) =>
+          set({
+            pointImageId: image.occurrenceId,
+            answerPoint: {
+              x: Number(spot.x.toFixed(3)),
+              y: Number(spot.y.toFixed(3)),
+              ...(size ? { imageAspectRatio: size.width / size.height } : {}),
+            },
+          })
+        }
+      />
+      <Label htmlFor="qf-radius">{t("editor.form.radius")}</Label>
+      <input
+        id="qf-radius"
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={Math.min(100, Math.max(0, percent))}
+        disabled={!size}
+        onChange={(event) => set({ answerDeviation: (Number(event.target.value) / 100) * max })}
+      />
+      <span className="text-sm text-faint">
+        {pixels == null
+          ? t("editor.form.radiusLoading")
+          : t("editor.form.radiusValue", { percent: Math.round(percent), pixels })}
+      </span>
+      {percent > 100 && (
+        <span className="text-sm text-warning">{t("editor.form.radiusLegacy")}</span>
+      )}
+      {q.answerPoint && !q.answerPoint.imageAspectRatio && (
+        <span className="text-sm text-faint">{t("editor.form.pointLegacy")}</span>
+      )}
     </div>
   );
 }

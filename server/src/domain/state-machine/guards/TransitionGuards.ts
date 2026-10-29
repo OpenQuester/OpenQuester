@@ -56,6 +56,11 @@ export class TransitionGuards {
     return game.gameState?.currentRound?.type === PackageRoundType.FINAL;
   }
 
+  /** The final question is waiting for its media before answering. */
+  public static isFinalRoundMediaDownloading(game: Game): boolean {
+    return this.isFinalRound(game) && this.isQuestionState(game, QuestionState.MEDIA_DOWNLOADING);
+  }
+
   /**
    * Checks if current round is a simple/regular round.
    */

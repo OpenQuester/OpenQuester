@@ -119,11 +119,11 @@ test.describe("game fixes", () => {
     await report.getByRole("button", { name: "Cancel" }).click();
     await expect(report).toHaveCount(0);
 
-    // Zero ruling: wrong, but no points lost, and the buzzer reopens
+    // Neutral skip: no points lost, and the buzzer reopens
     await cell(page, "Capitals", 100).click();
     await buzz(kim.page);
     await expect(dockPhase(page)).toHaveText("Answering");
-    await page.getByTestId("judge-wrong-zero").click();
+    await page.getByTestId("judge-skip").click();
     await expect(dockPhase(pat.page)).toHaveText("Ready to buzz");
     await expect.poll(() => chipScore(page, "Kim")).toBe("0");
     for (const p of [page, pat.page]) await expectNoHorizontalScroll(p);
@@ -295,7 +295,7 @@ test.describe("game fixes", () => {
     await expect(pat.page.getByTestId("buzzer-cue")).toContainText("The buzzer is open", {
       timeout: 15_000,
     });
-    await expect(pat.page.getByTestId("buzzer-cue-time")).toContainText("s left");
+    await expect(pat.page.getByTestId("buzzer-cue-time")).toHaveText(/^\d+ sec\. left$/);
     await expect(page.getByTestId("buzzer-cue")).toContainText("Waiting for a player");
     await shot(pat.page, `fixes-cue-${test.info().project.name}`);
     await expectNoHorizontalScroll(pat.page);

@@ -2,8 +2,7 @@ import { SYSTEM_PLAYER_ID } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
-import { PlayerRole } from "domain/types/game/PlayerRole";
+import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
@@ -71,19 +70,15 @@ export class MediaDownloadPlayerLeaveLogic {
     game: Game,
     excludeUserId: number
   ): MediaDownloadCompletionResult {
-    const activePlayers = game.players.filter(
-      (p) =>
-        p.role === PlayerRole.PLAYER &&
-        p.gameStatus === PlayerGameStatus.IN_GAME &&
-        p.meta.id !== excludeUserId
+    const activePlayers = MediaDownloadLogic.getEligiblePlayers(game).filter(
+      (player) => player.meta.id !== excludeUserId
     );
 
-    const allPlayersReady =
-      activePlayers.every((p) => p.mediaDownloaded) && activePlayers.length > 0;
+    const allPlayersReady = activePlayers.every((player) => player.mediaDownloaded);
 
     return {
       allPlayersReady,
-      activePlayerCount: activePlayers.length,
+      activePlayerCount: activePlayers.length
     };
   }
 
@@ -93,10 +88,7 @@ export class MediaDownloadPlayerLeaveLogic {
   public static buildResult(
     input: MediaDownloadPlayerLeaveResultInput
   ): MediaDownloadPlayerLeaveResult {
-    const completionResult = this.checkAllPlayersReady(
-      input.game,
-      input.leftUserId
-    );
+    const completionResult = this.checkAllPlayersReady(input.game, input.leftUserId);
 
     const { game, timer } = input;
     const broadcasts: BroadcastEvent[] = [];
@@ -113,13 +105,13 @@ export class MediaDownloadPlayerLeaveLogic {
         allPlayersReady: true,
         timer,
         contentPlan: game.gameState.questionContentPlan ?? null,
-        buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null,
+        buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
       } satisfies MediaDownloadStatusBroadcastData,
-      room: game.id,
+      room: game.id
     });
 
     return {
-      broadcasts,
+      broadcasts
     };
   }
 }

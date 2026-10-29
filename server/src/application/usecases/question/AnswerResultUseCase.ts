@@ -22,6 +22,7 @@ import {
   type AnswerResultTransitionPayload,
 } from "domain/types/socket/transition/answering";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
+import { isBuzzerQuestionType } from "domain/utils/QuestionUtils";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 
@@ -157,7 +158,7 @@ export class AnswerResultUseCase
 
     if (
       answerType !== AnswerResultType.CORRECT &&
-      questionType === PackageQuestionType.SIMPLE &&
+      isBuzzerQuestionType(questionType) &&
       !game.willAllPlayersBeExhausted()
     ) {
       resources.push(await this.transitionResourceService.getSavedShowingTimer(game));
@@ -165,7 +166,7 @@ export class AnswerResultUseCase
 
     if (
       answerType === AnswerResultType.CORRECT ||
-      questionType !== PackageQuestionType.SIMPLE ||
+      !isBuzzerQuestionType(questionType) ||
       game.willAllPlayersBeExhausted()
     ) {
       resources.push(

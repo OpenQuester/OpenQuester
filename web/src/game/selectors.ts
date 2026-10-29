@@ -1,3 +1,4 @@
+import { pointImage } from "@/lib/pointImage";
 import { serverNow } from "@/lib/clock";
 
 import { timerElapsed } from "./contentPlan";
@@ -49,6 +50,7 @@ export function phaseOf(session: GameSession): Phase {
   const s = session.state;
   if (session.finished) return "finished";
   if (!s.currentRound) return "lobby";
+  if (s.currentRound.type === "final" && s.questionState === "media_downloading") return "media";
   if (s.currentRound.type === "final" && s.finalRoundData) {
     switch (s.finalRoundData.phase) {
       case "theme_elimination":
@@ -182,6 +184,24 @@ export function canBuzz(session: GameSession, myId: number, connected = true): A
   return OK;
 }
 
+/** These formats need the answering player to submit through the game. */
+export function requiresAnswerSubmission(question: Question | null | undefined): boolean {
+  return (
+    question?.type === "choice" ||
+    question?.answerType === "number" ||
+    question?.answerType === "point"
+  );
+}
+
+/** Manual judging is available for oral/text answers. */
+export function canManuallyJudge(session: GameSession): boolean {
+  const { state } = session;
+  if (phaseOf(session) !== "answering" || state.isPaused || state.answeringPlayer == null)
+    return false;
+  if (!state.currentQuestion) return false;
+  return !requiresAnswerSubmission(state.currentQuestion);
+}
+
 /** Can I pick this cell on the board? */
 export function canPick(
   session: GameSession,
@@ -300,6 +320,17 @@ export function myAllPlayEntry(session: GameSession, myId: number) {
   return session.state.allPlay?.entries.find((e) => e.playerId === myId) ?? null;
 }
 
+/** The adjudicated results remain available through the answer reveal. */
+export function allPlayReveal(session: GameSession) {
+  const entries = session.state.allPlay?.entries;
+  if (!entries) return null;
+  return {
+    correct: entries.filter((entry) => entry.isCorrect === true),
+    submitted: entries.some((entry) => entry.submitted),
+    unresolved: entries.some((entry) => entry.submitted && entry.isCorrect == null),
+  };
+}
+
 /** Highest stake I may make: my score, at least the price, capped by the package. */
 export function allPlayMaxStake(session: GameSession, myId: number): number {
   const data = session.state.allPlay;
@@ -338,9 +369,7 @@ export function roundTimeLeft(session: GameSession, now = serverNow()): number |
 /** The picture a point answer is given on: the question's first image. */
 export function pointPicture(question: Question | null | undefined): string | null {
   if (question?.answerType !== "point") return null;
-  const image = [...(question.questionFiles ?? [])]
-    .sort((a, b) => a.order - b.order)
-    .find((f) => f.file.type === "image");
+  const image = pointImage(question.questionFiles, question.pointImageOrder);
   return image?.file.link ?? null;
 }
 

@@ -8,29 +8,29 @@ import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRoute
 import { TransitionTrigger } from "domain/state-machine/types";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
-import {
-  DataMutation,
-  DataMutationConverter,
-} from "domain/types/action/DataMutation";
+import { DataMutation, DataMutationConverter } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import {
   FinalAnswerSubmitInputData,
   FinalAnswerSubmitOutputData,
   FinalSubmitEndEventData,
-  SocketIOFinalAutoLossEventPayload,
+  SocketIOFinalAutoLossEventPayload
 } from "domain/types/socket/events/FinalRoundEventData";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { FinalQuestionPlaybackLogic } from "domain/logic/final-round/FinalQuestionPlaybackLogic";
+import { ClientError } from "domain/errors/ClientError";
+import { ClientResponse } from "domain/enums/ClientResponse";
 
 /**
  * Handles final round answer submission.
  * Uses prefetched ctx.game and ctx.currentPlayer — no Redis re-fetch.
  */
-export class FinalAnswerSubmitUseCase
-  implements
-    GameActionHandler<FinalAnswerSubmitInputData, FinalAnswerSubmitOutputData>
-{
+export class FinalAnswerSubmitUseCase implements GameActionHandler<
+  FinalAnswerSubmitInputData,
+  FinalAnswerSubmitOutputData
+> {
   constructor(
     private readonly socketGameValidationService: SocketGameValidationService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
@@ -48,10 +48,11 @@ export class FinalAnswerSubmitUseCase
       game,
       QuestionAction.SUBMIT_ANSWER
     );
-    this.socketGameValidationService.validateFinalAnswerSubmission(
-      game,
-      currentPlayer!
-    );
+    this.socketGameValidationService.validateFinalAnswerSubmission(game, currentPlayer!);
+
+    if (!FinalQuestionPlaybackLogic.isPlaybackComplete(game)) {
+      throw new ClientError(ClientResponse.CANNOT_SUBMIT_ANSWER);
+    }
 
     const player = currentPlayer!;
 
@@ -66,32 +67,23 @@ export class FinalAnswerSubmitUseCase
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.USER_ACTION,
-      triggeredBy: { playerId: player.meta.id, isSystem: false },
+      triggeredBy: { playerId: player.meta.id, isSystem: false }
     });
 
     // If all answers are reviewed (all auto-loss), immediately transition to game finish
     const finishTimerMutations: DataMutation[] = [];
-    if (
-      transitionResult &&
-      FinalRoundStateManager.areAllAnswersReviewed(game)
-    ) {
-      const finishTransitionResult =
-        await this.phaseTransitionRouter.tryTransition({
-          game,
-          trigger: TransitionTrigger.USER_ACTION,
-          triggeredBy: { playerId: player.meta.id, isSystem: false },
-          resources:
-            await this.transitionResourceService.getFinalReviewingToGameFinishResources(
-              game
-            ),
-        });
+    if (transitionResult && FinalRoundStateManager.areAllAnswersReviewed(game)) {
+      const finishTransitionResult = await this.phaseTransitionRouter.tryTransition({
+        game,
+        trigger: TransitionTrigger.USER_ACTION,
+        triggeredBy: { playerId: player.meta.id, isSystem: false },
+        resources: await this.transitionResourceService.getFinalReviewingToGameFinishResources(game)
+      });
 
       if (finishTransitionResult) {
         transitionResult.broadcasts.push(...finishTransitionResult.broadcasts);
         finishTimerMutations.push(
-          ...DataMutationConverter.mutationFromTimerMutations(
-            finishTransitionResult.timerMutations
-          )
+          ...DataMutationConverter.mutationFromTimerMutations(finishTransitionResult.timerMutations)
         );
       }
     }
@@ -101,50 +93,40 @@ export class FinalAnswerSubmitUseCase
       player,
       mutationResult,
       completionResult,
-      transitionResult,
+      transitionResult
     });
 
     const outputData: FinalAnswerSubmitOutputData = {
-      playerId: result.playerId,
+      playerId: result.playerId
     };
 
     const mutations: DataMutation[] = [
       DataMutationConverter.saveGameMutation(game),
-      ...DataMutationConverter.mutationFromTimerMutations(
-        transitionResult?.timerMutations
-      ),
+      ...DataMutationConverter.mutationFromTimerMutations(transitionResult?.timerMutations),
       ...finishTimerMutations,
       DataMutationConverter.gameBroadcastMutation(
         game.id,
         SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
         outputData
-      ),
+      )
     ];
 
     if (result.isAutoLoss) {
       mutations.push(
-        DataMutationConverter.gameBroadcastMutation(
-          game.id,
-          SocketIOGameEvents.FINAL_AUTO_LOSS,
-          {
-            playerId: result.playerId,
-            reason: FinalAnswerLossReason.EMPTY_ANSWER,
-          } satisfies SocketIOFinalAutoLossEventPayload
-        )
+        DataMutationConverter.gameBroadcastMutation(game.id, SocketIOGameEvents.FINAL_AUTO_LOSS, {
+          playerId: result.playerId,
+          reason: FinalAnswerLossReason.EMPTY_ANSWER
+        } satisfies SocketIOFinalAutoLossEventPayload)
       );
     }
 
     if (result.isPhaseComplete) {
       mutations.push(
-        DataMutationConverter.gameBroadcastMutation(
-          game.id,
-          SocketIOGameEvents.FINAL_SUBMIT_END,
-          {
-            phase: FinalRoundPhase.ANSWERING,
-            nextPhase: FinalRoundPhase.REVIEWING,
-            allReviews: result.allReviews,
-          } satisfies FinalSubmitEndEventData
-        )
+        DataMutationConverter.gameBroadcastMutation(game.id, SocketIOGameEvents.FINAL_SUBMIT_END, {
+          phase: FinalRoundPhase.ANSWERING,
+          nextPhase: FinalRoundPhase.REVIEWING,
+          allReviews: result.allReviews
+        } satisfies FinalSubmitEndEventData)
       );
     }
 
@@ -152,7 +134,7 @@ export class FinalAnswerSubmitUseCase
       success: true,
       data: outputData,
       mutations,
-      broadcastGame: game,
+      broadcastGame: game
     };
   }
 }

@@ -3,7 +3,12 @@ import { type ActionDockModel, type ActionDockContext } from "./actionDockModel"
 
 import { allPlayMaxStake, allPlayStakes, myAllPlayEntry, pointPicture } from "@/game/selectors";
 
-export function allPlayStakeModel({ t, session, myId }: ActionDockContext): ActionDockModel {
+export function allPlayStakeModel({
+  t,
+  session,
+  myId,
+  sending,
+}: ActionDockContext): ActionDockModel {
   const entries = session.state.allPlay?.entries ?? [];
   const placed = entries.filter((e) => e.stake != null).length;
   const mine = myAllPlayEntry(session, myId);
@@ -28,20 +33,36 @@ export function allPlayStakeModel({ t, session, myId }: ActionDockContext): Acti
   const max = allPlayMaxStake(session, myId);
   return {
     status: t("dock.final.bidRange", { max: formatScore(max) }),
-    action: { kind: "bid", event: "all-play-stake", min: 1, max, allIn: max },
+    action: {
+      kind: "bid",
+      event: "all-play-stake",
+      range: { min: 1, max },
+      allIn: max,
+      pending: sending("all-play-stake"),
+    },
     next,
   };
 }
 
-export function allPlayAnswerModel({ t, session, myId }: ActionDockContext): ActionDockModel {
+export function allPlayAnswerModel({
+  t,
+  session,
+  myId,
+  pointImageReady,
+}: ActionDockContext): ActionDockModel {
   const entries = session.state.allPlay?.entries ?? [];
   const done = entries.filter((e) => e.submitted).length;
   const mine = myAllPlayEntry(session, myId);
   const stakes = allPlayStakes(session, mine ?? { stake: null });
+  const auto =
+    session.state.currentQuestion?.answerType === "number" ||
+    session.state.currentQuestion?.answerType === "point";
   const next =
     session.state.allPlay?.mode === "stake"
-      ? t("dock.allPlay.answerNextStake")
-      : t("dock.allPlay.answerNextNoRisk", { points: formatScore(stakes.win) });
+      ? t(auto ? "dock.allPlay.answerNextStakeAuto" : "dock.allPlay.answerNextStake")
+      : t(auto ? "dock.allPlay.answerNextNoRiskAuto" : "dock.allPlay.answerNextNoRisk", {
+          points: formatScore(stakes.win),
+        });
   if (!mine) {
     return {
       status: t("dock.final.answersIn", { done, total: entries.length }),
@@ -57,6 +78,14 @@ export function allPlayAnswerModel({ t, session, myId }: ActionDockContext): Act
     };
   }
   const q = session.state.currentQuestion;
+  if (q?.answerType === "point" && !pointPicture(q)) {
+    const message = t("point.finalPictureUnavailable");
+    return { status: message, action: { kind: "info", text: message }, next: "" };
+  }
+  if (q?.answerType === "point" && pointImageReady === false) {
+    const message = t("point.pictureWaiting");
+    return { status: message, action: { kind: "info", text: message }, next: "" };
+  }
   return {
     status: t("dock.allPlay.typeAnswer"),
     action: pointPicture(q)

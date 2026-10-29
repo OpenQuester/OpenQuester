@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GameConnection } from "@/game/connection";
 import { ALICE, BOB, question, round, SAM, session, SHOWMAN, timer } from "@/game/fixtures";
-import type { GameSession } from "@/game/reducer";
+import { reduce, type GameSession } from "@/game/reducer";
 import { useGameStore } from "@/game/store";
 
 import { GameContext } from "../GameContext";
@@ -34,6 +34,28 @@ const showing = (extra = {}) =>
 
 describe("Dock", () => {
   beforeEach(() => useGameStore.setState({ session: null, pending: null }));
+
+  it.each([ALICE, SHOWMAN])("explains final media readiness for player or showman %s", (id) => {
+    const s = session({
+      currentRound: round("final"),
+      questionState: "media_downloading",
+      finalRoundData: {
+        phase: "answering",
+        bids: {},
+        answers: [],
+        turnOrder: [ALICE],
+        eliminatedThemes: [],
+      },
+    });
+    renderDock(s, id);
+    expect(
+      screen.getAllByText("The final question starts when the media is ready.").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByTestId("dock-info")).toHaveTextContent(
+      "Waiting for players to load the final question.",
+    );
+    expect(screen.queryByText(/buzzer opens/i)).not.toBeInTheDocument();
+  });
 
   it.each(["bidding", "answering"] as const)(
     "preserves a final %s draft across pause and reconnect",
@@ -68,6 +90,121 @@ describe("Dock", () => {
       expect(input).toHaveValue(phase === "bidding" ? "575" : "Draft final answer");
     },
   );
+
+  it.each(["all-play", "final"] as const)(
+    "isolates %s answer drafts across perspectives and timer submission",
+    (mode) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-21T12:00:00Z"));
+      try {
+        const entries = [ALICE, BOB].map((playerId) => ({
+          playerId,
+          stake: null,
+          answer: null,
+          submitted: false,
+          isCorrect: null,
+          scoreChange: null,
+        }));
+        const s = session({
+          currentRound: round(mode === "final" ? "final" : "simple"),
+          currentQuestion: question(100),
+          questionState: mode === "final" ? "answering" : "showing",
+          timer: timer(2000),
+          ...(mode === "final"
+            ? {
+                finalRoundData: {
+                  phase: "answering" as const,
+                  bids: { [ALICE]: 100, [BOB]: 100 },
+                  answers: [],
+                  turnOrder: [ALICE, BOB],
+                  eliminatedThemes: [],
+                },
+              }
+            : {
+                allPlay: {
+                  mode: "noRisk" as const,
+                  questionId: 100,
+                  price: 100,
+                  maxStake: null,
+                  priceMultiplier: null,
+                  entries,
+                },
+              }),
+        });
+        const emit = vi.fn();
+        const connection = { emit, connected: true } as unknown as GameConnection;
+        useGameStore.setState({ session: s, connection: "connected", pending: null });
+        const ui = (myId: number) => (
+          <GameContext.Provider value={{ connection, myId }}>
+            <GameActionDock />
+          </GameContext.Provider>
+        );
+        const { rerender, unmount } = render(ui(ALICE));
+        fireEvent.change(screen.getByRole("textbox"), { target: { value: "private player one" } });
+        rerender(ui(BOB));
+        expect(screen.getByRole("textbox")).toHaveValue("");
+        fireEvent.change(screen.getByRole("textbox"), { target: { value: "player two" } });
+        act(() => vi.advanceTimersByTime(1250));
+        expect(emit).toHaveBeenCalledExactlyOnceWith(
+          mode === "final" ? "final-answer-submit" : "all-play-answer",
+          { answerText: "player two" },
+        );
+        unmount();
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each(["all-play", "final"] as const)("isolates %s bid drafts across perspectives", (mode) => {
+    const entries = [ALICE, BOB].map((playerId) => ({
+      playerId,
+      stake: null,
+      answer: null,
+      submitted: false,
+      isCorrect: null,
+      scoreChange: null,
+    }));
+    const s = session({
+      currentRound: round(mode === "final" ? "final" : "simple"),
+      questionState: "bidding",
+      timer: timer(60000),
+      ...(mode === "final"
+        ? {
+            finalRoundData: {
+              phase: "bidding" as const,
+              bids: {},
+              answers: [],
+              turnOrder: [ALICE, BOB],
+              eliminatedThemes: [],
+            },
+          }
+        : {
+            allPlay: {
+              mode: "stake" as const,
+              questionId: 100,
+              price: 100,
+              maxStake: null,
+              priceMultiplier: null,
+              entries,
+            },
+          }),
+    });
+    s.players = s.players.map((player) => ({ ...player, score: 1000 }));
+    const connection = { emit: vi.fn(), connected: true } as unknown as GameConnection;
+    useGameStore.setState({ session: s, connection: "connected", pending: null });
+    const ui = (myId: number) => (
+      <GameContext.Provider value={{ connection, myId }}>
+        <GameActionDock />
+      </GameContext.Provider>
+    );
+    const { rerender } = render(ui(ALICE));
+    fireEvent.change(screen.getByRole("textbox", { name: "Your bid" }), {
+      target: { value: "137" },
+    });
+    rerender(ui(BOB));
+    expect(screen.getByRole("textbox", { name: "Your bid" })).not.toHaveValue("137");
+  });
 
   it("requires a fresh secret recipient for a different question and ignores a departed player", async () => {
     const s = session({
@@ -142,6 +279,100 @@ describe("Dock", () => {
     expect(emit).toHaveBeenCalledWith("question-answer");
   });
 
+  it.each(["number", "point"] as const)(
+    "explains automatic checking for a regular %s answer",
+    (answerType) => {
+      renderDock(
+        showing({
+          questionState: "answering",
+          answeringPlayer: ALICE,
+          currentQuestion: question(100, {
+            answerType,
+            questionFiles: [
+              {
+                order: 0,
+                displayTime: null,
+                file: { md5: "image", type: "image", link: "/image.png" },
+              },
+            ],
+          }),
+        }),
+        ALICE,
+      );
+      expect(
+        screen.getAllByText(/checked automatically\. If no result arrives, the showman can skip/i)
+          .length,
+      ).toBeGreaterThan(0);
+    },
+  );
+
+  it("does not turn an unavailable explicit point image into a text answer", () => {
+    const invalid = question(100, {
+      answerType: "point",
+      pointImageOrder: 3,
+      questionFiles: [
+        { order: 0, displayTime: null, file: { md5: "image", type: "image", link: "/image.png" } },
+      ],
+    });
+    renderDock(
+      showing({ questionState: "answering", answeringPlayer: ALICE, currentQuestion: invalid }),
+      ALICE,
+    );
+    expect(
+      screen.getAllByText("The target picture is unavailable. Ask the showman to skip.").length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByRole("textbox", { name: "Your answer" })).toBeNull();
+  });
+
+  it("explains automatic checking during everyone-answer review", () => {
+    renderDock(
+      showing({
+        currentQuestion: question(100, { type: "noRisk", answerType: "number" }),
+        allPlay: {
+          mode: "noRisk",
+          questionId: 100,
+          price: 100,
+          maxStake: null,
+          priceMultiplier: 2,
+          entries: [
+            {
+              playerId: ALICE,
+              stake: null,
+              answer: null,
+              submitted: false,
+              isCorrect: null,
+              scoreChange: null,
+            },
+          ],
+        },
+      }),
+      ALICE,
+    );
+    expect(
+      screen.getAllByText(/checked automatically; the showman reviews unrecognized answers/i)
+        .length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("keeps final numeric answers on the manual-review path", () => {
+    const s = session({
+      currentRound: round("final"),
+      questionState: "answering",
+      currentQuestion: question(100, { answerType: "number" }),
+      timer: timer(),
+      finalRoundData: {
+        phase: "answering",
+        bids: { [ALICE]: 100 },
+        answers: [],
+        turnOrder: [ALICE],
+        eliminatedThemes: [],
+      },
+    });
+    renderDock(s, ALICE);
+    expect(screen.queryByText(/checked automatically/i)).toBeNull();
+    expect(screen.getAllByText(/answers are revealed in the review/i).length).toBeGreaterThan(0);
+  });
+
   it("tells a spectator why they cannot buzz", () => {
     renderDock(showing(), SAM);
     expect(screen.queryByTestId("buzz")).toBeNull();
@@ -204,6 +435,131 @@ describe("Dock", () => {
     expect(screen.getByTestId("dock-info")).toHaveTextContent("You already answered this one");
   });
 
+  it.each([
+    { type: "simple" as const, answerType: "number" as const },
+    { type: "simple" as const, answerType: "point" as const },
+    { type: "choice" as const, answerType: "text" as const },
+  ])(
+    "allows only neutral skip for automatic-format answers before and after submission: %o",
+    async (q) => {
+      const s = showing({
+        questionState: "answering",
+        answeringPlayer: BOB,
+        currentQuestion: question(100, q),
+      });
+      const emit = renderDock(s, SHOWMAN);
+      expect(screen.getByText("The player must select, enter, or mark an answer.")).toBeVisible();
+      expect(screen.queryByTestId("judge-correct")).toBeNull();
+      expect(screen.queryByTestId("judge-wrong")).toBeNull();
+      await userEvent.click(screen.getByTestId("judge-skip"));
+      expect(emit).toHaveBeenCalledWith("answer-result", { answerType: "skip", scoreResult: 0 });
+      for (const answerText of [null, "42"]) {
+        act(() =>
+          useGameStore.setState({
+            session: reduce(s, { type: "answer-submitted", payload: { answerText } }),
+          }),
+        );
+        expect(screen.queryByTestId("judge-correct")).toBeNull();
+        expect(screen.queryByTestId("judge-wrong")).toBeNull();
+        expect(
+          screen.getByText("The answer was sent. Wait for the result or skip without points."),
+        ).toBeVisible();
+      }
+    },
+  );
+
+  it.each(["text", "point"] as const)(
+    "waits for question-data before deciding how to judge %s",
+    (answerType) => {
+      const state = showing({
+        currentQuestion: null,
+        questionState: "answering",
+        answeringPlayer: BOB,
+      });
+      renderDock(state, SHOWMAN);
+      expect(screen.getAllByText("Waiting for question details.").length).toBeGreaterThan(0);
+      expect(screen.queryByTestId("judge-correct")).toBeNull();
+      expect(screen.getByTestId("judge-skip")).toBeVisible();
+      const received = reduce(state, {
+        type: "question-data",
+        payload: { data: question(100, { answerType }), timer: timer() },
+      });
+      act(() => useGameStore.setState({ session: received }));
+      if (answerType === "text") expect(screen.getByTestId("judge-correct")).toBeVisible();
+      else {
+        expect(screen.queryByTestId("judge-correct")).toBeNull();
+        expect(screen.getByText("The player must select, enter, or mark an answer.")).toBeVisible();
+      }
+    },
+  );
+
+  it.each([
+    { label: "text", data: { answerType: "text" as const }, expected: "input" },
+    { label: "number", data: { answerType: "number" as const }, expected: "input" },
+    { label: "choice", data: { type: "choice" as const }, expected: "choice" },
+    {
+      label: "point",
+      data: {
+        answerType: "point" as const,
+        questionFiles: [
+          {
+            order: 0,
+            displayTime: null,
+            file: { md5: "x", type: "image" as const, link: "https://x/map.png" },
+          },
+        ],
+      },
+      expected: "point",
+    },
+  ])(
+    "waits for $label question data before offering the answerer an input",
+    ({ data, expected }) => {
+      const state = showing({
+        currentQuestion: null,
+        questionState: "answering",
+        answeringPlayer: ALICE,
+      });
+      const emit = renderDock(state, ALICE);
+      expect(screen.getByTestId("dock-info")).toHaveTextContent("Waiting for question details.");
+      expect(screen.queryByRole("textbox")).toBeNull();
+      expect(screen.queryByRole("button", { name: /send/i })).toBeNull();
+      expect(emit).not.toHaveBeenCalled();
+      const received = reduce(state, {
+        type: "question-data",
+        payload: { data: question(100, data), timer: timer() },
+      });
+      act(() => useGameStore.setState({ session: received }));
+      if (expected === "input") expect(screen.getByRole("textbox")).toBeVisible();
+      else expect(screen.queryByRole("textbox")).toBeNull();
+      if (expected === "point") expect(screen.getByTestId("dock-info")).toHaveTextContent(/click/i);
+      if (expected === "choice")
+        expect(screen.getByTestId("dock-info")).toHaveTextContent(/option/i);
+    },
+  );
+
+  it.each([BOB, SAM])("shows waiting details to other player and spectator %s", (id) => {
+    renderDock(
+      showing({ currentQuestion: null, questionState: "answering", answeringPlayer: ALICE }),
+      id,
+    );
+    expect(screen.getByTestId("dock-info")).toHaveTextContent("Waiting for question details.");
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("only shows the Space hint after the buzzer opens", () => {
+    const s = showing({ buzzerOpensAtMs: 10_000 });
+    renderDock(s, ALICE);
+    const button = screen.getByTestId("buzz");
+    expect(button).toBeEnabled();
+    expect(button).not.toHaveTextContent("Space");
+    act(() =>
+      useGameStore.setState({
+        session: reduce(s, { type: "buzzer-open", payload: { buzzerOpensAtMs: 0 } }),
+      }),
+    );
+    expect(screen.getByTestId("buzz")).toHaveTextContent("Space");
+  });
+
   it("lets the showman judge with the question value", async () => {
     const emit = renderDock(showing({ questionState: "answering", answeringPlayer: BOB }), SHOWMAN);
     expect(screen.getByTestId("dock-status")).toHaveTextContent("user3 is answering — judge it");
@@ -211,9 +567,119 @@ describe("Dock", () => {
     expect(emit).toHaveBeenCalledWith("answer-result", { scoreResult: -100, answerType: "wrong" });
   });
 
+  it("offers a single neutral zero-point ruling and disables it while pending", async () => {
+    const emit = renderDock(showing({ questionState: "answering", answeringPlayer: BOB }), SHOWMAN);
+    const skip = screen.getByRole("button", { name: "Skip, 0" });
+    expect(screen.queryByTestId("judge-correct-zero")).toBeNull();
+    expect(screen.queryByTestId("judge-wrong-zero")).toBeNull();
+    await userEvent.click(skip);
+    expect(emit).toHaveBeenCalledExactlyOnceWith("answer-result", {
+      answerType: "skip",
+      scoreResult: 0,
+    });
+    act(() => useGameStore.setState({ pending: { action: "answer-result", at: Date.now() } }));
+    expect(skip).toBeDisabled();
+  });
+
   it("freezes actions while paused", () => {
     renderDock(showing({ isPaused: true }), ALICE);
     expect(screen.getByTestId("dock-phase")).toHaveTextContent("Paused");
     expect(screen.queryByTestId("buzz")).toBeNull();
   });
+
+  it("sends the chosen auction amount or the distinct all-in/pass actions and guards pending", async () => {
+    const s = session({
+      currentRound: round(),
+      currentQuestion: question(100, { type: "stake", price: 100 }),
+      currentTurnPlayerId: ALICE,
+      questionState: "bidding",
+      stakeQuestionData: {
+        pickerPlayerId: ALICE,
+        questionId: 100,
+        maxPrice: null,
+        bids: { [BOB]: 100 },
+        passedPlayers: [],
+        biddingOrder: [ALICE, BOB],
+        currentBidderIndex: 0,
+        highestBid: 100,
+        winnerPlayerId: null,
+        biddingPhase: true,
+      },
+    });
+    s.players = s.players.map((p) => ({ ...p, score: p.meta.id === ALICE ? 600 : 500 }));
+    const emit = renderDock(s, ALICE);
+    const slider = screen.getByRole("slider", { name: "Bid amount slider" });
+    fireEvent.change(slider, { target: { value: "250" } });
+    expect(screen.getByRole("textbox", { name: "Your bid" })).toHaveValue("250");
+    await userEvent.click(screen.getByTestId("bid-submit"));
+    expect(emit).toHaveBeenLastCalledWith("stake-bid-submit", {
+      bidType: "normal",
+      bidAmount: 250,
+    });
+    act(() => useGameStore.setState({ pending: { action: "stake-bid-submit", at: Date.now() } }));
+    expect(screen.getByTestId("bid-submit")).toBeDisabled();
+    expect(screen.getByTestId("bid-pass")).toBeDisabled();
+    expect(screen.getByRole("button", { name: /All-in/ })).toBeDisabled();
+    act(() => useGameStore.setState({ pending: null }));
+    expect(screen.getByRole("textbox", { name: "Your bid" })).toHaveValue("250");
+    await userEvent.click(screen.getByRole("button", { name: /All-in/ }));
+    expect(emit).toHaveBeenLastCalledWith("stake-bid-submit", {
+      bidType: "all-in",
+      bidAmount: null,
+    });
+    await userEvent.click(screen.getByTestId("bid-pass"));
+    expect(emit).toHaveBeenLastCalledWith("stake-bid-submit", { bidType: "pass", bidAmount: null });
+  });
+
+  it.each(["all-play", "final"] as const)(
+    "submits the slider value in %s bidding",
+    async (mode) => {
+      const common = {
+        currentRound: round(mode === "final" ? "final" : "simple"),
+        questionState: "bidding" as const,
+      };
+      const s =
+        mode === "final"
+          ? session({
+              ...common,
+              finalRoundData: {
+                phase: "bidding",
+                bids: {},
+                answers: [],
+                turnOrder: [ALICE],
+                eliminatedThemes: [],
+              },
+            })
+          : session({
+              ...common,
+              allPlay: {
+                mode: "stake",
+                questionId: 100,
+                price: 100,
+                maxStake: null,
+                priceMultiplier: null,
+                entries: [
+                  {
+                    playerId: ALICE,
+                    stake: null,
+                    answer: null,
+                    submitted: false,
+                    isCorrect: null,
+                    scoreChange: null,
+                  },
+                ],
+              },
+            });
+      s.players = s.players.map((p) => ({ ...p, score: mode === "final" ? 200 : 0 }));
+      const emit = renderDock(s, ALICE);
+      const slider = screen.getByRole("slider", { name: "Bid amount slider" });
+      expect(slider).toHaveAttribute("max", mode === "final" ? "200" : "100");
+      fireEvent.change(slider, { target: { value: "25" } });
+      await userEvent.click(screen.getByTestId("bid-submit"));
+      expect(emit).toHaveBeenCalledWith(
+        mode === "final" ? "final-bid-submit" : "all-play-stake",
+        mode === "final" ? { bid: 25 } : { amount: 25 },
+      );
+    },
+  );
 });

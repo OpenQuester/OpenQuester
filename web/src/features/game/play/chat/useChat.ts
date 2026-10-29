@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { findPlayer } from "@/game/selectors";
-import { useGame, useSession } from "../../GameContext";
+import { useLiveGame, useSession } from "../../GameContext";
 
 /** Owns the message draft and scroll synchronization for one mounted chat body. */
 export function useChat() {
   const session = useSession();
-  const { connection, myId } = useGame();
+  const { connection, myId } = useLiveGame();
   const [text, setText] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
   const muted = findPlayer(session, myId)?.restrictionData.muted ?? false;

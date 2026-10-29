@@ -29,28 +29,29 @@ export class MediaDownloadLogic {
    * Used when media download times out.
    */
   public static forceAllPlayersReady(game: Game): void {
-    const activePlayers = this.getActivePlayers(game);
+    const activePlayers = this.getEligiblePlayers(game);
     for (const player of activePlayers) {
       player.mediaDownloaded = true;
     }
   }
 
   /**
-   * Get all active players (non-spectators currently in game).
+   * Get in-game players who were present when media was selected.
    */
-  public static getActivePlayers(game: Game): Player[] {
+  public static getEligiblePlayers(game: Game): Player[] {
     return game.players.filter(
       (p) =>
         p.role === PlayerRole.PLAYER &&
-        p.gameStatus === PlayerGameStatus.IN_GAME
+        p.gameStatus === PlayerGameStatus.IN_GAME &&
+        game.isPlayerEligibleForMedia(p.meta.id)
     );
   }
 
   /**
-   * Check if all active players have downloaded media.
+   * Check if all eligible, in-game players have downloaded media.
    */
   public static areAllPlayersReady(game: Game): boolean {
-    const activePlayers = this.getActivePlayers(game);
+    const activePlayers = this.getEligiblePlayers(game);
     return activePlayers.every((p) => p.mediaDownloaded);
   }
 }

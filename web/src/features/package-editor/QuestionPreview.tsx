@@ -1,37 +1,84 @@
 import { packageEditorStyles } from "./packageEditorStyles";
 import { layoutStyles } from "@/ui/layoutStyles";
 import { useTranslation } from "react-i18next";
+import { useId, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/ui/Badge";
-import type { DraftQuestion } from "./packageDraft";
+import { draftPointImage, type DraftQuestion } from "./packageDraft";
 import { MediaIcon, AttachmentPreview } from "./AttachmentPreview";
 import { questionTypeDetail } from "./questionPresentation";
+import { useMediaFile } from "./packageEditorStore";
+import { numericAnswerText } from "./numericAnswer";
+import { correctChoice } from "./choiceCorrectness";
+import { DEFAULT_POINT_RADIUS } from "@/features/game/play/PointPicker";
 
-/** Everything a question shows, read-only: used on hover, in the side panel and in big cards. */
+/** Everything a question shows, read-only: used in the inspector and full previews. */
 export function QuestionPreview({
   question: q,
   final,
-  compact,
 }: {
   question: DraftQuestion;
   final?: boolean;
-  compact?: boolean;
 }) {
-  const { t } = useTranslation();
+  const image = draftPointImage(q);
+  return (
+    <QuestionPreviewContent
+      key={`${q.id}:${image?.occurrenceId ?? image?.md5 ?? ""}`}
+      question={q}
+      final={final}
+    />
+  );
+}
+
+function QuestionPreviewContent({
+  question: q,
+  final,
+}: {
+  question: DraftQuestion;
+  final?: boolean;
+}) {
+  const { t, i18n } = useTranslation();
+  const descriptionId = useId();
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const previewText = q.text.trim() || q.textItems?.find((item) => item.text.trim())?.text || "";
   const type = final ? "simple" : q.type;
   const detail = final ? "" : questionTypeDetail(q, t);
+  const pointAnswer = type !== "choice" && q.answerType === "point";
+  const selectedChoice = type === "choice" ? correctChoice(q) : undefined;
+  const image = draftPointImage(q);
+  const imageIndex = image ? q.questionFiles.indexOf(image) : -1;
+  const imageFile = useMediaFile(pointAnswer ? image?.md5 : undefined);
+  const target = q.answerPoint;
+  const validTarget =
+    target &&
+    [target.x, target.y].every((value) => Number.isFinite(value) && value >= 0 && value <= 1);
+  const canShowPoint = !!(pointAnswer && image && imageFile && validTarget);
+  const showPoint = canShowPoint && (hovered || focused || pinned);
+  const format = useMemo(
+    () =>
+      canShowPoint ? new Intl.NumberFormat(i18n.language, { maximumSignificantDigits: 6 }) : null,
+    [canShowPoint, i18n.language],
+  );
+  let pointDescription: string | undefined;
+  if (format && target) {
+    pointDescription = t("point.targetDescription", {
+      x: format.format(target.x * 100),
+      y: format.format(target.y * 100),
+      radius: format.format((q.answerDeviation ?? DEFAULT_POINT_RADIUS) * 100),
+    });
+  }
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className={layoutStyles.actions}>
         {!final && (
           <span className="font-display text-xl font-extrabold text-accent">{q.price ?? "—"}</span>
         )}
         {type !== "simple" && <Badge tone="accent">{t(`questionTypes.${type}`)}</Badge>}
       </div>
-      {q.text.trim() ? (
-        <p className={cn(packageEditorStyles.questionPreviewText, !compact && "text-lg")}>
-          {q.text}
-        </p>
+      {previewText ? (
+        <p className={cn(packageEditorStyles.questionPreviewText, "text-lg")}>{previewText}</p>
       ) : q.questionFiles.length === 0 ? (
         <p className="m-0 text-sm text-danger">{t("editor.preview.noQuestion")}</p>
       ) : null}
@@ -41,7 +88,12 @@ export function QuestionPreview({
             <AttachmentPreview
               key={`${m.md5}-${i}`}
               media={m}
-              className={compact ? "max-h-40 w-full" : "max-h-64 w-full"}
+              className="max-h-64 w-full"
+              point={
+                pointAnswer && i === imageIndex
+                  ? { target: showPoint ? target : null, radius: q.answerDeviation }
+                  : undefined
+              }
             />
           ))}
         </div>
@@ -49,7 +101,7 @@ export function QuestionPreview({
       {type === "choice" && q.options.length > 0 && (
         <ol className={packageEditorStyles.previewChoices}>
           {q.options.map((o, i) => {
-            const correct = o.text.trim() !== "" && o.text.trim() === q.answerText.trim();
+            const correct = o.id === selectedChoice?.id;
             return (
               <li
                 key={o.id}
@@ -67,21 +119,19 @@ export function QuestionPreview({
           })}
         </ol>
       )}
-      <div className={packageEditorStyles.previewAnswer}>
-        <span className="text-xs font-bold tracking-wider text-success uppercase">
-          {t("editor.preview.answer")}
-        </span>
-        {q.answerText.trim() ? (
-          <span className="font-semibold whitespace-pre-wrap [overflow-wrap:anywhere]">
-            {q.answerText}
-          </span>
-        ) : q.answerFiles.length === 0 ? (
-          <span className="text-sm text-warning">{t("editor.preview.noAnswer")}</span>
-        ) : null}
-        {q.answerFiles.map((m, i) => (
-          <AttachmentPreview key={`${m.md5}-${i}`} media={m} className="max-h-40 w-full" />
-        ))}
-      </div>
+      <QuestionPreviewAnswer
+        question={q}
+        final={final}
+        point={{
+          available: canShowPoint,
+          pinned,
+          descriptionId,
+          description: pointDescription,
+          setHovered,
+          setFocused,
+          setPinned,
+        }}
+      />
       {(q.answerHint.trim() || q.questionComment.trim() || detail) && (
         <dl className={packageEditorStyles.previewDetails}>
           {detail && (
@@ -104,6 +154,88 @@ export function QuestionPreview({
           )}
         </dl>
       )}
+    </div>
+  );
+}
+
+type PointPreviewControl = {
+  available: boolean;
+  pinned: boolean;
+  descriptionId: string;
+  description?: string;
+  setHovered: Dispatch<SetStateAction<boolean>>;
+  setFocused: Dispatch<SetStateAction<boolean>>;
+  setPinned: Dispatch<SetStateAction<boolean>>;
+};
+
+/** Answer content keeps its original media keys while hover/focus state stays with the image. */
+function QuestionPreviewAnswer({
+  question: q,
+  final,
+  point,
+}: {
+  question: DraftQuestion;
+  final?: boolean;
+  point: PointPreviewControl;
+}) {
+  const { t } = useTranslation();
+  const type = final ? "simple" : q.type;
+  const pointAnswer = type !== "choice" && q.answerType === "point";
+  const numberAnswer = type !== "choice" && q.answerType === "number";
+  const numberText = numberAnswer ? numericAnswerText(q.answerNumber) : null;
+  const selectedChoice = type === "choice" ? correctChoice(q) : undefined;
+  return (
+    <div className={packageEditorStyles.previewAnswer}>
+      <span className="text-xs font-bold tracking-wider text-success uppercase">
+        {t("editor.preview.answer")}
+      </span>
+      {pointAnswer ? (
+        point.available && q.answerPoint ? (
+          <>
+            <button
+              type="button"
+              className="self-start rounded-sm text-left font-semibold underline decoration-dotted underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              aria-pressed={point.pinned}
+              aria-describedby={point.descriptionId}
+              onMouseEnter={() => point.setHovered(true)}
+              onMouseLeave={() => point.setHovered(false)}
+              onFocus={() => point.setFocused(true)}
+              onBlur={() => point.setFocused(false)}
+              onClick={() => {
+                point.setPinned(!point.pinned);
+                if (point.pinned) {
+                  point.setHovered(false);
+                  point.setFocused(false);
+                }
+              }}
+            >
+              {t("editor.preview.pointAnswer")}
+            </button>
+            <span id={point.descriptionId} className="sr-only">
+              {point.description}
+            </span>
+          </>
+        ) : (
+          <span className="text-sm text-warning">{t("editor.preview.pointUnavailable")}</span>
+        )
+      ) : numberAnswer ? (
+        numberText != null ? (
+          <span className="font-semibold">{numberText}</span>
+        ) : (
+          <span className="text-sm text-warning">{t("editor.form.answerNumberMissing")}</span>
+        )
+      ) : q.answerText.trim() ? (
+        <span className="font-semibold whitespace-pre-wrap [overflow-wrap:anywhere]">
+          {q.answerText}
+        </span>
+      ) : selectedChoice?.file ? (
+        <span className="font-semibold">{t("editor.preview.mediaOnly")}</span>
+      ) : q.answerFiles.length === 0 ? (
+        <span className="text-sm text-warning">{t("editor.preview.noAnswer")}</span>
+      ) : null}
+      {q.answerFiles.map((m, i) => (
+        <AttachmentPreview key={`${m.md5}-${i}`} media={m} className="max-h-40 w-full" />
+      ))}
     </div>
   );
 }

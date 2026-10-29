@@ -120,6 +120,19 @@ describe("BuzzerLogic", () => {
 });
 
 describe("Buzzer opening time", () => {
+  it("waits for a standalone text item and retains its answer window", () => {
+    const game = showingGame(0, 0);
+    game.gameState.currentQuestion!.text = null;
+    game.gameState.currentQuestion!.textOrder = null;
+    game.gameState.currentQuestion!.questionFiles = null;
+    game.gameState.currentQuestion!.textItems = [{ order: 0, text: "A separate step" }];
+    QuestionContentPlanLogic.applyToGame(game);
+    expect(game.gameState.questionContentPlan?.totalMs).toBe(CONTENT_TEXT_MIN_TIME);
+    expect(game.gameState.buzzerOpensAtMs).toBe(CONTENT_TEXT_MIN_TIME);
+    expect(QuestionContentPlanLogic.questionTimerDuration(game)).toBe(
+      CONTENT_TEXT_MIN_TIME + GAME_QUESTION_ANSWER_TIME
+    );
+  });
   it("waits for a caption's reading time, ignoring the answer delay", () => {
     const game = showingGame(0, 0);
     game.gameState.currentQuestion!.text = "Short";

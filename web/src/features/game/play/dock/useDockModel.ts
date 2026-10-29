@@ -1,8 +1,10 @@
 import { useTranslation } from "react-i18next";
 import { type GameSession } from "@/game/reducer";
-import { useGameStore } from "@/game/store";
+import { useGameState } from "@/features/game/GameContext";
 import { useSecretTarget } from "../useSecretTarget";
 import { useBuzzer } from "../useBuzzer";
+import { useFinalContent } from "../useFinalContent";
+import { usePointImageReady } from "../question/useQuestionStage";
 import { type ActionDockModel, type ActionDockContext } from "./actionDockModel";
 import { choosingModel, mediaModel, finishedModel } from "./roundModels";
 import { showingModel, answeringModel, revealModel } from "./questionModels";
@@ -18,10 +20,12 @@ import { findPlayer, myRole, phaseOf, questionValue, type DisabledReason } from 
 
 export function useDockModel(session: GameSession, myId: number): ActionDockModel {
   const { t } = useTranslation();
-  const pending = useGameStore((s) => s.pending);
+  const pending = useGameState((s) => s.pending);
   const [secretTarget] = useSecretTarget();
   const buzzer = useBuzzer(session, myId);
   const phase = phaseOf(session);
+  const finalContent = useFinalContent(session, phase === "final_answering");
+  const pointImageReady = usePointImageReady(session);
   const role = myRole(session, myId);
   const name = (id: number | null | undefined) =>
     findPlayer(session, id)?.meta.username ?? t("chips.someone");
@@ -40,6 +44,8 @@ export function useDockModel(session: GameSession, myId: number): ActionDockMode
     sending,
     reason,
     buzzer,
+    finalContentPlaying: phase === "final_answering" && finalContent.playing,
+    pointImageReady,
   };
   switch (phase) {
     case "choosing":

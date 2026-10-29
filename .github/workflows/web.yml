@@ -55,7 +55,8 @@ jobs:
   e2e:
     name: End-to-end (phone, tablet, desktop)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Allow cold setup, both browser suites, and teardown/artifact upload.
+    timeout-minutes: 35
     permissions:
       contents: read
     steps:

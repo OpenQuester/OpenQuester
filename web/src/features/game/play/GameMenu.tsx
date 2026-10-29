@@ -8,7 +8,7 @@ import { myRole, phaseOf } from "@/game/selectors";
 import { Button } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
 
-import { useGame, useSession } from "../GameContext";
+import { useLiveGame, useSession } from "../GameContext";
 
 export function GameMenu({
   open,
@@ -22,7 +22,7 @@ export function GameMenu({
 }) {
   const { t } = useTranslation();
   const session = useSession();
-  const { connection, myId } = useGame();
+  const { connection, myId } = useLiveGame();
   const settings = useSettings();
   const role = myRole(session, myId);
   const phase = phaseOf(session);

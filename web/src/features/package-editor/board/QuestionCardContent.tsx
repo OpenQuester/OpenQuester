@@ -5,6 +5,7 @@ import { CopyIcon, EditIcon, MoveIcon, TrashIcon } from "@/ui/icons";
 import { Menu } from "@/ui/Menu";
 import { MediaIcon, AttachmentPreview } from "../AttachmentPreview";
 import type { CardActions, QuestionCardProps } from "../QuestionCard";
+import { correctChoice } from "../choiceCorrectness";
 
 import type { useQuestionCard } from "./useQuestionCard";
 
@@ -17,6 +18,23 @@ export function QuestionCardContent({
 }: Omit<QuestionCardProps, "index"> & { card: ReturnType<typeof useQuestionCard> }) {
   const { t } = useTranslation();
   const { selected, readOnly, cards, type, image, mediaTypes, label } = card;
+  const choiceImage = !final && q.type === "choice" ? correctChoice(q)?.file : null;
+  const mainText = q.text.trim();
+  const extraText = q.textItems?.find((item) => item.text.trim())?.text;
+  const hasText = !!(mainText || extraText);
+  const questionSummary =
+    mainText ||
+    extraText ||
+    (q.questionFiles.length
+      ? t(`editor.media.${q.questionFiles[0]!.type}`)
+      : t("editor.board.noText"));
+  const answerText = q.answerText.trim();
+  const hasAnswer = !!(answerText || q.answerFiles.length || choiceImage);
+  const answerSummary =
+    answerText ||
+    (q.answerFiles.length || choiceImage
+      ? t(`editor.media.${q.answerFiles[0]?.type ?? choiceImage?.type}`)
+      : t("editor.preview.noAnswer"));
   return (
     <button
       type="button"
@@ -69,33 +87,25 @@ export function QuestionCardContent({
         className={cn(
           "text-[13px] leading-snug [overflow-wrap:anywhere]",
           cards ? "line-clamp-3 font-medium" : "line-clamp-2 text-soft",
-          !q.text.trim() && "text-faint italic",
+          !hasText && "text-faint italic",
         )}
       >
-        {q.text.trim() ||
-          (q.questionFiles.length
-            ? t(`editor.media.${q.questionFiles[0]!.type}`)
-            : t("editor.board.noText"))}
+        {questionSummary}
       </span>
       {cards && (
         <span
           className={cn(
             packageBoardStyles.questionAnswer,
-            q.answerText.trim() || q.answerFiles.length
-              ? "bg-success-surface text-success"
-              : "bg-warning-surface text-warning",
+            hasAnswer ? "bg-success-surface text-success" : "bg-warning-surface text-warning",
           )}
         >
-          {q.answerText.trim() ||
-            (q.answerFiles.length
-              ? t(`editor.media.${q.answerFiles[0]!.type}`)
-              : t("editor.preview.noAnswer"))}
+          {answerSummary}
         </span>
       )}
       {issue && issue !== "info" && !selected && (
         <span
           className={cn(
-            "text-[11px] font-semibold",
+            "text-[12px] font-semibold",
             issue === "critical" ? "text-danger" : "text-warning",
           )}
         >

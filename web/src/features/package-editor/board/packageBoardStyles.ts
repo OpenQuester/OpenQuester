@@ -29,8 +29,8 @@ export const packageBoardStyles = {
   emptyRound:
     "flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-line-strong px-5 py-10 text-center",
   hoverPreview:
-    "pointer-events-none fixed z-[65] max-h-[min(70vh,560px)] w-[340px] overflow-hidden rounded-md border border-line-strong bg-surface p-4 shadow-2xl oq-pop",
+    "pointer-events-none fixed z-[65] max-h-[calc(100vh-16px)] w-[min(340px,calc(100vw-16px))] overflow-hidden rounded-md border border-line-strong bg-surface p-4 shadow-2xl oq-pop",
   questionPrice: "font-display text-[22px] leading-none font-extrabold",
-  roundSummary: "flex min-w-0 flex-[1_1_280px] flex-col gap-1",
+  roundSummary: "flex min-w-0 flex-[1_1_160px] flex-col gap-1",
   emptyThemeHelp: "m-0 max-w-[44ch] text-sm text-muted",
 } as const;

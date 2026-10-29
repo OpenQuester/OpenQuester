@@ -2,8 +2,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/glob
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
@@ -34,11 +36,143 @@ describe("Question Answer Edge Cases", () => {
   });
 
   afterEach(async () => {
+    if (utils) utils.packageTransform = null;
     await suite?.reset();
   });
 
   afterAll(async () => {
     await suite?.stop();
+  });
+
+  it("restores submitted text on rejoin before and after a manual ruling", async () => {
+    await suite.scenario(async (scenario) => {
+      const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        2,
+        0
+      );
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+      const submitted = scenario.waitForEvent<{ answerText: string }>(
+        showmanSocket,
+        SocketIOGameEvents.ANSWER_SUBMITTED
+      );
+      const accepted = scenario
+        .createAcceptedActionProbe({ gameId, actionType: GameActionType.ANSWER_SUBMITTED })
+        .waitForCount(1);
+      scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "0" });
+      await Promise.all([accepted, submitted]);
+      await scenario.assert.waitForActionsComplete({ gameId });
+      expect((await utils.getGameState(gameId))?.submittedAnswer).toBe("0");
+
+      const { socket: observer, user } = await utils.createGameClient(app, userRepo);
+      const firstJoin = scenario.waitForEvent(observer, SocketIOGameEvents.GAME_DATA);
+      scenario.actor(observer).emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+      expect((await firstJoin).gameState.submittedAnswer).toBe("0");
+      const leave = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+      scenario.actor(observer).disconnect();
+      await leave;
+      await scenario.assert.waitForActionsComplete({ gameId });
+      const { socket: rejoined } = await utils.createSocketForExistingUser(app, user.id);
+      const pendingJoin = scenario.waitForEvent(rejoined, SocketIOGameEvents.GAME_DATA);
+      scenario.actor(rejoined).emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+      expect((await pendingJoin).gameState.submittedAnswer).toBe("0");
+
+      const resultEvent = scenario.waitForEvent<QuestionAnswerResultEventPayload>(
+        rejoined,
+        SocketIOGameEvents.ANSWER_RESULT
+      );
+      const revealEvent = scenario.waitForEvent(rejoined, SocketIOGameEvents.QUESTION_FINISH);
+      const judged = scenario
+        .createAcceptedActionProbe({ gameId, actionType: GameActionType.ANSWER_RESULT })
+        .waitForCount(1);
+      scenario
+        .actor(showmanSocket)
+        .emit(SocketIOGameEvents.ANSWER_RESULT, {
+          answerType: AnswerResultType.CORRECT,
+          scoreResult: 0
+        });
+      const [, result, reveal] = await Promise.all([judged, resultEvent, revealEvent]);
+      await scenario.assert.waitForActionsComplete({ gameId });
+      expect(result.answerResult.answerText).toBe("0");
+      expect(reveal.answerResult.answerText).toBe("0");
+      expect((await utils.getGameState(gameId))?.submittedAnswer).toBeNull();
+      const secondLeave = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+      scenario.actor(rejoined).disconnect();
+      await secondLeave;
+      await scenario.assert.waitForActionsComplete({ gameId });
+      const { socket: afterReveal } = await utils.createSocketForExistingUser(app, user.id);
+      const revealJoin = scenario.waitForEvent(afterReveal, SocketIOGameEvents.GAME_DATA);
+      scenario
+        .actor(afterReveal)
+        .emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+      expect((await revealJoin).gameState.answerShowData.answerResult.answerText).toBe("0");
+    });
+  });
+
+  it("keeps judged answer text after forced reveal, rejoin and undo", async () => {
+    await suite.scenario(async (scenario) => {
+      // Keep the reveal open long enough to join and undo, as a normal game can.
+      utils.packageTransform = (pkg) => {
+        for (const round of pkg.rounds) {
+          for (const theme of round.themes) {
+            for (const question of theme.questions) {
+              question.showAnswerDuration = 30_000;
+            }
+          }
+        }
+      };
+      const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        2,
+        0
+      );
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      await utils.answerQuestion(playerSockets[0], showmanSocket);
+      const accepted = scenario
+        .createAcceptedActionProbe({ gameId, actionType: GameActionType.ANSWER_SUBMITTED })
+        .waitForCount(1);
+      const submitted = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_SUBMITTED);
+      scenario
+        .actor(playerSockets[0])
+        .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "wrong but real" });
+      await Promise.all([accepted, submitted]);
+      await scenario.assert.waitForActionsComplete({ gameId });
+      const ruled = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT);
+      scenario
+        .actor(showmanSocket)
+        .emit(SocketIOGameEvents.ANSWER_RESULT, {
+          answerType: AnswerResultType.WRONG,
+          scoreResult: -100
+        });
+      await ruled;
+      await scenario.assert.waitForActionsComplete({ gameId });
+      expect((await utils.getGameState(gameId))?.questionState).toBe(QuestionState.SHOWING);
+      const reveal = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH);
+      const forced = scenario
+        .createAcceptedActionProbe({ gameId, actionType: GameActionType.SKIP_QUESTION_FORCE })
+        .waitForCount(1);
+      scenario.actor(showmanSocket).emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
+      await forced;
+      await reveal;
+      await scenario.assert.waitForActionsComplete({ gameId });
+      const { socket } = await utils.createGameClient(app, userRepo);
+      const joined = scenario.waitForEvent(socket, SocketIOGameEvents.GAME_DATA);
+      scenario.actor(socket).emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+      const state = (await joined).gameState;
+      expect(state.answeredPlayers.at(-1).answerText).toBe("wrong but real");
+      const undone = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_RESULT_UNDO);
+      scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT_UNDO, {});
+      await undone;
+      await scenario.assert.waitForActionsComplete({ gameId });
+      expect((await utils.getGameState(gameId))?.answeredPlayers ?? []).toHaveLength(0);
+      expect((await utils.getGameState(gameId))?.submittedAnswer ?? null).toBeNull();
+    });
   });
 
   describe("Player Disconnect During SHOWING State", () => {

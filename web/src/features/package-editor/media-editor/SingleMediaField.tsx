@@ -10,15 +10,18 @@ export function SingleMediaField({
   value,
   onChange,
   label,
+  managedUndo = false,
 }: {
   value: FileRef | null;
   onChange: (file: FileRef | null) => void;
   label: string;
+  managedUndo?: boolean;
 }) {
   const { t } = useTranslation();
   const file = useMediaFile(value?.md5);
   const open = useOpenMedia();
   const input = useRef<HTMLInputElement>(null);
+  const chooseButton = useRef<HTMLButtonElement>(null);
   const [undo, setUndo] = useState<{ value: FileRef | null } | null>(null);
   const [error, setError] = useState(false);
   const edit = (sources: (File | MediaFile)[]) =>
@@ -27,7 +30,7 @@ export function SingleMediaField({
         setError(true);
         return;
       }
-      setUndo({ value });
+      if (!managedUndo) setUndo({ value });
       onChange({ md5: result.md5, type: result.type });
     });
   return (
@@ -53,19 +56,22 @@ export function SingleMediaField({
           }
         }}
       />
-      <Button onClick={() => input.current?.click()}>{label}</Button>
+      <Button ref={chooseButton} onClick={() => input.current?.click()}>
+        {label}
+      </Button>
       {file && <Button onClick={() => edit([file])}>{t("mediaEditor.edit")}</Button>}
       {value && (
         <Button
           onClick={() => {
-            setUndo({ value });
+            if (!managedUndo) setUndo({ value });
             onChange(null);
+            if (managedUndo) chooseButton.current?.focus();
           }}
         >
           {t("editor.media.remove")}
         </Button>
       )}
-      {undo && (
+      {!managedUndo && undo && (
         <Button
           onClick={() => {
             onChange(undo.value);

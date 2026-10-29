@@ -94,6 +94,28 @@ describe("content timeline", () => {
     expect(buildContentPlan({ text: "Only text" })).toBeNull();
   });
 
+  it("interleaves additional text and media while preserving legacy captions", () => {
+    const plan = buildContentPlan({
+      text: "First",
+      textOrder: 0,
+      textItems: [
+        { order: 2, text: "Clue" },
+        { order: 4, text: "Last clue" },
+      ],
+      files: [file(1, "image"), file(3, "video")],
+    })!;
+    expect(
+      plan.steps.map((step) => step.items.map((item) => `${item.kind}:${item.order}`)),
+    ).toEqual([["text:0"], ["file:1"], ["text:2"], ["file:3"], ["text:4"]]);
+    expect(plan.steps.map((step) => step.durationMs)).toEqual([2_000, 5_000, 2_000, 20_000, 2_000]);
+    const caption = buildContentPlan({
+      text: "Caption",
+      textItems: [{ order: 1, text: "Clue" }],
+      files: [file(0, "image")],
+    })!;
+    expect(caption.steps.map((step) => step.items[0]?.kind)).toEqual(["file", "text"]);
+  });
+
   it("reads elapsed time off the server timer", () => {
     const now = Date.parse("2026-10-14T10:00:10.000Z");
     const t = {

@@ -8,6 +8,9 @@ import {
   SHOW_ANSWER_DURATION_TEXT,
   SHOW_ANSWER_DURATION_VIDEO
 } from "domain/constants/game";
+import { AnswerType } from "domain/enums/package/AnswerType";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { PackageQuestionSubType } from "domain/types/dto/package/PackageQuestionDTO";
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
@@ -50,6 +53,35 @@ describe("QuestionContentPlanLogic", () => {
       [CONTENT_TEXT_MIN_TIME + 12_000, 8_000]
     ]);
     expect(plan.totalMs).toBe(CONTENT_TEXT_MIN_TIME + 20_000);
+  });
+
+  it("sequences additional text between media without changing the main text order", () => {
+    const plan = QuestionContentPlanLogic.build({
+      text: "Main question",
+      textOrder: 0,
+      textItems: [
+        { order: 2, text: "Extra prompt" },
+        { order: 4, text: "Last prompt" }
+      ],
+      files: [file(3, PackageFileType.VIDEO, { displayTime: 4000 }), file(1, PackageFileType.IMAGE)]
+    })!;
+    expect(plan.steps.map((step) => [step.items[0].kind, step.items[0].order])).toEqual([
+      [QuestionContentItemKind.TEXT, 0],
+      [QuestionContentItemKind.FILE, 1],
+      [QuestionContentItemKind.TEXT, 2],
+      [QuestionContentItemKind.FILE, 3],
+      [QuestionContentItemKind.TEXT, 4]
+    ]);
+    expect(plan.steps.map((step) => step.durationMs)).toEqual([2000, 5000, 2000, 4000, 2000]);
+    expect(plan.totalMs).toBe(15000);
+  });
+
+  it("sequences one additional text without a main question or files", () => {
+    const plan = QuestionContentPlanLogic.build({ textItems: [{ order: 0, text: "Only step" }] });
+    expect(plan).toMatchObject({
+      totalMs: CONTENT_TEXT_MIN_TIME,
+      steps: [{ items: [{ kind: "text", order: 0 }] }]
+    });
   });
 
   it("keeps a text without textOrder as a caption, not a step", () => {
@@ -166,5 +198,79 @@ describe("ShowAnswerLogic answer plan", () => {
 
   it("has no plan without answer files", () => {
     expect(ShowAnswerLogic.buildAnswerPlan({ answerFiles: null })).toBeNull();
+  });
+});
+
+describe("point answer reveal image", () => {
+  it("selects the first question image by order without changing the original array", () => {
+    const files = [
+      file(3, PackageFileType.IMAGE, {
+        file: { md5: "later", type: PackageFileType.IMAGE, link: "/later" }
+      }),
+      file(0, PackageFileType.AUDIO),
+      file(1, PackageFileType.IMAGE, {
+        file: { md5: "first", type: PackageFileType.IMAGE, link: "/first" }
+      })
+    ];
+    const question = {
+      type: PackageQuestionType.SIMPLE,
+      subType: PackageQuestionSubType.SIMPLE,
+      order: 0,
+      price: 100,
+      isHidden: false,
+      answerDelay: 0,
+      showAnswerDuration: 5000,
+      answerType: AnswerType.POINT,
+      questionFiles: files
+    };
+    expect(ShowAnswerLogic.revealDetails(question).answerPointImage).toBe("/first");
+    expect(files.map((item) => item.order)).toEqual([3, 0, 1]);
+    expect(
+      ShowAnswerLogic.revealDetails({ ...question, answerType: AnswerType.TEXT }).answerPointImage
+    ).toBeNull();
+    expect(
+      ShowAnswerLogic.revealDetails({ ...question, questionFiles: [] }).answerPointImage
+    ).toBeNull();
+    expect(
+      ShowAnswerLogic.revealDetails({
+        ...question,
+        questionFiles: [file(0, PackageFileType.IMAGE)]
+      }).answerPointImage
+    ).toBeNull();
+  });
+
+  it("uses an explicit image order and fails closed for a missing or ambiguous target", () => {
+    const question = {
+      type: PackageQuestionType.SIMPLE,
+      subType: PackageQuestionSubType.SIMPLE,
+      order: 0,
+      price: 100,
+      isHidden: false,
+      answerDelay: 0,
+      showAnswerDuration: 5000,
+      answerType: AnswerType.POINT,
+      pointImageOrder: 3,
+      questionFiles: [
+        file(1, PackageFileType.IMAGE, {
+          file: { md5: "first", type: PackageFileType.IMAGE, link: "/first" }
+        }),
+        file(3, PackageFileType.IMAGE, {
+          file: { md5: "last", type: PackageFileType.IMAGE, link: "/last" }
+        })
+      ]
+    };
+    expect(ShowAnswerLogic.revealDetails(question).answerPointImage).toBe("/last");
+    expect(
+      ShowAnswerLogic.revealDetails({ ...question, pointImageOrder: null }).answerPointImage
+    ).toBe("/first");
+    expect(
+      ShowAnswerLogic.revealDetails({ ...question, pointImageOrder: 5 }).answerPointImage
+    ).toBeNull();
+    expect(
+      ShowAnswerLogic.revealDetails({
+        ...question,
+        questionFiles: [...question.questionFiles, file(3, PackageFileType.AUDIO)]
+      }).answerPointImage
+    ).toBeNull();
   });
 });

@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ALICE, BOB, question, round, session, snapshot, timer } from "./fixtures";
 import type { ServerEvent } from "./protocol";
-import { useGameStore } from "./store";
+import { createGameStore, useGameStore } from "./store";
 
 const showing = () =>
   session({
@@ -11,6 +11,25 @@ const showing = () =>
     currentQuestion: question(100),
     timer: timer(),
   });
+
+it("keeps local preview state, secret selection and side effects separate from the live game", () => {
+  const live = showing();
+  useGameStore.setState({ session: live });
+  const preview = createGameStore();
+  const later = vi.spyOn(window, "setTimeout");
+  const write = vi.spyOn(Storage.prototype, "setItem");
+  preview.getState().begin("preview");
+  preview.setState({ session: showing() });
+  preview.getState().setSecretTarget("preview", BOB);
+  preview.getState().toast("info", "local");
+  preview.getState().markLeft("left");
+  expect(useGameStore.getState().session).toBe(live);
+  expect(useGameStore.getState().secretTarget.scope).not.toBe("preview");
+  expect(later).not.toHaveBeenCalled();
+  expect(write).not.toHaveBeenCalled();
+  later.mockRestore();
+  write.mockRestore();
+});
 
 describe("pending command", () => {
   beforeEach(() => useGameStore.setState({ session: showing(), pending: null }));

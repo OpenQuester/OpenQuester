@@ -72,6 +72,16 @@ async function publishPackage(page: Page, title: string): Promise<number> {
 }
 
 test.describe("my packages", () => {
+  test("create starts a draft while Drafts opens the library", async ({ page }) => {
+    await signInAsNewAuthor(page);
+    await page.goto("/packages");
+    await page.getByRole("link", { name: "Drafts", exact: true }).click();
+    await expect(page).toHaveURL(/\/packages\/editor$/);
+    await page.goto("/packages");
+    await page.getByRole("button", { name: "Create package" }).click();
+    await expect(page.getByTestId("round-board")).toBeVisible();
+    await expect(page).toHaveURL(/\/packages\/editor\/.+/);
+  });
   test("an author edits a published package in place and deletes it", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));

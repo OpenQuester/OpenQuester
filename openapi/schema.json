@@ -4550,6 +4550,7 @@
         "type": "object",
         "description": "Optional media-downloaded payload. Clients that can read media metadata report real audio/video lengths so the server can time the content timeline; the longest report per file wins.",
         "properties": {
+          "mediaPreparationId": { "type": "string", "format": "uuid", "description": "Required for sequenced final media preparation; stale acknowledgements are ignored." },
           "mediaDurations": {
             "type": "array",
             "maxItems": 100,
@@ -4604,6 +4605,18 @@
             "description": "Position of the text among questionFiles orders (text first on a tie). Null keeps the text as a caption for the whole question instead of its own step",
             "examples": [0, null]
           },
+          "textItems": {
+            "type": ["array", "null"],
+            "description": "Additional sequential screen-text steps. Each order must be unique and must not equal textOrder or a question file order. The legacy text and textOrder retain their existing meaning. For final questions with a non-null array, every question audio/video requires an integer displayTime from 1 to 120000 milliseconds.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "order": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+                "text": { "type": "string", "minLength": 1, "pattern": "\\S" }
+              },
+              "required": ["order", "text"]
+            }
+          },
           "answerHint": {
             "type": ["string", "null"],
             "description": "Hint for the answer",
@@ -4643,6 +4656,12 @@
                 "type": "null"
               }
             ]
+          },
+          "pointImageOrder": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "maximum": 2147483647,
+            "description": "Public order of the question image for point answers. An explicit order must identify exactly one image; null or absence selects the first image by order for legacy questions. This field does not reveal the correct coordinates."
           },
           "answerDeviation": {
             "type": ["number", "null"],
@@ -4753,6 +4772,11 @@
               },
               "showDelay": {
                 "$ref": "#/components/schemas/QuestionShowDelay"
+              },
+              "correctChoiceOrder": {
+                "type": ["integer", "null"],
+                "minimum": 0,
+                "description": "Optional unique order of the authored correct choice; omitted for legacy questions and hidden from players before reveal"
               },
               "answers": {
                 "type": "array",
@@ -5423,6 +5447,22 @@
             "description": "Id of player who is currently answering",
             "examples": [727]
           },
+          "submittedAnswer": {
+            "type": ["string", "null"],
+            "maxLength": 255,
+            "description": "Current regular submitted answer while awaiting a ruling; absent for legacy states"
+          },
+          "submittedChoiceOrder": {
+            "type": ["number", "null"],
+            "description": "Current regular choice order while awaiting a ruling; absent for legacy states"
+          },
+          "answerShowData": {
+            "description": "Answer reveal retained while showing the answer",
+            "oneOf": [
+              { "$ref": "#/components/schemas/SocketIOQuestionFinishEventPayload" },
+              { "type": "null" }
+            ]
+          },
           "answeredPlayers": {
             "type": ["array", "null"],
             "items": {
@@ -5644,6 +5684,15 @@
           },
           "answerType": {
             "$ref": "#/components/schemas/SocketIOGameAnswerType"
+          },
+          "answerText": {
+            "type": ["string", "null"],
+            "maxLength": 255,
+            "description": "Actual submitted answer, null or absent for oral and legacy answers"
+          },
+          "choiceOrder": {
+            "type": ["number", "null"],
+            "description": "Validated order of the selected choice, when known"
           },
           "appliedChange": {
             "type": "integer",
@@ -5964,6 +6013,10 @@
           "buzzerOpensAtMs": {
             "type": ["number", "null"],
             "description": "Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away"
+          },
+          "timedOut": {
+            "type": "boolean",
+            "description": "True when final media readiness timed out before playback started."
           }
         },
         "required": ["allPlayersReady", "mediaDownloaded", "playerId", "timer"]
@@ -6320,6 +6373,10 @@
             "maxLength": 255,
             "description": "Player's answer text",
             "examples": ["I don't know"]
+          },
+          "choiceOrder": {
+            "type": "number",
+            "description": "Optional selected choice order for a regular choice question"
           }
         }
       },
@@ -6760,6 +6817,10 @@
         "properties": {
           "questionData": {
             "$ref": "#/components/schemas/FinalRoundQuestionData"
+          },
+          "timer": {
+            "$ref": "#/components/schemas/GameStateTimer",
+            "description": "Preparation timer, present while final media is being loaded."
           }
         },
         "required": ["questionData"]
@@ -6836,6 +6897,10 @@
             ],
             "description": "ID of the next player to take their turn, null if no next player (game finished)"
           },
+          "answerResult": {
+            "$ref": "#/components/schemas/GameStateAnsweredPlayer",
+            "description": "Result of the regular answer, including actual submitted text when available"
+          },
           "answerContentPlan": {
             "description": "Answer files timeline on the SHOWING_ANSWER timer; the answer text stays visible as the headline",
             "oneOf": [
@@ -6885,6 +6950,14 @@
               }
             ]
           },
+          "answerPointImage": {
+            "type": ["string", "null"],
+            "description": "Original question image URL for the point-answer reveal, retained on rejoin"
+          },
+          "correctChoiceImage": {
+            "type": ["string", "null"],
+            "description": "Image-only correct choice for the answer reveal, retained on rejoin"
+          },
           "answerDeviation": {
             "type": ["number", "null"]
           }
@@ -6928,6 +7001,20 @@
           },
           "question": {
             "$ref": "#/components/schemas/PackageQuestion"
+          },
+          "contentPlan": {
+            "description": "Sequenced final question content on the answering timer; absent for legacy questions. The answer window starts after totalMs.",
+            "oneOf": [
+              { "$ref": "#/components/schemas/QuestionContentPlan" },
+              { "type": "null" }
+            ]
+          },
+          "mediaPreparationId": {
+            "type": "string", "format": "uuid",
+            "description": "Active final media preparation identifier; use it in media-downloaded."
+          },
+          "mediaPreparationTimedOut": {
+            "type": "boolean", "description": "True if preparation timed out before playback."
           }
         },
         "required": ["question", "themeId", "themeName"]
@@ -8322,6 +8409,11 @@
             "type": "number",
             "minimum": 0,
             "maximum": 1
+          },
+          "imageAspectRatio": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Oriented first image width divided by height; absent for legacy questions."
           }
         },
         "required": ["x", "y"]

@@ -4,6 +4,7 @@ import { PageContainer, PageTitle } from "@/ui/Page";
 import type { User } from "@/api/types";
 import { useMe } from "@/features/auth/useMe";
 import { PlayerStatsSummary } from "@/features/stats/PlayerStatsSummary";
+import { StorageMeter } from "@/features/storage/StorageMeter";
 import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
 import { Spinner } from "@/ui/Spinner";
@@ -32,6 +33,10 @@ function SettingsForm({ user }: { user: User }) {
     <PageContainer width={880}>
       <div className="flex flex-col gap-6">
         <PageTitle>{t("settings.title")}</PageTitle>
+
+        <Card>
+          <StorageMeter />
+        </Card>
 
         <ProfileCard profile={profile} />
 

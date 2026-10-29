@@ -29,10 +29,14 @@ export function logLine(t: T, entry: ChatSystemEntry, fallback: string): string 
         price: formatScore(num(p.price)),
       });
     case "answer-result":
-      return t(p.answerType === "correct" ? "chat.log.answerRight" : "chat.log.answerWrong", {
-        player,
-        points: formatSigned(num(p.points)),
-      });
+      return t(
+        p.answerType === "skip"
+          ? "chat.log.answerSkipped"
+          : p.answerType === "correct"
+            ? "chat.log.answerRight"
+            : "chat.log.answerWrong",
+        { player, points: formatSigned(num(p.points)) },
+      );
     case "answer-result-undo":
       return t("chat.log.undo", { player, points: formatSigned(num(p.points)) });
     case "game-join-mode-change":

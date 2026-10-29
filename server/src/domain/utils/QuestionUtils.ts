@@ -2,6 +2,15 @@ import { Game } from "domain/entities/game/Game";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 
+/** Questions where another player may buzz after a wrong answer. */
+export function isBuzzerQuestionType(type: PackageQuestionType | null | undefined): boolean {
+  return (
+    type === PackageQuestionType.SIMPLE ||
+    type === PackageQuestionType.CHOICE ||
+    type === PackageQuestionType.HIDDEN
+  );
+}
+
 /**
  * Utilities for special-question related logic shared across validators and services
  */

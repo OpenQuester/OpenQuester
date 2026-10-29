@@ -83,6 +83,8 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
       // Single player: auto-assign answering player and skip transfer flow
       questionState = QuestionState.ANSWERING;
       game.gameState.answeringPlayer = eligiblePlayers[0].meta.id;
+      game.gameState.submittedAnswer = null;
+      game.gameState.submittedChoiceOrder = null;
     }
 
     // Clear any stale special-question data and proceed as a normal question

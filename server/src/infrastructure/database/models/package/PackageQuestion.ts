@@ -7,7 +7,8 @@ import { AnswerType } from "domain/enums/package/AnswerType";
 import {
   AnswerPointDTO,
   PackageQuestionDTO,
-  PackageQuestionSubType
+  PackageQuestionSubType,
+  QuestionTextItemDTO
 } from "domain/types/dto/package/PackageQuestionDTO";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { type IFileUrlBuilder } from "domain/types/storage/IFileUrlBuilder";
@@ -24,11 +25,13 @@ export interface PackageQuestionImport {
   isHidden: boolean;
   text?: string | null;
   textOrder?: number | null;
+  textItems?: QuestionTextItemDTO[] | null;
   answerHint?: string | null;
   answerText?: string | null;
   answerType?: AnswerType | null;
   answerNumber?: number | null;
   answerPoint?: AnswerPointDTO | null;
+  pointImageOrder?: number | null;
   answerDeviation?: number | null;
   rightAnswers?: string[] | null;
   wrongAnswers?: string[] | null;
@@ -42,6 +45,7 @@ export interface PackageQuestionImport {
   transferType?: PackageQuestionTransferType | null;
   priceMultiplier?: number | null;
   showDelay?: number | null;
+  correctChoiceOrder?: number | null;
   showAnswerDuration: number;
 }
 
@@ -81,6 +85,9 @@ export class PackageQuestion {
   @Column({ name: "text_order", type: "int", nullable: true })
   text_order?: number | null;
 
+  @Column({ name: "text_items", type: "jsonb", nullable: true })
+  text_items?: QuestionTextItemDTO[] | null;
+
   @Column({ type: "text", nullable: true })
   answer_hint?: string | null;
 
@@ -95,6 +102,9 @@ export class PackageQuestion {
 
   @Column({ type: "jsonb", nullable: true })
   answer_point?: AnswerPointDTO | null;
+
+  @Column({ name: "point_image_order", type: "int", nullable: true })
+  point_image_order?: number | null;
 
   @Column({ type: "double precision", nullable: true })
   answer_deviation?: number | null;
@@ -141,6 +151,9 @@ export class PackageQuestion {
   @Column({ name: "show_delay", type: "int", nullable: true })
   showDelay?: number | null;
 
+  @Column({ name: "correct_choice_order", type: "int", nullable: true })
+  correctChoiceOrder?: number | null;
+
   @OneToMany(
     () => PackageQuestionChoiceAnswer,
     (answer: PackageQuestionChoiceAnswer) => answer.question
@@ -155,11 +168,14 @@ export class PackageQuestion {
     this.isHidden = data.isHidden;
     this.text = data.text;
     this.text_order = data.textOrder ?? null;
+    this.text_items = data.textItems ?? null;
     this.answer_hint = data.answerHint;
     this.answer_text = data.answerText;
-    this.answer_type = data.answerType && data.answerType !== AnswerType.TEXT ? data.answerType : null;
+    this.answer_type =
+      data.answerType && data.answerType !== AnswerType.TEXT ? data.answerType : null;
     this.answer_number = data.answerNumber ?? null;
     this.answer_point = data.answerPoint ?? null;
+    this.point_image_order = data.pointImageOrder ?? null;
     this.answer_deviation = data.answerDeviation ?? null;
     this.right_answers = nonEmpty(data.rightAnswers);
     this.wrong_answers = nonEmpty(data.wrongAnswers);
@@ -173,6 +189,7 @@ export class PackageQuestion {
     this.transfer_type = data.transferType;
     this.price_multiplier = data.priceMultiplier;
     this.showDelay = data.showDelay;
+    this.correctChoiceOrder = data.correctChoiceOrder ?? null;
     this.show_answer_duration = data.showAnswerDuration;
   }
 
@@ -199,11 +216,16 @@ export class PackageQuestion {
       isHidden: this.isHidden,
       text: this.text,
       textOrder: this.text_order ?? null,
+      textItems: this.text_items ?? null,
       answerHint: this.answer_hint,
       answerText: this.answer_text,
+      ...(this.type === PackageQuestionType.CHOICE && this.correctChoiceOrder != null
+        ? { correctChoiceOrder: this.correctChoiceOrder }
+        : {}),
       answerType: this.answer_type ?? AnswerType.TEXT,
       answerNumber: this.answer_number ?? null,
       answerPoint: this.answer_point ?? null,
+      pointImageOrder: this.point_image_order ?? null,
       answerDeviation: this.answer_deviation ?? null,
       rightAnswers: this.right_answers ?? null,
       wrongAnswers: this.wrong_answers ?? null,

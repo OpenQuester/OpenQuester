@@ -127,8 +127,14 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   cancellation and shortcuts; `useStagedMedia.tsx` owns the form's queue and
   pending files. Shared controls and types stay in `media-editor/`.
   `QuestionDialog.tsx` chooses read-only or editable presentation. Its keyed
-  `question-form/QuestionForm.tsx` composes the fields and keeps one responsive
-  settings panel in a CSS grid; resizing must not remount its fields.
+  `question-form/QuestionForm.tsx` composes one column of fields; resizing and
+  opening a preview must not remount the form or lose staged media.
+  `playtest/` runs the current unsaved question through the game stage in an
+  isolated store and local runtime. The preview selects the regular-round question
+  and advances media readiness automatically, but leaves secret transfers, bids,
+  final-round choices and answer review to the player. Preserve role-specific answer
+  visibility, local media and timer cleanup, and keep preview actions from persisting
+  settings or sending live game commands.
   `useQuestionForm.ts` owns staging/save/discard;
   `useQuestionMedia.ts` applies changes to one attachment occurrence using the
   latest list. `questionUpdates.ts` holds pure type/choice transformations.
@@ -164,8 +170,18 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   resumes inside the selection and restarts at its beginning otherwise.
   PointPicker's wrapper shrinks to the displayed image; target markers use a
   square aspect ratio so width-based radius stays circular in flex layouts.
-  Drag and drop is native HTML5; every drag has a Move dialog equivalent for
-  touch and keyboard.
+  The editor radius slider maps 100% to a diameter of 120% of the target image's
+  longer side. Before publication, the shared upload flow measures that final
+  image's oriented aspect ratio after optimization; failed decoding blocks the
+  create/replace request and remains retryable. Legacy packages without the
+  optional aspect keep their old server checking until web republication.
+  Board drag and drop is native HTML5, with a Move dialog for touch and keyboard.
+  Question media and additional text share one card list; its grips support native
+  mouse dragging, touch pointers and arrow keys, without click menus. Main question
+  text stays first and outside that list. Saving an edited legacy question stores
+  this normalized sequence; closing without saving preserves its original order.
+  Opening an old question preserves its point target; changing the image set/order
+  selects the last image and clears coordinates only if the target changes.
   `/packages/$id/preview` opens a published package in the same editor with
   `readOnly` set: no drag, menus, autosave or publish.
   A published package opens as a draft (`loadPublishedPackage.ts`) whose media keeps

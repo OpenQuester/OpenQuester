@@ -64,8 +64,16 @@ export function mediaModel({ t, session, reason }: ActionDockContext): ActionDoc
   return {
     status: t("dock.media.status", { ready, total: players.length }),
     ringLabel: `${ready}/${players.length}`,
-    action: { kind: "info", text: reason("waiting_for_media") },
-    next: t("dock.media.next"),
+    action: {
+      kind: "info",
+      text:
+        session.state.currentRound?.type === "final"
+          ? t("dock.media.finalWait")
+          : reason("waiting_for_media"),
+    },
+    next: t(
+      session.state.currentRound?.type === "final" ? "dock.media.finalNext" : "dock.media.next",
+    ),
   };
 }
 

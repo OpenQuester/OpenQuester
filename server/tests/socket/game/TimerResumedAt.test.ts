@@ -3,14 +3,17 @@ import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { GameActionType } from "domain/enums/GameActionType";
+import { timerKey } from "domain/constants/redisKeys";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { User } from "infrastructure/database/models/User";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { TestUtils } from "tests/utils/TestUtils";
+import { RedisConfig } from "shared/config/RedisConfig";
 
 /**
  * Tests for GameStateTimerDTO.resumedAt field
@@ -173,6 +176,87 @@ describe("Timer resumedAt Field", () => {
   });
 
   describe("Timer resume after wrong answer", () => {
+    it.each(["manual ruling", "skip", "answer timeout"])(
+      "rearms the remaining showing timer after %s and reveals the answer on expiry",
+      async (trigger) => {
+        await suite.scenario(async (scenario) => {
+          const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+            userRepo,
+            app,
+            2,
+            0
+          );
+          await utils.startGame(showmanSocket);
+          await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+          await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+          const submission = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_SUBMITTED);
+          const submissionAccepted = scenario
+            .createAcceptedActionProbe({ gameId, actionType: GameActionType.ANSWER_SUBMITTED })
+            .waitForCount(1);
+          scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+            answerText: "actual submitted text"
+          });
+          await Promise.all([submission, submissionAccepted]);
+          await scenario.assert.waitForActionsComplete({ gameId });
+
+          const redis = RedisConfig.getClient();
+          const savedRaw = await redis.get(timerKey(gameId, QuestionState.SHOWING));
+          expect(savedRaw).not.toBeNull();
+          const saved = JSON.parse(savedRaw!) as GameStateTimerDTO;
+          const result = scenario.waitForEvent(playerSockets[1], SocketIOGameEvents.ANSWER_RESULT);
+          if (trigger !== "answer timeout") {
+            const accepted = scenario
+              .createAcceptedActionProbe({ gameId, actionType: GameActionType.ANSWER_RESULT })
+              .waitForCount(1);
+            scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+              answerType: trigger === "skip" ? AnswerResultType.SKIP : AnswerResultType.WRONG,
+              scoreResult: trigger === "skip" ? 0 : -100
+            });
+            await accepted;
+          } else {
+            await testUtils.expireTimerAndWaitForAction(
+              gameId,
+              GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED
+            );
+          }
+          await result;
+          await scenario.assert.waitForActionsComplete({ gameId });
+
+          const state = (await utils.getGameState(gameId))!;
+          expect(state.questionState).toBe(QuestionState.SHOWING);
+          expect(state.timer?.elapsedMs).toBe(saved.elapsedMs);
+          expect(state.timer?.resumedAt).toBeTruthy();
+          const activeRaw = await redis.get(timerKey(gameId));
+          expect(activeRaw).not.toBeNull();
+          expect(JSON.parse(activeRaw!)).toEqual(JSON.parse(JSON.stringify(state.timer)));
+          const ttl = await redis.pttl(timerKey(gameId));
+          expect(ttl).toBeGreaterThan(0);
+          expect(ttl).toBeLessThanOrEqual(Math.max(saved.durationMs - saved.elapsedMs, 1));
+          expect(await redis.get(timerKey(gameId, QuestionState.SHOWING))).toBeNull();
+
+          const mark = scenario.mark();
+          const reveal = scenario.waitForEvent(playerSockets[1], SocketIOGameEvents.QUESTION_FINISH);
+          await testUtils.expireTimerAndWaitForAction(
+            gameId,
+            GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+          );
+          await reveal;
+          await scenario.assert.waitForActionsComplete({ gameId });
+          const revealed = (await utils.getGameState(gameId))!;
+          expect(revealed.questionState).toBe(QuestionState.SHOWING_ANSWER);
+          expect(revealed.answeredPlayers?.at(-1)?.answerText).toBe("actual submitted text");
+          expect(
+            scenario.assert.records({
+              actor: scenario.actor(playerSockets[1]),
+              event: SocketIOGameEvents.QUESTION_FINISH,
+              afterSequence: mark
+            })
+          ).toHaveLength(1);
+        });
+      }
+    );
+
     it("should set resumedAt when timer is restored after wrong answer", async () => {
       await suite.scenario(async (scenario) => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);

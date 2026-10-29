@@ -120,7 +120,10 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   // Game Lifecycle Handlers
   // =====================================
-  registry.register(GameActionType.JOIN, new JoinGameUseCase(userService, socketIOChatService));
+  registry.register(
+    GameActionType.JOIN,
+    new JoinGameUseCase(userService, socketIOChatService, gameService)
+  );
 
   registry.register(GameActionType.LEAVE, new LeaveGameUseCase(playerLeaveService));
 
@@ -136,7 +139,12 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.UNPAUSE,
-    new UnpauseGameUseCase(socketGameTimerService, gameService, socketGameValidationService)
+    new UnpauseGameUseCase(
+      socketGameTimerService,
+      gameService,
+      socketGameValidationService,
+      phaseTransitionRouter
+    )
   );
 
   const roundProgressionService = new RoundProgressionService(
@@ -166,7 +174,11 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.PLAYER_ROLE_CHANGE,
-    new PlayerRoleChangeUseCase(socketGameValidationService, playerGameStatsService)
+    new PlayerRoleChangeUseCase(
+      socketGameValidationService,
+      playerGameStatsService,
+      phaseTransitionRouter
+    )
   );
 
   registry.register(GameActionType.PLAYER_SCORE_CHANGE, new PlayerScoreChangeUseCase());
@@ -178,7 +190,10 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(GameActionType.TURN_PLAYER_CHANGE, new TurnPlayerChangeUseCase());
   registry.register(GameActionType.QUESTION_REMOVE_RESTORE, new QuestionRemoveRestoreUseCase());
-  registry.register(GameActionType.LAST_ANSWER_RULING_REVERT, new RevertLastAnswerRulingUseCase(playerGameStatsService));
+  registry.register(
+    GameActionType.LAST_ANSWER_RULING_REVERT,
+    new RevertLastAnswerRulingUseCase(playerGameStatsService)
+  );
   registry.register(GameActionType.GAME_JOIN_MODE_CHANGE, new GameJoinModeChangeUseCase());
   registry.register(GameActionType.BUZZER_OPEN, new BuzzerOpenUseCase());
 

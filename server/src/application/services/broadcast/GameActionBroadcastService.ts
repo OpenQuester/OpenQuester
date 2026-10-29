@@ -175,6 +175,7 @@ export class GameActionBroadcastService {
   ): Promise<void> {
     const fullQuestion = payload.questionData.question as PackageQuestionDTO;
     const publicPayload: FinalQuestionEventData = {
+      ...payload,
       questionData: {
         ...payload.questionData,
         question: GameQuestionMapper.mapToSimpleQuestion(fullQuestion)
@@ -199,6 +200,7 @@ export class GameActionBroadcastService {
       for (const [socketId, question] of broadcastMap.entries()) {
         this.realtimeGateway.publish(
           RealtimeEvents.toSocket(socketId, SocketIOGameEvents.FINAL_QUESTION_DATA, {
+            ...payload,
             questionData: { ...payload.questionData, question }
           } satisfies FinalQuestionEventData)
         );
