@@ -89,6 +89,13 @@
         "payloadSchema": "#/components/schemas/SocketIOBuzzerOpenEventPayload",
         "description": "The showman opens the buzzer early; the server broadcasts the new buzzerOpensAtMs."
       }
+    },
+    "settingsChange": {
+      "event": "game-settings-change",
+      "direction": "both",
+      "inputSchema": "#/components/schemas/GameSettingsInput",
+      "payloadSchema": "#/components/schemas/SocketIOGameSettingsChangeEventPayload",
+      "description": "The showman changes any subset of the rules and timers mid-game (same limits as on creation; at least one field). Running timers keep their deadline; new values apply from the next timer or question. The round time limit is measured from the start of the current round. The server broadcasts the full new settings and logs the change to the chat."
     }
   },
   "paths": {
@@ -5883,6 +5890,7 @@
           "answer-result-undo",
           "buzzer-open",
           "game-join-mode-change",
+          "game-settings-change",
           "player-slot-change",
           "turn-player-changed",
           "final-bid-submit",
@@ -5932,6 +5940,7 @@
           "answer-result-undo",
           "buzzer-open",
           "game-join-mode-change",
+          "game-settings-change",
           "player-slot-change",
           "turn-player-changed",
           "final-bid-submit",
@@ -7984,7 +7993,7 @@
       },
       "GameSettings": {
         "type": "object",
-        "description": "Rules the host picks when creating a game. Missing fields use their defaults.",
+        "description": "Rules the host picks when creating a game; the showman may change them mid-game. Missing fields use their defaults.",
         "properties": {
           "falseStart": {
             "type": "boolean",
@@ -8010,7 +8019,7 @@
       },
       "GameSettingsInput": {
         "type": "object",
-        "description": "Game settings on creation; omitted fields use their defaults",
+        "description": "Game settings on creation (omitted fields use their defaults) or a showman's mid-game change via game-settings-change (omitted fields keep their current value)",
         "properties": {
           "falseStart": {
             "type": "boolean",
@@ -8797,6 +8806,16 @@
           }
         },
         "required": ["action", "params"]
+      },
+      "SocketIOGameSettingsChangeEventPayload": {
+        "type": "object",
+        "description": "game-settings-change: the game's rules after the showman changed them",
+        "properties": {
+          "settings": {
+            "$ref": "#/components/schemas/GameSettings"
+          }
+        },
+        "required": ["settings"]
       },
       "SocketIOBuzzerOpenEventPayload": {
         "type": "object",

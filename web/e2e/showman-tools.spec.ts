@@ -77,4 +77,50 @@ test.describe("showman tools", () => {
     await kim.context.close();
     await late.context.close();
   });
+
+  test("change the rules and rename the game mid-game", async ({ browser, page }) => {
+    await signInAsGuest(page, "Host");
+    const code = await hostGame(page, "Rules");
+    const pat = await person(browser, "Pat", laptop);
+    await joinByLink(pat.page, code, "Pat", "player");
+    await pat.page.getByRole("button", { name: "I'm ready" }).click();
+    await expect(dockPhase(page)).toHaveText("Choosing");
+
+    await page.getByTestId("host-tools").click();
+    const tools = page.getByTestId("host-panel");
+    const wide = (page.viewportSize()?.width ?? 0) >= 1024;
+
+    // Wrong answers stop costing points from now on
+    const rules = tools.getByTestId("host-rules");
+    await rules.locator(":scope > summary").click();
+    const saveRules = rules.getByRole("button", { name: "Save" });
+    await expect(saveRules).toBeDisabled();
+    await rules.getByLabel("Wrong answers cost points").uncheck();
+    await saveRules.click();
+    await expect(saveRules).toBeDisabled();
+    await expect(rules.getByLabel("Wrong answers cost points")).not.toBeChecked();
+    await pat.page.getByTestId("open-chat").click();
+    await expect(
+      pat.page
+        .getByTestId("chat-log")
+        .filter({ hasText: "changed the rules: Wrong answers cost points: off" }),
+    ).toBeVisible();
+
+    // Rename the game
+    const info = tools.getByTestId("host-info");
+    await info.locator(":scope > summary").click();
+    await info.getByLabel("Game name").fill("Renamed rules");
+    await info.getByRole("button", { name: "Save" }).click();
+    await expect(info.getByText("Saved ✓")).toBeVisible();
+    await expect(info.getByLabel("Game name")).toHaveValue("Renamed rules");
+    if (!wide) await page.keyboard.press("Escape");
+
+    await cell(page, "Capitals", 100).click();
+    await buzz(pat.page);
+    await expect(dockPhase(page)).toHaveText("Answering");
+    await page.getByTestId("judge-wrong").click();
+    await expect.poll(() => chipScore(page, "Pat")).toBe("0");
+
+    await pat.context.close();
+  });
 });

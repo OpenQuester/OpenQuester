@@ -373,7 +373,10 @@
       "secret": "gave the question to {{player}}",
       "reviewRight": "judged {{player}}'s answer right",
       "reviewWrong": "judged {{player}}'s answer wrong",
-      "theme": "removed the theme {{theme}}"
+      "theme": "removed the theme {{theme}}",
+      "rules": "changed the rules: {{changes}}",
+      "ruleOn": "on",
+      "ruleOff": "off"
     }
   },
   "menu": {
@@ -404,6 +407,21 @@
       "open": "Anyone",
       "spectators_only": "Spectators only",
       "closed": "Nobody new"
+    },
+    "rules": {
+      "title": "Game rules",
+      "help": "Changes apply from the next timer or question; a timer already running keeps its time. Everyone sees the change in the chat.",
+      "save": "Save",
+      "saving": "Saving…",
+      "reset": "Undo changes"
+    },
+    "info": {
+      "title": "Game info",
+      "playersHelp": "{{count}} players in the game now; you can't make fewer seats than that.",
+      "newPassword": "New password",
+      "passwordPlaceholder": "Leave empty to keep the current one",
+      "passwordHelp": "Letters, digits, _ and -, up to 16. Players already in the game stay.",
+      "saved": "Saved ✓"
     }
   },
   "keys": {

@@ -4443,13 +4443,13 @@ export interface components {
          * @example join
          * @enum {string}
          */
-        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-remove-restore" | "answer-result-undo" | "buzzer-open" | "game-join-mode-change" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "secret-question-price" | "all-play-stake" | "all-play-answer" | "all-play-review" | "stake-bid-submit" | "media-downloaded";
+        SocketIOGameSendEvents: "join" | "user-leave" | "start" | "question-pick" | "question-answer" | "answer-submitted" | "answer-result" | "next-round" | "skip-question-force" | "skip-show-answer" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-remove-restore" | "answer-result-undo" | "buzzer-open" | "game-join-mode-change" | "game-settings-change" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "secret-question-transfer" | "secret-question-price" | "all-play-stake" | "all-play-answer" | "all-play-review" | "stake-bid-submit" | "media-downloaded";
         /**
          * @description Server-to-client game events emitted on the /games namespace.
          * @example join
          * @enum {string}
          */
-        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-remove-restore" | "answer-result-undo" | "buzzer-open" | "game-join-mode-change" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "all-play-start" | "all-play-stake" | "all-play-answer" | "all-play-reviewing" | "all-play-review" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
+        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-remove-restore" | "answer-result-undo" | "buzzer-open" | "game-join-mode-change" | "game-settings-change" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "all-play-start" | "all-play-stake" | "all-play-answer" | "all-play-reviewing" | "all-play-review" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
         /** @description Data sent to all players when player skips a question */
         SocketIOGameSkipEventPayload: {
             /**
@@ -5509,7 +5509,7 @@ export interface components {
          * @enum {string}
          */
         ButtonPressMode: "random_within_window" | "first_wins";
-        /** @description Rules the host picks when creating a game. Missing fields use their defaults. */
+        /** @description Rules the host picks when creating a game; the showman may change them mid-game. Missing fields use their defaults. */
         GameSettings: {
             /**
              * @description The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time
@@ -5520,7 +5520,7 @@ export interface components {
             wrongAnswerPenalty: components["schemas"]["WrongAnswerPenalty"];
             timers: components["schemas"]["GameTimerSettings"];
         };
-        /** @description Game settings on creation; omitted fields use their defaults */
+        /** @description Game settings on creation (omitted fields use their defaults) or a showman's mid-game change via game-settings-change (omitted fields keep their current value) */
         GameSettingsInput: {
             /**
              * @description The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time
@@ -5850,6 +5850,10 @@ export interface components {
             params: {
                 [key: string]: string | number | boolean | null;
             };
+        };
+        /** @description game-settings-change: the game's rules after the showman changed them */
+        SocketIOGameSettingsChangeEventPayload: {
+            settings: components["schemas"]["GameSettings"];
         };
         /** @description buzzer-open (showman only, no input, SHOWING phase): opens the buzzer now instead of when the question finishes. Presses from here on are not false starts and running false-start locks are lifted. Broadcast to everyone with the new opening moment. */
         SocketIOBuzzerOpenEventPayload: {

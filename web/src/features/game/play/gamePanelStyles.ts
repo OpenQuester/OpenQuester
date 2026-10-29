@@ -9,6 +9,9 @@ export const gamePanelStyles = {
   hostActions: "flex flex-wrap gap-2 border-b border-line p-4",
   hostPlayers: `${hostSection} border-b`,
   hostRound: `${hostSection} border-t`,
+  hostForm: "flex flex-col gap-4 border-b border-line p-4",
+  hostFormSummary: "flex min-h-11 cursor-pointer items-center font-semibold",
+  hostFormBody: "mt-3 flex flex-col gap-4",
   playerChips: "m-0 flex list-none gap-2 overflow-x-auto p-0 pb-0.5 [scrollbar-width:thin]",
   showmanChip:
     "flex shrink-0 items-center gap-2 rounded-full border border-accent-line/60 bg-surface py-1 pl-1 pr-3 text-sm",

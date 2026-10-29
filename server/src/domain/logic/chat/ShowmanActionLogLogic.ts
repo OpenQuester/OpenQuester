@@ -111,6 +111,9 @@ export class ShowmanActionLogLogic {
       case GameActionType.GAME_JOIN_MODE_CHANGE:
         return entry({ joinMode: String(payload.joinMode ?? "open") });
 
+      case GameActionType.GAME_SETTINGS_CHANGE:
+        return entry(this._settingsChange(payload));
+
       case GameActionType.PLAYER_KICK:
         return entry({ player: name(payload.playerId) });
 
@@ -184,6 +187,21 @@ export class ShowmanActionLogLogic {
     return null;
   }
 
+  /** The changed rules and timers (in ms) as flat params */
+  private static _settingsChange(payload: Record<string, unknown>): Params {
+    const params: Params = {};
+    const { timers, ...rules } = payload;
+    const values = { ...rules, ...(timers as Record<string, unknown> | undefined) };
+
+    for (const [key, value] of Object.entries(values)) {
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        params[key] = value;
+      }
+    }
+
+    return params;
+  }
+
   private static _isPlayed(game: Game, questionId: unknown): boolean {
     for (const theme of game.gameState.currentRound?.themes ?? []) {
       const question = theme.questions.find((q) => q.id === questionId);
@@ -222,6 +240,8 @@ export class ShowmanActionLogLogic {
         return `Showman took back the ruling on ${who} (${signed(p.points)})`;
       case GameActionType.GAME_JOIN_MODE_CHANGE:
         return `Showman set who can join: ${p.joinMode}`;
+      case GameActionType.GAME_SETTINGS_CHANGE:
+        return `Showman changed the game rules: ${Object.keys(p).join(", ")}`;
       case GameActionType.PLAYER_KICK:
         return `Showman removed ${who} from the game`;
       case GameActionType.PLAYER_RESTRICTION:

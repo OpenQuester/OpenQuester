@@ -205,6 +205,17 @@ When changing gameplay state, make sure:
 - **Who can join** (`game-join-mode-change`: open / spectators only / closed): blocks
   newcomers; people already in the game can always come back. Shown in the
   game list as `joinMode`.
+- **Change the rules** (`game-settings-change`, any phase until the game
+  finishes): any subset of false starts, press mode, wrong-answer penalty and
+  timers, with the same limits as on creation. The server broadcasts the full
+  settings and logs the change to the chat. A running timer keeps its
+  deadline; new values apply from the next timer or question (false starts
+  from the next question shown). The round time limit is measured from the
+  start of the current round, so a shorter limit can end this round after the
+  question in play.
+- **Game info** (REST `PATCH /v1/games/{gameId}`, showman only): title, seat
+  count (not below the players in the game) and a private game's password.
+  The room hears it through the `games` feed (`changed`).
 
 The public events `question-toggle` and `game-join-mode` were renamed to
 `question-remove-restore` and `game-join-mode-change`. Their payloads are unchanged.

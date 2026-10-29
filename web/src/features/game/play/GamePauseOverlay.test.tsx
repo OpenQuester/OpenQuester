@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
@@ -39,10 +40,14 @@ function setup(myId = SHOWMAN, state: Partial<GameSession["state"]> = {}, boardE
   });
   const emit = vi.fn((action: string) => useGameStore.getState().setPending(action));
   const connection = { emit, connected: true } as unknown as GameConnection;
+  // Showman tools read the game's details for the game info form
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <GameContext.Provider value={{ connection, myId }}>
-      <GameScreen />
-    </GameContext.Provider>,
+    <QueryClientProvider client={queryClient}>
+      <GameContext.Provider value={{ connection, myId }}>
+        <GameScreen />
+      </GameContext.Provider>
+    </QueryClientProvider>,
   );
   return emit;
 }

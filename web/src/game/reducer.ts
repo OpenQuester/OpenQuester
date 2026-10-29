@@ -46,6 +46,8 @@ export interface GameSession {
   title: string;
   /** The game's rules; absent on servers that predate settings. */
   settings: GameSettings | null;
+  /** Seat count after the showman changed it here; null until then. */
+  maxPlayers: number | null;
   players: Player[];
   state: GameState;
   chat: ChatMessage[];
@@ -78,6 +80,7 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
     gameId,
     title: data.meta.title,
     settings: data.meta.settings ?? null,
+    maxPlayers: null,
     players: data.players,
     state,
     // The server sends the history newest first; the chat reads top to bottom.
@@ -761,6 +764,21 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       return patchState(session, {
         joinMode: event.payload.joinMode === "open" ? null : event.payload.joinMode,
       });
+
+    case "game-settings-change":
+      return { ...session, settings: event.payload.settings };
+
+    case "games": {
+      const { event: kind, data } = event.payload;
+      if (kind !== "changed" || data?.id?.toUpperCase() !== session.gameId.toUpperCase()) {
+        return session;
+      }
+      return {
+        ...session,
+        title: data.title ?? session.title,
+        maxPlayers: data.maxPlayers ?? session.maxPlayers,
+      };
+    }
 
     case "secret-question-price":
       return patchState(session, {

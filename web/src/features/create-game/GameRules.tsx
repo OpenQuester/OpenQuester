@@ -20,6 +20,25 @@ export function GameRules({
       <h2 id="g-rules" className="m-0 text-lg font-bold">
         {t("create.rules.title")}
       </h2>
+      <GameRulesFields value={value} onChange={onChange} />
+    </section>
+  );
+}
+
+/** Rule and timer controls, shared by game creation and the showman's tools. */
+export function GameRulesFields({
+  value,
+  onChange,
+  idPrefix = "g",
+}: {
+  value: GameSettings;
+  onChange: (next: GameSettings) => void;
+  /** Keeps control ids unique when both forms could be on one page. */
+  idPrefix?: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <>
       <RuleToggle
         checked={value.falseStart}
         onChange={(checked) => onChange({ ...value, falseStart: checked })}
@@ -51,8 +70,8 @@ export function GameRules({
         label={t("create.rules.penalty")}
         help={t("create.rules.penaltyHelp")}
       />
-      <GameTimers value={value} onChange={onChange} />
-    </section>
+      <GameTimers value={value} onChange={onChange} idPrefix={idPrefix} />
+    </>
   );
 }
 

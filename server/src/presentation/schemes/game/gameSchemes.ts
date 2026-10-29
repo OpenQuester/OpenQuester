@@ -1,5 +1,3 @@
-import { ButtonPressMode, WrongAnswerPenalty } from "domain/enums/game/GameSettings";
-import type { GameSettingsInput } from "domain/types/dto/game/settings/GameSettingsDTO";
 import Joi from "joi";
 
 import {
@@ -13,34 +11,8 @@ import { GameStatusFilter } from "domain/enums/game/GameStatusFilter";
 import { type GameUpdateDTO } from "domain/types/dto/game/GameUpdateDTO";
 import { type GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
+import { gameSettingsScheme } from "domain/validators/schemas/GameSettingsSchema";
 export { gameRedisDataScheme } from "domain/validators/schemas/GameRedisDataSchema";
-
-const SECOND = 1000;
-const ms = (minSeconds: number, maxSeconds: number) =>
-  Joi.number()
-    .integer()
-    .min(minSeconds * SECOND)
-    .max(maxSeconds * SECOND)
-    .optional();
-
-export const gameSettingsScheme = () =>
-  Joi.object<GameSettingsInput>({
-    falseStart: Joi.boolean().optional(),
-    buttonPressMode: Joi.valid(...Object.values(ButtonPressMode)).optional(),
-    wrongAnswerPenalty: Joi.valid(...Object.values(WrongAnswerPenalty)).optional(),
-    timers: Joi.object({
-      answerMs: ms(3, 120),
-      answerSubmitMs: ms(5, 180),
-      stakeMs: ms(5, 120),
-      secretTransferMs: ms(5, 120),
-      allPlayAnswerMs: ms(10, 300),
-      finalAnswerMs: ms(10, 300),
-      // 0 = no limit, otherwise 5 minutes to 3 hours
-      roundMs: Joi.alternatives()
-        .try(Joi.valid(0), ms(5 * 60, 3 * 60 * 60))
-        .optional()
-    }).optional()
-  });
 
 export const gameIdScheme = () =>
   Joi.object({

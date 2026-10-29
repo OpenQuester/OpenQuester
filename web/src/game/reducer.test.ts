@@ -116,6 +116,27 @@ describe("reducer: regular question", () => {
     expect(phaseOf(s)).toBe("choosing");
   });
 
+  it("takes the showman's new rules and this game's new title and seats", () => {
+    let s = choosing();
+    const settings = { falseStart: false, buttonPressMode: "first_wins" as const };
+    s = reduce(s, { type: "game-settings-change", payload: { settings } });
+    expect(s.settings).toEqual(settings);
+    expect(phaseOf(s)).toBe("choosing");
+
+    const other = reduce(s, {
+      type: "games",
+      payload: { event: "changed", data: { id: "OTHER", title: "Other", maxPlayers: 3 } },
+    });
+    expect(other).toBe(s);
+
+    s = reduce(s, {
+      type: "games",
+      payload: { event: "changed", data: { id: "abcd", title: "Renamed", maxPlayers: 8 } },
+    });
+    expect(s.title).toBe("Renamed");
+    expect(s.maxPlayers).toBe(8);
+  });
+
   it("runs pick → media → showing → answering → reveal → choosing", () => {
     let s = reduce(choosing(), {
       type: "question-data",

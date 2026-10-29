@@ -302,6 +302,11 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   commands; only server events update actual scores or restrictions.
   `play/host/` separates host-control presentation from phase/store derivation;
   keep the player-management key and conditional next-round dialog lifetime.
+  `HostGameRules` reuses the create-game `GameRulesFields` and sends only the
+  changed fields (`gameRulesDraft.ts`); it is keyed by the server's settings so
+  a `game-settings-change` resets the draft. `HostGameInfo` edits the title,
+  seats and a private game's password over `PATCH /v1/games/{gameId}`; the
+  room's `games` `changed` event updates `session.title`/`maxPlayers`.
   `play/menu/` holds shortcut and preference views; settings subscriptions stay
   in `GameMenu`. `ui/Toggle` is shared with settings and package compression,
   so these controls do not import the settings route component.
