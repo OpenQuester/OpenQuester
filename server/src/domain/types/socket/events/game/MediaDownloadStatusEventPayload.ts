@@ -10,4 +10,6 @@ export interface MediaDownloadStatusBroadcastData {
   contentPlan?: QuestionContentPlanDTO | null;
   /** Position on this payload's timer (ms) when the buzzer opens; 0 = open now */
   buzzerOpensAtMs?: number | null;
+  /** Final media readiness timed out and the game continued. */
+  timedOut?: boolean;
 }

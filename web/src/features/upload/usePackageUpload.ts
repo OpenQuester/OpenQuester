@@ -6,6 +6,8 @@ import type { TFunction } from "i18next";
 import { ApiError } from "@/api/client";
 import { useSettings } from "@/features/settings/settingsStore";
 import type { ParsedPackage } from "./types";
+import { PointImageDimensionsError } from "./pointImageDimensions";
+import { FinalMediaDurationError } from "./finalMediaDuration";
 import {
   RESUME_OTHER_SOURCE,
   contentHash,
@@ -141,6 +143,9 @@ export function usePackageUpload() {
 }
 
 function uploadError(err: unknown, t: TFunction): string {
+  if (err instanceof FinalMediaDurationError)
+    return t(`upload.finalMedia.${err.reason}`, { name: err.fileName });
+  if (err instanceof PointImageDimensionsError) return t("upload.pointImageDimensions");
   if (err instanceof ApiError) {
     if (err.status === 403) return t("upload.guestTitle");
     if (err.status === 401) return t("upload.signInFirst");

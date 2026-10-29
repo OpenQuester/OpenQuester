@@ -97,7 +97,9 @@ export function toContent(
   const question = (q: Json, i: number, where: string): UploadQuestion => {
     let type = (str(q.type) ?? "simple") as UploadQuestion["type"];
     // The server needs 2–8 options; fewer can still be played as a regular question.
-    if (type === "choice" && list(q.answers).length < 2) {
+    const incompleteChoice = type === "choice" && list(q.answers).length < 2;
+    const hasChoiceKey = q.correctChoiceNeedsRepair === true || q.correctChoiceOrder != null;
+    if (incompleteChoice && !hasChoiceKey) {
       warnings.push({ code: "choiceAsSimple", where });
       type = "simple";
     }
@@ -107,6 +109,8 @@ export function toContent(
       price: num(q.price),
       text: str(q.text),
       textOrder: num(q.textOrder),
+      ...(q.textItems != null ? { textItems: readTextItems(q.textItems) } : {}),
+      ...(q.pointImageOrder != null ? { pointImageOrder: num(q.pointImageOrder) ?? -1 } : {}),
       questionComment: str(q.questionComment),
       answerText: str(q.answerText),
       answerHint: str(q.answerHint),
@@ -143,6 +147,22 @@ export function toContent(
       out.answers = list(q.answers).flatMap((a, j) =>
         isObject(a) ? [{ order: num(a.order) ?? j, text: str(a.text), file: fileRef(a.file) }] : [],
       );
+      if (q.correctChoiceNeedsRepair === true || q.correctChoiceOrder != null) {
+        const order = q.correctChoiceOrder;
+        if (
+          incompleteChoice ||
+          q.correctChoiceNeedsRepair === true ||
+          typeof order !== "number" ||
+          !Number.isInteger(order) ||
+          order < 0 ||
+          out.answers.filter((a) => a.order === order).length !== 1
+        ) {
+          out.correctChoiceNeedsRepair = true;
+          warnings.push({ code: "choiceCorrectUnresolved", where });
+        } else {
+          out.correctChoiceOrder = order;
+        }
+      }
     }
     return out;
   };
@@ -190,6 +210,16 @@ export function toContent(
   };
 }
 
+function readTextItems(value: unknown): { order: number; text: string }[] {
+  if (!Array.isArray(value)) throw new Error("badContentJson");
+  return value.map((item) => {
+    if (!isObject(item) || typeof item.order !== "number" || typeof item.text !== "string") {
+      throw new Error("badContentJson");
+    }
+    return { order: item.order, text: item.text };
+  });
+}
+
 function answerCheckOf(q: Json): Partial<UploadQuestion> {
   const deviation = num(q.answerDeviation);
   if (q.answerType === "number") {
@@ -197,10 +227,13 @@ function answerCheckOf(q: Json): Partial<UploadQuestion> {
   }
   const p = q.answerPoint;
   if (q.answerType === "point") {
+    const aspect = isObject(p) ? num(p.imageAspectRatio) : null;
     return {
       answerType: "point",
       answerPoint:
-        isObject(p) && num(p.x) != null && num(p.y) != null ? { x: num(p.x)!, y: num(p.y)! } : null,
+        isObject(p) && num(p.x) != null && num(p.y) != null
+          ? { x: num(p.x)!, y: num(p.y)!, ...(aspect != null ? { imageAspectRatio: aspect } : {}) }
+          : null,
       answerDeviation: deviation,
     };
   }

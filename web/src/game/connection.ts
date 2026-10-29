@@ -158,7 +158,10 @@ export class GameConnection {
       return;
     }
     const store = useGameStore.getState();
-    store.setPending(name);
+    store.setPending(
+      name,
+      name === "all-play-answer" || name === "final-answer-submit" ? this.myId : undefined,
+    );
     window.clearTimeout(this.pendingTimer);
     this.pendingTimer = window.setTimeout(
       () => {
@@ -257,6 +260,7 @@ export class GameConnection {
         }
         break;
       case "question-data":
+      case "final-question-data":
       case "game-data":
         this.maybeReportMedia();
         break;
@@ -337,17 +341,33 @@ export class GameConnection {
     if (!session || session.state.questionState !== "media_downloading") return;
     const meNow = session.players.find((p) => p.meta.id === this.myId);
     if (meNow?.role !== "player") return;
+    const preparation =
+      session.state.currentRound?.type === "final"
+        ? session.state.finalRoundData?.questionData?.mediaPreparationId
+        : undefined;
+    if (session.state.currentRound?.type === "final" && !preparation) return;
     const controller = new AbortController();
     this.mediaAbort = controller;
-    void preloadQuestionMedia(session.state.currentQuestion, controller.signal).then(
-      (mediaDurations) => {
-        if (mediaDurations === null) return;
-        if (controller.signal.aborted || this.closed) return;
-        const latest = useGameStore.getState().session;
-        if (latest?.state.questionState !== "media_downloading") return;
-        if (mediaDurations.length > 0) this.socket?.emit("media-downloaded", { mediaDurations });
-        else this.socket?.emit("media-downloaded");
-      },
-    );
+    const question = preparation
+      ? session.state.finalRoundData?.questionData?.question
+      : session.state.currentQuestion;
+    void preloadQuestionMedia(question, controller.signal).then((mediaDurations) => {
+      if (mediaDurations === null) return;
+      if (controller.signal.aborted || this.closed) return;
+      const latest = useGameStore.getState().session;
+      if (latest?.state.questionState !== "media_downloading") return;
+      if (
+        preparation &&
+        latest.state.finalRoundData?.questionData?.mediaPreparationId !== preparation
+      )
+        return;
+      if (preparation)
+        this.socket?.emit("media-downloaded", {
+          mediaPreparationId: preparation,
+          ...(mediaDurations.length ? { mediaDurations } : {}),
+        });
+      else if (mediaDurations.length > 0) this.socket?.emit("media-downloaded", { mediaDurations });
+      else this.socket?.emit("media-downloaded");
+    });
   }
 }

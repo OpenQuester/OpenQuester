@@ -15,6 +15,8 @@ export function Dialog({
   side = "center",
   closeLabel = "Close",
   wide = false,
+  fullScreen = false,
+  restoreFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -24,6 +26,8 @@ export function Dialog({
   side?: "center" | "right";
   closeLabel?: string;
   wide?: boolean;
+  fullScreen?: boolean;
+  restoreFocus?: () => HTMLElement | null;
 }) {
   const opener = useRef<HTMLElement | null>(null);
   return (
@@ -37,7 +41,9 @@ export function Dialog({
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            if (opener.current?.isConnected) opener.current.focus();
+            const target = restoreFocus?.();
+            if (target?.isConnected) target.focus();
+            else if (opener.current?.isConnected) opener.current.focus({ preventScroll: true });
           }}
           className={cn(
             dialogStyles.standardSurface,
@@ -47,10 +53,24 @@ export function Dialog({
               "inset-x-0 bottom-0 h-[85dvh] rounded-t-lg sm:inset-y-0 sm:left-auto sm:right-0 sm:h-auto sm:w-[380px] sm:rounded-none sm:rounded-l-lg",
             wide &&
               "h-[90dvh] sm:h-[min(860px,calc(100dvh-48px))] sm:w-[min(1120px,calc(100vw-48px))]",
+            fullScreen &&
+              "h-[96dvh] max-h-[96dvh] sm:h-[calc(100dvh-32px)] sm:max-h-[calc(100dvh-32px)] sm:w-[calc(100vw-32px)]",
           )}
         >
-          <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-            <RD.Title className="m-0 flex-1 font-display text-xl font-extrabold">{title}</RD.Title>
+          <div
+            className={cn(
+              "flex items-center gap-3 border-b border-line px-5",
+              fullScreen ? "py-1" : "py-4",
+            )}
+          >
+            <RD.Title
+              className={cn(
+                "m-0 flex-1 font-display font-extrabold",
+                fullScreen ? "text-base" : "text-xl",
+              )}
+            >
+              {title}
+            </RD.Title>
             <RD.Close aria-label={closeLabel} className={dialogStyles.standardCloseButton}>
               <CloseIcon size={18} />
             </RD.Close>

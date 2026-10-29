@@ -36,7 +36,7 @@ A package should be considered broken when any of these are true:
 - round has no themes
 - theme has no questions
 - question has neither text nor media
-- answer has neither text nor answer media where answer is required
+- answer has neither text, answer media nor a valid numeric target where answer is required
 - media reference is missing/broken
 - media file type is not allowed
 - package contains unsupported SIQ feature without safe fallback
@@ -51,11 +51,20 @@ The web editor and `.oq` reader preserve a selected number/point answer mode
 even when its target is incomplete. Drafts remain editable; critical validation
 blocks publishing instead of silently changing the mode to text.
 
-The web question form edits text answers in one **Correct answers** list, one
-accepted answer per line. It preserves the wire format: the first is
-`answerText`, the rest are `rightAnswers`. Choice questions keep the selected
-correct option plus an **Also accept** list. This UI grouping does not change
-import/export formats or automatic answer-checking rules.
+| Field | Publication rule |
+|---|---|
+| `pointImageOrder` | Must identify exactly one question image. Null/absent keeps the first ordered image. |
+| `answerPoint.imageAspectRatio` | Web publication measures the optimized target image; decode failure blocks publication and preserves the source for retry. Legacy packages keep their old checking until republished. Flutter does not yet preserve this field. |
+| `textItems` | Nonblank text with distinct nonnegative integer orders, separate from main text and files. Null/absent preserves legacy ordering and ties. |
+| Final audio/video `displayTime` | With non-null `textItems`, each duration must be an integer from 1 to 120,000 ms. |
+| `correctChoiceOrder` | An explicit key must identify one choice, including image-only choices. Removing it or importing an invalid key blocks publication until repaired; null/absent retains legacy behavior. |
+
+Text steps/image orders are public; answer coordinates stay private until reveal.
+**Correct answers** stores the first line as `answerText`, others as `rightAnswers`;
+choices keep their selected key plus **Also accept** aliases. Numeric mode keeps
+hidden text lists in the draft/archive but omits them from editor publication and
+preview, using the numeric target instead. Drafts and `.oq` archives retain
+incomplete targets for repair; existing packages and direct uploads are not migrated.
 
 ## Warning validations
 

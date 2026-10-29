@@ -17,6 +17,7 @@ export interface AnswerSubmittedResult {
 export interface AnswerSubmittedBuildResultInput {
   game: Game;
   answerText: string | null;
+  choiceOrder: number | null;
 }
 
 /**
@@ -31,16 +32,24 @@ export class AnswerSubmittedLogic {
     }
   }
 
+  /** Retain the latest regular submission while it awaits a ruling. */
+  public static recordSubmission(
+    game: Game,
+    answerText: string | null,
+    choiceOrder: number | null = null
+  ): void {
+    game.gameState.submittedAnswer = answerText ?? null;
+    game.gameState.submittedChoiceOrder = choiceOrder;
+  }
+
   /**
    * Build the result for answer submitted with broadcasts.
    */
-  public static buildResult(
-    input: AnswerSubmittedBuildResultInput
-  ): AnswerSubmittedResult {
-    const { game, answerText } = input;
-
+  public static buildResult(input: AnswerSubmittedBuildResultInput): AnswerSubmittedResult {
+    const { game, answerText, choiceOrder } = input;
     const broadcastData: AnswerSubmittedBroadcastData = {
       answerText,
+      ...(choiceOrder === null ? {} : { choiceOrder })
     };
 
     const broadcasts: SocketEventBroadcast[] = [
@@ -48,8 +57,8 @@ export class AnswerSubmittedLogic {
         event: SocketIOGameEvents.ANSWER_SUBMITTED,
         data: broadcastData,
         target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<AnswerSubmittedBroadcastData>,
+        gameId: game.id
+      } satisfies SocketEventBroadcast<AnswerSubmittedBroadcastData>
     ];
 
     return { data: broadcastData, broadcasts, game };

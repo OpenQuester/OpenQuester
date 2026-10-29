@@ -23,9 +23,22 @@ export function textDuration(text: string): number {
   return Math.min(TEXT_MAX_MS, Math.max(TEXT_MIN_MS, text.length * TEXT_MS_PER_CHAR));
 }
 
+/** A legacy text step without an explicit order is the main question text. */
+export function isMainTextItem(
+  item: { kind: string; order: number },
+  textOrder?: number | null,
+  textItems?: readonly unknown[] | null,
+): boolean {
+  return (
+    item.kind === "text" &&
+    (textOrder != null ? item.order === textOrder : textOrder === undefined && !textItems?.length)
+  );
+}
+
 export function buildContentPlan(source: {
   text?: string | null;
   textOrder?: number | null;
+  textItems?: readonly { order: number; text: string }[] | null;
   files?: QuestionFile[] | null;
 }): ContentPlan | null {
   type Entry = { item: ContentPlanItem; wait: boolean; key: number; tie: number };
@@ -60,6 +73,21 @@ export function buildContentPlan(source: {
       },
       wait: true,
       key: source.textOrder,
+      tie: 0,
+    });
+  }
+  for (const item of source.textItems ?? []) {
+    const value = item.text.trim();
+    if (!value) continue;
+    entries.push({
+      item: {
+        kind: "text",
+        order: item.order,
+        placement: "screen",
+        durationMs: textDuration(value),
+      },
+      wait: true,
+      key: item.order,
       tie: 0,
     });
   }

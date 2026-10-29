@@ -47,6 +47,38 @@ describe("AnswerCheckLogic", () => {
     expect(AnswerCheckLogic.check(q, "not a point")).toBeNull();
   });
 
+  it.each([
+    [2, "0.600,0.500", "0.500,0.700", "0.500,0.701"],
+    [0.5, "0.600,0.500", "0.500,0.550", "0.500,0.551"],
+    [1, "0.600,0.500", "0.500,0.600", "0.500,0.601"]
+  ])("checks circular image-space boundaries for aspect %s", (aspect, onX, onY, outside) => {
+    const q = question({ answerType: AnswerType.POINT, answerPoint: { x: 0.5, y: 0.5, imageAspectRatio: aspect }, answerDeviation: 0.1 });
+    expect(AnswerCheckLogic.check(q, "0.500,0.500")).toBe(true);
+    expect(AnswerCheckLogic.check(q, onX)).toBe(true);
+    expect(AnswerCheckLogic.check(q, onY)).toBe(true);
+    expect(AnswerCheckLogic.check(q, outside)).toBe(false);
+  });
+
+  it("keeps legacy point geometry and handles default, zero, and invalid metadata", () => {
+    const legacy = question({ answerType: AnswerType.POINT, answerPoint: { x: 0.5, y: 0.5 }, answerDeviation: 0.1 });
+    expect(AnswerCheckLogic.check(legacy, "0.500,0.650")).toBe(false);
+    const point = question({ answerType: AnswerType.POINT, answerPoint: { x: 0.5, y: 0.5, imageAspectRatio: 2 } });
+    expect(AnswerCheckLogic.check(point, "0.500,0.600")).toBe(true);
+    expect(AnswerCheckLogic.check({ ...point, answerDeviation: 0 }, "0.500,0.500")).toBe(true);
+    expect(AnswerCheckLogic.check({ ...point, answerDeviation: 0 }, "0.501,0.500")).toBe(false);
+    expect(AnswerCheckLogic.check({ ...point, answerPoint: { x: 0.5, y: 0.5, imageAspectRatio: 0 } }, "0.500,0.500")).toBeNull();
+  });
+
+  it("matches zero-radius targets at the wire precision without moving imported targets", () => {
+    const q = question({ answerType: AnswerType.POINT, answerPoint: { x: 0.1234, y: 0.5678, imageAspectRatio: 0.5 }, answerDeviation: 0 });
+    expect(AnswerCheckLogic.check(q, "0.123,0.568")).toBe(true);
+    expect(AnswerCheckLogic.check(q, "0.1234,0.5678")).toBe(true);
+    expect(AnswerCheckLogic.check(q, "0.124,0.568")).toBe(false);
+    const edge = { ...q, answerPoint: { x: 0, y: 1, imageAspectRatio: 2 } };
+    expect(AnswerCheckLogic.check(edge, "0.000,1.000")).toBe(true);
+    expect(AnswerCheckLogic.check(edge, "0.001,1.000")).toBe(false);
+  });
+
   it("leaves text answers to the showman", () => {
     expect(AnswerCheckLogic.check(question({ answerText: "Paris" }), "Paris")).toBeNull();
   });

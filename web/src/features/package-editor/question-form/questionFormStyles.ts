@@ -7,19 +7,16 @@ export const questionFormStyles = {
   dialog: `${dialogStyles.surface} inset-0 md:inset-auto md:top-1/2 md:left-1/2 md:h-[min(860px,calc(100dvh-48px))] md:w-[min(1120px,calc(100vw-48px))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-lg md:border`,
   header: `flex items-center gap-3 border-b border-line ${formSpacing}`,
   footer: `${layoutStyles.spacedActions} border-t border-line ${formSpacing}`,
-  body: "grid min-h-0 flex-1 grid-cols-1 content-start overflow-y-auto lg:grid-cols-[minmax(0,1fr)_340px] lg:content-stretch lg:overflow-hidden",
-  content: `${layoutStyles.contentColumn} gap-5 px-4 py-5 sm:px-6 lg:overflow-y-auto`,
-  settings:
-    "flex min-w-0 flex-col gap-5 px-4 pb-5 sm:px-6 lg:overflow-y-auto lg:border-l lg:border-line lg:bg-bg/40 lg:p-5",
-  preview: "hidden flex-col gap-5 lg:flex",
+  body: "min-h-0 flex-1 overflow-y-auto",
+  content: `${layoutStyles.contentColumn} gap-5 px-4 py-5 sm:px-6`,
   title: "m-0 font-display text-xl font-extrabold sm:text-2xl",
   actions: "flex flex-1 justify-end gap-3 sm:flex-none",
   previewLabel: "text-xs font-bold tracking-[0.08em] text-faint uppercase",
   attachment:
-    "flex w-full flex-col gap-2 rounded-sm border border-line bg-surface-2 p-2 sm:w-[220px]",
+    "flex w-full min-w-0 flex-col gap-2 self-start rounded-sm border border-line bg-surface-2 p-2 sm:w-[220px]",
   attachmentTime: "min-h-8 w-14 rounded-[8px] border border-line-strong bg-bg px-2 text-text",
   attachmentRemove:
-    "inline-flex size-9 items-center justify-center rounded-sm text-muted hover:bg-surface-3 hover:text-danger",
+    "inline-flex size-11 shrink-0 items-center justify-center rounded-sm text-muted hover:bg-surface-3 hover:text-danger disabled:opacity-40",
   attachmentHint:
     "flex min-h-12 flex-1 items-center justify-center px-2 text-center text-sm text-faint",
   choiceRemove:

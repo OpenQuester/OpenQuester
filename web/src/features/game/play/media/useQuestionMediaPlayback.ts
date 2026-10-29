@@ -1,10 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useSettings } from "@/features/settings/settingsStore";
+import { GameContext, useGameState } from "../../GameContext";
 
 /** Own one media element's game-controlled playback and local replay/sound state. */
 export function useQuestionMediaPlayback(playing: boolean, positionMs?: () => number) {
-  const volume = useSettings((s) => s.volume);
-  const update = useSettings((s) => s.update);
+  const game = useContext(GameContext);
+  const liveVolume = useSettings((s) => s.volume);
+  const liveUpdate = useSettings((s) => s.update);
+  const localVolume = useGameState((s) => s.previewVolume);
+  const setLocalVolume = useGameState((s) => s.setPreviewVolume);
+  const volume = game?.store ? localVolume : liveVolume;
+  const update = ({ volume }: { volume: number }) => {
+    if (game?.store) setLocalVolume(volume);
+    else liveUpdate({ volume });
+  };
   const ref = useRef<HTMLMediaElement | null>(null);
   // Latest sync position, read when playback (re)starts.
   const positionRef = useRef(positionMs);

@@ -28,7 +28,8 @@ export async function preloadQuestionMedia(
   signal?: AbortSignal,
 ): Promise<MediaDuration[] | null> {
   if (signal?.aborted) return null;
-  const files = (question?.questionFiles ?? []).filter((f) => f.file.link);
+  const files = question?.questionFiles ?? [];
+  if (files.some((f) => !f.file.link)) return null;
   if (files.length === 0) return [];
   const durations: MediaDuration[] = [];
   const controller = new AbortController();

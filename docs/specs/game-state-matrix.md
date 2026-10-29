@@ -43,6 +43,18 @@ Names in code may differ. Use nearby enums/types as the implementation source of
 | Finished | Start/rematch/share/admin actions | See results/rematch/share | See results | “Game already finished” | winner, podium, summary, score deltas |
 | Paused/reconnecting | Resume or wait | Reconnecting/waiting | Reconnecting/waiting | “Game paused”, “Connection lost” | reconnect banner, restored state |
 
+Final questions with non-null `textItems` use a server-provided `contentPlan`:
+eligible players preload files (up to 30 seconds), then watch the sequence before
+answering. Timeout starts playback with a persistent media warning. Pause and
+rejoin preserve progress; reconnecting players preload again. New players and
+spectators do not block readiness. A disconnect during preparation does not
+forfeit an eligible player's answer while its answering window remains open.
+Every committed final bid is settled; an unanswered bid loses at the deadline
+even if its player remains disconnected.
+Null/absent `textItems` preserves legacy behavior. Flutter does not yet support
+the new sequence or preparation acknowledgement, so mixed games may reach the
+timeout. See [package validation](package-validation-spec.md) for duration rules.
+
 ## Required frontend behavior
 
 ### Media: current protocol vs product target
@@ -50,8 +62,9 @@ Names in code may differ. Use nearby enums/types as the implementation source of
 The normal regular-question wire flow is `QUESTION_PICK` → `QUESTION_DATA`
 (links/content and media timer) → client readiness ACKs → `MEDIA_DOWNLOAD_STATUS`
 completion and `SHOWING`. No-file questions use immediate client ACKs. The
-barrier includes active players only, not showman/spectators; a timeout forces
-completion without proving downloads. There is no second data/reveal event.
+barrier waits for connected players who were present at the pick, including
+non-answerers in no-risk questions. Late joiners, showmen and spectators do not
+block it. Timeout forces completion; there is no second data/reveal event.
 
 Content hiding is a product requirement, not a claim about current Flutter.
 The [media coordination reference](../../server/docs/media-download-sync.md)
@@ -107,31 +120,53 @@ When changing gameplay state, make sure:
 - A question ends as soon as nobody can still buzz: every eligible player has
   either answered or passed. A pass after someone else's wrong answer reveals
   the answer immediately instead of waiting for the timer.
+- Simple, choice and hidden-price questions reopen the buzzer with the remaining
+  question time after a wrong answer, skip or answering timeout. A correct answer
+  or no remaining eligible players reveals the answer. Secret, stake and
+  single-player no-risk questions allow only their designated answerer.
 - When the showman picks a stake or secret question, it belongs to the player
   whose turn it was: they make the opening bid or choose the recipient. The
   showman never bids, receives or answers.
 - `start` carries `currentTurnPlayerId`, so every client shows who picks first.
 - The showman's copy of the final question includes the answer for judging.
+- Regular submitted text is public and retained through ruling/reveal/rejoin;
+  oral answers without stored text remain unknown. A new answerer or question
+  clears it. All-play and final answers remain private until review.
+- A wrong choice ruling blocks that option for the rest of the question, even
+  for zero points; a skip does not. Undo restores it, and reconnect preserves the
+  history. Explicit option orders identify selections; ambiguous legacy text or
+  image placeholders cannot identify a rejected option reliably. The correct
+  key stays private until reveal, which includes an image-only correct option
+  when no answer media was authored.
 
 ## Special question rules (SIGame parity)
 
-- **Choice:** a picked option is checked by the server when the question's
-  right answer is exactly one of the options (`ChoiceAnswerLogic`); right
-  scores +price, wrong −price, and the showman does not judge. Otherwise the
-  showman judges as usual. Browser image-only picks send their displayed
-  option number, prefixed with `#` until it differs from every normalized
-  text option, so a numeric text answer cannot be judged in its place.
-  They remain manual rulings. Failed sends unlock the options for retry;
+- **Choice:** an explicit `correctChoiceOrder` or unambiguous text key allows
+  automatic checking (+price/−price); accepted text aliases still count.
+  Ambiguous legacy/image-only answers remain manual. Options appear `showDelay`
+  after the content; false-start mode normally opens the buzzer then too.
+  Failed sends unlock options for retry;
   pending or accepted submissions keep them locked.
-  Options appear `showDelay` after the content, and
-  the buzzer opens then.
 - **Number and point answers** (`answerType`): a typed number is checked
   against `answerNumber` ± `answerDeviation`; a point answer is a click on the
-  question's first picture, sent as `"x,y"` fractions and checked against
+  target picture, sent as `"x,y"` fractions and checked against
   `answerPoint` within `answerDeviation` (a share of the width, 5% by
   default). Right +price, wrong −price, no showman ruling; text that isn't a
   number / point goes to the showman. In "everyone answers" questions these
-  answers are ruled when the review starts.
+  answers are ruled when the review starts. Final points are judged manually;
+  only the showman receives the private target, including after rejoin.
+  `pointImageOrder` selects the image; absent/null selects the first ordered image.
+  With `answerPoint.imageAspectRatio`, distance is `hypot(dx, dy / aspect)`;
+  zero radius compares coordinates at three-decimal wire precision. Legacy
+  metadata-free points keep their original distance calculation until republished.
+  The browser preserves the image frame through input and marks submitted points
+  with player names/results at reveal instead of repeating raw coordinates.
+  Reveal data retains the target image for rejoin; a local selection may be lost.
+  Private coordinates/radius are not exposed before reveal.
+- **Showman instruction:** the web UI places `questionComment` before question
+  content for the showman, including final answer and review phases, and omits
+  it from public answer reveal. This UI visibility does not make the field
+  secret in the current protocol.
 - **Secret, customPrice:** after the transfer, the receiver picks the price
   from `allowedPrices` (`secret-question-price`, 30 s; on timeout the lowest
   price). The question is then shown and answered at that price.

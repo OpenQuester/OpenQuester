@@ -52,6 +52,7 @@ export class Game {
   private _roundsCount: number;
   private _questionsCount: number;
   private readonly _players: Player[];
+  private _mediaEligiblePlayerIds: number[] | null;
   private _gameState: GameStateDTO;
   private _settings: GameSettingsDTO;
 
@@ -69,6 +70,7 @@ export class Game {
     this._roundsCount = data.roundsCount;
     this._questionsCount = data.questionsCount;
     this._players = data.players;
+    this._mediaEligiblePlayerIds = data.mediaEligiblePlayerIds ?? null;
     this._gameState = data.gameState;
     this._settings = GameSettingsLogic.normalize(data.settings);
   }
@@ -176,6 +178,7 @@ export class Game {
 
   public set gameState(gameState: GameStateDTO) {
     this._gameState = gameState;
+    this._mediaEligiblePlayerIds = null;
   }
 
   public get finishedAt() {
@@ -451,6 +454,10 @@ export class Game {
       result: modifiedScoreResult,
       score,
       answerType,
+      answerText: this.gameState.submittedAnswer ?? null,
+      ...(this.gameState.submittedChoiceOrder == null
+        ? {}
+        : { choiceOrder: this.gameState.submittedChoiceOrder }),
       appliedChange: score - previousScore
     };
 
@@ -465,6 +472,8 @@ export class Game {
 
     // Always reset answering player
     this.gameState.answeringPlayer = null;
+    this.gameState.submittedAnswer = null;
+    this.gameState.submittedChoiceOrder = null;
     this.setQuestionState(nextState);
 
     return playerAnswerResult;
@@ -478,11 +487,14 @@ export class Game {
     this.gameState.timer = null;
     this.gameState.answeredPlayers = null;
     this.gameState.answeringPlayer = null;
+    this.gameState.submittedAnswer = null;
+    this.gameState.submittedChoiceOrder = null;
     this.gameState.skippedPlayers = null;
     this.gameState.answerShowData = null;
     this.gameState.secretQuestionData = null;
     this.gameState.stakeQuestionData = null;
     this.gameState.questionEligiblePlayers = null;
+    this._mediaEligiblePlayerIds = null;
     this.gameState.questionContentPlan = null;
     this.gameState.mediaDurations = null;
     this.gameState.allPlay = null;
@@ -615,6 +627,16 @@ export class Game {
   public captureQuestionEligiblePlayers(): void {
     const inGamePlayers = this.getInGamePlayers();
     this.gameState.questionEligiblePlayers = inGamePlayers.map((p) => p.meta.id);
+    this._mediaEligiblePlayerIds = [...this.gameState.questionEligiblePlayers];
+  }
+
+  /** Media viewers are captured before special questions narrow answer eligibility. */
+  public isPlayerEligibleForMedia(playerId: number): boolean {
+    return this._mediaEligiblePlayerIds?.includes(playerId) ?? true;
+  }
+
+  public getMediaEligiblePlayerIds(): number[] | null {
+    return this._mediaEligiblePlayerIds;
   }
 
   /**

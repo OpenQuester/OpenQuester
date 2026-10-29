@@ -3,10 +3,12 @@ import { useTranslation } from "react-i18next";
 
 import type { QuestionFile } from "@/game/protocol";
 import type { ContentClock } from "@/game/reducer";
+import { isMainTextItem } from "@/game/contentPlan";
 import { cn } from "@/lib/cn";
 
 import { QuestionMediaItem } from "./media/QuestionMediaItem";
 import { useContentPosition } from "./media/useContentPosition";
+import type { ReactNode } from "react";
 
 /**
  * Plays question or answer content one step at a time, the way the server
@@ -18,13 +20,19 @@ export function ContentStage({
   content,
   files,
   text,
+  textOrder,
+  textItems,
   paused,
+  pointAnswer,
 }: {
   content: ContentClock;
   files: QuestionFile[];
   /** Text shown by a text step (the question text). */
   text?: string | null;
+  textOrder?: number | null;
+  textItems?: readonly { order: number; text: string }[] | null;
   paused: boolean;
+  pointAnswer?: { order: number; view: ReactNode };
 }) {
   const { t } = useTranslation();
   const { position, running, now } = useContentPosition(content, paused);
@@ -33,8 +41,10 @@ export function ContentStage({
     s.items.some((i) => i.placement === "screen"),
   );
   const currentScreenStep = screenSteps.findIndex((s) => s.startMs === position.screenStartMs) + 1;
-  const textShown = position.screen.some((i) => i.kind === "text");
-  const textSequenced = content.plan.steps.some((s) => s.items.some((i) => i.kind === "text"));
+  const isMainText = (item: { kind: string; order: number }) =>
+    isMainTextItem(item, textOrder, textItems);
+  const textShown = position.screen.some(isMainText);
+  const textSequenced = content.plan.steps.some((s) => s.items.some(isMainText));
 
   return (
     <div className="flex w-full flex-col items-center gap-4" data-testid="content-stage">
@@ -67,25 +77,36 @@ export function ContentStage({
         data-testid="content-step"
         data-step={currentScreenStep}
       >
-        {position.screen.map((item) => {
-          if (item.kind === "text") {
-            return text ? (
-              <p key="text" className={questionText} data-testid="question-text">
-                {text}
-              </p>
-            ) : null;
-          }
-          const file = byOrder.get(item.order);
-          if (!file) return null;
-          return (
-            <QuestionMediaItem
-              key={`${item.order}-${file.file.md5}`}
-              file={file}
-              playing={running}
-              positionMs={() => now() - position.screenStartMs}
-            />
-          );
-        })}
+        {pointAnswer &&
+        !position.screen.some((item) => item.kind === "file" && item.order === pointAnswer.order)
+          ? pointAnswer.view
+          : position.screen.map((item) => {
+              if (item.kind === "text") {
+                const value =
+                  textItems?.find((entry) => entry.order === item.order)?.text ??
+                  (isMainText(item) ? text : null);
+                return value ? (
+                  <p
+                    key={`text-${item.order}`}
+                    className={questionText}
+                    data-testid="question-text"
+                  >
+                    {value}
+                  </p>
+                ) : null;
+              }
+              const file = byOrder.get(item.order);
+              if (!file) return null;
+              if (pointAnswer && item.order === pointAnswer.order) return pointAnswer.view;
+              return (
+                <QuestionMediaItem
+                  key={`${item.order}-${file.file.md5}`}
+                  file={file}
+                  playing={running}
+                  positionMs={() => now() - position.screenStartMs}
+                />
+              );
+            })}
       </div>
 
       {position.background.map(({ item, startMs }) => {

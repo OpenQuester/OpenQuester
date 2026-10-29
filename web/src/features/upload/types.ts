@@ -29,12 +29,16 @@ export interface UploadQuestion {
   text?: string | null;
   /** Position of the text among the question files; null keeps it as a caption. */
   textOrder?: number | null;
+  /** Additional text steps in the same order space as question files. */
+  textItems?: { order: number; text: string }[] | null;
   questionComment?: string | null;
   answerText?: string | null;
   answerHint?: string | null;
   answerType?: "text" | "number" | "point" | null;
   answerNumber?: number | null;
-  answerPoint?: { x: number; y: number } | null;
+  answerPoint?: { x: number; y: number; imageAspectRatio?: number } | null;
+  /** Order of the target image; omitted on legacy questions. */
+  pointImageOrder?: number | null;
   answerDeviation?: number | null;
   /** Other answers that count as right; the showman sees them. */
   rightAnswers?: string[] | null;
@@ -53,6 +57,10 @@ export interface UploadQuestion {
   priceMultiplier?: number;
   showDelay?: number;
   answers?: { order: number; text: string | null; file: FileRef | null }[];
+  /** Correct option order; missing or null means legacy. */
+  correctChoiceOrder?: number | null;
+  /** Editor archive only: the author must repair an invalid or removed selection. */
+  correctChoiceNeedsRepair?: boolean;
 }
 
 export interface UploadTheme {
@@ -107,6 +115,7 @@ export interface ImportWarning {
     | "emptyQuestion"
     | "noAnswer"
     | "choiceAsSimple"
+    | "choiceCorrectUnresolved"
     | "unknownType"
     | "finalAsSimple"
     | "extraFinalQuestions"

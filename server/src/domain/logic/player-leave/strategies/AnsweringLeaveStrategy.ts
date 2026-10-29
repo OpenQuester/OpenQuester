@@ -15,11 +15,15 @@ import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRoute
 import {
   type TransitionContext,
   type TransitionResources,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { DataMutationConverter } from "domain/types/action/DataMutation";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { AnswerResultTransitionPayload } from "domain/types/socket/transition/answering";
+import { timerKey } from "domain/constants/redisKeys";
+import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
+import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 
 @singleton()
 export class AnsweringLeaveStrategy implements IPlayerLeaveStrategy {
@@ -30,9 +34,7 @@ export class AnsweringLeaveStrategy implements IPlayerLeaveStrategy {
     return AnsweringPlayerLeaveLogic.validate(game, userId).isEligible;
   }
 
-  public async execute(
-    input: PlayerLeaveStrategyInput
-  ): Promise<PlayerLeaveStrategyResult> {
+  public async execute(input: PlayerLeaveStrategyInput): Promise<PlayerLeaveStrategyResult> {
     const { game, userId, transitionResources } = input;
     const validation = AnsweringPlayerLeaveLogic.validate(game, userId);
 
@@ -40,11 +42,7 @@ export class AnsweringLeaveStrategy implements IPlayerLeaveStrategy {
       return this._handleFinalRoundAnsweringLeave(game, userId);
     }
 
-    return this._handleRegularRoundAnsweringLeave(
-      game,
-      userId,
-      transitionResources
-    );
+    return this._handleRegularRoundAnsweringLeave(game, userId, transitionResources);
   }
 
   private async _handleFinalRoundAnsweringLeave(
@@ -75,6 +73,27 @@ export class AnsweringLeaveStrategy implements IPlayerLeaveStrategy {
       result.mutations.push(
         ...DataMutationConverter.mutationFromTimerMutations(transitionResult.timerMutations)
       );
+    } else if (
+      game.gameState.questionState === QuestionState.ANSWERING &&
+      FinalRoundStateManager.areAllAnswersSubmitted(game)
+    ) {
+      // All remaining answers are auto-losses, but the content still needs to
+      // finish. End the existing timer at that boundary, including after pause.
+      const contentMs = game.gameState.finalRoundData?.questionData?.contentPlan?.totalMs;
+      const timer = game.gameState.timer;
+      if (contentMs && timer && timer.durationMs > contentMs) {
+        timer.durationMs = contentMs;
+        if (!game.gameState.isPaused) {
+          const remaining = Math.max(1, contentMs - GamePauseLogic.calculateElapsedTime(timer));
+          result.mutations.push(
+            DataMutationConverter.setTimerMutation(
+              timerKey(game.id),
+              JSON.stringify(timer),
+              remaining
+            )
+          );
+        }
+      }
     }
 
     return result;
@@ -103,9 +122,7 @@ export class AnsweringLeaveStrategy implements IPlayerLeaveStrategy {
       transitionContext.resources = transitionResources;
     }
 
-    const transitionResult = await this.phaseTransitionRouter.tryTransition(
-      transitionContext
-    );
+    const transitionResult = await this.phaseTransitionRouter.tryTransition(transitionContext);
 
     const result: PlayerLeaveStrategyResult = {
       mutations: [],

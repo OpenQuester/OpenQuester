@@ -1,3 +1,4 @@
+import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { singleton } from "tsyringe";
 
 import { Game } from "domain/entities/game/Game";
@@ -9,7 +10,7 @@ import {
   IPlayerLeaveStrategy,
   PlayerLeaveStrategyInput,
   PlayerLeaveStrategyResult,
-  StakeBiddingLeaveInput,
+  StakeBiddingLeaveInput
 } from "domain/logic/player-leave/strategies/IPlayerLeaveStrategy";
 import { MediaDownloadLeaveStrategy } from "domain/logic/player-leave/strategies/MediaDownloadLeaveStrategy";
 import { StakeBiddingLeaveStrategy } from "domain/logic/player-leave/strategies/StakeBiddingLeaveStrategy";
@@ -22,7 +23,7 @@ export enum PlayerLeaveReason {
   DISCONNECT = "disconnect",
   LEAVE = "leave",
   KICK = "kick",
-  BAN = "ban",
+  BAN = "ban"
 }
 
 export interface PlayerLeaveOptions {
@@ -56,7 +57,7 @@ export class PlayerLeaveOrchestrator {
       this.answeringStrategy,
       this.turnPlayerStrategy,
       this.mediaDownloadStrategy,
-      this.everyoneAnswersStrategy,
+      this.everyoneAnswersStrategy
     ];
     this.afterRemovalStrategies = [this.mediaDownloadStrategy, this.everyoneAnswersStrategy];
   }
@@ -68,19 +69,28 @@ export class PlayerLeaveOrchestrator {
   ): Promise<PlayerLeaveStrategyResult> {
     const result: PlayerLeaveStrategyResult = {
       mutations: [],
-      broadcasts: [],
+      broadcasts: []
     };
     const strategyInput: PlayerLeaveStrategyInput = {
       game,
       userId,
       keepsSeat: options.reason === PlayerLeaveReason.DISCONNECT,
       stakeBidding: options.stakeBidding,
-      transitionResources: options.transitionResources,
+      transitionResources: options.transitionResources
     };
 
     // Execute strategies BEFORE removing player
     for (const strategy of this.strategies) {
       if (this.afterRemovalStrategies.includes(strategy)) {
+        continue;
+      }
+
+      // A disconnected finalist can rejoin before answering starts without losing the bid.
+      if (
+        strategy === this.answeringStrategy &&
+        options.reason === PlayerLeaveReason.DISCONNECT &&
+        TransitionGuards.isFinalRoundMediaDownloading(game)
+      ) {
         continue;
       }
 
@@ -116,12 +126,12 @@ export class PlayerLeaveOrchestrator {
         result.broadcasts.push({
           event: SocketIOGameEvents.PLAYER_KICKED,
           data: { playerId: userId } satisfies PlayerKickBroadcastData,
-          room: game.id,
+          room: game.id
         });
         result.broadcasts.push({
           event: SocketIOGameEvents.LEAVE,
           data: { user: userId } satisfies GameLeaveEventPayload,
-          room: game.id,
+          room: game.id
         });
         break;
 
@@ -135,7 +145,7 @@ export class PlayerLeaveOrchestrator {
         result.broadcasts.push({
           event: SocketIOGameEvents.LEAVE,
           data: { user: userId } satisfies GameLeaveEventPayload,
-          room: game.id,
+          room: game.id
         });
         break;
     }
@@ -150,13 +160,13 @@ export class PlayerLeaveOrchestrator {
   ): Promise<PlayerLeaveStrategyResult> {
     const result: PlayerLeaveStrategyResult = {
       mutations: [],
-      broadcasts: [],
+      broadcasts: []
     };
     const strategyInput: PlayerLeaveStrategyInput = {
       game,
       userId,
       stakeBidding: options.stakeBidding,
-      transitionResources: options.transitionResources,
+      transitionResources: options.transitionResources
     };
 
     for (const strategy of this.strategies) {

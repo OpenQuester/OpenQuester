@@ -44,6 +44,11 @@ export const CheckIcon = (p: { size?: number }) => (
     <path d="M5 12l5 5L20 7" />
   </Icon>
 );
+export const SaveIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M5 3h12l4 4v14H3V3h2zM7 3v6h9V3M7 21v-8h10v8" />
+  </Icon>
+);
 export const CopyIcon = (p: { size?: number }) => (
   <Icon {...p}>
     <rect x="9" y="9" width="11" height="11" rx="2" />
@@ -103,6 +108,11 @@ export const VolumeIcon = (p: { size?: number }) => (
 export const VolumeOffIcon = (p: { size?: number }) => (
   <Icon {...p}>
     <path d="M11 5L6 9H3v6h3l5 4V5zM16 9l5 6M21 9l-5 6" />
+  </Icon>
+);
+export const FullscreenIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
   </Icon>
 );
 export const EyeIcon = (p: { size?: number }) => (

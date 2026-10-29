@@ -1,9 +1,8 @@
 import { gameBoardStyles } from "./board/gameBoardStyles";
 import { useTranslation } from "react-i18next";
 import { findPlayer, myRole } from "@/game/selectors";
-import { useGameStore } from "@/game/store";
 import { Button } from "@/ui/Button";
-import { useGame, useSession } from "../GameContext";
+import { useGame, useGameState, useSession } from "../GameContext";
 import { BoardThemeRow } from "./board/BoardThemeRow";
 import { useBoardLayout } from "./board/useBoardLayout";
 
@@ -12,8 +11,8 @@ export function GameBoard() {
   const { t } = useTranslation();
   const session = useSession();
   const { myId } = useGame();
-  const boardEdit = useGameStore((s) => s.boardEdit);
-  const setBoardEdit = useGameStore((s) => s.setBoardEdit);
+  const boardEdit = useGameState((s) => s.boardEdit);
+  const setBoardEdit = useGameState((s) => s.setBoardEdit);
   const themes = [...(session.state.currentRound?.themes ?? [])].sort((a, b) => a.order - b.order);
   const picker = findPlayer(session, session.state.currentTurnPlayerId);
   const { ref, columns, stacked, perRow } = useBoardLayout(themes);

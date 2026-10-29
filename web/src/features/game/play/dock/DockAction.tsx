@@ -25,7 +25,7 @@ export function DockInfo({ children }: { children: ReactNode }) {
 /** Render the selected action without re-evaluating role, score or phase rules. */
 export function DockAction({ action }: { action: DockActionDescriptor | null }) {
   const { t } = useTranslation();
-  const { connection } = useGame();
+  const { connection, store } = useGame();
   const [, setSecretTarget] = useSecretTarget();
   if (!action) return null;
   switch (action.kind) {
@@ -39,7 +39,7 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
               {t("dock.showing.unpass")}
             </Button>
           )}
-          {action.nextRound && (
+          {action.nextRound && !store && (
             <SkipRoundButton size="sm" variant="ghost" label={t("dock.choosing.nextRound")} />
           )}
         </div>
@@ -89,7 +89,9 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
                 : action.early
                   ? t("dock.showing.waitButton")
                   : t("dock.showing.buzz")}
-              <kbd className="hidden font-mono text-sm md:inline">{t("keys.space")}</kbd>
+              {!action.early && !action.answering && (
+                <kbd className="hidden font-mono text-sm md:inline">{t("keys.space")}</kbd>
+              )}
             </Button>
             {action.canPass && (
               <Button
@@ -108,6 +110,21 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
               {t("dock.showing.earlyHint")}
             </p>
           )}
+        </div>
+      );
+    case "judge-wait":
+      return (
+        <div className={actionStack}>
+          <DockInfo>{action.message}</DockInfo>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={action.pending}
+            onClick={() => connection.emit("answer-result", { answerType: "skip", scoreResult: 0 })}
+            data-testid="judge-skip"
+          >
+            {t("judge.skipZero")}
+          </Button>
         </div>
       );
     case "judge":
@@ -186,6 +203,7 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
         </Button>
       );
     case "home":
+      if (store) return <DockInfo>{t("editor.playtest.finished")}</DockInfo>;
       return (
         <Link to="/" className={actionDockStyles.backHome} data-testid="back-to-games">
           {t("dock.finished.back")}
@@ -230,9 +248,10 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
     case "bid":
       return (
         <BidControls
-          min={action.min}
-          max={action.max}
+          range={action.range}
           allIn={action.allIn}
+          pending={action.pending}
+          unavailable={action.unavailable}
           onBid={(amount) => {
             switch (action.event) {
               case "stake-bid-submit":
@@ -247,12 +266,12 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
             }
           }}
           onAllIn={
-            action.event === "stake-bid-submit"
+            action.event === "stake-bid-submit" && action.allIn != null
               ? () => connection.emit("stake-bid-submit", { bidType: "all-in", bidAmount: null })
               : undefined
           }
           onPass={
-            action.event === "stake-bid-submit"
+            action.event === "stake-bid-submit" && action.pass
               ? () => connection.emit("stake-bid-submit", { bidType: "pass", bidAmount: null })
               : undefined
           }

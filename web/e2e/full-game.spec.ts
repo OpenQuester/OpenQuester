@@ -102,7 +102,7 @@ test.describe("full game", () => {
     await shot(alice.page, "09-answering-player-phone");
     await host.page.keyboard.press("c");
     await expectPhase(all, "Answer");
-    await expect(dockStatus(bob.page)).toHaveText("Alice was right · +100");
+    await expect(dockStatus(bob.page)).toHaveText("Alice answers correctly · +100");
     await expect(sam.page.getByTestId("answer-reveal")).toContainText("Paris");
     await shot(bob.page, "10-reveal-tablet");
     await expect.poll(() => chipScore(sam.page, "Alice")).toBe("100");

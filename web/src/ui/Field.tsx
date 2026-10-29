@@ -12,8 +12,21 @@ export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLIn
   },
 );
 
-export function Select({ className, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cn(fieldBase, "pr-8", className ?? "w-full")} {...rest} />;
+export function Select({
+  className,
+  multiple,
+  size,
+  ...rest
+}: SelectHTMLAttributes<HTMLSelectElement>) {
+  const dropdown = !multiple && (size == null || size <= 1);
+  return (
+    <select
+      className={cn(fieldBase, dropdown && "select-arrow pr-12", className ?? "w-full")}
+      multiple={multiple}
+      size={size}
+      {...rest}
+    />
+  );
 }
 
 export function Label({

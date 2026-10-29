@@ -12,7 +12,7 @@ import { validatePackage, type PackageValidationIssue } from "../validatePackage
 type Confirm = { kind: "theme" | "round"; id: string; name: string; questions: number };
 
 /** Coordinates navigation, package actions and dialogs for one editor store. */
-export function usePackageEditorShell() {
+export function usePackageEditorShell(inspectorFits = true) {
   const { t } = useTranslation();
   const store = usePackageEditorStore();
   const readOnly = usePackageEditor((s) => s.readOnly);
@@ -24,7 +24,8 @@ export function usePackageEditorShell() {
   const select = usePackageEditor((s) => s.select);
   const selectRound = usePackageEditor((s) => s.selectRound);
   const edit = usePackageEditor((s) => s.edit);
-  const wide = useMediaQuery("(min-width: 1280px)");
+  const wideScreen = useMediaQuery("(min-width: 1280px)");
+  const wide = wideScreen && inspectorFits;
 
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null);
   const [pricesRound, setPricesRound] = useState<string | null>(null);

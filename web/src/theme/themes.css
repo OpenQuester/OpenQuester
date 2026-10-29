@@ -35,6 +35,10 @@
   --oq-primary: #4a55d9;
   --oq-on-primary: #ffffff;
 
+  /* Discord sign-in uses the provider's brand colors in every theme. */
+  --oq-discord: #5865f2;
+  --oq-on-discord: #ffffff;
+
   --oq-success: #7ce883;
   --oq-success-surface: #203a2a;
   --oq-success-border: #2f6b3a;

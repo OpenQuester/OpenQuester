@@ -23,6 +23,7 @@ export type DockAction =
       canPass: boolean;
     }
   | { kind: "judge"; value: number; wrong: number; pending: boolean }
+  | { kind: "judge-wait"; pending: boolean; message: string }
   | {
       kind: "answer";
       mode: "choice" | "point" | "number" | "text";
@@ -36,9 +37,11 @@ export type DockAction =
   | {
       kind: "bid";
       event: "stake-bid-submit" | "final-bid-submit" | "all-play-stake";
-      min: number;
-      max: number;
+      range: { min: number; max: number } | null;
       allIn: number | null;
+      pass?: boolean;
+      pending: boolean;
+      unavailable?: string;
     }
   | { kind: "timed-answer"; event?: "all-play-answer"; numeric?: boolean };
 
@@ -55,4 +58,6 @@ export interface ActionDockContext {
   reason: (reason: DisabledReason) => string;
   buzzer: BuzzerTiming;
   secretTarget: number | null;
+  finalContentPlaying?: boolean;
+  pointImageReady?: boolean;
 }

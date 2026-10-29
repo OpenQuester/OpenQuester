@@ -1,9 +1,19 @@
 import { layoutStyles } from "@/ui/layoutStyles";
-import type { FinalAnswer } from "@/game/protocol";
+import type { FinalAnswer, Question } from "@/game/protocol";
+import { parsePointAnswer } from "@/game/pointAnswer";
+import { pointImage } from "@/lib/pointImage";
 import { cn } from "@/lib/cn";
 import { useTranslation } from "react-i18next";
 
-import { finalBid, finalPlayers, findPlayer, myRole, remainingFinalThemes } from "@/game/selectors";
+import {
+  finalBid,
+  finalPlayers,
+  findPlayer,
+  isEligible,
+  myRole,
+  pointPicture,
+  remainingFinalThemes,
+} from "@/game/selectors";
 import { formatScore, formatSigned } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
 
@@ -11,18 +21,38 @@ import { useGame, useSession } from "../GameContext";
 import { AnswerReviewActions, ReviewedCorrectAnswer } from "./stages/AnswerReview";
 import { stageStyles } from "./stages/stageStyles";
 import { QuestionMedia } from "./QuestionMedia";
+import { ShowmanInstruction } from "./question/ShowmanInstruction";
+import { PointAnswer } from "./question/PointAnswer";
+import { PointPicker } from "./PointPicker";
+import { ContentStage } from "./ContentStage";
+import { useFinalContent } from "./useFinalContent";
+import type { ContentClock } from "@/game/reducer";
+import type { ReactNode } from "react";
 
 /** Players take turns removing themes; the last one left is the final question. */
 export function FinalThemesStage() {
   const { t } = useTranslation();
   const session = useSession();
-  const { connection, myId } = useGame();
+  const { connection, myId, protectedFinalThemeId } = useGame();
   const s = session.state;
   const eliminated = new Set(s.finalRoundData?.eliminatedThemes ?? []);
   const role = myRole(session, myId);
   const myTurn = s.currentTurnPlayerId === myId;
   const canRemove = (myTurn || role === "showman") && !s.isPaused;
   const remaining = remainingFinalThemes(session).length;
+  function themeLabel(name: string, protectedTheme: boolean, out: boolean) {
+    if (protectedTheme) return t("editor.playtest.targetTheme", { name });
+    if (out) return t("final.themeRemoved", { name });
+    if (canRemove) return t("final.removeTheme", { name });
+    return name;
+  }
+  function themeStatus(protectedTheme: boolean, out: boolean) {
+    if (protectedTheme && remaining > 1) return t("editor.playtest.keepTheme");
+    if (out) return t("final.removed");
+    if (canRemove && remaining > 1) return t("final.remove");
+    if (remaining <= 1) return t("final.finalTheme");
+    return "";
+  }
 
   return (
     <section className={stageStyles.promptLayout} aria-labelledby="final-themes-h">
@@ -33,7 +63,8 @@ export function FinalThemesStage() {
       <ul className={stageStyles.finalThemes}>
         {(s.currentRound?.themes ?? []).map((theme) => {
           const out = eliminated.has(theme.id);
-          const disabled = out || !canRemove || remaining <= 1;
+          const protectedTheme = theme.id === protectedFinalThemeId;
+          const disabled = out || protectedTheme || !canRemove || remaining <= 1;
           return (
             <li key={theme.id}>
               <button
@@ -49,13 +80,8 @@ export function FinalThemesStage() {
                     "border-accent-line bg-surface-2 text-text hover:border-accent",
                   !out && disabled && "cursor-default border-line-strong bg-surface-2 text-text",
                 )}
-                aria-label={
-                  out
-                    ? t("final.themeRemoved", { name: theme.name })
-                    : canRemove
-                      ? t("final.removeTheme", { name: theme.name })
-                      : theme.name
-                }
+                aria-label={themeLabel(theme.name, protectedTheme, out)}
+                title={protectedTheme ? themeLabel(theme.name, true, out) : undefined}
               >
                 <span className="text-lg font-semibold [overflow-wrap:anywhere]">{theme.name}</span>
                 <span
@@ -64,13 +90,7 @@ export function FinalThemesStage() {
                     out ? "text-muted" : canRemove ? "text-accent-strong" : "text-muted",
                   )}
                 >
-                  {out
-                    ? t("final.removed")
-                    : canRemove && remaining > 1
-                      ? t("final.remove")
-                      : remaining <= 1
-                        ? t("final.finalTheme")
-                        : ""}
+                  {themeStatus(protectedTheme, out)}
                 </span>
               </button>
             </li>
@@ -93,7 +113,19 @@ function ThemeLine() {
   );
 }
 
-function FinalStatuses({ mode }: { mode: "bids" | "answers" }) {
+function finalStatusKey(mode: "bids" | "answers", done: boolean, contentPlaying: boolean) {
+  if (mode === "bids") return done ? "final.bidPlaced" : "final.bidding";
+  if (done) return "final.answered";
+  return contentPlaying ? "stake.waiting" : "final.typing";
+}
+
+function FinalStatuses({
+  mode,
+  contentPlaying = false,
+}: {
+  mode: "bids" | "answers";
+  contentPlaying?: boolean;
+}) {
   const { t } = useTranslation();
   const session = useSession();
   const { myId } = useGame();
@@ -107,15 +139,8 @@ function FinalStatuses({ mode }: { mode: "bids" | "answers" }) {
         const label = p.meta.id === myId ? t("common.youCap") : p.meta.username;
         return (
           <li key={p.meta.id}>
-            <Badge tone={done ? "success" : "accent"}>
-              {label} ·{" "}
-              {mode === "bids"
-                ? done
-                  ? t("final.bidPlaced")
-                  : t("final.bidding")
-                : done
-                  ? t("final.answered")
-                  : t("final.typing")}
+            <Badge tone={done ? "success" : contentPlaying ? "neutral" : "accent"}>
+              {label} · {t(finalStatusKey(mode, done, contentPlaying))}
             </Badge>
           </li>
         );
@@ -138,20 +163,93 @@ export function FinalBidStage() {
 export function FinalAnswerStage() {
   const { t } = useTranslation();
   const session = useSession();
+  const { myId } = useGame();
   const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
-  const hasMedia = (q?.questionFiles?.length ?? 0) > 0;
+  const { content, playing: contentPlaying } = useFinalContent(session);
+  const picture = pointPicture(q);
+  const picking =
+    picture &&
+    !contentPlaying &&
+    myRole(session, myId) === "player" &&
+    isEligible(session, myId) &&
+    finalBid(session, myId) != null;
   return (
     <section className={stageStyles.finalQuestion}>
       <ThemeLine />
-      {/* Final questions skip the regular stage, so their media is shown here */}
-      {hasMedia && <QuestionMedia files={q!.questionFiles!} playing={!session.state.isPaused} />}
-      {(q?.text || !hasMedia) && (
+      {session.state.finalRoundData?.questionData?.mediaPreparationTimedOut && (
+        <p role="alert" className="m-0 text-center text-sm text-accent-strong">
+          {t("final.mediaTimedOut")}
+        </p>
+      )}
+      {myRole(session, myId) === "showman" && <ShowmanInstruction comment={q?.questionComment} />}
+      <FinalQuestionContent
+        question={q}
+        content={content}
+        picture={picking ? picture : null}
+        paused={session.state.isPaused}
+        myId={myId}
+      />
+      <FinalStatuses mode="answers" contentPlaying={contentPlaying} />
+    </section>
+  );
+}
+
+/** The final shows a timeline when present, or all legacy media together. */
+function FinalQuestionContent({
+  question: q,
+  content,
+  picture,
+  paused,
+  myId,
+}: {
+  question: Question | null | undefined;
+  content: ContentClock | null;
+  picture: string | null;
+  paused: boolean;
+  myId: number;
+}) {
+  const { t } = useTranslation();
+  const files = q?.questionFiles ?? [];
+  const hasMedia = files.length > 0;
+  const target = pointImage(files, q?.pointImageOrder);
+  const showCaption =
+    (!content || q?.textOrder == null) && (!!q?.text || (!hasMedia && !q?.textItems?.length));
+  let media: ReactNode = null;
+  if (content && picture) {
+    media = <PointAnswer key={myId} src={picture} />;
+  } else if (content) {
+    media = (
+      <ContentStage
+        content={content}
+        files={files}
+        text={q?.text}
+        textOrder={q?.textOrder}
+        textItems={q?.textItems}
+        paused={paused}
+      />
+    );
+  } else if (hasMedia) {
+    media = (
+      <QuestionMedia
+        files={files}
+        playing={!paused}
+        replacePointImage={
+          picture && target
+            ? { file: target, view: <PointAnswer key={myId} src={picture} /> }
+            : undefined
+        }
+      />
+    );
+  }
+  return (
+    <>
+      {media}
+      {showCaption && (
         <p className={stageStyles.finalQuestionText} data-testid="question-text">
           {q?.text || t("question.noContent")}
         </p>
       )}
-      <FinalStatuses mode="answers" />
-    </section>
+    </>
   );
 }
 
@@ -168,6 +266,7 @@ export function FinalReviewStage() {
     <section className={stageStyles.reviewLayout}>
       <div className={stageStyles.questionColumn}>
         <ThemeLine />
+        {isShowman && <ShowmanInstruction comment={q?.questionComment} />}
         <p className={stageStyles.reviewQuestion}>{q?.text}</p>
         {(reveal || (isShowman && q?.answerText)) && (
           <ReviewedCorrectAnswer answer={reveal ?? q?.answerText} />
@@ -175,14 +274,20 @@ export function FinalReviewStage() {
       </div>
       <ul className={stageStyles.answerList} aria-label={t("final.answers")}>
         {(final?.answers ?? []).map((a) => (
-          <FinalReviewAnswer key={a.id} answer={a} />
+          <FinalReviewAnswer key={a.id} answer={a} question={isShowman ? q : undefined} />
         ))}
       </ul>
     </section>
   );
 }
 
-function FinalReviewAnswer({ answer }: { answer: FinalAnswer }) {
+function FinalReviewAnswer({
+  answer,
+  question,
+}: {
+  answer: FinalAnswer;
+  question?: Question | null;
+}) {
   const { t } = useTranslation();
   const session = useSession();
   const { connection, myId } = useGame();
@@ -191,6 +296,10 @@ function FinalReviewAnswer({ answer }: { answer: FinalAnswer }) {
   const p = findPlayer(session, answer.playerId);
   const bid = finalBid(session, answer.playerId) ?? 0;
   const pending = answer.isCorrect == null && !answer.autoLoss;
+  const picture = pointPicture(question);
+  const picked = answer.answer ? parsePointAnswer(answer.answer) : null;
+  const pointReview =
+    isShowman && question?.answerType === "point" && question.answerPoint && picture;
   return (
     <li
       className={cn(
@@ -199,7 +308,7 @@ function FinalReviewAnswer({ answer }: { answer: FinalAnswer }) {
       )}
       data-testid="final-answer"
     >
-      <div className={layoutStyles.summaryColumn}>
+      <div className={cn(layoutStyles.summaryColumn, pointReview && "basis-full")}>
         <span className="text-sm text-muted">
           {p?.meta.username} · {t("final.bid")}{" "}
           <b className="font-mono text-text">{formatScore(bid)}</b>
@@ -207,30 +316,62 @@ function FinalReviewAnswer({ answer }: { answer: FinalAnswer }) {
         <span className="text-lg [overflow-wrap:anywhere]">
           {answer.answer ? `“${answer.answer}”` : t("final.noAnswer")}
         </span>
-      </div>
-      {pending ? (
-        isShowman ? (
-          <AnswerReviewActions
-            correct={formatSigned(bid)}
-            wrong={formatSigned(-bid)}
-            onReview={(isCorrect) =>
-              connection.emit("final-answer-review", { answerId: answer.id, isCorrect })
-            }
+        {pointReview && (
+          <PointPicker
+            src={picture}
+            target={question.answerPoint}
+            radius={question.answerDeviation}
+            picked={picked}
           />
-        ) : (
-          <span className="text-sm font-semibold text-accent-strong">{t("final.judging")}</span>
-        )
-      ) : (
-        <span
-          className={cn("text-sm font-semibold", answer.isCorrect ? "text-success" : "text-danger")}
-        >
-          {answer.autoLoss
-            ? t("final.autoLoss", { points: formatSigned(-bid) })
-            : answer.isCorrect
-              ? `${t("judge.correct")} · ${formatSigned(bid)}`
-              : `${t("judge.wrong")} · ${formatSigned(-bid)}`}
-        </span>
-      )}
+        )}
+      </div>
+      <FinalReviewOutcome
+        answer={answer}
+        bid={bid}
+        pending={pending}
+        isShowman={isShowman}
+        onReview={(isCorrect) =>
+          connection.emit("final-answer-review", { answerId: answer.id, isCorrect })
+        }
+      />
     </li>
+  );
+}
+
+function FinalReviewOutcome({
+  answer,
+  bid,
+  pending,
+  isShowman,
+  onReview,
+}: {
+  answer: FinalAnswer;
+  bid: number;
+  pending: boolean;
+  isShowman: boolean;
+  onReview: (isCorrect: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  if (pending && isShowman) {
+    return (
+      <AnswerReviewActions
+        correct={formatSigned(bid)}
+        wrong={formatSigned(-bid)}
+        onReview={onReview}
+      />
+    );
+  }
+  if (pending) {
+    return <span className="text-sm font-semibold text-accent-strong">{t("final.judging")}</span>;
+  }
+  const outcome = answer.autoLoss
+    ? t("final.autoLoss", { points: formatSigned(-bid) })
+    : `${t(answer.isCorrect ? "judge.correct" : "judge.wrong")} · ${formatSigned(answer.isCorrect ? bid : -bid)}`;
+  return (
+    <span
+      className={cn("text-sm font-semibold", answer.isCorrect ? "text-success" : "text-danger")}
+    >
+      {outcome}
+    </span>
   );
 }

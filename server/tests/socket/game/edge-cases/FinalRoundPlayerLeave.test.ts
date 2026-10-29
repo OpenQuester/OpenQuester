@@ -121,7 +121,7 @@ describe("Final Round Player Leave", () => {
   });
 
   describe("Bidding Phase", () => {
-    it("should auto-bid 1 when player leaves during bidding phase and remove from answerers list", async () => {
+    it("auto-bids and settles the stake when a player leaves during bidding", async () => {
       await suite.scenario(async (scenario) => {
         const setup = await utils.setupFinalRoundGame({
           playersCount: 3,
@@ -211,6 +211,10 @@ describe("Final Round Player Leave", () => {
         // All 3 players have bids > 0 (800, 600, 1) so all need to answer
         expect(playersWhoShouldAnswer).toContain(leavePlayerId);
         expect(playersWhoShouldAnswer).toHaveLength(3);
+        expect(game.players.find((player) => player.meta.id === leavePlayerId)?.score).toBe(999);
+        expect(gameState.finalRoundData?.answers).toContainEqual(
+          expect.objectContaining({ playerId: leavePlayerId, autoLoss: true, isCorrect: false })
+        );
       });
     });
 

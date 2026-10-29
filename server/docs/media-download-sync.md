@@ -20,13 +20,16 @@ in [OpenAPI](../../openapi/schema.json).
 | Pick | Client → server `QUESTION_PICK` | Input `{ questionId }`; existing role/phase validation applies. |
 | Deliver data | Server → game clients `QUESTION_DATA` | Role-filtered question data, including file links, and the media timer. Persisted phase is `MEDIA_DOWNLOADING`; readiness flags are reset. Showman-only answers are not sent to players/spectators. |
 | Partial readiness | Client → server `MEDIA_DOWNLOADED`, then server → game `MEDIA_DOWNLOAD_STATUS` | No application payload is required for the command. Status includes `playerId`, `mediaDownloaded: true`, `allPlayersReady: false`, `timer: null`. The existing media timer remains active. |
-| Last required readiness | Same command/status pair | The last active player's ACK completes readiness, enters `SHOWING`, and supplies the question timer and `contentPlan` in the status. |
-| Timeout | Server → game `MEDIA_DOWNLOAD_STATUS` | Forces active players ready, enters `SHOWING`, and starts the question timer. Status uses `playerId: -1` (`SYSTEM_PLAYER_ID`) and `allPlayersReady: true`; it does not prove successful downloads. |
+| Last required readiness | Same command/status pair | The last eligible, connected player's ACK completes readiness, enters `SHOWING`, and supplies the question timer and `contentPlan` in the status. |
+| Timeout | Server → game `MEDIA_DOWNLOAD_STATUS` | Forces eligible, connected players ready, enters `SHOWING`, and starts the question timer. Status uses `playerId: -1` (`SYSTEM_PLAYER_ID`) and `allPlayersReady: true`; it does not prove successful downloads. |
 
-Only `PlayerRole.PLAYER` participants with `PlayerGameStatus.IN_GAME` belong
-to the readiness barrier. Showman and spectators may report readiness but do
-not block it. Leaving/disconnecting/restriction can change the active set; use
-the existing departure flow rather than inventing additional required roles.
+The barrier waits for connected `PlayerRole.PLAYER` participants captured at
+the question pick, including no-risk viewers who cannot answer. This roster is
+persisted separately from answer eligibility. Late joiners and promoted
+spectators do not join it; an eligible reconnecting player preloads again.
+Legacy games without the stored roster retain the active-player fallback until
+the next pick. Showman/spectator ACKs do not block readiness. The departure flow
+updates the connected set and broadcasts completion when nobody remains to wait for.
 
 Regular questions without files still enter the same backend handshake.
 Clients immediately ACK when `questionFiles ?? []` is empty; the backend does
@@ -44,6 +47,7 @@ callback acknowledgement or proof that an action reached the Redis queue.
 - After authentication/player validation, an ACK outside `MEDIA_DOWNLOADING`
   is a successful no-op: no readiness change, save/timer mutation, or status
   broadcast. This includes late ACKs during `SHOWING`.
+- A player outside the captured roster cannot change readiness or report durations.
 - Repeated ACKs while still in the media phase can produce repeated status
   broadcasts. Do not document them as universally deduplicated. ACKs queued
   after completion are covered by the phase guard.

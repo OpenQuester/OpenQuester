@@ -124,6 +124,42 @@ it("keeps an imported package review retryable when creating a local draft fails
   client.clear();
 });
 
+it("requires repair in the editor before uploading an unresolved choice", async () => {
+  const pkg = emptyPackage("Needs repair");
+  pkg.rounds = [
+    { ...newRound("Round"), themes: [newTheme("Theme", [newQuestion(100, { text: "Q" })])] },
+  ];
+  readFile.mockResolvedValue({
+    format: "oq",
+    content: toUpload(pkg),
+    files: new Map(),
+    warnings: [{ code: "choiceCorrectUnresolved", where: "Round › Theme" }],
+  });
+  fetchMock.mockResolvedValue(
+    new Response(JSON.stringify({ data: [], pageInfo: { total: 0 } }), {
+      headers: { "content-type": "application/json" },
+    }),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  client.setQueryData(["me"], { id: 1, username: "Author", isGuest: false });
+  client.setQueryData(["auth-settings"], { oauthProviders: [] });
+  const view = render(
+    <QueryClientProvider client={client}>
+      <UploadPackagePage />
+    </QueryClientProvider>,
+  );
+  await userEvent.upload(
+    view.container.querySelector<HTMLInputElement>("input[type=file]")!,
+    new File(["archive"], "repair.oq"),
+  );
+  expect(await screen.findByText(/correct option needs repair/i)).toBeVisible();
+  expect(screen.getByRole("button", { name: /^upload/i })).toBeDisabled();
+  expect(screen.getByTestId("upload-edit")).toBeEnabled();
+  client.clear();
+});
+
 it.each([
   ["upload", false],
   ["upload", true],

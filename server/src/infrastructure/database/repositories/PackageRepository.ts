@@ -356,11 +356,13 @@ export class PackageRepository {
               isHidden: questionData.isHidden,
               text: questionData.text,
               textOrder: questionData.textOrder,
+              textItems: questionData.textItems,
               answerHint: questionData.answerHint,
               answerText: questionData.answerText,
               answerType: questionData.answerType,
               answerNumber: questionData.answerNumber,
               answerPoint: questionData.answerPoint,
+              pointImageOrder: questionData.pointImageOrder,
               answerDeviation: questionData.answerDeviation,
               rightAnswers: questionData.rightAnswers,
               wrongAnswers: questionData.wrongAnswers,
@@ -374,6 +376,7 @@ export class PackageRepository {
               transferType: questionData.transferType,
               priceMultiplier: questionData.priceMultiplier,
               showDelay: questionData.showDelay,
+              correctChoiceOrder: questionData.correctChoiceOrder,
               showAnswerDuration: questionData.showAnswerDuration
             });
             questionsToSave.push(question);

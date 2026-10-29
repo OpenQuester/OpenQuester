@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BUZZ_PENDING_TIMEOUT_MS, GameConnection } from "./connection";
-import { ALICE, BOB, player, question, snapshot } from "./fixtures";
+import { ALICE, BOB, player, question, round, snapshot, timer } from "./fixtures";
 import type { FileType, QuestionFile } from "./protocol";
 import { useGameStore } from "./store";
 
@@ -99,6 +99,100 @@ describe("answer submission retries", () => {
 });
 
 describe("question media readiness", () => {
+  it.each(["regular", "final"])(
+    "does not acknowledge %s media with a missing URL",
+    async (kind) => {
+      const missing = { ...file("image"), file: { ...file("image").file, link: null } };
+      if (kind === "regular") receiveQuestion([missing]);
+      else {
+        const q = question(100, { questionFiles: [missing] });
+        listeners.get("game-data")?.(
+          snapshot({
+            currentRound: round("final"),
+            questionState: "media_downloading",
+            finalRoundData: {
+              phase: "answering",
+              bids: {},
+              answers: [],
+              turnOrder: [ALICE],
+              eliminatedThemes: [],
+              questionData: {
+                themeId: 10,
+                themeName: "Final",
+                question: q,
+                mediaPreparationId: "missing",
+              },
+            },
+          }),
+        );
+      }
+      await vi.advanceTimersByTimeAsync(0);
+      expect(socket.emit).not.toHaveBeenCalled();
+    },
+  );
+  it("preloads a final question and acknowledges only its current preparation", async () => {
+    listeners.get("game-data")?.(
+      snapshot({
+        currentRound: round("final"),
+        questionState: "bidding",
+        finalRoundData: {
+          phase: "bidding",
+          bids: {},
+          answers: [],
+          turnOrder: [ALICE],
+          eliminatedThemes: [],
+        },
+      }),
+    );
+    const data = (id: string) => ({
+      questionData: {
+        themeId: 10,
+        themeName: "Final",
+        question: question(100, { questionFiles: [file("image", id)] }),
+        mediaPreparationId: id,
+      },
+      timer: timer(30_000),
+    });
+    listeners.get("final-question-data")?.(data("old"));
+    const old = images[0]!;
+    listeners.get("final-question-data")?.(data("new"));
+    old.dispatchEvent(new Event("load"));
+    images[1]!.dispatchEvent(new Event("load"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(socket.emit).toHaveBeenCalledExactlyOnceWith("media-downloaded", {
+      mediaPreparationId: "new",
+    });
+  });
+
+  it("preloads a final preparation received in a rejoin snapshot", async () => {
+    const q = question(100, { questionFiles: [file("image")] });
+    listeners.get("game-data")?.(
+      snapshot({
+        currentRound: round("final"),
+        questionState: "media_downloading",
+        currentQuestion: null,
+        finalRoundData: {
+          phase: "answering",
+          bids: {},
+          answers: [],
+          turnOrder: [ALICE],
+          eliminatedThemes: [],
+          questionData: {
+            themeId: 10,
+            themeName: "Final",
+            question: q,
+            mediaPreparationId: "rejoin",
+          },
+        },
+      }),
+    );
+    images[0]!.dispatchEvent(new Event("load"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(socket.emit).toHaveBeenCalledExactlyOnceWith("media-downloaded", {
+      mediaPreparationId: "rejoin",
+    });
+  });
+
   it.each(["close", "timeout", "replace", "disconnect"])(
     "releases stalled media on %s without acknowledging it",
     async (ending) => {

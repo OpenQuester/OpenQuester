@@ -23,6 +23,8 @@ export interface PackageQuestionDTO {
    * screen as a caption for the whole question instead of its own step.
    */
   textOrder?: number | null;
+  /** Additional text steps, each identified by its unique content order. */
+  textItems?: QuestionTextItemDTO[] | null;
   answerHint?: string | null;
   answerText?: string | null;
   /** How the answer is given and checked; text when missing */
@@ -31,6 +33,8 @@ export interface PackageQuestionDTO {
   answerNumber?: number | null;
   /** Point answers: the right spot as fractions of the picture; showman only */
   answerPoint?: AnswerPointDTO | null;
+  /** Public file order for point answers; absent selects the first question image. */
+  pointImageOrder?: number | null;
   /**
    * How far off still counts: an absolute amount for numbers, a fraction of
    * the picture's width for points (0.05 when missing)
@@ -57,10 +61,19 @@ export interface PackageQuestionDTO {
   priceMultiplier?: number | null; // NoRisk question
   showDelay?: number | null; // Choice question
   answers?: PackageAnswerDTO[] | null; // Choice question
+  /** Correct choice's order, when authored; private until reveal. */
+  correctChoiceOrder?: number | null;
+}
+
+export interface QuestionTextItemDTO {
+  order: number;
+  text: string;
 }
 
 /** A spot on a picture, as fractions (0–1) of its width and height */
 export interface AnswerPointDTO {
   x: number;
   y: number;
+  /** Oriented first image width divided by height; absent on legacy packages. */
+  imageAspectRatio?: number;
 }

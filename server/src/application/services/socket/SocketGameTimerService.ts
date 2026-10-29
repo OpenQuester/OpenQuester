@@ -8,6 +8,8 @@ import { GamePauseLogic, GamePauseResult } from "domain/logic/timer/GamePauseLog
 import { type TimerMutation } from "domain/types/action/ActionExecutionContext";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 
 /**
  * Service for managing game timer pause/resume operations.
@@ -107,6 +109,18 @@ export class SocketGameTimerService {
     const mutations: TimerMutation[] = [];
 
     if (savedTimer) {
+      const finalData = game.gameState.finalRoundData;
+      const contentMs = finalData?.questionData?.contentPlan?.totalMs;
+      // If everyone has already answered, finish when the final content ends.
+      if (
+        questionState === QuestionState.ANSWERING &&
+        finalData?.phase === FinalRoundPhase.ANSWERING &&
+        contentMs != null &&
+        FinalRoundStateManager.areAllAnswersSubmitted(game)
+      ) {
+        // Redis needs a positive TTL, even when the content has no blocking duration.
+        savedTimer.durationMs = Math.max(1, Math.min(savedTimer.durationMs, contentMs));
+      }
       // Clear saved timer
       mutations.push({
         op: "delete",

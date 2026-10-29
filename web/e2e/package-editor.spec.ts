@@ -131,6 +131,8 @@ test.describe("package editor", () => {
     const preview = page.getByTestId("question-hover");
     await expect(preview).toContainText("Which colour is this?");
     await expect(preview).toContainText("Amber");
+    await expect(preview.locator("button, input, video, audio, a")).toHaveCount(0);
+    await expect(preview).toContainText("Select the question for the full preview.");
   });
 
   test("a question drags into a theme of another round, and undo puts it back", async ({

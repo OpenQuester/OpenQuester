@@ -15,12 +15,11 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
-import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
+import { isBuzzerQuestionType, SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 import {
   AnsweringToShowingCtx,
   AnsweringToShowingMutationData
 } from "domain/types/socket/transition/answering";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
 
 /**
  * Handles transition from ANSWERING to SHOWING phase in regular rounds.
@@ -65,7 +64,7 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
       return (
         answerType !== AnswerResultType.CORRECT && // skip or wrong
         !game.willAllPlayersBeExhausted() && // someone still can answer after this
-        payload?.questionType === PackageQuestionType.SIMPLE // Secret and stake always go to SHOWING_ANSWER
+        isBuzzerQuestionType(payload?.questionType) // Single-answerer questions go to SHOWING_ANSWER
       );
     }
 
@@ -120,6 +119,18 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
     if (savedTimer) {
       // Update timer with resumedAt timestamp to indicate it was restored
       GamePauseLogic.updateTimerForResume(savedTimer);
+
+      // Move the saved showing timer back to the active key so its remaining
+      // time produces the normal Redis expiration event.
+      timerMutations.push(
+        { op: "delete", key: timerKey(game.id, QuestionState.SHOWING) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(savedTimer),
+          pxTtl: GamePauseLogic.calculateRemainingTime(savedTimer)
+        }
+      );
 
       // Set the restored timer on game state
       game.gameState.timer = savedTimer;

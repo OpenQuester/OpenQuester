@@ -5,7 +5,16 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { timeAgo } from "@/lib/format";
 import { Button } from "@/ui/Button";
-import { BackIcon, DownloadIcon, RedoIcon, SearchIcon, UndoIcon, UploadIcon } from "@/ui/icons";
+import {
+  BackIcon,
+  DownloadIcon,
+  EditIcon,
+  RedoIcon,
+  SaveIcon,
+  SearchIcon,
+  UndoIcon,
+  UploadIcon,
+} from "@/ui/icons";
 import { InlineText } from "../InlineText";
 import { usePackageEditor } from "../packageEditorStore";
 import type { PackageValidationReport } from "../validatePackage";
@@ -58,19 +67,20 @@ export function PackageEditorHeader({
           placeholder={t("editor.details.namePlaceholder")}
           className="font-display text-xl font-extrabold"
         />
-        <button
-          type="button"
-          onClick={onDetails}
-          className={packageEditorShellStyles.packageSubtitle}
-          data-testid="save-status"
-        >
+        <span className={packageEditorShellStyles.packageSubtitle} data-testid="save-status">
+          <SaveIcon size={14} />
           {savedAt
             ? t("editor.savedAt", { when: timeAgo(new Date(savedAt).toISOString()) })
             : t("editor.notSaved")}
           {mediaBytes > 0 && ` · ${formatMediaBytes(mediaBytes)}`}
-        </button>
+        </span>
       </div>
       <div className={packageEditorShellStyles.historyActions}>
+        <div className="lg:hidden">
+          <PackageEditorIconButton label={t("editor.outline.details")} onClick={onDetails}>
+            <EditIcon size={18} />
+          </PackageEditorIconButton>
+        </div>
         <PackageEditorIconButton label={t("editor.undo")} onClick={undo} disabled={!canUndo}>
           <UndoIcon size={18} />
         </PackageEditorIconButton>

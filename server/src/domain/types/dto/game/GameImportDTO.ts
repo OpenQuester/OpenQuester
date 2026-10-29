@@ -19,6 +19,8 @@ export interface GameImportDTO {
   roundsCount: number;
   questionsCount: number;
   players: Player[];
+  /** Internal media readiness roster, missing in older games. */
+  mediaEligiblePlayerIds?: number[] | null;
   gameState: GameStateDTO;
   /** Missing on games created before settings existed */
   settings?: GameSettingsDTO | null;

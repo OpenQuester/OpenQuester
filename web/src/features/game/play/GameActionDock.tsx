@@ -3,12 +3,13 @@ import { useTranslation } from "react-i18next";
 import { TimerRing } from "@/ui/TimerRing";
 import { DockAction, DockInfo } from "./dock/DockAction";
 import { useDockPresentation } from "./dock/useDockPresentation";
-import { useSession } from "../GameContext";
+import { useGame, useSession } from "../GameContext";
 
 /** Phase, role-specific action and next step, with the current timer. */
 export function GameActionDock() {
   const { t } = useTranslation();
   const session = useSession();
+  const { myId } = useGame();
   const { model, phase, paused, offline, fraction, left, ringLabel, ringColor, isShowman } =
     useDockPresentation();
 
@@ -49,7 +50,7 @@ export function GameActionDock() {
             className="m-0 min-w-0 w-full border-0 p-0"
           >
             <DockAction
-              key={`${session.gameId}:${session.state.currentRound?.id}:${session.state.currentQuestion?.id}:${session.state.answeringPlayer}:${model.action?.kind}`}
+              key={`${myId}:${session.gameId}:${session.state.currentRound?.id}:${session.state.currentQuestion?.id}:${session.state.answeringPlayer}:${model.action?.kind}`}
               action={model.action}
             />
           </fieldset>
