@@ -191,8 +191,24 @@ export class SocketActionHooks {
       );
     }
 
-    await this.emitCurrentQuestionDataToJoinedSocket(action, game);
-    await this.emitFinalReviewQuestionToShowman(action, game);
+    const currentId = game.gameState.timer ? game.gameState.currentQuestion?.id : undefined;
+    const final = game.gameState.finalRoundData;
+    const joinedPlayer = game.getPlayer(action.playerId, { fetchDisconnected: false });
+    const finalId =
+      final?.phase === FinalRoundPhase.REVIEWING && joinedPlayer?.role === PlayerRole.SHOWMAN
+        ? final.questionData?.question?.id
+        : undefined;
+    // Reuse the lookup when both events refer to the same question.
+    const currentQuestion = currentId
+      ? ((await this.packageStore.getQuestionWithTheme(game.id, currentId))?.question ?? null)
+      : null;
+    const finalQuestion = !finalId
+      ? null
+      : finalId === currentId
+        ? currentQuestion
+        : ((await this.packageStore.getQuestionWithTheme(game.id, finalId))?.question ?? null);
+    this.emitCurrentQuestionDataToJoinedSocket(action, game, currentQuestion);
+    this.emitFinalReviewQuestionToShowman(action, game, finalQuestion);
 
     if (data.players.length > 1 && currentUserId) {
       await this.userNotificationRoomService.subscribeGameToUserNotifications(
@@ -202,55 +218,45 @@ export class SocketActionHooks {
     }
   }
 
-  private async emitFinalReviewQuestionToShowman(action: GameAction, game: Game): Promise<void> {
+  private emitFinalReviewQuestionToShowman(
+    action: GameAction,
+    game: Game,
+    question: PackageQuestionDTO | null
+  ): void {
     const final = game.gameState.finalRoundData;
-    const joinedPlayer = game.getPlayer(action.playerId, { fetchDisconnected: false });
     const questionData = final?.questionData;
+    const joinedPlayer = game.getPlayer(action.playerId, { fetchDisconnected: false });
     if (
       final?.phase !== FinalRoundPhase.REVIEWING ||
       joinedPlayer?.role !== PlayerRole.SHOWMAN ||
-      !questionData?.question?.id
+      !question ||
+      !questionData
     ) {
       return;
     }
 
-    const full = await this.packageStore.getQuestionWithTheme(game.id, questionData.question.id);
-    if (!full) return;
-
     this.realtimeGateway.publish(
       RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.FINAL_QUESTION_DATA, {
-        questionData: { ...questionData, question: full.question }
+        questionData: { ...questionData, question: question }
       } satisfies FinalQuestionEventData)
     );
   }
 
-  private async emitCurrentQuestionDataToJoinedSocket(
+  private emitCurrentQuestionDataToJoinedSocket(
     action: GameAction,
-    game: Game
-  ): Promise<void> {
-    const currentQuestion = game.gameState.currentQuestion;
+    game: Game,
+    question: PackageQuestionDTO | null
+  ): void {
     const timer = game.gameState.timer;
-
-    if (!currentQuestion?.id || !timer) {
+    if (!question || !timer) {
       return;
     }
 
-    const questionWithTheme = await this.packageStore.getQuestionWithTheme(
-      game.id,
-      currentQuestion.id
-    );
-
-    if (!questionWithTheme) {
-      return;
-    }
-
-    const joinedPlayer = game.getPlayer(action.playerId, {
-      fetchDisconnected: false
-    });
+    const joinedPlayer = game.getPlayer(action.playerId, { fetchDisconnected: false });
     const questionData =
       joinedPlayer?.role === PlayerRole.SHOWMAN
-        ? questionWithTheme.question
-        : GameQuestionMapper.mapToSimpleQuestion(questionWithTheme.question);
+        ? question
+        : GameQuestionMapper.mapToSimpleQuestion(question);
 
     this.realtimeGateway.publish(
       RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.QUESTION_DATA, {

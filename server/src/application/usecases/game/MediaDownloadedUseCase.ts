@@ -38,14 +38,22 @@ export class MediaDownloadedUseCase implements GameActionHandler<
       return { success: true, mutations: [] };
     }
 
+    // A player who joined after the pick cannot affect readiness or report durations.
+    if (
+      currentPlayer.role === PlayerRole.PLAYER &&
+      !game.isPlayerEligibleForMedia(currentPlayer.meta.id)
+    ) {
+      return { success: true, mutations: [] };
+    }
+
     const isFinal = game.gameState.currentRound?.type === PackageRoundType.FINAL;
+    const preparationId = game.gameState.finalRoundData?.questionData?.mediaPreparationId;
     if (
       isFinal &&
       (currentPlayer.role !== PlayerRole.PLAYER ||
         currentPlayer.gameStatus !== PlayerGameStatus.IN_GAME ||
-        !game.gameState.finalRoundData?.questionData?.mediaPreparationId ||
-        ctx.action.payload?.mediaPreparationId !==
-          game.gameState.finalRoundData.questionData.mediaPreparationId)
+        !preparationId ||
+        ctx.action.payload?.mediaPreparationId !== preparationId)
     ) {
       return { success: true, mutations: [] };
     }

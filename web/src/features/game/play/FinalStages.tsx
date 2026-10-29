@@ -1,6 +1,7 @@
 import { layoutStyles } from "@/ui/layoutStyles";
 import type { FinalAnswer, Question } from "@/game/protocol";
 import { parsePointAnswer } from "@/game/pointAnswer";
+import { pointImage } from "@/lib/pointImage";
 import { cn } from "@/lib/cn";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +26,8 @@ import { PointAnswer } from "./question/PointAnswer";
 import { PointPicker } from "./PointPicker";
 import { ContentStage } from "./ContentStage";
 import { useFinalContent } from "./useFinalContent";
+import type { ContentClock } from "@/game/reducer";
+import type { ReactNode } from "react";
 
 /** Players take turns removing themes; the last one left is the final question. */
 export function FinalThemesStage() {
@@ -110,6 +113,12 @@ function ThemeLine() {
   );
 }
 
+function finalStatusKey(mode: "bids" | "answers", done: boolean, contentPlaying: boolean) {
+  if (mode === "bids") return done ? "final.bidPlaced" : "final.bidding";
+  if (done) return "final.answered";
+  return contentPlaying ? "stake.waiting" : "final.typing";
+}
+
 function FinalStatuses({
   mode,
   contentPlaying = false,
@@ -131,16 +140,7 @@ function FinalStatuses({
         return (
           <li key={p.meta.id}>
             <Badge tone={done ? "success" : contentPlaying ? "neutral" : "accent"}>
-              {label} ·{" "}
-              {mode === "bids"
-                ? done
-                  ? t("final.bidPlaced")
-                  : t("final.bidding")
-                : done
-                  ? t("final.answered")
-                  : contentPlaying
-                    ? t("stake.waiting")
-                    : t("final.typing")}
+              {label} · {t(finalStatusKey(mode, done, contentPlaying))}
             </Badge>
           </li>
         );
@@ -166,7 +166,6 @@ export function FinalAnswerStage() {
   const { myId } = useGame();
   const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
   const { content, playing: contentPlaying } = useFinalContent(session);
-  const hasMedia = (q?.questionFiles?.length ?? 0) > 0;
   const picture = pointPicture(q);
   const picking =
     picture &&
@@ -183,34 +182,74 @@ export function FinalAnswerStage() {
         </p>
       )}
       {myRole(session, myId) === "showman" && <ShowmanInstruction comment={q?.questionComment} />}
-      {/* Final questions skip the regular stage, so their media is shown here */}
-      {content && picking ? (
-        <PointAnswer key={myId} src={picture} />
-      ) : content ? (
-        <ContentStage
-          content={content}
-          files={q?.questionFiles ?? []}
-          text={q?.text}
-          textOrder={q?.textOrder}
-          textItems={q?.textItems}
-          paused={session.state.isPaused}
-        />
-      ) : (
-        hasMedia && (
-          <QuestionMedia
-            files={q!.questionFiles!}
-            playing={!session.state.isPaused}
-            replacePointImage={picking ? <PointAnswer key={myId} src={picture} /> : undefined}
-          />
-        )
-      )}
-      {(!content || q?.textOrder == null) && (q?.text || (!hasMedia && !q?.textItems?.length)) && (
+      <FinalQuestionContent
+        question={q}
+        content={content}
+        picture={picking ? picture : null}
+        paused={session.state.isPaused}
+        myId={myId}
+      />
+      <FinalStatuses mode="answers" contentPlaying={contentPlaying} />
+    </section>
+  );
+}
+
+/** The final shows a timeline when present, or all legacy media together. */
+function FinalQuestionContent({
+  question: q,
+  content,
+  picture,
+  paused,
+  myId,
+}: {
+  question: Question | null | undefined;
+  content: ContentClock | null;
+  picture: string | null;
+  paused: boolean;
+  myId: number;
+}) {
+  const { t } = useTranslation();
+  const files = q?.questionFiles ?? [];
+  const hasMedia = files.length > 0;
+  const target = pointImage(files, q?.pointImageOrder);
+  const showCaption =
+    (!content || q?.textOrder == null) && (!!q?.text || (!hasMedia && !q?.textItems?.length));
+  let media: ReactNode = null;
+  if (content && picture) {
+    media = <PointAnswer key={myId} src={picture} />;
+  } else if (content) {
+    media = (
+      <ContentStage
+        content={content}
+        files={files}
+        text={q?.text}
+        textOrder={q?.textOrder}
+        textItems={q?.textItems}
+        paused={paused}
+      />
+    );
+  } else if (hasMedia) {
+    media = (
+      <QuestionMedia
+        files={files}
+        playing={!paused}
+        replacePointImage={
+          picture && target
+            ? { file: target, view: <PointAnswer key={myId} src={picture} /> }
+            : undefined
+        }
+      />
+    );
+  }
+  return (
+    <>
+      {media}
+      {showCaption && (
         <p className={stageStyles.finalQuestionText} data-testid="question-text">
           {q?.text || t("question.noContent")}
         </p>
       )}
-      <FinalStatuses mode="answers" contentPlaying={contentPlaying} />
-    </section>
+    </>
   );
 }
 
@@ -286,29 +325,53 @@ function FinalReviewAnswer({
           />
         )}
       </div>
-      {pending ? (
-        isShowman ? (
-          <AnswerReviewActions
-            correct={formatSigned(bid)}
-            wrong={formatSigned(-bid)}
-            onReview={(isCorrect) =>
-              connection.emit("final-answer-review", { answerId: answer.id, isCorrect })
-            }
-          />
-        ) : (
-          <span className="text-sm font-semibold text-accent-strong">{t("final.judging")}</span>
-        )
-      ) : (
-        <span
-          className={cn("text-sm font-semibold", answer.isCorrect ? "text-success" : "text-danger")}
-        >
-          {answer.autoLoss
-            ? t("final.autoLoss", { points: formatSigned(-bid) })
-            : answer.isCorrect
-              ? `${t("judge.correct")} · ${formatSigned(bid)}`
-              : `${t("judge.wrong")} · ${formatSigned(-bid)}`}
-        </span>
-      )}
+      <FinalReviewOutcome
+        answer={answer}
+        bid={bid}
+        pending={pending}
+        isShowman={isShowman}
+        onReview={(isCorrect) =>
+          connection.emit("final-answer-review", { answerId: answer.id, isCorrect })
+        }
+      />
     </li>
+  );
+}
+
+function FinalReviewOutcome({
+  answer,
+  bid,
+  pending,
+  isShowman,
+  onReview,
+}: {
+  answer: FinalAnswer;
+  bid: number;
+  pending: boolean;
+  isShowman: boolean;
+  onReview: (isCorrect: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  if (pending && isShowman) {
+    return (
+      <AnswerReviewActions
+        correct={formatSigned(bid)}
+        wrong={formatSigned(-bid)}
+        onReview={onReview}
+      />
+    );
+  }
+  if (pending) {
+    return <span className="text-sm font-semibold text-accent-strong">{t("final.judging")}</span>;
+  }
+  const outcome = answer.autoLoss
+    ? t("final.autoLoss", { points: formatSigned(-bid) })
+    : `${t(answer.isCorrect ? "judge.correct" : "judge.wrong")} · ${formatSigned(answer.isCorrect ? bid : -bid)}`;
+  return (
+    <span
+      className={cn("text-sm font-semibold", answer.isCorrect ? "text-success" : "text-danger")}
+    >
+      {outcome}
+    </span>
   );
 }

@@ -265,6 +265,88 @@ const textPosition = (q: UploadQuestion): number | null =>
 const byOrder = <T extends { order: number }>(list: T[]): T[] =>
   [...list].sort((a, b) => a.order - b.order);
 
+/** Decode one question independently of the surrounding round and theme tree. */
+function questionFromUpload(q: UploadQuestion): DraftQuestion {
+  const sourceFiles = byOrder(q.questionFiles ?? []);
+  const questionFiles = toMedia(sourceFiles);
+  const mainTextFirst =
+    q.textItems != null &&
+    (q.textOrder === 0 ||
+      (q.textOrder == null && (!q.text?.trim() || (!sourceFiles.length && !q.textItems.length))));
+  const sourceTextItems = q.textItems?.map((item) => ({ ...item, id: newId() }));
+  const sourceSteps = [
+    ...sourceFiles.map((file) => ({ order: file.order, id: null as string | null })),
+    ...(q.textOrder == null || !q.text?.trim() ? [] : [{ order: q.textOrder, id: null }]),
+    ...(sourceTextItems ?? []).map((item) => ({ order: item.order, id: item.id })),
+  ].sort((a, b) => a.order - b.order);
+  const textItems = sourceTextItems?.map((item) => ({
+    ...item,
+    // A new main-first question retains its empty main slot in the editor,
+    // although that slot is omitted from the exported sequence.
+    order:
+      sourceSteps.findIndex((step) => step.id === item.id) +
+      (mainTextFirst && !q.text?.trim() ? 1 : 0),
+  }));
+  const targets =
+    q.pointImageOrder == null
+      ? []
+      : sourceFiles.flatMap((file, index) =>
+          file.order === q.pointImageOrder && file.file.type === "image" ? [index] : [],
+        );
+  const pointImageId =
+    q.pointImageOrder == null
+      ? undefined
+      : targets.length === 1
+        ? questionFiles[targets[0]!]!.occurrenceId
+        : "";
+  const sourceOptions = byOrder(q.answers ?? []);
+  const options = sourceOptions.map((a) => ({
+    id: newId(),
+    text: a.text ?? "",
+    file: a.file,
+  }));
+  const matches = sourceOptions
+    .map((a, index) => ({ a, index }))
+    .filter(({ a }) => q.correctChoiceOrder != null && a.order === q.correctChoiceOrder);
+  const correctChoiceOptionId =
+    q.correctChoiceNeedsRepair || q.correctChoiceOrder != null
+      ? matches.length === 1 && !q.correctChoiceNeedsRepair
+        ? options[matches[0]!.index]!.id
+        : null
+      : undefined;
+  return newQuestion(q.price, {
+    type: q.type,
+    text: q.text ?? "",
+    textPosition: mainTextFirst ? 0 : textPosition(q),
+    mainTextFirst: mainTextFirst || undefined,
+    textItems,
+    questionFiles,
+    ...(pointImageId === undefined ? {} : { pointImageId }),
+    answerText: q.answerText ?? "",
+    answerFiles: toMedia(q.answerFiles),
+    answerHint: q.answerHint ?? "",
+    answerType: q.answerType ?? "text",
+    answerNumber: q.answerNumber ?? null,
+    answerPoint: q.answerPoint ?? null,
+    answerDeviation: q.answerDeviation ?? null,
+    rightAnswers: q.rightAnswers ?? [],
+    wrongAnswers: q.wrongAnswers ?? [],
+    authors: q.authors ?? [],
+    sources: q.sources ?? [],
+    questionComment: q.questionComment ?? "",
+    answerDelay: q.answerDelay ?? 5000,
+    showAnswerDuration: q.showAnswerDuration,
+    maxPrice: q.maxPrice ?? null,
+    forEveryone: q.subType === "forEveryone",
+    transferType: q.transferType ?? "any",
+    allowedPrices: q.allowedPrices ?? [],
+    priceMultiplier: q.priceMultiplier ?? 2,
+    options,
+    correctChoiceOptionId,
+    showDelay: q.showDelay ?? 0,
+  });
+}
+
 export function fromUpload(c: UploadContent): DraftPackage {
   return {
     title: c.title,
@@ -284,87 +366,7 @@ export function fromUpload(c: UploadContent): DraftPackage {
         id: newId(),
         name: t.name,
         description: t.description ?? "",
-        questions: byOrder(t.questions).map((q) => {
-          const sourceFiles = byOrder(q.questionFiles ?? []);
-          const questionFiles = toMedia(sourceFiles);
-          const mainTextFirst =
-            q.textItems != null &&
-            (q.textOrder === 0 ||
-              (q.textOrder == null &&
-                (!q.text?.trim() || (!sourceFiles.length && !q.textItems.length))));
-          const sourceTextItems = q.textItems?.map((item) => ({ ...item, id: newId() }));
-          const sourceSteps = [
-            ...sourceFiles.map((file) => ({ order: file.order, id: null as string | null })),
-            ...(q.textOrder == null || !q.text?.trim() ? [] : [{ order: q.textOrder, id: null }]),
-            ...(sourceTextItems ?? []).map((item) => ({ order: item.order, id: item.id })),
-          ].sort((a, b) => a.order - b.order);
-          const textItems = sourceTextItems?.map((item) => ({
-            ...item,
-            // A new main-first question retains its empty main slot in the editor,
-            // although that slot is omitted from the exported sequence.
-            order:
-              sourceSteps.findIndex((step) => step.id === item.id) +
-              (mainTextFirst && !q.text?.trim() ? 1 : 0),
-          }));
-          const targets =
-            q.pointImageOrder == null
-              ? []
-              : sourceFiles.flatMap((file, index) =>
-                  file.order === q.pointImageOrder && file.file.type === "image" ? [index] : [],
-                );
-          const pointImageId =
-            q.pointImageOrder == null
-              ? undefined
-              : targets.length === 1
-                ? questionFiles[targets[0]!]!.occurrenceId
-                : "";
-          const sourceOptions = byOrder(q.answers ?? []);
-          const options = sourceOptions.map((a) => ({
-            id: newId(),
-            text: a.text ?? "",
-            file: a.file,
-          }));
-          const matches = sourceOptions
-            .map((a, index) => ({ a, index }))
-            .filter(({ a }) => q.correctChoiceOrder != null && a.order === q.correctChoiceOrder);
-          const correctChoiceOptionId =
-            q.correctChoiceNeedsRepair || q.correctChoiceOrder != null
-              ? matches.length === 1 && !q.correctChoiceNeedsRepair
-                ? options[matches[0]!.index]!.id
-                : null
-              : undefined;
-          return newQuestion(q.price, {
-            type: q.type,
-            text: q.text ?? "",
-            textPosition: mainTextFirst ? 0 : textPosition(q),
-            mainTextFirst: mainTextFirst || undefined,
-            textItems,
-            questionFiles,
-            ...(pointImageId === undefined ? {} : { pointImageId }),
-            answerText: q.answerText ?? "",
-            answerFiles: toMedia(q.answerFiles),
-            answerHint: q.answerHint ?? "",
-            answerType: q.answerType ?? "text",
-            answerNumber: q.answerNumber ?? null,
-            answerPoint: q.answerPoint ?? null,
-            answerDeviation: q.answerDeviation ?? null,
-            rightAnswers: q.rightAnswers ?? [],
-            wrongAnswers: q.wrongAnswers ?? [],
-            authors: q.authors ?? [],
-            sources: q.sources ?? [],
-            questionComment: q.questionComment ?? "",
-            answerDelay: q.answerDelay ?? 5000,
-            showAnswerDuration: q.showAnswerDuration,
-            maxPrice: q.maxPrice ?? null,
-            forEveryone: q.subType === "forEveryone",
-            transferType: q.transferType ?? "any",
-            allowedPrices: q.allowedPrices ?? [],
-            priceMultiplier: q.priceMultiplier ?? 2,
-            options,
-            correctChoiceOptionId,
-            showDelay: q.showDelay ?? 0,
-          });
-        }),
+        questions: byOrder(t.questions).map(questionFromUpload),
       })),
     })),
   };

@@ -1,3 +1,4 @@
+import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -14,7 +15,7 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameValidator } from "domain/validators/GameValidator";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
-import { GamePhase, getGamePhase, TransitionTrigger } from "domain/state-machine/types";
+import { TransitionTrigger } from "domain/state-machine/types";
 import { AnsweringPlayerLeaveLogic } from "domain/logic/player-leave/AnsweringPlayerLeaveLogic";
 
 /**
@@ -55,7 +56,7 @@ export class PlayerRoleChangeUseCase implements GameActionHandler<
     );
 
     const autoLoss =
-      getGamePhase(game) === GamePhase.FINAL_MEDIA_DOWNLOADING &&
+      TransitionGuards.isFinalRoundMediaDownloading(game) &&
       targetPlayer.role === PlayerRole.PLAYER &&
       payload.newRole !== PlayerRole.PLAYER &&
       AnsweringPlayerLeaveLogic.processFinalRoundAutoLoss(game, targetPlayerId);
@@ -76,8 +77,9 @@ export class PlayerRoleChangeUseCase implements GameActionHandler<
 
     const result = PlayerRoleChangeLogic.buildResult({ game, targetPlayer });
 
+    // Removing a waiting finalist can start MEDIA_DOWNLOADING -> FINAL_ANSWERING.
     const transition =
-      getGamePhase(game) === GamePhase.FINAL_MEDIA_DOWNLOADING && !game.gameState.isPaused
+      TransitionGuards.isFinalRoundMediaDownloading(game) && !game.gameState.isPaused
         ? await this.phaseTransitionRouter.tryTransition({
             game,
             trigger: TransitionTrigger.CONDITION_MET,

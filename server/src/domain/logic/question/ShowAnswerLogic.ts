@@ -4,7 +4,7 @@ import {
   SHOW_ANSWER_DURATION_VIDEO
 } from "domain/constants/game";
 import { AnswerType } from "domain/enums/package/AnswerType";
-import { pointImage } from "domain/logic/question/PointImageLogic";
+import { findPointAnswerImage } from "domain/logic/question/PointImageLogic";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
@@ -64,7 +64,7 @@ export class ShowAnswerLogic {
   ): AnswerRevealDetails {
     const image =
       question?.answerType === AnswerType.POINT
-        ? pointImage(question.questionFiles, question.pointImageOrder)
+        ? findPointAnswerImage(question.questionFiles, question.pointImageOrder)
         : undefined;
     const choices =
       question?.type === PackageQuestionType.CHOICE && question.correctChoiceOrder != null

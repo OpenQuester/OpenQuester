@@ -27,7 +27,7 @@ import { User } from "infrastructure/database/models/User";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { withTimeout } from "tests/e2e/harness/TestPromiseUtils";
 import { type EventRecord } from "tests/e2e/scenario/EventJournal";
-import { GameScenario } from "tests/e2e/scenario/GameScenario";
+import { GameScenario, type ScenarioEventCollector } from "tests/e2e/scenario/GameScenario";
 import { type ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
 import { type AcceptedActionProbe } from "tests/socket/game/utils/SocketGameTestEventUtils";
 import {
@@ -478,6 +478,17 @@ export class MediaDownloadFlow {
       `media readiness for actors ${expectations
         .map((expectation) => `"${expectation.actor.label}"`)
         .join(", ")}`
+    );
+  }
+
+  public collectMediaStatuses(
+    actor: ScenarioActor,
+    count: number
+  ): ScenarioEventCollector<MediaDownloadStatusBroadcastData> {
+    return this.scenario.collectEvents<MediaDownloadStatusBroadcastData>(
+      actor.socket,
+      SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+      count
     );
   }
 

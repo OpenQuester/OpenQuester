@@ -149,7 +149,7 @@ it("asks before discarding a fresh point and restores the previous target and ra
   );
   const user = userEvent.setup();
   await user.click(screen.getAllByRole("button", { name: "Remove file" })[1]!);
-  screen.getByTestId("point-picker").focus();
+  act(() => screen.getByTestId("point-picker").focus());
   await user.keyboard("{Enter}");
   const undo = screen.getByRole("button", { name: "Undo media change" });
   await user.click(undo);
@@ -198,7 +198,7 @@ it("keeps a reassigned point without a confirmation when restoring another image
   );
   const user = userEvent.setup();
   await user.click(screen.getAllByRole("button", { name: "Remove file" })[0]!);
-  screen.getByTestId("point-picker").focus();
+  act(() => screen.getByTestId("point-picker").focus());
   await user.keyboard("{Enter}");
   await user.click(screen.getByRole("button", { name: "Undo media change" }));
   expect(confirm).not.toHaveBeenCalled();

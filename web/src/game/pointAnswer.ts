@@ -1,3 +1,7 @@
+/** Encode a selected point in the server's normalized coordinate format. */
+export const pointAnswer = (point: { x: number; y: number }) =>
+  `${point.x.toFixed(3)},${point.y.toFixed(3)}`;
+
 /** Parse the normalized coordinates accepted for point answers. */
 export function parsePointAnswer(answer: string): { x: number; y: number } | null {
   const values = answer

@@ -50,42 +50,21 @@ A package should be considered broken when any of these are true:
 The web editor and `.oq` reader preserve a selected number/point answer mode
 even when its target is incomplete. Drafts remain editable; critical validation
 blocks publishing instead of silently changing the mode to text.
-Before web publication, the target question image is decoded after optional
-optimization to attach its oriented width/height ratio to a point target. A
-decode failure keeps the draft or imported source available for retry and
-prevents the create/replace request. Existing metadata-free packages keep
-their legacy checking until web republication. The optional field is not yet
-generated into the excluded Dart client; a Flutter rewrite can omit it.
 
-`pointImageOrder` optionally identifies exactly one question image by its public
-order; a missing, ambiguous, or non-image explicit reference is rejected. A null
-or absent reference retains the first ordered image for legacy questions.
-`textItems` optionally adds standalone text steps; each item must have nonblank
-text and a distinct nonnegative integer order which does not collide with the
-main `textOrder` or question files. Null/absent `textItems` retains legacy
-ordering, including pre-existing text/file ties. Answer coordinates remain
-private until answer reveal, while the target image order and text steps are
-public question content.
-For final questions with non-null `textItems`, every question audio/video must
-also have an integer `displayTime` between 1 and 120,000 milliseconds; this
-keeps the authoritative final timeline from truncating unknown-length media.
+| Field | Publication rule |
+|---|---|
+| `pointImageOrder` | Must identify exactly one question image. Null/absent keeps the first ordered image. |
+| `answerPoint.imageAspectRatio` | Web publication measures the optimized target image; decode failure blocks publication and preserves the source for retry. Legacy packages keep their old checking until republished. Flutter does not yet preserve this field. |
+| `textItems` | Nonblank text with distinct nonnegative integer orders, separate from main text and files. Null/absent preserves legacy ordering and ties. |
+| Final audio/video `displayTime` | With non-null `textItems`, each duration must be an integer from 1 to 120,000 ms. |
+| `correctChoiceOrder` | An explicit key must identify one choice, including image-only choices. Removing it or importing an invalid key blocks publication until repaired; null/absent retains legacy behavior. |
 
-The web question form edits text answers in one **Correct answers** list, one
-accepted answer per line. The first is `answerText`, the rest are
-`rightAnswers`. Choice questions keep the selected correct option plus an
-**Also accept** list. An explicit choice selection follows the option's draft
-identity through edits and is published as its unique `correctChoiceOrder`, so
-an image-only option can be correct without invented text. Existing packages
-without this key keep their legacy text behavior. Removing an explicitly
-selected option or importing an invalid key leaves the draft editable but
-blocks publication until the author selects a replacement. An `.oq` archive
-retains that unresolved state for repair; a missing or null legacy key does
-not imply an error. Numeric mode hides the correct/wrong text lists and treats
-a finite numeric target as an answer. Switching modes retains the hidden values
-in the draft and `.oq` archive. For editor publication and local preview, a
-game-facing copy uses the target as the answer text and omits the hidden text
-aliases. Direct imported-package upload is unchanged; previously published
-packages are not migrated.
+Text steps/image orders are public; answer coordinates stay private until reveal.
+**Correct answers** stores the first line as `answerText`, others as `rightAnswers`;
+choices keep their selected key plus **Also accept** aliases. Numeric mode keeps
+hidden text lists in the draft/archive but omits them from editor publication and
+preview, using the numeric target instead. Drafts and `.oq` archives retain
+incomplete targets for repair; existing packages and direct uploads are not migrated.
 
 ## Warning validations
 

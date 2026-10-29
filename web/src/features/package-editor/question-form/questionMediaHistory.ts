@@ -80,151 +80,162 @@ export function changeChoiceMedia(id: string, file: FileRef | null): MediaChange
   };
 }
 
-/** Restore a single occurrence without replacing other question edits. */
-export function changeMedia(
-  slot: MediaSlot,
-  operation:
-    | { kind: "add"; file: DraftMedia }
-    | { kind: "remove"; index: number; occurrenceId?: string }
-    | {
-        kind: "move";
-        occurrenceId: string;
-        destination: number;
-        expectedImage?: string;
-        expectedPoint?: DraftQuestion["answerPoint"];
-      }
-    | {
-        kind: "edit";
-        index: number;
-        original: DraftMedia;
-        file: DraftMedia;
-        geometryChanged: boolean;
-      },
-): MediaChange {
-  return (question) => {
-    const files = question[slot];
-    if (operation.kind === "move") {
-      if (
-        slot === "questionFiles" &&
-        "expectedPoint" in operation &&
-        (question.answerPoint !== operation.expectedPoint ||
-          firstImage(files) !== operation.expectedImage)
-      )
-        return null;
-      const index = files.findIndex((file) => file.occurrenceId === operation.occurrenceId);
-      const next = moveMedia(files, operation.occurrenceId, operation.destination);
-      if (next === files) return null;
-      const before = files[index - 1]?.occurrenceId;
-      const after = files[index + 1]?.occurrenceId;
-      const oldImage = firstImage(files);
-      const changedPointImage =
-        slot === "questionFiles" &&
-        question.pointImageId === undefined &&
-        oldImage !== firstImage(next);
-      const oldPoint = changedPointImage ? question.answerPoint : null;
-      return {
-        question: {
-          ...question,
-          [slot]: next,
-          ...(changedPointImage ? { answerPoint: null } : {}),
-        },
-        undo: (current) => {
-          const list = current[slot];
-          const from = list.findIndex((file) => file.occurrenceId === operation.occurrenceId);
-          if (from < 0) return current;
-          const rest = list.filter((_, i) => i !== from);
-          const nextIndex = after ? rest.findIndex((file) => file.occurrenceId === after) : -1;
-          const previousIndex = before
-            ? rest.findIndex((file) => file.occurrenceId === before)
-            : -1;
-          const at =
-            nextIndex >= 0
-              ? nextIndex
-              : previousIndex >= 0
-                ? previousIndex + 1
-                : Math.min(index, rest.length);
-          rest.splice(at, 0, list[from]!);
-          const changesImage =
-            slot === "questionFiles" &&
-            current.pointImageId === undefined &&
-            firstImage(list) !== firstImage(rest);
-          const point = changesImage
-            ? current.answerPoint == null && firstImage(rest) === oldImage
-              ? oldPoint
-              : null
-            : current.answerPoint;
-          return { ...current, [slot]: rest, answerPoint: point };
-        },
-      };
+type MediaOperation =
+  | { kind: "add"; file: DraftMedia }
+  | { kind: "remove"; index: number; occurrenceId?: string }
+  | {
+      kind: "move";
+      occurrenceId: string;
+      destination: number;
+      expectedImage?: string;
+      expectedPoint?: DraftQuestion["answerPoint"];
     }
-    const index =
-      operation.kind === "add"
-        ? files.length
-        : (operation.kind === "edit" ? operation.original.occurrenceId : operation.occurrenceId)
-          ? files.findIndex(
-              (file) =>
-                file.occurrenceId ===
-                (operation.kind === "edit"
-                  ? operation.original.occurrenceId
-                  : operation.occurrenceId),
-            )
-          : operation.index;
-    const original = files[index];
-    if (operation.kind !== "add" && !original) return null;
-    if (operation.kind === "edit" && original?.md5 !== operation.original.md5) return null;
-    const geometryChanged =
-      slot === "questionFiles" &&
-      (question.pointImageId !== undefined
-        ? files[index]?.occurrenceId === question.pointImageId
-        : files.findIndex((file) => file.type === "image") === index) &&
-      (operation.kind === "remove" || (operation.kind === "edit" && operation.geometryChanged));
-    const oldPoint = geometryChanged ? question.answerPoint : null;
-    const next = [...files];
-    if (operation.kind === "add") next.push(operation.file);
-    else if (operation.kind === "remove") next.splice(index, 1);
-    else next[index] = { ...original!, md5: operation.file.md5, type: operation.file.type };
-    const nextFile = next[index];
-    return {
-      question: { ...question, [slot]: next, ...(geometryChanged ? { answerPoint: null } : {}) },
-      undo: (current) => {
-        const restored = [...current[slot]];
-        if (operation.kind === "remove")
-          restored.splice(Math.min(index, restored.length), 0, original!);
-        else if (operation.kind === "add") {
-          const addedIndex = operation.file.occurrenceId
-            ? restored.findIndex((file) => file.occurrenceId === operation.file.occurrenceId)
-            : index;
-          if (restored[addedIndex]?.md5 !== operation.file.md5) return current;
-          restored.splice(addedIndex, 1);
-        } else {
-          const editedIndex = original!.occurrenceId
-            ? restored.findIndex((file) => file.occurrenceId === original!.occurrenceId)
-            : index;
-          if (restored[editedIndex]?.md5 !== nextFile?.md5) return current;
-          restored[editedIndex] = {
-            ...restored[editedIndex]!,
-            md5: original!.md5,
-            type: original!.type,
-          };
-        }
-        const removedAddedPointImage =
-          slot === "questionFiles" &&
-          operation.kind === "add" &&
-          (current.pointImageId !== undefined
-            ? current.pointImageId === operation.file.occurrenceId
-            : operation.file.occurrenceId
-              ? current[slot].find((file) => file.type === "image")?.occurrenceId ===
-                operation.file.occurrenceId
-              : current[slot].findIndex((file) => file.type === "image") === index);
-        return {
-          ...current,
-          [slot]: restored,
-          ...(geometryChanged && current.pointImageId === question.pointImageId
-            ? { answerPoint: current.answerPoint == null ? oldPoint : null }
-            : {}),
-          ...(removedAddedPointImage ? { answerPoint: null } : {}),
-        };
-      },
+  | {
+      kind: "edit";
+      index: number;
+      original: DraftMedia;
+      file: DraftMedia;
+      geometryChanged: boolean;
     };
+
+/** Restore a single occurrence without replacing other question edits. */
+export function changeMedia(slot: MediaSlot, operation: MediaOperation): MediaChange {
+  return operation.kind === "move"
+    ? (question) => moveOccurrence(question, slot, operation)
+    : (question) => changeOccurrence(question, slot, operation);
+}
+
+function moveOccurrence(
+  question: DraftQuestion,
+  slot: MediaSlot,
+  operation: Extract<MediaOperation, { kind: "move" }>,
+): ReturnType<MediaChange> {
+  const files = question[slot];
+  if (
+    slot === "questionFiles" &&
+    "expectedPoint" in operation &&
+    (question.answerPoint !== operation.expectedPoint ||
+      firstImage(files) !== operation.expectedImage)
+  )
+    return null;
+  const index = files.findIndex((file) => file.occurrenceId === operation.occurrenceId);
+  const next = moveMedia(files, operation.occurrenceId, operation.destination);
+  if (next === files) return null;
+  const before = files[index - 1]?.occurrenceId;
+  const after = files[index + 1]?.occurrenceId;
+  const oldImage = firstImage(files);
+  const changedPointImage =
+    slot === "questionFiles" &&
+    question.pointImageId === undefined &&
+    oldImage !== firstImage(next);
+  const oldPoint = changedPointImage ? question.answerPoint : null;
+  return {
+    question: {
+      ...question,
+      [slot]: next,
+      ...(changedPointImage ? { answerPoint: null } : {}),
+    },
+    undo: (current) => {
+      const list = current[slot];
+      const from = list.findIndex((file) => file.occurrenceId === operation.occurrenceId);
+      if (from < 0) return current;
+      const rest = list.filter((_, i) => i !== from);
+      const nextIndex = after ? rest.findIndex((file) => file.occurrenceId === after) : -1;
+      const previousIndex = before ? rest.findIndex((file) => file.occurrenceId === before) : -1;
+      const at =
+        nextIndex >= 0
+          ? nextIndex
+          : previousIndex >= 0
+            ? previousIndex + 1
+            : Math.min(index, rest.length);
+      rest.splice(at, 0, list[from]!);
+      const changesImage =
+        slot === "questionFiles" &&
+        current.pointImageId === undefined &&
+        firstImage(list) !== firstImage(rest);
+      const point = changesImage
+        ? current.answerPoint == null && firstImage(rest) === oldImage
+          ? oldPoint
+          : null
+        : current.answerPoint;
+      return { ...current, [slot]: rest, answerPoint: point };
+    },
+  };
+}
+
+function changeOccurrence(
+  question: DraftQuestion,
+  slot: MediaSlot,
+  operation: Exclude<MediaOperation, { kind: "move" }>,
+): ReturnType<MediaChange> {
+  const files = question[slot];
+  const index =
+    operation.kind === "add"
+      ? files.length
+      : (operation.kind === "edit" ? operation.original.occurrenceId : operation.occurrenceId)
+        ? files.findIndex(
+            (file) =>
+              file.occurrenceId ===
+              (operation.kind === "edit"
+                ? operation.original.occurrenceId
+                : operation.occurrenceId),
+          )
+        : operation.index;
+  const original = files[index];
+  if (operation.kind !== "add" && !original) return null;
+  if (operation.kind === "edit" && original?.md5 !== operation.original.md5) return null;
+  const geometryChanged =
+    slot === "questionFiles" &&
+    (question.pointImageId !== undefined
+      ? files[index]?.occurrenceId === question.pointImageId
+      : files.findIndex((file) => file.type === "image") === index) &&
+    (operation.kind === "remove" || (operation.kind === "edit" && operation.geometryChanged));
+  const oldPoint = geometryChanged ? question.answerPoint : null;
+  const next = [...files];
+  if (operation.kind === "add") next.push(operation.file);
+  else if (operation.kind === "remove") next.splice(index, 1);
+  else next[index] = { ...original!, md5: operation.file.md5, type: operation.file.type };
+  const nextFile = next[index];
+  return {
+    question: { ...question, [slot]: next, ...(geometryChanged ? { answerPoint: null } : {}) },
+    undo: (current) => {
+      const restored = [...current[slot]];
+      if (operation.kind === "remove")
+        restored.splice(Math.min(index, restored.length), 0, original!);
+      else if (operation.kind === "add") {
+        const addedIndex = operation.file.occurrenceId
+          ? restored.findIndex((file) => file.occurrenceId === operation.file.occurrenceId)
+          : index;
+        if (restored[addedIndex]?.md5 !== operation.file.md5) return current;
+        restored.splice(addedIndex, 1);
+      } else {
+        const editedIndex = original!.occurrenceId
+          ? restored.findIndex((file) => file.occurrenceId === original!.occurrenceId)
+          : index;
+        if (restored[editedIndex]?.md5 !== nextFile?.md5) return current;
+        restored[editedIndex] = {
+          ...restored[editedIndex]!,
+          md5: original!.md5,
+          type: original!.type,
+        };
+      }
+      const removedAddedPointImage =
+        slot === "questionFiles" &&
+        operation.kind === "add" &&
+        (current.pointImageId !== undefined
+          ? current.pointImageId === operation.file.occurrenceId
+          : operation.file.occurrenceId
+            ? current[slot].find((file) => file.type === "image")?.occurrenceId ===
+              operation.file.occurrenceId
+            : current[slot].findIndex((file) => file.type === "image") === index);
+      return {
+        ...current,
+        [slot]: restored,
+        ...(geometryChanged && current.pointImageId === question.pointImageId
+          ? { answerPoint: current.answerPoint == null ? oldPoint : null }
+          : {}),
+        ...(removedAddedPointImage ? { answerPoint: null } : {}),
+      };
+    },
   };
 }

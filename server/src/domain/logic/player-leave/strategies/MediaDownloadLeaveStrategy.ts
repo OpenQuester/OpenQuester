@@ -34,7 +34,7 @@ export class MediaDownloadLeaveStrategy implements IPlayerLeaveStrategy {
     };
 
     if (transitionResult) {
-      if (transitionResult.fromPhase === GamePhase.FINAL_MEDIA_DOWNLOADING) {
+      if (transitionResult.toPhase === GamePhase.FINAL_ANSWERING) {
         result.broadcasts.push(...transitionResult.broadcasts);
         result.mutations.push(
           ...DataMutationConverter.mutationFromTimerMutations(transitionResult.timerMutations)

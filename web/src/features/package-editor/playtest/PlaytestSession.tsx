@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 import { GameContext } from "@/features/game/GameContext";
@@ -40,6 +40,15 @@ export function PlaytestSession({
   });
   const [perspective, setPerspective] = useState<number>(PREVIEW_PLAYERS[0]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const gameContext = useMemo(
+    () => ({
+      connection: game.commands,
+      myId: perspective,
+      store: game.store,
+      protectedFinalThemeId: PREVIEW_FINAL_THEME,
+    }),
+    [game, perspective],
+  );
   const session = useStore(game.store, (state) => state.session!);
   const phase = phaseOf(session);
   useEffect(() => {
@@ -72,14 +81,7 @@ export function PlaytestSession({
   const finished = phase === "finished";
   const waitAvailable = usePlaytestWait(session);
   return (
-    <GameContext.Provider
-      value={{
-        connection: game.commands,
-        myId: perspective,
-        store: game.store,
-        protectedFinalThemeId: PREVIEW_FINAL_THEME,
-      }}
-    >
+    <GameContext.Provider value={gameContext}>
       <div
         className="flex min-h-full flex-col gap-4 p-4 sm:p-5"
         data-testid="question-playtest"

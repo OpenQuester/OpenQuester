@@ -16,22 +16,28 @@ export function QuestionMedia({
 }: {
   files: QuestionFile[];
   playing: boolean;
-  replacePointImage?: ReactNode;
+  replacePointImage?: { file: QuestionFile; view: ReactNode };
 }) {
   const sorted = [...files].filter((f) => f.file.link).sort((a, b) => a.order - b.order);
   if (sorted.length === 0) return null;
-  const pointImage = sorted.findIndex((f) => f.file.type === "image");
+  const replacementIndex = replacePointImage ? sorted.indexOf(replacePointImage.file) : -1;
+  const occurrences = new Map<string, number>();
   return (
     <div className="flex w-full flex-col gap-3">
-      {sorted.map((f, i) => (
-        <Fragment key={`${f.file.md5}-${i}`}>
-          {i === pointImage && replacePointImage !== undefined ? (
-            replacePointImage
-          ) : (
-            <QuestionMediaItem file={f} playing={playing} />
-          )}
-        </Fragment>
-      ))}
+      {sorted.map((f, index) => {
+        const identity = `${f.file.md5}-${f.order}`;
+        const occurrence = occurrences.get(identity) ?? 0;
+        occurrences.set(identity, occurrence + 1);
+        return (
+          <Fragment key={`${identity}-${occurrence}`}>
+            {index === replacementIndex && replacePointImage ? (
+              replacePointImage.view
+            ) : (
+              <QuestionMediaItem file={f} playing={playing} />
+            )}
+          </Fragment>
+        );
+      })}
     </div>
   );
 }

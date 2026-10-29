@@ -111,12 +111,14 @@ export class SocketGameTimerService {
     if (savedTimer) {
       const finalData = game.gameState.finalRoundData;
       const contentMs = finalData?.questionData?.contentPlan?.totalMs;
+      // If everyone has already answered, finish when the final content ends.
       if (
         questionState === QuestionState.ANSWERING &&
         finalData?.phase === FinalRoundPhase.ANSWERING &&
         contentMs != null &&
         FinalRoundStateManager.areAllAnswersSubmitted(game)
       ) {
+        // Redis needs a positive TTL, even when the content has no blocking duration.
         savedTimer.durationMs = Math.max(1, Math.min(savedTimer.durationMs, contentMs));
       }
       // Clear saved timer

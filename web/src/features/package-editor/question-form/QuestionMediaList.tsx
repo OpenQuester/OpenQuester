@@ -11,7 +11,8 @@ import { newId, type DraftQuestion } from "../packageDraft";
 import { questionSteps, withQuestionSteps, type QuestionStep } from "./questionTimeline";
 import { moveTimeline, stepId } from "./timelineMove";
 import type { ApplyMediaChange } from "./questionMediaHistory";
-import { useId, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { useAttachmentReorder } from "./useAttachmentReorder";
 
 type Timeline = {
   q: DraftQuestion;
@@ -35,16 +36,6 @@ export function QuestionMediaList({
   const { inputRef, over, setOver, remove, add, onDrop, edit, canEdit, setDisplayTime, move } =
     useQuestionMedia({ label, help, files, onChange, slot, applyMedia, point, pointImageId });
   const addButton = useRef<HTMLButtonElement>(null);
-  const helpId = useId();
-  const dragged = useRef<string | null>(null);
-  const dragCard = useRef<HTMLElement | null>(null);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [insertion, setInsertion] = useState<{
-    id: string;
-    edge: "before" | "after";
-    vertical: boolean;
-  } | null>(null);
-  const [announcement, setAnnouncement] = useState("");
   const steps: Exclude<QuestionStep, { kind: "main" }>[] = timeline
     ? questionSteps(timeline.q).filter(
         (step): step is Exclude<QuestionStep, { kind: "main" }> => step.kind !== "main",
@@ -60,40 +51,7 @@ export function QuestionMediaList({
         move(file.file.occurrenceId, destination);
     }
   };
-  const clearDrag = () => {
-    const card = dragCard.current;
-    dragCard.current = null;
-    window.setTimeout(() => {
-      if (dragCard.current !== card) card?.removeAttribute("data-timeline-dragging");
-    }, 0);
-    dragged.current = null;
-    setDragging(null);
-    setInsertion(null);
-  };
-  const edgeAt = (card: HTMLElement, x: number, y: number) => {
-    const rect = card.getBoundingClientRect();
-    const parent = card.parentElement?.getBoundingClientRect();
-    const vertical = !!parent && rect.width > parent.width * 0.8;
-    return {
-      vertical,
-      edge: (vertical ? y < rect.top + rect.height / 2 : x < rect.left + rect.width / 2)
-        ? ("before" as const)
-        : ("after" as const),
-    };
-  };
-  const touchTarget = (handle: HTMLElement, x: number, y: number) => {
-    const card = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-timeline-card]");
-    return card && handle.closest('[data-testid="attachment-drop-zone"]')?.contains(card)
-      ? card
-      : null;
-  };
-  const dropAt = (source: string, target: string, edge: "before" | "after") => {
-    const from = steps.findIndex((item) => stepId(item) === source);
-    const index = steps.findIndex((item) => stepId(item) === target);
-    if (from < 0 || index < 0) return;
-    const at = index + (edge === "after" ? 1 : 0);
-    moveStep(source, at - (from < at ? 1 : 0));
-  };
+  const reorder = useAttachmentReorder(steps, moveStep, timeline ? 2 : 1);
   return (
     <div className="flex flex-col gap-2">
       <div className={layoutStyles.spacedActions}>
@@ -135,11 +93,11 @@ export function QuestionMediaList({
           {t("editor.media.add")}
         </Button>
       </div>
-      <span id={helpId} className="sr-only">
+      <span id={reorder.helpId} className="sr-only">
         {t("editor.timeline.moveHandle")}
       </span>
       <span className="sr-only" aria-live="polite">
-        {announcement}
+        {reorder.announcement}
       </span>
       <div
         data-testid="attachment-drop-zone"
@@ -170,76 +128,11 @@ export function QuestionMediaList({
             <button
               type="button"
               aria-label={label}
-              aria-describedby={helpId}
+              aria-describedby={reorder.helpId}
               title={t("editor.timeline.moveHandle")}
               draggable
               className="inline-flex size-11 shrink-0 touch-none cursor-grab items-center justify-center rounded-sm text-muted hover:bg-surface-3 hover:text-text active:cursor-grabbing"
-              onKeyDown={(event) => {
-                if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-                const offset =
-                  event.key === "ArrowLeft" || event.key === "ArrowUp"
-                    ? -1
-                    : event.key === "ArrowRight" || event.key === "ArrowDown"
-                      ? 1
-                      : 0;
-                if (!offset) return;
-                event.preventDefault();
-                event.stopPropagation();
-                const destination = index + offset;
-                if (destination < 0 || destination >= steps.length) return;
-                moveStep(id, destination);
-                setAnnouncement(
-                  t("editor.timeline.moveStatus", {
-                    number: timeline ? destination + 2 : destination + 1,
-                  }),
-                );
-              }}
-              onPointerDown={(event) => {
-                if (event.pointerType !== "touch") return;
-                event.currentTarget.setPointerCapture(event.pointerId);
-                dragged.current = id;
-                dragCard.current = event.currentTarget.closest<HTMLElement>("[data-timeline-card]");
-                dragCard.current?.setAttribute("data-timeline-dragging", "true");
-                setDragging(id);
-              }}
-              onPointerMove={(event) => {
-                if (event.pointerType !== "touch" || dragged.current !== id) return;
-                const card = touchTarget(event.currentTarget, event.clientX, event.clientY);
-                const target = card?.dataset.timelineId;
-                if (!card || !target) {
-                  setInsertion(null);
-                  return;
-                }
-                setInsertion({ id: target, ...edgeAt(card, event.clientX, event.clientY) });
-              }}
-              onPointerUp={(event) => {
-                if (event.pointerType !== "touch" || dragged.current !== id) return;
-                const card = touchTarget(event.currentTarget, event.clientX, event.clientY);
-                if (card?.dataset.timelineId)
-                  dropAt(
-                    id,
-                    card.dataset.timelineId,
-                    edgeAt(card, event.clientX, event.clientY).edge,
-                  );
-                clearDrag();
-              }}
-              onPointerCancel={(event) => {
-                if (event.pointerType === "touch") clearDrag();
-              }}
-              onDragStart={(event) => {
-                dragged.current = id;
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", id);
-                const card = event.currentTarget.closest<HTMLElement>("[data-timeline-card]");
-                dragCard.current = card;
-                card?.setAttribute("data-timeline-dragging", "true");
-                if (card) event.dataTransfer.setDragImage(card, 20, 20);
-                event.stopPropagation();
-                window.setTimeout(() => {
-                  if (dragged.current === id) setDragging(id);
-                }, 0);
-              }}
-              onDragEnd={clearDrag}
+              {...reorder.grip(id, index)}
             >
               <GripIcon size={16} />
             </button>
@@ -253,49 +146,22 @@ export function QuestionMediaList({
               className={cn(
                 questionFormStyles.attachment,
                 "relative",
-                dragging === id && "opacity-40",
+                reorder.dragging === id && "opacity-40",
               )}
-              onDragOver={(event) => {
-                if (!dragged.current) return;
-                event.preventDefault();
-                event.stopPropagation();
-                event.dataTransfer.dropEffect = "move";
-                const { edge, vertical } = edgeAt(
-                  event.currentTarget,
-                  event.clientX,
-                  event.clientY,
-                );
-                setInsertion((prev) =>
-                  prev?.id === id && prev.edge === edge && prev.vertical === vertical
-                    ? prev
-                    : { id, edge, vertical },
-                );
-              }}
-              onDragLeave={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-                  setInsertion(null);
-              }}
-              onDrop={(event) => {
-                const source = dragged.current;
-                if (!source) return;
-                event.preventDefault();
-                event.stopPropagation();
-                dropAt(source, id, edgeAt(event.currentTarget, event.clientX, event.clientY).edge);
-                clearDrag();
-              }}
+              {...reorder.card(id)}
             >
-              {insertion?.id === id && (
+              {reorder.insertion?.id === id && (
                 <span
                   aria-hidden
                   className={cn(
-                    insertion.vertical
+                    reorder.insertion.vertical
                       ? "absolute z-10 inset-x-1 h-1 rounded-full bg-accent"
                       : packageBoardStyles.questionInsertion,
-                    insertion.vertical
-                      ? insertion.edge === "before"
+                    reorder.insertion.vertical
+                      ? reorder.insertion.edge === "before"
                         ? "-top-1.5"
                         : "-bottom-1.5"
-                      : insertion.edge === "before"
+                      : reorder.insertion.edge === "before"
                         ? "-left-1.5"
                         : "-right-1.5",
                   )}

@@ -12,6 +12,19 @@ const RING_COLORS: Partial<Record<Phase, string>> = {
   finished: "var(--oq-success)",
 };
 
+function countdownLabel(
+  phase: Phase,
+  offline: boolean,
+  paused: boolean,
+  left: number | null,
+  fallback: string | undefined,
+) {
+  if (phase === "finished") return "✓";
+  if (offline) return "…";
+  if (paused) return "II";
+  return left == null ? (fallback ?? "") : undefined;
+}
+
 export function useDockPresentation() {
   const session = useSession();
   const { myId } = useGame();
@@ -29,16 +42,7 @@ export function useDockPresentation() {
   const model = useDockModel(session, myId);
   const offline = connection !== "connected";
 
-  const ringLabel =
-    phase === "finished"
-      ? "✓"
-      : offline
-        ? "…"
-        : paused
-          ? "II"
-          : left == null
-            ? (model.ringLabel ?? "")
-            : undefined;
+  const ringLabel = countdownLabel(phase, offline, paused, left, model.ringLabel);
 
   const ringColor = offline
     ? "var(--oq-danger)"

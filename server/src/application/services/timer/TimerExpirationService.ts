@@ -100,7 +100,7 @@ export class TimerExpirationService {
 
     const timer = transitionResult.timer ?? null;
 
-    if (transitionResult.fromPhase === GamePhase.FINAL_MEDIA_DOWNLOADING) {
+    if (transitionResult.toPhase === GamePhase.FINAL_ANSWERING) {
       return {
         success: true,
         game,

@@ -12,7 +12,8 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
-import { GamePhase, getGamePhase, TransitionTrigger } from "domain/state-machine/types";
+import { TransitionTrigger } from "domain/state-machine/types";
+import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 
 /**
  * Handles unpausing a game.
@@ -52,14 +53,14 @@ export class UnpauseGameUseCase implements GameActionHandler<
 
     const unpauseData: GameUnpauseBroadcastData = { timer: result.data.timer };
 
-    const transition =
-      getGamePhase(game) === GamePhase.FINAL_MEDIA_DOWNLOADING
-        ? await this.phaseTransitionRouter.tryTransition({
-            game,
-            trigger: TransitionTrigger.CONDITION_MET,
-            triggeredBy: { isSystem: true }
-          })
-        : null;
+    // ACKs received while paused can now start MEDIA_DOWNLOADING -> FINAL_ANSWERING.
+    const transition = TransitionGuards.isFinalRoundMediaDownloading(game)
+      ? await this.phaseTransitionRouter.tryTransition({
+          game,
+          trigger: TransitionTrigger.CONDITION_MET,
+          triggeredBy: { isSystem: true }
+        })
+      : null;
 
     return {
       success: true,

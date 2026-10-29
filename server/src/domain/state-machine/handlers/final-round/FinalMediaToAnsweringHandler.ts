@@ -15,17 +15,19 @@ import {
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
+import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 
 /** Start the final timeline only after readiness or its bounded timeout. */
 export class FinalMediaToAnsweringHandler extends BaseTransitionHandler {
-  public readonly fromPhase = GamePhase.FINAL_MEDIA_DOWNLOADING;
+  public readonly fromPhase = GamePhase.MEDIA_DOWNLOADING;
   public readonly toPhase = GamePhase.FINAL_ANSWERING;
 
   public canTransition(ctx: TransitionContext): boolean {
     return (
       getGamePhase(ctx.game) === this.fromPhase &&
+      TransitionGuards.isFinalRound(ctx.game) &&
       !ctx.game.gameState.isPaused &&
       (ctx.trigger === TransitionTrigger.TIMER_EXPIRED ||
         MediaDownloadLogic.areAllPlayersReady(ctx.game))

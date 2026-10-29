@@ -6,6 +6,7 @@ import { createGameStore } from "@/game/store";
 import { QuestionStage } from "./QuestionStage";
 import { FinalAnswerStage } from "./FinalStages";
 import { AnswerReveal } from "./question/AnswerReveal";
+import { PlayerChips } from "./PlayerChips";
 import {
   initialPreview,
   PREVIEW_PLAYERS,
@@ -41,7 +42,52 @@ const allPlay = (entries: ReturnType<typeof entry>[]) => ({
   priceMultiplier: null,
   entries,
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
+
+it("keeps all-play point players waiting until their target picture appears", () => {
+  vi.useFakeTimers();
+  const q = {
+    ...pointQuestion,
+    text: "First",
+    textOrder: 0,
+    textItems: [],
+    questionFiles: [
+      {
+        order: 1,
+        displayTime: 5_000,
+        file: { md5: "img", type: "image" as const, link: "/wide.png" },
+      },
+    ],
+  };
+  const store = createGameStore();
+  store.setState({
+    connection: "connected",
+    session: session({
+      currentRound: round(),
+      questionState: "showing",
+      currentQuestion: q,
+      timer: timer(),
+      allPlay: allPlay([entry(ALICE, null, false, null), entry(BOB, null, false, null)]),
+    }),
+  });
+  render(
+    <GameContext.Provider
+      value={{ store, myId: ALICE, connection: { connected: true, emit: vi.fn() } }}
+    >
+      <PlayerChips />
+      <QuestionStage />
+    </GameContext.Provider>,
+  );
+  const chips = screen.getAllByTestId("player-chip");
+  expect(chips[0]).toHaveTextContent("waiting");
+  expect(screen.queryByTestId("point-picker")).toBeNull();
+  act(() => vi.advanceTimersByTime(2_030));
+  expect(chips[0]).toHaveTextContent("typing");
+  expect(screen.getByTestId("point-picker")).toBeInTheDocument();
+});
 
 it("keeps only the local player's chosen point visible while other players answer", () => {
   const store = createGameStore();

@@ -22,7 +22,7 @@ export function LinesField({
 }) {
   const { t } = useTranslation();
   // Keep the raw text while typing so empty lines and spaces don't jump.
-  const [text, setText] = useState(value.join("\n"));
+  const [text, setText] = useState(() => value.join("\n"));
   return (
     <FieldGroup
       htmlFor={id}

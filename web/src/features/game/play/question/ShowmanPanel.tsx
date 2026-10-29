@@ -4,6 +4,17 @@ import { findPlayer, pointPicture, requiresAnswerSubmission } from "@/game/selec
 import { formatSigned } from "@/lib/format";
 import { useSession } from "../../GameContext";
 import { PointPicker } from "../PointPicker";
+import type { GameSession } from "@/game/reducer";
+import type { TranslateAction } from "../dock/actionDockModel";
+
+function submittedAnswerLabel(session: GameSession, t: TranslateAction): string {
+  if (session.submittedAnswer) return `“${session.submittedAnswer}”`;
+  if (session.hasAnswerSubmission) return t("showman.emptySubmission");
+  const question = session.state.currentQuestion;
+  if (!question) return t("dock.answering.questionLoading");
+  if (requiresAnswerSubmission(question)) return t("dock.answering.autoWaitHelp");
+  return t("showman.sayingOutLoud");
+}
 
 /** Showman-only column: the answer, what the player said, and who buzzed. */
 export function ShowmanPanel() {
@@ -12,6 +23,7 @@ export function ShowmanPanel() {
   const s = session.state;
   const q = s.currentQuestion;
   const answering = findPlayer(session, s.answeringPlayer);
+  const picture = pointPicture(q);
   return (
     <aside
       aria-label={t("showman.panel")}
@@ -35,9 +47,9 @@ export function ShowmanPanel() {
             })}
           </span>
         )}
-        {q?.answerType === "point" && q.answerPoint && pointPicture(q) && (
+        {q?.answerType === "point" && q.answerPoint && picture && (
           <PointPicker
-            src={pointPicture(q)!}
+            src={picture}
             target={q.answerPoint}
             radius={q.answerDeviation}
             className="max-w-full"
@@ -63,15 +75,7 @@ export function ShowmanPanel() {
             {t("showman.answering", { name: answering.meta.username })}
           </span>
           <span className="text-lg [overflow-wrap:anywhere]">
-            {session.submittedAnswer
-              ? `“${session.submittedAnswer}”`
-              : session.hasAnswerSubmission
-                ? t("showman.emptySubmission")
-                : !q
-                  ? t("dock.answering.questionLoading")
-                  : requiresAnswerSubmission(q)
-                    ? t("dock.answering.autoWaitHelp")
-                    : t("showman.sayingOutLoud")}
+            {submittedAnswerLabel(session, t)}
           </span>
         </div>
       )}

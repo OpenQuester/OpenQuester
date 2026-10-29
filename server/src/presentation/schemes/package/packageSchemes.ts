@@ -8,7 +8,7 @@ import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { pointImage } from "domain/logic/question/PointImageLogic";
+import { findPointAnswerImage } from "domain/logic/question/PointImageLogic";
 import { type PackageUploadBody } from "domain/types/dto/package/PackageUploadBody";
 import {
   type PackageQuestionDTO,
@@ -199,7 +199,7 @@ const validateChoiceKey = (question: PackageQuestionDTO, helpers: Joi.CustomHelp
 const validateQuestionContent = (question: PackageQuestionDTO, helpers: Joi.CustomHelpers) => {
   if (
     question.pointImageOrder != null &&
-    !pointImage(question.questionFiles, question.pointImageOrder)
+    !findPointAnswerImage(question.questionFiles, question.pointImageOrder)
   ) {
     return helpers.error("any.invalid");
   }
@@ -209,7 +209,8 @@ const validateQuestionContent = (question: PackageQuestionDTO, helpers: Joi.Cust
     orders.add(file.order);
   }
   if (question.textOrder != null) {
-    if (question.textItems != null && orders.has(question.textOrder)) return helpers.error("any.invalid");
+    if (question.textItems != null && orders.has(question.textOrder))
+      return helpers.error("any.invalid");
     orders.add(question.textOrder);
   }
   for (const item of question.textItems ?? []) {

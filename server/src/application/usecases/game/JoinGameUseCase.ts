@@ -23,9 +23,9 @@ import {
   type GameJoinInputData,
   type GameJoinOutputData
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { GameValidator } from "domain/validators/GameValidator";
-import { GamePhase, getGamePhase } from "domain/state-machine/types";
 
 /**
  * Orchestrates the full player-join flow
@@ -97,7 +97,8 @@ export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, Gam
     );
     if (
       player.role === PlayerRole.PLAYER &&
-      getGamePhase(game) === GamePhase.FINAL_MEDIA_DOWNLOADING
+      game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING &&
+      game.isPlayerEligibleForMedia(player.meta.id)
     ) {
       player.mediaDownloaded = false;
     }

@@ -9,6 +9,38 @@ import { ContentStage } from "../ContentStage";
 import { PointPicker } from "../PointPicker";
 import { QuestionMedia } from "../QuestionMedia";
 import { allPlayRevealText } from "../allPlayRevealText";
+import type { GameSession } from "@/game/reducer";
+import type { AnsweredPlayer } from "@/game/protocol";
+import type { TranslateAction } from "../dock/actionDockModel";
+
+/** The reveal is the first time all submitted points may be shown together. */
+function pointMarkers(session: GameSession, result: AnsweredPlayer | null, t: TranslateAction) {
+  const s = session.state;
+  const answers = s.allPlay
+    ? s.allPlay.entries.map((entry) => ({
+        id: entry.playerId,
+        answer: entry.answer,
+        correct: entry.isCorrect,
+      }))
+    : (s.answeredPlayers?.length ? s.answeredPlayers : result ? [result] : []).map((entry) => ({
+        id: entry.player,
+        answer: entry.answerText,
+        correct: entry.answerType === "skip" ? null : entry.answerType === "correct",
+      }));
+  return answers.flatMap(({ id, answer, correct }) => {
+    const spot = answer ? parsePointAnswer(answer) : null;
+    return spot
+      ? [
+          {
+            ...spot,
+            id,
+            name: findPlayer(session, id)?.meta.username ?? `${t("roles.player")} ${id}`,
+            correct: correct ?? null,
+          },
+        ]
+      : [];
+  });
+}
 
 export function AnswerReveal() {
   const { t } = useTranslation();
@@ -26,30 +58,21 @@ export function AnswerReveal() {
   const respondent = result ? findPlayer(session, result.player) : undefined;
   const answerText = data?.answerText ?? s.currentQuestion?.answerText ?? null;
   const pointImage = data?.answerPointImage ?? pointPicture(s.currentQuestion);
-  const answers = s.allPlay
-    ? s.allPlay.entries.map((entry) => ({
-        id: entry.playerId,
-        answer: entry.answer,
-        correct: entry.isCorrect,
-      }))
-    : (s.answeredPlayers?.length ? s.answeredPlayers : result ? [result] : []).map((entry) => ({
-        id: entry.player,
-        answer: entry.answerText,
-        correct: entry.answerType === "skip" ? null : entry.answerType === "correct",
-      }));
-  const markers = answers.flatMap(({ id, answer, correct }) => {
-    const spot = answer ? parsePointAnswer(answer) : null;
-    return spot
-      ? [
-          {
-            ...spot,
-            id,
-            name: findPlayer(session, id)?.meta.username ?? `${t("roles.player")} ${id}`,
-            correct: correct ?? null,
-          },
-        ]
-      : [];
-  });
+  const markers = pointMarkers(session, result, t);
+  const hasVisiblePointAnswer = !!(
+    data?.answerPoint &&
+    pointImage &&
+    result?.answerText &&
+    parsePointAnswer(result.answerText) &&
+    markers.some((marker) => marker.id === result.player)
+  );
+  const hasCredits = !!data?.authors?.length || !!data?.sources?.length;
+  const credits = [
+    data?.authors?.length ? t("reveal.authors", { names: data.authors.join(", ") }) : null,
+    data?.sources?.length ? t("reveal.sources", { list: data.sources.join(", ") }) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <div className={questionContentLayout} data-testid="answer-reveal">
       <span className="text-sm font-semibold uppercase tracking-wider text-muted">
@@ -98,32 +121,20 @@ export function AnswerReveal() {
               })
             : t("reveal.nobody"))}
       </p>
-      {result?.answerText != null &&
-        result.answerText !== "" &&
-        !(
-          data?.answerPoint &&
-          pointImage &&
-          parsePointAnswer(result.answerText) &&
-          markers.some((marker) => marker.id === result.player)
-        ) && (
-          <p
-            className="m-0 text-center text-soft [overflow-wrap:anywhere]"
-            data-testid="submitted-answer"
-          >
-            {t("reveal.submitted", {
-              name: respondent?.meta.username ?? t("roles.player"),
-              answer: result.answerText,
-            })}
-          </p>
-        )}
-      {(!!data?.authors?.length || !!data?.sources?.length) && (
+      {result?.answerText != null && result.answerText !== "" && !hasVisiblePointAnswer && (
+        <p
+          className="m-0 text-center text-soft [overflow-wrap:anywhere]"
+          data-testid="submitted-answer"
+        >
+          {t("reveal.submitted", {
+            name: respondent?.meta.username ?? t("roles.player"),
+            answer: result.answerText,
+          })}
+        </p>
+      )}
+      {hasCredits && (
         <p className="m-0 text-center text-sm text-muted" data-testid="answer-credits">
-          {[
-            data?.authors?.length ? t("reveal.authors", { names: data.authors.join(", ") }) : null,
-            data?.sources?.length ? t("reveal.sources", { list: data.sources.join(", ") }) : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+          {credits}
         </p>
       )}
       {!store && s.currentQuestion?.id != null && (

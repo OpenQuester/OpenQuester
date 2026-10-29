@@ -19,7 +19,7 @@ import {
 } from "domain/types/socket/events/FinalRoundEventData";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
-import { FinalContentLogic } from "domain/logic/final-round/FinalContentLogic";
+import { FinalQuestionPlaybackLogic } from "domain/logic/final-round/FinalQuestionPlaybackLogic";
 import { ClientError } from "domain/errors/ClientError";
 import { ClientResponse } from "domain/enums/ClientResponse";
 
@@ -50,7 +50,7 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
     );
     this.socketGameValidationService.validateFinalAnswerSubmission(game, currentPlayer!);
 
-    if (!FinalContentLogic.isComplete(game)) {
+    if (!FinalQuestionPlaybackLogic.isPlaybackComplete(game)) {
       throw new ClientError(ClientResponse.CANNOT_SUBMIT_ANSWER);
     }
 

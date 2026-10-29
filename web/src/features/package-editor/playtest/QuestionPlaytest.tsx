@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { MediaFile } from "@/features/upload/types";
 import { Button } from "@/ui/Button";
 import { Spinner } from "@/ui/Spinner";
@@ -35,6 +36,58 @@ const fieldFor: Partial<Record<Issue["code"], string>> = {
   deviation: "#qf-deviation, #qf-radius",
 };
 
+/** Critical fields and preview-specific constraints share the editor's validation. */
+function previewIssues(
+  question: DraftQuestion,
+  final: boolean,
+  media: Map<string, MediaFile>,
+  canSave: boolean,
+): Issue[] {
+  const list: Issue[] = [];
+  checkQuestion(
+    question,
+    final,
+    (severity, code, args) => {
+      if (severity === "critical") list.push({ code, args });
+    },
+    (id) => {
+      const file = media.get(id);
+      return !!file && (file.bytes.byteLength > 0 || !!file.url);
+    },
+  );
+  if (!canSave) list.push({ code: "reveal" });
+  if (
+    (final || question.type !== "choice") &&
+    question.answerType !== "text" &&
+    question.answerDeviation != null &&
+    (!Number.isFinite(question.answerDeviation) || question.answerDeviation < 0)
+  )
+    list.push({ code: "deviation" });
+  if (
+    !final &&
+    question.type === "stake" &&
+    !question.forEveryone &&
+    question.price != null &&
+    question.maxPrice != null &&
+    question.maxPrice < question.price
+  )
+    list.push({ code: "stakeLimit" });
+  return list;
+}
+
+function issueMessage(issue: Issue, t: TFunction): string {
+  switch (issue.code) {
+    case "reveal":
+      return t("editor.form.revealRange");
+    case "stakeLimit":
+      return t("editor.playtest.stakeLimit");
+    case "deviation":
+      return t("editor.playtest.deviation");
+    default:
+      return t(`editor.issues.${issue.code}`, issue.args);
+  }
+}
+
 export function QuestionPlaytest({
   question,
   final,
@@ -51,38 +104,10 @@ export function QuestionPlaytest({
   onFix: (selector: string) => void;
 }) {
   const { t } = useTranslation();
-  const issues = useMemo(() => {
-    const list: Issue[] = [];
-    checkQuestion(
-      question,
-      final,
-      (severity, code, args) => {
-        if (severity === "critical") list.push({ code, args });
-      },
-      (id) => {
-        const file = media.get(id);
-        return !!file && (file.bytes.byteLength > 0 || !!file.url);
-      },
-    );
-    if (!canSave) list.push({ code: "reveal" });
-    if (
-      (final || question.type !== "choice") &&
-      question.answerType !== "text" &&
-      question.answerDeviation != null &&
-      (!Number.isFinite(question.answerDeviation) || question.answerDeviation < 0)
-    )
-      list.push({ code: "deviation" });
-    if (
-      !final &&
-      question.type === "stake" &&
-      !question.forEveryone &&
-      question.price != null &&
-      question.maxPrice != null &&
-      question.maxPrice < question.price
-    )
-      list.push({ code: "stakeLimit" });
-    return list;
-  }, [question, final, media, canSave]);
+  const issues = useMemo(
+    () => previewIssues(question, final, media, canSave),
+    [question, final, media, canSave],
+  );
   const [attempt, setAttempt] = useState(0);
   const [prepared, setPrepared] = useState<{
     question: ReturnType<typeof previewQuestion>;
@@ -149,15 +174,7 @@ export function QuestionPlaytest({
         <h2 className="m-0 text-lg font-semibold">{t("editor.playtest.invalid")}</h2>
         <ul className="m-0 max-w-lg list-disc space-y-1 pl-5 text-left text-sm text-soft">
           {issues.map((issue, index) => (
-            <li key={`${issue.code}-${index}`}>
-              {issue.code === "reveal"
-                ? t("editor.form.revealRange")
-                : issue.code === "stakeLimit"
-                  ? t("editor.playtest.stakeLimit")
-                  : issue.code === "deviation"
-                    ? t("editor.playtest.deviation")
-                    : t(`editor.issues.${issue.code}`, issue.args)}
-            </li>
+            <li key={`${issue.code}-${index}`}>{issueMessage(issue, t)}</li>
           ))}
         </ul>
         <Button onClick={() => onFix(fieldFor[issues[0]!.code] ?? "#qf-text")}>

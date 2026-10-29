@@ -113,7 +113,7 @@ export class ThemeEliminateUseCase implements GameActionHandler<
         );
       }
 
-      // If all players auto-bid, emit question data and bidding → answering transition
+      // Automatic bids may reveal a final question that first needs media preparation.
       if (biddingPhaseResult.questionData?.mediaPreparationId) {
         mutations.push(
           ...DataMutationConverter.mutationFromServiceBroadcasts(
@@ -122,6 +122,7 @@ export class ThemeEliminateUseCase implements GameActionHandler<
           )
         );
       } else if (biddingPhaseResult.questionData) {
+        // Without media preparation, bidding advances directly to answering.
         mutations.push(
           DataMutationConverter.gameBroadcastMutation(
             game.id,

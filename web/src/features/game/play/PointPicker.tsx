@@ -1,5 +1,5 @@
 import { questionStyles } from "./question/questionStyles";
-import { useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/cn";
@@ -9,11 +9,10 @@ export interface Spot {
   y: number;
 }
 
+type PointMarker = Spot & { id: number; name: string; correct: boolean | null };
+
 /** Point answers within this share of the picture's width count by default. */
 export const DEFAULT_POINT_RADIUS = 0.05;
-
-/** "x,y" as the server expects point answers. */
-export const pointAnswer = (p: Spot) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`;
 
 /** Arrow keys move the keyboard cursor this share of the picture; Shift moves 5× as far. */
 const KEY_STEP = 0.02;
@@ -42,7 +41,7 @@ export function PointPicker({
   target?: Spot | null;
   radius?: number | null;
   picked?: Spot | null;
-  markers?: (Spot & { id: number; name: string; correct: boolean | null })[];
+  markers?: PointMarker[];
   className?: string;
   imageClassName?: string;
   /** Fit the image itself to the surrounding media frame, keeping click coordinates on the image. */
@@ -64,8 +63,11 @@ export function PointPicker({
     };
   };
   const r = radius ?? DEFAULT_POINT_RADIUS;
-  const percent = (value: number) =>
-    new Intl.NumberFormat(i18n.language, { maximumSignificantDigits: 6 }).format(value * 100);
+  const percentFormatter = useMemo(
+    () => new Intl.NumberFormat(i18n.language, { maximumSignificantDigits: 6 }),
+    [i18n.language],
+  );
+  const percent = (value: number) => percentFormatter.format(value * 100);
   const imageDimensions = dimensions?.src === src ? dimensions : null;
   const targetDescription = target
     ? [
@@ -177,6 +179,22 @@ export function PointPicker({
           data-testid={picked ? "point-picked" : undefined}
         />
       )}
+      <PointMarkers markers={markers} percent={percent} />
+    </div>
+  );
+}
+
+/** Render each submitted point and its accessible description on the picture. */
+function PointMarkers({
+  markers,
+  percent,
+}: {
+  markers: PointMarker[];
+  percent: (value: number) => string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <>
       {markers.map((marker) => (
         <span
           key={marker.id}
@@ -218,6 +236,6 @@ export function PointPicker({
           </span>
         </span>
       ))}
-    </div>
+    </>
   );
 }

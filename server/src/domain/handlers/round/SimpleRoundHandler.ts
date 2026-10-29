@@ -99,6 +99,7 @@ export class SimpleRoundHandler extends BaseRoundHandler {
     nextGameState: GameStateDTO
   ): void {
     if (nextRound.type === PackageRoundType.FINAL) {
+      game.captureQuestionEligiblePlayers();
       const finalRoundData = FinalRoundStateManager.initializeFinalRoundData(game);
 
       finalRoundData.turnOrder = FinalRoundTurnManager.initializeTurnOrder(game);

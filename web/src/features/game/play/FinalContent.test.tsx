@@ -1,4 +1,4 @@
-import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
+import { act, cleanup, render, renderHook, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { buildContentPlan } from "@/game/contentPlan";
@@ -105,6 +105,91 @@ it("shows only the target image after a sequenced final, without replaying earli
   expect(screen.getByTestId("point-picker")).toBeInTheDocument();
   expect(screen.getByRole("img")).toHaveAttribute("src", "/target");
   expect(screen.queryByTestId("media-video")).toBeNull();
+});
+
+it.each([
+  { order: 2, expected: "/second", other: "/first" },
+  { order: undefined, expected: "/first", other: "/second" },
+])("replaces only the targeted legacy final image (order $order)", ({ order, expected, other }) => {
+  const q = question(100, {
+    text: "",
+    answerType: "point",
+    pointImageOrder: order,
+    questionFiles: [
+      { order: 1, displayTime: null, file: { type: "image", md5: "first", link: "/first" } },
+      { order: 2, displayTime: null, file: { type: "image", md5: "second", link: "/second" } },
+    ],
+  });
+  const game = session({
+    currentRound: round("final"),
+    questionState: "answering",
+    currentQuestion: q,
+    finalRoundData: {
+      phase: "answering",
+      bids: { [ALICE]: 100 },
+      answers: [],
+      turnOrder: [ALICE],
+      eliminatedThemes: [],
+      questionData: { themeId: 10, themeName: "Final", question: q },
+    },
+  });
+  useGameStore.setState({ session: game, connection: "connected", pending: null });
+  const connection = { emit: vi.fn(), connected: true } as unknown as GameConnection;
+  render(
+    <GameContext.Provider value={{ connection, myId: ALICE }}>
+      <FinalAnswerStage />
+    </GameContext.Provider>,
+  );
+  expect(within(screen.getByTestId("point-picker")).getByRole("img")).toHaveAttribute(
+    "src",
+    expected,
+  );
+  expect(screen.getAllByRole("img").map((img) => img.getAttribute("src"))).toEqual(
+    order == null ? [expected, other] : [other, expected],
+  );
+});
+
+it("replaces only the first occurrence of duplicate legacy images", () => {
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const image = {
+      order: 0,
+      displayTime: null,
+      file: { type: "image" as const, md5: "same", link: "/same" },
+    };
+    const q = question(100, {
+      text: "",
+      answerType: "point",
+      questionFiles: [{ ...image }, { ...image }],
+    });
+    const game = session({
+      currentRound: round("final"),
+      questionState: "answering",
+      currentQuestion: q,
+      finalRoundData: {
+        phase: "answering",
+        bids: { [ALICE]: 100 },
+        answers: [],
+        turnOrder: [ALICE],
+        eliminatedThemes: [],
+        questionData: { themeId: 10, themeName: "Final", question: q },
+      },
+    });
+    useGameStore.setState({ session: game, connection: "connected", pending: null });
+    const connection = { emit: vi.fn(), connected: true } as unknown as GameConnection;
+    render(
+      <GameContext.Provider value={{ connection, myId: ALICE }}>
+        <FinalAnswerStage />
+      </GameContext.Provider>,
+    );
+    expect(screen.getAllByRole("img")).toHaveLength(2);
+    expect(screen.getAllByTestId("point-picker")).toHaveLength(1);
+    expect(consoleError.mock.calls.some(([message]) => String(message).includes("same key"))).toBe(
+      false,
+    );
+  } finally {
+    consoleError.mockRestore();
+  }
 });
 
 it("explains when the final started after a media readiness timeout", () => {

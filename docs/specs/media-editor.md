@@ -84,34 +84,27 @@ filter support.
 
 The upload optimizer uses the same animated-image detection as the editor
 (GIF, APNG, animated WebP and AVIF sequences). Source bytes remain unchanged.
-Attachment duration fields retain fractional/comma input while typing. Question
-media and additional text steps share one ordered card list. The main question
-text always comes first and has no card or position control. Opening an older
-question with main text normalizes only the form's local sequence; Save persists
-that sequence, while Cancel leaves the saved draft unchanged. Legacy media-only
-questions retain their playback format until text steps are added. Dragging a compact grip shows
-the card preview and insertion edge used by the package board. The same grip
-supports touch dragging and arrow-key movement without opening a menu. Images
-themselves are not native file-drag sources. Additional text cards resize only
-vertically, up to 240 pixels, then scroll internally.
-Opening an existing question preserves its point target. Changing its image
-set/order or switching to point mode automatically selects the last image.
-Changing the target occurrence clears the old coordinates; moving only text or
-audio does not. Undo restores the previous target and coordinates, with a
-confirmation only when that would discard a newly chosen point.
-Replacing an attachment keeps its Edit button mounted so focus can return.
-The point-radius slider uses the displayed image dimensions: at 100%, the
-diameter is 120% of its larger dimension. Existing radii remain unchanged
-until adjusted, including values beyond the slider's range. Publication
-measures the final accepted or optimized target image for server checking.
+Attachment duration fields retain fractional/comma input while typing.
+
+- Main question text always comes first, outside the reorderable media/text row.
+  Save persists this ordering; Cancel preserves the old draft. Media-only legacy
+  questions keep their playback format until text steps are added.
+- Compact grips use the board's drag preview/insertion edge, support touch and
+  arrow keys, and open no menu. Images cannot be dragged as files. Text cards
+  resize vertically to 240 px, then scroll. Edit retains focus after replacement.
+- Opening preserves an existing point target. Changing the image set/order or
+  entering point mode selects the last image and clears coordinates if the target
+  changed. Text/audio moves preserve it. Undo restores the target, confirming
+  only when it would discard a newly chosen point.
+- At 100%, the radius slider gives a diameter of 120% of the image's larger
+  dimension. Existing radii stay unchanged until adjusted. Publication measures
+  the accepted/optimized target image for server checking.
 
 ### Video and audio
 
-Attachment previews use a local seekable player with play, timeline, volume,
-and video fullscreen controls. Existing remote files report size from HEAD
-when available; unknown sizes remain unknown. Opening the media editor pauses
-the parent form's previews. Live gameplay continues to use its own synchronized
-playback rather than these editor controls.
+Attachment previews have seek, volume and video fullscreen controls and pause
+when opening the media editor. Remote sizes come from HEAD when available.
+Live gameplay retains its synchronized player.
 
 Keep one start-to-end interval. Audio has one compact waveform; video has one
 thumbnail timeline beneath its preview. Click or drag directly on either timeline

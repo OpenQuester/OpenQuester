@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { timerElapsed } from "@/game/contentPlan";
+import { isMainTextItem, timerElapsed } from "@/game/contentPlan";
 import { pointImage } from "@/lib/pointImage";
 import type { GameSession } from "@/game/reducer";
 import { canAnswerNow, pointPicture, boardQuestionMeta, myRole, phaseOf } from "@/game/selectors";
@@ -25,14 +25,8 @@ export function useQuestionStage() {
   // A sequenced text appears in its own step instead of under the media.
   const textIsStep =
     content?.kind === "question" &&
-    content.plan.steps.some((st) =>
-      st.items.some(
-        (i) =>
-          i.kind === "text" &&
-          (q?.textOrder != null
-            ? i.order === q.textOrder
-            : q?.textOrder === undefined && !q?.textItems?.length),
-      ),
+    content.plan.steps.some((step) =>
+      step.items.some((item) => isMainTextItem(item, q?.textOrder, q?.textItems)),
     );
   const price = s.stakeQuestionData?.highestBid ?? q?.price ?? meta?.question.price ?? null;
   // Point answers: the player who answers now clicks the spot on the picture.

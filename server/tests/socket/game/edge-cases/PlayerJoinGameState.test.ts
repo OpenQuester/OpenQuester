@@ -40,6 +40,169 @@ describe("Player Join Game State Tests", () => {
   });
 
   describe("Player joining during Final Round phases", () => {
+    it("settles an automatic bid if a finalist disconnects before media preparation", async () => {
+      await suite.scenario(async (scenario) => {
+        const { gameId, showmanSocket, playerSockets, playerUsers } =
+          await utils.setupFinalRoundGame({ playersCount: 2, playerScores: [1500, 1200] });
+        const bidding = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_PHASE_COMPLETE
+        );
+        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
+        await bidding;
+        const state = await utils.getGameState(gameId);
+        const theme = state.currentRound!.themes.find(
+          (t) => !t.questions?.some((q) => q.isPlayed)
+        )!;
+        const id = theme.questions![0].id;
+        const store = container.resolve(PackageStore);
+        const stored = await store.getQuestionWithTheme(gameId, id);
+        await container.resolve(RedisRepository).hset(store.getPackageKey(gameId), {
+          [`q:${id}`]: JSON.stringify({
+            ...stored!.question,
+            text: "",
+            textOrder: null,
+            textItems: [],
+            questionFiles: [
+              { order: 0, displayTime: 1000, file: { md5: "image", type: PackageFileType.IMAGE } }
+            ]
+          })
+        });
+        const bid = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_BID_SUBMIT);
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
+        await bid;
+        const prepared = scenario.waitForEvent<FinalQuestionEventData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_QUESTION_DATA
+        );
+        await utils.disconnectAndCleanup(playerSockets[1]);
+        const data = await prepared;
+        expect((await utils.getGameState(gameId)).finalRoundData?.bids[playerUsers[1].id]).toBe(1);
+        const phase = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_PHASE_COMPLETE);
+        scenario
+          .actor(playerSockets[0])
+          .emit(SocketIOGameEvents.MEDIA_DOWNLOADED, {
+            mediaPreparationId: data.questionData.mediaPreparationId
+          });
+        await phase;
+        const game = await utils.getGameFromGameService(gameId);
+        expect(game.gameState.finalRoundData?.answers).toHaveLength(0);
+        game.gameState.timer!.elapsedMs = data.questionData.contentPlan!.totalMs;
+        game.gameState.timer!.resumedAt = new Date();
+        await utils.updateGame(game);
+        const answer = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_ANSWER_SUBMIT);
+        scenario
+          .actor(playerSockets[0])
+          .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "answer" });
+        await answer;
+        await scenario.assert.waitForActionsComplete({ gameId });
+        expect((await utils.getGameState(gameId)).questionState).toBe(QuestionState.ANSWERING);
+        const autoLoss = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_AUTO_LOSS);
+        await utils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_FINAL_ANSWERING_EXPIRED
+        );
+        await autoLoss;
+        await scenario.assert.waitForActionsComplete({ gameId });
+        const result = await utils.getGameFromGameService(gameId);
+        expect(result.players.find((player) => player.meta.id === playerUsers[1].id)?.score).toBe(
+          1199
+        );
+        expect(result.gameState.finalRoundData?.answers).toContainEqual(
+          expect.objectContaining({
+            playerId: playerUsers[1].id,
+            autoLoss: true,
+            isCorrect: false
+          })
+        );
+      });
+    });
+
+    it("settles a disconnected finalist's bid when the answer window expires", async () => {
+      await suite.scenario(async (scenario) => {
+        const { gameId, showmanSocket, playerSockets, playerUsers } =
+          await utils.setupFinalRoundGame({ playersCount: 2, playerScores: [1500, 1200] });
+        const bidding = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_PHASE_COMPLETE
+        );
+        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
+        await bidding;
+        const state = await utils.getGameState(gameId);
+        const theme = state.currentRound!.themes.find(
+          (t) => !t.questions?.some((q) => q.isPlayed)
+        )!;
+        const id = theme.questions![0].id;
+        const store = container.resolve(PackageStore);
+        const stored = await store.getQuestionWithTheme(gameId, id);
+        await container.resolve(RedisRepository).hset(store.getPackageKey(gameId), {
+          [`q:${id}`]: JSON.stringify({
+            ...stored!.question,
+            text: "",
+            textOrder: null,
+            textItems: [],
+            questionFiles: [
+              { order: 0, displayTime: 1000, file: { md5: "image", type: PackageFileType.IMAGE } }
+            ]
+          })
+        });
+        const bid = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_BID_SUBMIT);
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
+        await bid;
+        const prepared = scenario.waitForEvent<FinalQuestionEventData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_QUESTION_DATA
+        );
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
+        const data = await prepared;
+        const ready = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.MEDIA_DOWNLOADED, {
+          mediaPreparationId: data.questionData.mediaPreparationId
+        });
+        await ready;
+        const phase = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_PHASE_COMPLETE);
+        await utils.disconnectAndCleanup(playerSockets[1]);
+        await phase;
+        const game = await utils.getGameFromGameService(gameId);
+        expect(game.players.find((player) => player.meta.id === playerUsers[1].id)?.score).toBe(
+          1200
+        );
+        expect(game.gameState.finalRoundData?.answers).toHaveLength(0);
+        game.gameState.timer!.elapsedMs = data.questionData.contentPlan!.totalMs;
+        game.gameState.timer!.resumedAt = new Date();
+        await utils.updateGame(game);
+        const answer = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_ANSWER_SUBMIT);
+        scenario
+          .actor(playerSockets[0])
+          .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "answer" });
+        await answer;
+        await scenario.assert.waitForActionsComplete({ gameId });
+        expect((await utils.getGameState(gameId)).questionState).toBe(QuestionState.ANSWERING);
+        const autoLoss = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_AUTO_LOSS);
+        const complete = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_SUBMIT_END);
+        await utils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_FINAL_ANSWERING_EXPIRED
+        );
+        await Promise.all([autoLoss, complete]);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        const result = await utils.getGameFromGameService(gameId);
+        expect(result.players.find((player) => player.meta.id === playerUsers[1].id)?.score).toBe(
+          600
+        );
+        expect(result.gameState.finalRoundData?.answers).toContainEqual(
+          expect.objectContaining({
+            playerId: playerUsers[1].id,
+            autoLoss: true,
+            isCorrect: false
+          })
+        );
+      });
+    });
+
     it("finishes a paused zero-duration final timeline when all players leave", async () => {
       await suite.scenario(async (scenario) => {
         const { gameId, showmanSocket, playerSockets, playerUsers } =
@@ -87,11 +250,9 @@ describe("Player Join Game State Tests", () => {
         expect(data.questionData.contentPlan?.totalMs).toBe(0);
         const phase = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_PHASE_COMPLETE);
         for (const socket of playerSockets) {
-          scenario
-            .actor(socket)
-            .emit(SocketIOGameEvents.MEDIA_DOWNLOADED, {
-              mediaPreparationId: data.questionData.mediaPreparationId
-            });
+          scenario.actor(socket).emit(SocketIOGameEvents.MEDIA_DOWNLOADED, {
+            mediaPreparationId: data.questionData.mediaPreparationId
+          });
         }
         await phase;
         const paused = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.GAME_PAUSE);
@@ -154,7 +315,11 @@ describe("Player Join Game State Tests", () => {
         const paused = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.GAME_PAUSE);
         scenario.actor(showmanSocket).emit(SocketIOGameEvents.GAME_PAUSE);
         await paused;
-        for (const socket of playerSockets) await utils.disconnectAndCleanup(socket);
+        for (const socket of playerSockets) {
+          const left = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+          scenario.actor(socket).emit(SocketIOGameEvents.LEAVE);
+          await left;
+        }
         const { socket } = await utils.createSocketForExistingUser(playerUsers[0].id);
         const snapshot = scenario.waitForEvent<GameJoinOutputData>(
           socket,
@@ -292,6 +457,9 @@ describe("Player Join Game State Tests", () => {
           );
           scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
           const preparationId = (await prepared).questionData.mediaPreparationId!;
+          let reconnectedSocket:
+            | Awaited<ReturnType<typeof utils.createSocketForExistingUser>>["socket"]
+            | undefined;
           const firstReady = scenario.waitForEvent(
             showmanSocket,
             SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS
@@ -321,6 +489,7 @@ describe("Player Join Game State Tests", () => {
           if (mode === "rejoin") {
             await utils.disconnectAndCleanup(playerSockets[0]);
             const { socket } = await utils.createSocketForExistingUser(playerUsers[0].id);
+            reconnectedSocket = socket;
             const snapshot = scenario.waitForEvent<GameJoinOutputData>(
               socket,
               SocketIOGameEvents.GAME_DATA
@@ -332,6 +501,8 @@ describe("Player Join Game State Tests", () => {
             expect(
               joined.players.find((p) => p.meta.id === playerUsers[0].id)?.mediaDownloaded
             ).toBe(false);
+            expect(joined.players.find((p) => p.meta.id === playerUsers[0].id)?.score).toBe(1500);
+            expect(joined.gameState.finalRoundData?.answers).toHaveLength(0);
             const secondReady = scenario.waitForEvent(
               showmanSocket,
               SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS
@@ -356,6 +527,21 @@ describe("Player Join Game State Tests", () => {
           expect(after.finalRoundData?.questionData?.mediaPreparationTimedOut ?? false).toBe(
             mode === "timeout"
           );
+          if (reconnectedSocket) {
+            const game = await utils.getGameFromGameService(gameId);
+            game.gameState.timer!.elapsedMs =
+              game.gameState.finalRoundData!.questionData!.contentPlan!.totalMs;
+            game.gameState.timer!.resumedAt = new Date();
+            await utils.updateGame(game);
+            const answer = scenario.waitForEvent(
+              showmanSocket,
+              SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+            );
+            scenario
+              .actor(reconnectedSocket)
+              .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "answer" });
+            await answer;
+          }
           if (mode === "leave" || mode === "role") {
             const departed = (await utils.getGameFromGameService(gameId)).players.find(
               (p) => p.meta.id === playerUsers[1].id

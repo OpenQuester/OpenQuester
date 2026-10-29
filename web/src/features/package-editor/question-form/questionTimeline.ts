@@ -52,11 +52,13 @@ export function syncQuestionFiles(
   const newIds = ids(after);
   if (oldIds.length === newIds.length && oldIds.every((id, i) => id === newIds[i])) return after;
   if (oldIds.some((id) => !id) || newIds.some((id) => !id)) return after;
+  const oldOccurrences = new Set(oldIds);
+  const newOccurrences = new Set(newIds);
   const original = questionSteps(before);
   const kept = original.filter(
-    (step) => step.kind !== "media" || newIds.includes(step.file.occurrenceId),
+    (step) => step.kind !== "media" || newOccurrences.has(step.file.occurrenceId),
   );
-  const existing = after.questionFiles.filter((file) => oldIds.includes(file.occurrenceId));
+  const existing = after.questionFiles.filter((file) => oldOccurrences.has(file.occurrenceId));
   let next = 0;
   const steps = kept.map((step) =>
     step.kind === "media" ? { kind: "media" as const, file: existing[next++]! } : step,
@@ -67,7 +69,7 @@ export function syncQuestionFiles(
       : step.kind === "text"
         ? `text:${step.item.id}`
         : "main";
-  for (const file of after.questionFiles.filter((item) => !oldIds.includes(item.occurrenceId))) {
+  for (const file of after.questionFiles.filter((item) => !oldOccurrences.has(item.occurrenceId))) {
     const index = after.questionFiles.indexOf(file);
     let at = -1;
     if (restore) {

@@ -112,6 +112,8 @@ export async function withFinalMediaDurations(parsed: ParsedPackage): Promise<Pa
 }
 
 async function measureFile(file: MediaFile): Promise<number> {
+  if (file.type === "image")
+    throw new FinalMediaDurationError("unavailable", file.displayName ?? file.name);
   const local = file.bytes.byteLength > 0;
   const src = local
     ? URL.createObjectURL(
@@ -120,8 +122,7 @@ async function measureFile(file: MediaFile): Promise<number> {
         }),
       )
     : file.url;
-  if (!src || file.type === "image")
-    throw new FinalMediaDurationError("unavailable", file.displayName ?? file.name);
+  if (!src) throw new FinalMediaDurationError("unavailable", file.displayName ?? file.name);
   try {
     return await readFinalMediaDuration(src, file.type, file.displayName ?? file.name);
   } finally {

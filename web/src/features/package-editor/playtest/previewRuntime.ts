@@ -30,6 +30,59 @@ export const previewTimer = (durationMs: number, elapsedMs = 0): Timer => ({
   resumedAt: null,
 });
 
+/** Project the private simulation into the selected player's visible session. */
+function previewView(s: GameSession, perspective: number): GameSession {
+  const isHost = perspective === PREVIEW_SHOWMAN;
+  const q = s.state.currentQuestion;
+  const final = s.state.finalRoundData;
+  const all = s.state.allPlay;
+  const visibleFinal = final && {
+    ...final,
+    questionData: final.questionData
+      ? {
+          ...final.questionData,
+          question: isHost
+            ? final.questionData.question
+            : publicQuestion(final.questionData.question),
+        }
+      : final.questionData,
+    bids:
+      final.phase === "reviewing"
+        ? final.bids
+        : Object.fromEntries(
+            Object.entries(final.bids).map(([id, amount]) => [
+              id,
+              Number(id) === perspective ? amount : 0,
+            ]),
+          ),
+    answers: final.phase === "reviewing" ? final.answers : [],
+  };
+  const visibleAll =
+    all &&
+    (s.state.questionState === "reviewing" || s.state.questionState === "showing_answer"
+      ? all
+      : {
+          ...all,
+          entries: all.entries.map((entry) => ({
+            ...entry,
+            stake: entry.stake == null ? null : 0,
+            answer: entry.answer == null ? null : "",
+          })),
+        });
+  return {
+    ...s,
+    submittedAnswer: isHost || s.state.answeringPlayer === perspective ? s.submittedAnswer : null,
+    state: {
+      ...s.state,
+      currentQuestion: q && !isHost ? publicQuestion(q) : q,
+      submittedAnswer:
+        isHost || s.state.answeringPlayer === perspective ? s.state.submittedAnswer : null,
+      finalRoundData: visibleFinal,
+      allPlay: visibleAll,
+    },
+  };
+}
+
 /** One private local game; views receive a role-filtered projection in a separate store. */
 export class PreviewRuntime {
   readonly store = createGameStore();
@@ -90,59 +143,7 @@ export class PreviewRuntime {
     this.publish();
   }
   private publish() {
-    const s = this.state;
-    const isHost = this.perspective === PREVIEW_SHOWMAN;
-    const q = s.state.currentQuestion;
-    const final = s.state.finalRoundData;
-    const all = s.state.allPlay;
-    const visibleFinal = final && {
-      ...final,
-      questionData: final.questionData
-        ? {
-            ...final.questionData,
-            question: isHost
-              ? final.questionData.question
-              : publicQuestion(final.questionData.question),
-          }
-        : final.questionData,
-      bids:
-        final.phase === "reviewing"
-          ? final.bids
-          : Object.fromEntries(
-              Object.entries(final.bids).map(([id, amount]) => [
-                id,
-                Number(id) === this.perspective ? amount : 0,
-              ]),
-            ),
-      answers: final.phase === "reviewing" ? final.answers : [],
-    };
-    const visibleAll =
-      all &&
-      (s.state.questionState === "reviewing" || s.state.questionState === "showing_answer"
-        ? all
-        : {
-            ...all,
-            entries: all.entries.map((entry) => ({
-              ...entry,
-              stake: entry.stake == null ? null : 0,
-              answer: entry.answer == null ? null : "",
-            })),
-          });
-    this.store.setState({
-      session: {
-        ...s,
-        submittedAnswer:
-          isHost || s.state.answeringPlayer === this.perspective ? s.submittedAnswer : null,
-        state: {
-          ...s.state,
-          currentQuestion: q && !isHost ? publicQuestion(q) : q,
-          submittedAnswer:
-            isHost || s.state.answeringPlayer === this.perspective ? s.state.submittedAnswer : null,
-          finalRoundData: visibleFinal,
-          allPlay: visibleAll,
-        },
-      },
-    });
+    this.store.setState({ session: previewView(this.state, this.perspective) });
   }
   command(command: PreviewCommand, sender = this.perspective) {
     if (this.disposed) return;

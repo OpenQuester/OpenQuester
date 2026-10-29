@@ -19,17 +19,19 @@ export function PlayerChip({
   player,
   onManage,
   finalContentPlaying = false,
+  pointWaiting = false,
 }: {
   player: Player;
   onManage?: (playerId: number) => void;
   finalContentPlaying?: boolean;
+  pointWaiting?: boolean;
 }) {
   const { t } = useTranslation();
   const session = useSession();
   const { myId } = useGame();
   const isShowman = myRole(session, myId) === "showman";
 
-  const chip = chipState(session, player, t, finalContentPlaying);
+  const chip = chipState(session, player, t, finalContentPlaying, pointWaiting);
   const isMe = player.meta.id === myId;
   const content = (
     <>

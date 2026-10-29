@@ -84,6 +84,7 @@ export function createPhaseTransitionRouter(logger: ILogger): PhaseTransitionRou
 
     // Media download complete/timeout: MEDIA_DOWNLOADING → SHOWING
     new MediaDownloadingToShowingHandler(),
+    // Final media download complete/timeout: MEDIA_DOWNLOADING -> FINAL_ANSWERING
     new FinalMediaToAnsweringHandler(),
 
     // =========================================================================

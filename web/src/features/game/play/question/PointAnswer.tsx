@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { myAllPlayEntry, phaseOf } from "@/game/selectors";
 import { useGame, useGameState, useGameStoreApi, useSession } from "../../GameContext";
-import { PointPicker, pointAnswer } from "../PointPicker";
+import { pointAnswer } from "@/game/pointAnswer";
+import { PointPicker } from "../PointPicker";
 import { mediaFrame } from "../media/playbackStyles";
 import { cn } from "@/lib/cn";
 

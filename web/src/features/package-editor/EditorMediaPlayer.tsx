@@ -1,8 +1,19 @@
-import { useEffect, useRef, useState, type SyntheticEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  type SyntheticEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { FullscreenIcon, PauseIcon, PlayIcon, VolumeIcon, VolumeOffIcon } from "@/ui/icons";
 import { formatTime } from "./media-editor/mediaEdits";
+
+const buttonClass =
+  "inline-flex size-9 shrink-0 items-center justify-center rounded-sm hover:bg-surface-3 disabled:opacity-50";
 
 /** Editor playback is local and seekable; live game media has its own clock. */
 export function EditorMediaPlayer({
@@ -29,7 +40,6 @@ export function EditorMediaPlayer({
   const [error, setError] = useState(false);
   const [fullscreenError, setFullscreenError] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const effectivelyMuted = muted || volume === 0;
 
   useEffect(() => {
     const media = ref.current;
@@ -69,8 +79,6 @@ export function EditorMediaPlayer({
       setError(true);
     },
   };
-  const buttonClass =
-    "inline-flex size-9 shrink-0 items-center justify-center rounded-sm hover:bg-surface-3 disabled:opacity-50";
   return (
     <div
       ref={container}
@@ -154,47 +162,14 @@ export function EditorMediaPlayer({
             }
           }}
         />
-        <div className="flex min-w-0 items-center gap-1">
-          <button
-            type="button"
-            className={buttonClass}
-            aria-label={t(effectivelyMuted ? "editor.player.unmute" : "editor.player.mute")}
-            onClick={() => {
-              if (ref.current) {
-                if (effectivelyMuted) {
-                  ref.current.muted = false;
-                  ref.current.volume = lastVolume.current;
-                  setVolume(lastVolume.current);
-                  setMuted(false);
-                } else {
-                  ref.current.muted = true;
-                  setMuted(true);
-                }
-              }
-            }}
-          >
-            {effectivelyMuted ? <VolumeOffIcon size={16} /> : <VolumeIcon size={16} />}
-          </button>
-          <input
-            type="range"
-            className="min-w-0 w-full max-w-28"
-            aria-label={t("editor.player.volume")}
-            min={0}
-            max={1}
-            step={0.05}
-            value={muted ? 0 : volume}
-            onChange={(event) => {
-              const value = Number(event.target.value);
-              if (value > 0) lastVolume.current = value;
-              if (ref.current) {
-                ref.current.volume = value;
-                ref.current.muted = false;
-              }
-              setVolume(value);
-              setMuted(false);
-            }}
-          />
-        </div>
+        <VolumeControl
+          mediaRef={ref}
+          lastVolumeRef={lastVolume}
+          volume={volume}
+          muted={muted}
+          setVolume={setVolume}
+          setMuted={setMuted}
+        />
       </div>
       {loading && !error && (
         <span className="px-2 text-xs text-muted">{t("editor.player.loading")}</span>
@@ -209,6 +184,69 @@ export function EditorMediaPlayer({
           {t("editor.player.fullscreenError")}
         </span>
       )}
+    </div>
+  );
+}
+
+/** Volume and mute controls operate on the same media element as transport. */
+function VolumeControl({
+  mediaRef,
+  lastVolumeRef,
+  volume,
+  muted,
+  setVolume,
+  setMuted,
+}: {
+  mediaRef: RefObject<HTMLMediaElement | null>;
+  lastVolumeRef: RefObject<number>;
+  volume: number;
+  muted: boolean;
+  setVolume: Dispatch<SetStateAction<number>>;
+  setMuted: Dispatch<SetStateAction<boolean>>;
+}) {
+  const { t } = useTranslation();
+  const effectivelyMuted = muted || volume === 0;
+  return (
+    <div className="flex min-w-0 items-center gap-1">
+      <button
+        type="button"
+        className={buttonClass}
+        aria-label={t(effectivelyMuted ? "editor.player.unmute" : "editor.player.mute")}
+        onClick={() => {
+          if (mediaRef.current) {
+            if (effectivelyMuted) {
+              mediaRef.current.muted = false;
+              mediaRef.current.volume = lastVolumeRef.current;
+              setVolume(lastVolumeRef.current);
+              setMuted(false);
+            } else {
+              mediaRef.current.muted = true;
+              setMuted(true);
+            }
+          }
+        }}
+      >
+        {effectivelyMuted ? <VolumeOffIcon size={16} /> : <VolumeIcon size={16} />}
+      </button>
+      <input
+        type="range"
+        className="min-w-0 w-full max-w-28"
+        aria-label={t("editor.player.volume")}
+        min={0}
+        max={1}
+        step={0.05}
+        value={muted ? 0 : volume}
+        onChange={(event) => {
+          const value = Number(event.target.value);
+          if (value > 0) lastVolumeRef.current = value;
+          if (mediaRef.current) {
+            mediaRef.current.volume = value;
+            mediaRef.current.muted = false;
+          }
+          setVolume(value);
+          setMuted(false);
+        }}
+      />
     </div>
   );
 }

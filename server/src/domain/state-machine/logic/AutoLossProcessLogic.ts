@@ -94,7 +94,7 @@ export class AutoLossProcessLogic {
    * Process auto-loss for players who haven't submitted answers.
    *
    * Pure mutation function that:
-   * 1. Finds eligible players (in game, with bids > 0, haven't submitted)
+   * 1. Finds unanswered positive bids, including disconnected players
    * 2. Adds empty answer (auto-marked as autoLoss)
    * 3. Immediately reviews as incorrect (applies score penalty)
    * 4. Returns entries and phase completion status
@@ -112,23 +112,17 @@ export class AutoLossProcessLogic {
 
     const autoLossEntries: AutoLossEntry[] = [];
 
-    // Find players who haven't submitted answers
-    // Only process players with non-zero bids (bid=0 means they don't participate)
-    const eligiblePlayers = game.players.filter(
-      (p) =>
-        p.role === PlayerRole.PLAYER &&
-        p.gameStatus === PlayerGameStatus.IN_GAME &&
-        (finalRoundData.bids[p.meta.id] || 0) > 0
-    );
+    // Every positive bid must be settled, even if its player disconnected.
+    const bidderIds = Object.entries(finalRoundData.bids)
+      .filter(([, bid]) => bid > 0)
+      .map(([playerId]) => Number(playerId));
 
-    for (const player of eligiblePlayers) {
-      const hasSubmitted = finalRoundData.answers.some(
-        (answer) => answer.playerId === player.meta.id
-      );
+    for (const playerId of bidderIds) {
+      const hasSubmitted = finalRoundData.answers.some((answer) => answer.playerId === playerId);
 
       if (!hasSubmitted) {
         // Add empty answer as auto-loss (automatically marked by StateManager)
-        const answer = FinalRoundStateManager.addAnswer(game, player.meta.id, "", true);
+        const answer = FinalRoundStateManager.addAnswer(game, playerId, "", true);
 
         // Create answer data (answer.autoLoss is true for empty answers)
         const answerData: AnswerData = {

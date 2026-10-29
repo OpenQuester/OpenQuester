@@ -114,6 +114,19 @@ it("names the file when an explicit final display time is invalid", async () => 
   });
 });
 
+it("does not create an object URL for an incompatible file type", async () => {
+  const parsed = example();
+  parsed.files.set("video", {
+    md5: "video",
+    type: "image",
+    name: "image.png",
+    bytes: new Uint8Array([1]),
+  });
+  const create = vi.spyOn(URL, "createObjectURL");
+  await expect(withFinalMediaDurations(parsed)).rejects.toMatchObject({ reason: "unavailable" });
+  expect(create).not.toHaveBeenCalled();
+});
+
 it("publishes measured local media duration in the actual package request", async () => {
   stubMedia(31.2341);
   vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:local-video");

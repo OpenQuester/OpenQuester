@@ -43,23 +43,17 @@ Names in code may differ. Use nearby enums/types as the implementation source of
 | Finished | Start/rematch/share/admin actions | See results/rematch/share | See results | “Game already finished” | winner, podium, summary, score deltas |
 | Paused/reconnecting | Resume or wait | Reconnecting/waiting | Reconnecting/waiting | “Game paused”, “Connection lost” | reconnect banner, restored state |
 
-For final questions with non-null `textItems` (including an empty array), the
-server sends `finalRoundData.questionData.contentPlan` with the public question.
-When the question has files, players first preload them during a 30-second media
-readiness barrier. The showman and spectators do not block it; a timeout starts
-playback and displays a persistent warning that some media may not have loaded.
-Readiness is tied to this preparation attempt, and rejoining players preload
-again. The barrier, timer and plan survive pause and rejoin.
-It sequences the main text and additional text by order alongside media on the
-answering timer. The answer window begins after `contentPlan.totalMs`; submissions
-before then are rejected. Pause/resume and rejoin use the same timer and plan.
-Without media-duration reports in final rounds, every audio/video in a sequenced
-final question must provide `displayTime` as an integer from 1 to 120,000 ms.
-Null or absent `textItems` preserves legacy final behavior.
-Flutter has not been updated for the new `textItems` contract and does not send
-the final preparation nonce. In a mixed game, the new final can therefore wait
-for the 30-second timeout, and the older client does not synchronize the
-sequenced playback. Legacy questions retain their existing behavior.
+Final questions with non-null `textItems` use a server-provided `contentPlan`:
+eligible players preload files (up to 30 seconds), then watch the sequence before
+answering. Timeout starts playback with a persistent media warning. Pause and
+rejoin preserve progress; reconnecting players preload again. New players and
+spectators do not block readiness. A disconnect during preparation does not
+forfeit an eligible player's answer while its answering window remains open.
+Every committed final bid is settled; an unanswered bid loses at the deadline
+even if its player remains disconnected.
+Null/absent `textItems` preserves legacy behavior. Flutter does not yet support
+the new sequence or preparation acknowledgement, so mixed games may reach the
+timeout. See [package validation](package-validation-spec.md) for duration rules.
 
 ## Required frontend behavior
 
@@ -68,8 +62,9 @@ sequenced playback. Legacy questions retain their existing behavior.
 The normal regular-question wire flow is `QUESTION_PICK` → `QUESTION_DATA`
 (links/content and media timer) → client readiness ACKs → `MEDIA_DOWNLOAD_STATUS`
 completion and `SHOWING`. No-file questions use immediate client ACKs. The
-barrier includes active players only, not showman/spectators; a timeout forces
-completion without proving downloads. There is no second data/reveal event.
+barrier waits for connected players who were present at the pick, including
+non-answerers in no-risk questions. Late joiners, showmen and spectators do not
+block it. Timeout forces completion; there is no second data/reveal event.
 
 Content hiding is a product requirement, not a claim about current Flutter.
 The [media coordination reference](../../server/docs/media-download-sync.md)
@@ -125,83 +120,49 @@ When changing gameplay state, make sure:
 - A question ends as soon as nobody can still buzz: every eligible player has
   either answered or passed. A pass after someone else's wrong answer reveals
   the answer immediately instead of waiting for the timer.
-- For simple, choice, and hidden-price buzzer questions, a wrong or skipped
-  answer returns to showing with the saved question timer when other eligible
-  players remain. The server rearms its expiration for the remaining time;
-  answering timeout follows the same path. A correct answer or exhaustion
-  reveals the answer; secret, stake, and single-player no-risk questions remain
-  single-answerer.
+- Simple, choice and hidden-price questions reopen the buzzer with the remaining
+  question time after a wrong answer, skip or answering timeout. A correct answer
+  or no remaining eligible players reveals the answer. Secret, stake and
+  single-player no-risk questions allow only their designated answerer.
 - When the showman picks a stake or secret question, it belongs to the player
   whose turn it was: they make the opening bid or choose the recipient. The
   showman never bids, receives or answers.
 - `start` carries `currentTurnPlayerId`, so every client shows who picks first.
 - The showman's copy of the final question includes the answer for judging.
-- A regular submitted answer is broadcast to the game and retained while it
-  awaits a ruling. A result carries the player's actual submitted text when
-  available, and the reveal retains that result for rejoin. An oral or legacy
-  answer without stored text remains unknown; it is not replaced by the
-  authored correct answer. The regular text is cleared on a fresh answerer or
-  question and on reset. All-play and final answers follow their separate
-  private-until-review rules.
-- A regular choice submission may carry the selected option's unique package
-  order. A wrong ruling, including zero points, records that order in the
-  public attempt history and prevents the option from being selected again;
-  a skip does not. Undo removes the ruling, and reconnect receives the same
-  history. Legacy text-only answers identify an option only when its normalized
-  text and order are both unique; ambiguous legacy answers retain their old
-  behavior and cannot reliably enforce selection-specific repeats. Image-only
-  choices without a trustworthy answer key remain for manual judgment. With
-  an authored key the server checks the selected order automatically; explicit
-  additional text aliases still count. A legacy number that could also be an
-  image placeholder stays manual and does not identify a rejected row. The
-  correct key stays private until reveal; an image-only correct choice without
-  authored answer media is shown in the reveal and retained on rejoin.
+- Regular submitted text is public and retained through ruling/reveal/rejoin;
+  oral answers without stored text remain unknown. A new answerer or question
+  clears it. All-play and final answers remain private until review.
+- A wrong choice ruling blocks that option for the rest of the question, even
+  for zero points; a skip does not. Undo restores it, and reconnect preserves the
+  history. Explicit option orders identify selections; ambiguous legacy text or
+  image placeholders cannot identify a rejected option reliably. The correct
+  key stays private until reveal, which includes an image-only correct option
+  when no answer media was authored.
 
 ## Special question rules (SIGame parity)
 
-- **Choice:** a picked option is checked by the server when the question's
-  right answer is exactly one of the options (`ChoiceAnswerLogic`); right
-  scores +price, wrong −price, and the showman does not judge. Otherwise the
-  showman judges as usual. Browser image-only picks send their displayed
-  option number, prefixed with `#` until it differs from every normalized
-  text option, so a numeric text answer cannot be judged in its place.
-  They remain manual rulings. Failed sends unlock the options for retry;
+- **Choice:** an explicit `correctChoiceOrder` or unambiguous text key allows
+  automatic checking (+price/−price); accepted text aliases still count.
+  Ambiguous legacy/image-only answers remain manual. Options appear `showDelay`
+  after the content; false-start mode normally opens the buzzer then too.
+  Failed sends unlock options for retry;
   pending or accepted submissions keep them locked.
-  Options appear `showDelay` after the content, and
-  the buzzer opens then.
 - **Number and point answers** (`answerType`): a typed number is checked
   against `answerNumber` ± `answerDeviation`; a point answer is a click on the
-  question's first picture, sent as `"x,y"` fractions and checked against
+  target picture, sent as `"x,y"` fractions and checked against
   `answerPoint` within `answerDeviation` (a share of the width, 5% by
   default). Right +price, wrong −price, no showman ruling; text that isn't a
   number / point goes to the showman. In "everyone answers" questions these
-  answers are ruled when the review starts. In the final round, the browser
-  submits a selected point through `final-answer-submit`, and the showman
-  manually judges it in the final review; no automatic final-point ruling is
-  implied. `pointImageOrder` identifies the target question image; when absent or
-  null, the first ordered question image remains the legacy target.
-  During final review the showman sees the target, tolerance and each valid
-  submitted position. On rejoin the server sends the full final question only
-  to the joining showman after the public game snapshot; players and spectators
-  receive the public question without the private target.
+  answers are ruled when the review starts. Final points are judged manually;
+  only the showman receives the private target, including after rejoin.
+  `pointImageOrder` selects the image; absent/null selects the first ordered image.
   With `answerPoint.imageAspectRatio`, distance is `hypot(dx, dy / aspect)`;
-  positive radii use the stored width-normalized deviation. For a zero radius,
-  both coordinates compare at the web wire precision of three decimals; this
-  is not an additional tolerance radius. Legacy points without aspect metadata
-  keep their original normalized-coordinate distance. Web publication measures
-  the target image and adds the aspect; no existing package is backfilled.
-  During a normal or all-play point-answer reveal, `answerShowData.answerPointImage`
-  retains the target question image URL for players who join or reload after the
-  active question is cleared. Point coordinates and radius remain answer-reveal
-  data; no additional answer metadata is exposed before reveal. The browser keeps
-  the current player's selected point locally while waiting, and renders available
-  submitted points with player names and the authoritative ruling at reveal. A
-  local selection is not guaranteed to survive rejoin. Older reveal payloads
-  without the optional image URL remain valid.
-  Entering point-answer input keeps the current image frame, background and
-  step indicator stable; click coordinates use the image bounds inside that
-  frame. A reveal with the respondent's visible marker omits the duplicate raw
-  coordinate answer line, while screen-reader descriptions retain coordinates.
+  zero radius compares coordinates at three-decimal wire precision. Legacy
+  metadata-free points keep their original distance calculation until republished.
+  The browser preserves the image frame through input and marks submitted points
+  with player names/results at reveal instead of repeating raw coordinates.
+  Reveal data retains the target image for rejoin; a local selection may be lost.
+  Private coordinates/radius are not exposed before reveal.
 - **Showman instruction:** the web UI places `questionComment` before question
   content for the showman, including final answer and review phases, and omits
   it from public answer reveal. This UI visibility does not make the field

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { QuestionFile } from "@/game/protocol";
 import type { ContentClock } from "@/game/reducer";
+import { isMainTextItem } from "@/game/contentPlan";
 import { cn } from "@/lib/cn";
 
 import { QuestionMediaItem } from "./media/QuestionMediaItem";
@@ -41,8 +42,7 @@ export function ContentStage({
   );
   const currentScreenStep = screenSteps.findIndex((s) => s.startMs === position.screenStartMs) + 1;
   const isMainText = (item: { kind: string; order: number }) =>
-    item.kind === "text" &&
-    (textOrder != null ? item.order === textOrder : textOrder === undefined && !textItems?.length);
+    isMainTextItem(item, textOrder, textItems);
   const textShown = position.screen.some(isMainText);
   const textSequenced = content.plan.steps.some((s) => s.items.some(isMainText));
 

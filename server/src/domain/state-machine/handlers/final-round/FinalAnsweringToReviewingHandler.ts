@@ -18,7 +18,7 @@ import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { FinalAnsweringToReviewingMutationData } from "domain/types/socket/transition/final";
-import { FinalContentLogic } from "domain/logic/final-round/FinalContentLogic";
+import { FinalQuestionPlaybackLogic } from "domain/logic/final-round/FinalQuestionPlaybackLogic";
 
 /**
  * Handles transition from FINAL_ANSWERING to FINAL_REVIEWING phase.
@@ -64,7 +64,8 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
 
     // 3. All eligible players must have submitted answers (including auto-loss)
     return (
-      FinalContentLogic.isComplete(game) && FinalRoundStateManager.areAllAnswersSubmitted(game)
+      FinalQuestionPlaybackLogic.isPlaybackComplete(game) &&
+      FinalRoundStateManager.areAllAnswersSubmitted(game)
     );
   }
 

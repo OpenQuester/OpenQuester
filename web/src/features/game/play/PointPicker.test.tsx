@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +7,7 @@ import { i18n } from "@/i18n";
 import { PointPicker } from "./PointPicker";
 
 afterEach(async () => {
+  cleanup();
   await i18n.changeLanguage("en");
 });
 
