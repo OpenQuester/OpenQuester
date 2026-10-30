@@ -1,6 +1,7 @@
 import type { ButtonPressMode, GameSettings, GameTimerSettings } from "@/api/types";
 
 export const DEFAULT_GAME_SETTINGS: GameSettings = {
+  autoStart: true,
   falseStart: true,
   buttonPressMode: "random_within_window",
   wrongAnswerPenalty: "subtract",

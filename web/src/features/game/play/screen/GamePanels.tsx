@@ -5,7 +5,7 @@ import type { PanelId } from "@/features/settings/settingsStore";
 import { Dialog } from "@/ui/Dialog";
 import { ChatBody } from "../ChatPanel";
 import { HostTools } from "../HostTools";
-import { PlayersBody } from "../PlayersPanel";
+import { SpectatorsBody } from "../PlayersPanel";
 import { GameSidePanel } from "../GameSidePanel";
 import { PANEL_ORDER, type GameScreenModel } from "./useGameScreen";
 
@@ -15,7 +15,7 @@ export function GamePanels({ game }: { game: GameScreenModel }) {
   const { wide, focusPlayer, setPanel, docked, pins, togglePin, allowed, isOpen } = game;
   const titles: Record<PanelId, string> = {
     host: t("menu.host"),
-    players: t("players.title"),
+    players: `${t("lobby.spectators")} · ${game.spectatorCount}`,
     chat: t("chat.title"),
   };
   const body = (id: PanelId): ReactNode =>
@@ -26,7 +26,7 @@ export function GamePanels({ game }: { game: GameScreenModel }) {
         onBoardEdit={wide ? undefined : () => setPanel("host", false)}
       />
     ) : id === "players" ? (
-      <PlayersBody />
+      <SpectatorsBody />
     ) : (
       <ChatBody />
     );

@@ -789,7 +789,8 @@ test("local playtest uses unsaved content, separates roles, and leaves the form 
     await expect(game.getByRole("list", { name: "Scores" })).toBeVisible();
   }
   await expect(game.getByTestId("question-text")).toHaveText(unsaved);
-  const question = game.getByRole("region", { name: "Question" });
+  // The prompt also has a named text region inside the overall question stage.
+  const question = game.getByRole("region", { name: "Question", exact: true }).first();
   const stage = question.locator("../..");
   const media = game.getByTestId("content-stage").locator("img");
   const text = game.getByTestId("question-text");

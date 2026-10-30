@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { QuestionMediaItem } from "./media/QuestionMediaItem";
 import { useContentPosition } from "./media/useContentPosition";
 import type { ReactNode } from "react";
+import { QuestionBody } from "./question/QuestionBody";
 
 /**
  * Plays question or answer content one step at a time, the way the server
@@ -24,6 +25,9 @@ export function ContentStage({
   textItems,
   paused,
   pointAnswer,
+  caption,
+  captionLength = 0,
+  label,
 }: {
   content: ContentClock;
   files: QuestionFile[];
@@ -33,6 +37,9 @@ export function ContentStage({
   textItems?: readonly { order: number; text: string }[] | null;
   paused: boolean;
   pointAnswer?: { order: number; view: ReactNode };
+  caption?: ReactNode;
+  captionLength?: number;
+  label?: string;
 }) {
   const { t } = useTranslation();
   const { position, running, now } = useContentPosition(content, paused);
@@ -45,12 +52,43 @@ export function ContentStage({
     isMainTextItem(item, textOrder, textItems);
   const textShown = position.screen.some(isMainText);
   const textSequenced = content.plan.steps.some((s) => s.items.some(isMainText));
+  const visibleText = position.screen
+    .filter((item) => item.kind === "text")
+    .flatMap((item) => {
+      const value =
+        textItems?.find((entry) => entry.order === item.order)?.text ??
+        (isMainText(item) ? text : null);
+      return value ? [{ order: item.order, value }] : [];
+    });
+  const recap = position.done && textSequenced && !textShown && text;
+  const textContent =
+    visibleText.length > 0 || recap || caption ? (
+      <>
+        {visibleText.map((item) => (
+          <p key={item.order} className={questionText} data-testid="question-text">
+            {item.value}
+          </p>
+        ))}
+        {recap && (
+          <p className={questionStyles.contentNote} data-testid="question-recap">
+            {t("question.recap", { text })}
+          </p>
+        )}
+        {caption}
+      </>
+    ) : null;
+  const mediaItems = position.screen.filter(
+    (item) => item.kind === "file" && byOrder.has(item.order),
+  );
 
   return (
-    <div className="flex w-full flex-col items-center gap-4" data-testid="content-stage">
+    <div
+      className="question-timeline flex w-full flex-col items-center gap-4"
+      data-testid="content-stage"
+    >
       {screenSteps.length > 1 && (
         <div
-          className="flex items-center gap-2 text-sm text-muted"
+          className="question-steps flex items-center gap-2 text-sm text-muted"
           role="group"
           aria-label={t("question.stepsLabel")}
           data-testid="content-steps"
@@ -77,36 +115,39 @@ export function ContentStage({
         data-testid="content-step"
         data-step={currentScreenStep}
       >
-        {pointAnswer &&
-        !position.screen.some((item) => item.kind === "file" && item.order === pointAnswer.order)
-          ? pointAnswer.view
-          : position.screen.map((item) => {
-              if (item.kind === "text") {
-                const value =
-                  textItems?.find((entry) => entry.order === item.order)?.text ??
-                  (isMainText(item) ? text : null);
-                return value ? (
-                  <p
-                    key={`text-${item.order}`}
-                    className={questionText}
-                    data-testid="question-text"
-                  >
-                    {value}
-                  </p>
-                ) : null;
-              }
-              const file = byOrder.get(item.order);
-              if (!file) return null;
-              if (pointAnswer && item.order === pointAnswer.order) return pointAnswer.view;
-              return (
-                <QuestionMediaItem
-                  key={`${item.order}-${file.file.md5}`}
-                  file={file}
-                  playing={running}
-                  positionMs={() => now() - position.screenStartMs}
-                />
-              );
-            })}
+        <QuestionBody
+          label={label}
+          text={textContent}
+          textLength={
+            visibleText.reduce((sum, item) => sum + item.value.length, 0) +
+            (recap || "").length +
+            captionLength
+          }
+          media={
+            pointAnswer || mediaItems.length > 0 ? (
+              <>
+                {pointAnswer &&
+                !position.screen.some(
+                  (item) => item.kind === "file" && item.order === pointAnswer.order,
+                )
+                  ? pointAnswer.view
+                  : mediaItems.map((item) => {
+                      const file = byOrder.get(item.order);
+                      if (!file) return null;
+                      if (pointAnswer && item.order === pointAnswer.order) return pointAnswer.view;
+                      return (
+                        <QuestionMediaItem
+                          key={`${item.order}-${file.file.md5}`}
+                          file={file}
+                          playing={running}
+                          positionMs={() => now() - position.screenStartMs}
+                        />
+                      );
+                    })}
+              </>
+            ) : undefined
+          }
+        />
       </div>
 
       {position.background.map(({ item, startMs }) => {
@@ -121,13 +162,6 @@ export function ContentStage({
           />
         );
       })}
-
-      {/* After the last step the text may be gone from the stage: keep it in view. */}
-      {position.done && textSequenced && !textShown && text && (
-        <p className={questionStyles.contentNote} data-testid="question-recap">
-          {t("question.recap", { text })}
-        </p>
-      )}
     </div>
   );
 }
@@ -143,7 +177,7 @@ function BackgroundSound({
   positionMs: () => number;
 }) {
   return (
-    <div className="w-full max-w-[560px]" data-testid="background-sound">
+    <div className="question-background-sound w-full max-w-[560px]" data-testid="background-sound">
       <QuestionMediaItem file={file} playing={playing} positionMs={positionMs} />
     </div>
   );

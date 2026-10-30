@@ -23,6 +23,8 @@ export interface GameTimerSettingsDTO {
 
 /** Rules the host chooses when creating a game */
 export interface GameSettingsDTO {
+  /** Start when every connected player is ready; otherwise wait for the showman. */
+  autoStart: boolean;
   /**
    * The buzzer opens after the question content (and a caption's reading
    * time); a press before that locks the player out for a moment. When off,

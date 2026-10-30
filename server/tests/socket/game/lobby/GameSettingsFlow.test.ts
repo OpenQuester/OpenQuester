@@ -5,6 +5,8 @@ import { Repository } from "typeorm";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { GameActionType } from "domain/enums/GameActionType";
+import type { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { ButtonPressMode, WrongAnswerPenalty } from "domain/enums/game/GameSettings";
 import { QuestionAnswerEventPayload } from "domain/types/socket/events/game/QuestionAnswerEventPayload";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
@@ -36,6 +38,48 @@ describe("Game settings", () => {
 
   afterAll(async () => {
     await suite?.stop();
+  });
+
+  it.each([true, false])("honors autoStart=%s when everyone is ready", async (autoStart) => {
+    await suite.scenario(async (scenario) => {
+      utils.gameSettings = { ...INSTANT_BUZZER_SETTINGS, autoStart };
+      const { gameId, showmanSocket, playerSockets, spectatorSockets } =
+        await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+      const actors = [showmanSocket, ...playerSockets, ...spectatorSockets].map((socket) =>
+        scenario.actor(socket)
+      );
+      const after = scenario.mark();
+      const accepted = scenario
+        .createAcceptedActionProbe({ gameId, actionType: GameActionType.PLAYER_READY })
+        .waitForCount(2);
+      const started = autoStart
+        ? scenario.waitForEvent(showmanSocket, SocketIOGameEvents.START)
+        : null;
+      await utils.setPlayerReady(playerSockets[0]);
+      const finalReady = scenario.waitForEvent<PlayerReadinessBroadcastData>(
+        showmanSocket,
+        SocketIOGameEvents.PLAYER_READY
+      );
+      await utils.setPlayerReady(playerSockets[1]);
+      const ready = await finalReady;
+      await accepted;
+      await scenario.assert.waitForActionsComplete({ gameId });
+      expect(ready.autoStartTriggered).toBe(autoStart);
+      expect((await utils.getGameFromGameService(gameId)).settings.autoStart).toBe(autoStart);
+      if (autoStart) {
+        await started;
+      } else {
+        await scenario.assert.noInboundMany({
+          actors,
+          event: SocketIOGameEvents.START,
+          afterSequence: after,
+          durationMs: 100
+        });
+        expect((await utils.getGameState(gameId))?.currentRound).toBeNull();
+        await utils.startGame(showmanSocket);
+      }
+      expect((await utils.getGameState(gameId))?.currentRound?.order).toBe(0);
+    });
   });
 
   it("uses the host's answer time and free wrong answers", async () => {

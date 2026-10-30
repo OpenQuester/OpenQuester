@@ -19,8 +19,9 @@ export function secretModel({
     const mine = selection.playerId === myId;
     return {
       status: mine ? t("dock.secret.priceYou") : t("dock.secret.priceOther", { name: chooser }),
+      statusPlayer: mine ? undefined : { key: "dock.secret.priceOther", name: chooser },
       action: mine
-        ? { kind: "secret-price", prices: selection.allowedPrices }
+        ? { kind: "info", text: t("dock.secret.priceAbove") }
         : { kind: "info", text: t("dock.secret.priceWait", { name: chooser }) },
       next: t("dock.secret.priceNext"),
     };
@@ -35,6 +36,11 @@ export function secretModel({
       : undefined;
   const price = session.state.currentQuestion?.price;
   return {
+    statusPlayer: canChoose
+      ? targetPlayer
+        ? { key: "dock.secret.giveQ", name: targetPlayer.meta.username }
+        : undefined
+      : { key: "dock.secret.otherChoosing", name: picker?.meta.username ?? "" },
     status: canChoose
       ? targetPlayer
         ? t("dock.secret.giveQ", { name: targetPlayer.meta.username })
@@ -70,6 +76,7 @@ export function stakeModel({
   if (!info) return { status: "", action: null, next };
   if (!myTurn) {
     return {
+      statusPlayer: { key: "dock.stake.waitFor", name: bidder?.meta.username ?? "" },
       status: t("dock.stake.waitFor", { name: bidder?.meta.username ?? "" }),
       action: {
         kind: "info",

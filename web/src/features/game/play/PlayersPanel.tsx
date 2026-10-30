@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { Avatar } from "@/ui/Avatar";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
+import { ExpandableText } from "@/ui/ExpandableText";
 
 import { useGame, useSession } from "../GameContext";
 import { PlayerRow } from "./players/PlayerRow";
@@ -27,12 +28,11 @@ export function PlayersBody({
 }) {
   const { t } = useTranslation();
   const session = useSession();
-  const { connection, myId } = useGame();
+  const { myId } = useGame();
   const [editing, setEditing] = useState<number | null>(focusPlayer);
   const isShowman = myRole(session, myId) === "showman";
   const ranked = standings(session);
   const host = showman(session);
-  const watchers = spectators(session);
 
   return (
     <div className={cn("flex flex-col gap-6", compact ? "p-4" : "p-5")} data-testid="players-panel">
@@ -54,34 +54,48 @@ export function PlayersBody({
         <h3 className={gamePanelStyles.playerGroupTitle}>{t("roles.showman")}</h3>
         <p className="m-0">{host ? host.meta.username : t("players.noShowman")}</p>
       </section>
-
-      <section className="flex flex-col gap-2">
-        <h3 className={gamePanelStyles.playerGroupTitle}>
-          {t("lobby.spectators")} · {watchers.length}
-        </h3>
-        {watchers.length === 0 && <p className="m-0 text-muted">{t("players.noSpectators")}</p>}
-        {watchers.map((p) => (
-          <div key={p.meta.id} className="flex items-center gap-3">
-            <Avatar name={p.meta.username} src={p.meta.avatar} size={28} />
-            <span className="min-w-0 flex-1 truncate">{p.meta.username}</span>
-            {isShowman && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() =>
-                  connection.emit("player-role-change", {
-                    playerId: p.meta.id,
-                    newRole: "player",
-                  })
-                }
-              >
-                {t("players.seat")}
-              </Button>
-            )}
-          </div>
-        ))}
-      </section>
+      <SpectatorsBody />
       {isShowman && <Badge tone="info">{t("players.showmanHelp")}</Badge>}
     </div>
+  );
+}
+
+/** The public side panel; host tools reuse the same spectator seating controls. */
+export function SpectatorsBody() {
+  const { t } = useTranslation();
+  const session = useSession();
+  const { connection, myId } = useGame();
+  const isShowman = myRole(session, myId) === "showman";
+  const watchers = spectators(session);
+  return (
+    <section className="flex flex-col gap-2 p-4" data-testid="spectators-panel">
+      <h3 className={gamePanelStyles.playerGroupTitle}>
+        {t("lobby.spectators")} · {watchers.length}
+      </h3>
+      {watchers.length === 0 && <p className="m-0 text-muted">{t("players.noSpectators")}</p>}
+      {watchers.map((p) => (
+        <div key={p.meta.id} className="flex items-center gap-3">
+          <Avatar name={p.meta.username} src={p.meta.avatar} size={28} />
+          <ExpandableText
+            text={p.meta.username}
+            className={cn("flex-1", p.meta.id === myId && "text-primary")}
+          />
+          {isShowman && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                connection.emit("player-role-change", {
+                  playerId: p.meta.id,
+                  newRole: "player",
+                })
+              }
+            >
+              {t("players.seat")}
+            </Button>
+          )}
+        </div>
+      ))}
+    </section>
   );
 }

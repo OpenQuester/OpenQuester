@@ -1,9 +1,8 @@
 import { useEffect } from "react";
 
 import { canBuzz, canManuallyJudge, myRole, phaseOf, questionValue } from "@/game/selectors";
-import { useGameStore } from "@/game/store";
 
-import { useGame } from "../GameContext";
+import { useGame, useGameStoreApi } from "../GameContext";
 
 function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -12,9 +11,10 @@ function isTyping(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable;
 }
 
-/** Space buzzes, C/W judge, 1–9 pick a choice option, T opens chat, ? the menu. */
+/** Space buzzes, physical P passes, C/W judge, 1–9 pick an option, T opens chat. */
 export function useHotkeys({ onChat, onMenu }: { onChat: () => void; onMenu: () => void }) {
   const { connection, myId } = useGame();
+  const store = useGameStoreApi();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -22,11 +22,28 @@ export function useHotkeys({ onChat, onMenu }: { onChat: () => void; onMenu: () 
         return;
       if (isTyping(e.target)) return;
       if (document.querySelector("[role=dialog], [role=alertdialog], dialog[open]")) return;
-      const session = useGameStore.getState().session;
+      const session = store.getState().session;
       if (!session) return;
       const role = myRole(session, myId);
       const phase = phaseOf(session);
       const key = e.key.toLowerCase();
+
+      if (e.code === "KeyP" || (!e.code && key === "p")) {
+        const pass = document.querySelector<HTMLButtonElement>(
+          '[data-hotkey="pass"]:not(:disabled):not([aria-disabled="true"])',
+        );
+        if (
+          pass &&
+          !pass.closest("[hidden]") &&
+          connection.connected &&
+          store.getState().connection === "connected" &&
+          !store.getState().pending
+        ) {
+          e.preventDefault();
+          pass.click();
+        }
+        return;
+      }
 
       if (e.code === "Space" || key === " ") {
         if (
@@ -38,7 +55,7 @@ export function useHotkeys({ onChat, onMenu }: { onChat: () => void; onMenu: () 
           return;
         if (
           canBuzz(session, myId, connection.connected).ok &&
-          useGameStore.getState().pending?.action !== "question-answer"
+          store.getState().pending?.action !== "question-answer"
         ) {
           e.preventDefault();
           connection.emit("question-answer");
@@ -52,8 +69,8 @@ export function useHotkeys({ onChat, onMenu }: { onChat: () => void; onMenu: () 
         phase === "answering" &&
         canManuallyJudge(session) &&
         connection.connected &&
-        useGameStore.getState().connection === "connected" &&
-        useGameStore.getState().pending?.action !== "answer-result" &&
+        store.getState().connection === "connected" &&
+        store.getState().pending?.action !== "answer-result" &&
         (key === "c" || key === "w")
       ) {
         e.preventDefault();
@@ -86,5 +103,5 @@ export function useHotkeys({ onChat, onMenu }: { onChat: () => void; onMenu: () 
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [connection, myId, onChat, onMenu]);
+  }, [connection, myId, onChat, onMenu, store]);
 }

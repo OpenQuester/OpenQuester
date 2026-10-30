@@ -67,7 +67,7 @@ test("final media barrier waits, starts the timeline and explains timeout on des
       await expect(fixture.getByTestId("content-stage")).toContainText("Final second clue", {
         timeout: 5000,
       });
-      await expect(fixture.getByTestId("player-chip").first()).toContainText("typing", {
+      await expect(fixture.getByTestId("player-chip").first()).toContainText("answering", {
         timeout: 5000,
       });
       if (role === "player")

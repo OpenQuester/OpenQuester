@@ -25,6 +25,7 @@ const ms = (minSeconds: number, maxSeconds: number) =>
 
 export const gameSettingsScheme = () =>
   Joi.object<GameSettingsInput>({
+    autoStart: Joi.boolean().optional(),
     falseStart: Joi.boolean().optional(),
     buttonPressMode: Joi.valid(...Object.values(ButtonPressMode)).optional(),
     wrongAnswerPenalty: Joi.valid(...Object.values(WrongAnswerPenalty)).optional(),

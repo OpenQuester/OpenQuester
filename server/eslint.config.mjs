@@ -133,6 +133,6 @@ export default [
     }
   },
   {
-    ignores: ["**/dist", "**/build", "**/node_modules", "**/test", "**/.history"]
+    ignores: ["**/dist", "**/build", "**/node_modules", "**/test", "**/.history", "test-results/**"]
   }
 ];

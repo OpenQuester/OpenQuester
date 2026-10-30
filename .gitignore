@@ -16,6 +16,8 @@ content.xml
 .secret*
 .DS_Store
 loadtest/
+server/test-results/stress/
+stress/
 bearer_token
 
 # Windows signing

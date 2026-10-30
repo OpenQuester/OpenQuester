@@ -7,6 +7,7 @@ interface ChipState {
   tag: string;
   hot: boolean;
   dim: boolean;
+  submitted?: boolean;
 }
 
 export function chipState(
@@ -27,7 +28,10 @@ export function chipState(
       return p.mediaDownloaded ? none : { tag: t("chips.loading"), hot: false, dim: false };
     case "showing":
     case "answering": {
-      if (s.answeringPlayer === id) return { tag: t("chips.answering"), hot: true, dim: false };
+      if (s.answeringPlayer === id)
+        return session.hasAnswerSubmission
+          ? { tag: t("chips.answered"), hot: false, dim: false, submitted: true }
+          : { tag: t("chips.answering"), hot: true, dim: false };
       const answer = (s.answeredPlayers ?? []).find((a) => a.player === id);
       if (answer) return { tag: formatSigned(answer.result), hot: false, dim: true };
       if (hasSkipped(session, id)) return { tag: t("chips.passed"), hot: false, dim: true };
@@ -35,11 +39,14 @@ export function chipState(
     }
     case "reveal": {
       const last = (s.answeredPlayers ?? []).filter((a) => a.player === id).at(-1);
-      if (last)
-        return { tag: formatSigned(last.result), hot: last.answerType === "correct", dim: false };
+      if (last) return { tag: formatSigned(last.result), hot: false, dim: false };
       return none;
     }
     case "secret_transfer":
+      if (s.secretQuestionData?.priceSelection)
+        return s.secretQuestionData.priceSelection.playerId === id
+          ? { tag: t("chips.choosingPrice"), hot: true, dim: false }
+          : none;
       return s.secretQuestionData?.pickerPlayerId === id
         ? { tag: t("chips.givingAway"), hot: true, dim: false }
         : none;
@@ -58,15 +65,24 @@ export function chipState(
       if (!entry) return none;
       const done = phaseOf(session) === "all_play_bidding" ? entry.stake != null : entry.submitted;
       return done
-        ? { tag: t("chips.answered"), hot: false, dim: false }
+        ? {
+            tag: t(phaseOf(session) === "all_play_bidding" ? "chips.bidPlaced" : "chips.answered"),
+            hot: false,
+            dim: false,
+            submitted: true,
+          }
         : pointWaiting && phaseOf(session) === "all_play_answering"
           ? { tag: t("stake.waiting"), hot: false, dim: false }
-          : { tag: t("chips.typing"), hot: true, dim: false };
+          : {
+              tag: t(phaseOf(session) === "all_play_bidding" ? "chips.bidding" : "chips.answering"),
+              hot: true,
+              dim: false,
+            };
     }
     case "all_play_reviewing": {
       const entry = s.allPlay?.entries.find((e) => e.playerId === id);
       if (!entry || entry.scoreChange == null) return none;
-      return { tag: formatSigned(entry.scoreChange), hot: !!entry.isCorrect, dim: false };
+      return { tag: formatSigned(entry.scoreChange), hot: false, dim: false };
     }
     case "final_elimination":
       return s.currentTurnPlayerId === id
@@ -74,14 +90,18 @@ export function chipState(
         : none;
     case "final_bidding":
       return hasFinalBid(session, id)
-        ? { tag: t("chips.bidPlaced"), hot: false, dim: false }
+        ? { tag: t("chips.bidPlaced"), hot: false, dim: false, submitted: true }
         : { tag: t("chips.bidding"), hot: true, dim: false };
     case "final_answering":
       return session.finalSubmitted.includes(id)
-        ? { tag: t("chips.answered"), hot: false, dim: false }
+        ? { tag: t("chips.answered"), hot: false, dim: false, submitted: true }
         : finalContentPlaying
           ? { tag: t("stake.waiting"), hot: false, dim: false }
-          : { tag: t("chips.typing"), hot: true, dim: false };
+          : {
+              tag: t("chips.answering"),
+              hot: true,
+              dim: false,
+            };
     default:
       return none;
   }

@@ -85,7 +85,7 @@ it("keeps a running preview's image alive across language changes and releases i
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(await screen.findByTestId("buzz"));
   const option = screen.getByRole("button", { name: "Option 1" });
-  expect(option.querySelector("img")).toHaveAttribute("src", "blob:choice-image");
+  expect(option.closest("li")!.querySelector("img")).toHaveAttribute("src", "blob:choice-image");
   await act(async () => {
     await i18n.changeLanguage("uk");
   });

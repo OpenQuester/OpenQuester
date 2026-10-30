@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSettings, type PanelId } from "@/features/settings/settingsStore";
-import { myRole, phaseOf } from "@/game/selectors";
+import { myRole, phaseOf, spectators } from "@/game/selectors";
 import { useMediaQuery } from "@/lib/useMediaQuery";
 import { useGame, useSession } from "../../GameContext";
 import { WIDE_QUERY } from "../GameSidePanel";
@@ -23,8 +23,11 @@ export function useGameScreen() {
   const role = myRole(session, myId);
   const phase = phaseOf(session);
   const round = session.state.currentRound;
+  const spectatorCount = spectators(session).length;
 
-  const allowed = (id: PanelId) => id !== "host" || role === "showman";
+  // Keep the persisted panel ID so existing pins still work for the spectator list.
+  const allowed = (id: PanelId) =>
+    id === "host" ? role === "showman" : id !== "players" || spectatorCount > 0;
   const isOpen = (id: PanelId) => allowed(id) && Boolean(opened[id] || (wide && pins[id]));
   const setPanel = useCallback(
     (id: PanelId, open: boolean) => {
@@ -76,6 +79,7 @@ export function useGameScreen() {
     role,
     phase,
     round,
+    spectatorCount,
     wide,
     pins,
     focusPlayer,

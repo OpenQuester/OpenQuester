@@ -23,7 +23,7 @@ export function QuestionMedia({
   const replacementIndex = replacePointImage ? sorted.indexOf(replacePointImage.file) : -1;
   const occurrences = new Map<string, number>();
   return (
-    <div className="flex w-full flex-col gap-3">
+    <div className="question-media-list flex w-full flex-col gap-3">
       {sorted.map((f, index) => {
         const identity = `${f.file.md5}-${f.order}`;
         const occurrence = occurrences.get(identity) ?? 0;

@@ -5,6 +5,7 @@ import { type DisabledReason } from "@/game/selectors";
 
 export interface ActionDockModel {
   status: string;
+  statusPlayer?: { key: string; name: string; values?: Record<string, string | number> };
   action: DockAction | null;
   next: string;
   ringLabel?: string;
@@ -12,7 +13,7 @@ export interface ActionDockModel {
 
 /** Role/phase decisions are data; DockAction owns markup and command dispatch. */
 export type DockAction =
-  | { kind: "info"; text: string; unpass?: boolean; nextRound?: boolean }
+  | { kind: "info"; text: string; unpass?: boolean; randomQuestion?: boolean }
   | { kind: "show-question"; early: boolean; opening: boolean; revealing: boolean }
   | { kind: "buzz"; early: boolean; answering: boolean; passing: boolean; canPass: boolean }
   | { kind: "judge"; value: number; wrong: number; pending: boolean }
@@ -25,7 +26,6 @@ export type DockAction =
     }
   | { kind: "continue"; pending: boolean }
   | { kind: "home" }
-  | { kind: "secret-price"; prices: number[] }
   | { kind: "secret-transfer"; target: { id: number; name: string } | null }
   | {
       kind: "bid";
