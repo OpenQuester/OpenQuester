@@ -274,48 +274,13 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   `screen/useGameScreen` owns panel visibility, device pins, unread message IDs,
   focused-player tools and screen shortcuts. Preserve the current wide/sheet
   mount boundaries and keep the report dialog outside the changing stage.
-  `players/PlayerCard` keeps the full signed score visible in the wrapping score bar;
-  its hover/focus/tap expansion and avatar modal do not reflow the header. Quick score
-  corrections reuse `score-changed` and the server's score cap; see the game-state
-  matrix for last-known-value and reconnect behavior. `stages/StagePages` measures
-  the remaining stage height for secret-recipient and final-theme pagination.
-  The board uses its own vertical scroll region, with about nine desktop theme rows;
-  prices fit their cell and names expand from ellipsized labels. Choice questions
-  reserve an independent option grid. Image clicks open a content-sized preview dialog via a
-  sibling button and never select an answer; number keys and the remaining card
-  surface select. Text has priority, with a smaller image for longer captions and
-  a full-text hover/focus popover when clipped. Short prompts and audio use content
-  height; long question text scrolls independently. Low stages switch question/options
-  tabs without remounting media. The footer's next-step text wraps without a scrollbar.
-  `question/PointResults` shows only the target image and all submitted points/names.
-  `PointMarkers` keeps names next to actual coordinates; coincident labels may overlap
-  by design. Top card outlines communicate each participant's result. There is no result list or separate answer panel.
-  The target ring has light/dark contrast edges and the same two-second pulse as
-  the point dots; reduced motion disables the pulse without changing coordinates.
-  `game/questionFeedback` records authoritative outcomes, clears undone/pass changes,
-  and retains completed-question outlines for 15 seconds on the next board/question,
-  then fades them over 1.5 seconds (instant with reduced motion). Own-card accents
-  follow the active/result colour; acknowledged submissions use blue. Final/all-play
-  status badges are not duplicated below the stage.
-  Zero/pass is neutral, correct is green, wrong is red; score edits never create results.
-  Reviewed outcomes are not active turns: regular reveal and all-play review do not
-  keep the yellow answering background. The final review already follows this rule.
-  `game/pointSummary` adds a local system transcript entry at public point reveal,
-  deduplicated per round/question; a rejoin rebuilds the current summary from the
-  snapshot (older local summaries are not server chat history). It sends no chat command.
-  The public side panel lists connected spectators and is hidden when empty; host
-  management remains available through Host tools and the player-card Manage action.
+  `players/PlayerCard` owns score-bar cards; `game/questionFeedback` tracks outcomes,
+  and `game/pointSummary` builds local reveal summaries. See the
+  [game-state matrix](../docs/specs/game-state-matrix.md#required-frontend-behavior)
+  for layout, scoring and result-feedback rules.
   `play/GameActionDock.tsx` renders the phase, action and next step. `dock/` separates its
   presentation hook, pure role/phase models and answer/bid controls. Models return
-  typed action data; `DockAction` owns markup and connection dispatch. Secret-price
-  controls live on the centered stage only for the receiver; others see neutral,
-  non-interactive price tiles. Bid prompts use a content-height centered card, with
-  rules below the heading and theme/price metadata above the card.
-  The dock points the receiver to those controls. Reveal cards distinguish accepted
-  aliases (green values, neutral label), player names and actual score awards;
-  credits/reporting sit in the footer. `PlayerName` stays a minimal text wrapper;
-  `PlayerMessage` highlights names inside translated announcements and dock statuses.
-  `useTimedAnswer`
+  typed action data; `DockAction` owns markup and connection dispatch. `useTimedAnswer`
   retains the deadline, one automatic attempt and pending/accepted guards for
   final/all-play answers. A rejected/timed-out send remains manually retryable.
   Models use the existing selectors without JSX or connection callbacks; they do not mutate scores.

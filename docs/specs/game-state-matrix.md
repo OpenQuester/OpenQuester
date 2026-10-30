@@ -66,53 +66,22 @@ timeout. See [package validation](package-validation-spec.md) for duration rules
 
 ### Lobby and question layout
 
-`settings.autoStart` is chosen at game creation (default `true`, including older
-snapshots). In automatic mode, a player's ready command starts the game when every
-connected player is ready; showman and spectators do not count. In manual mode,
-readiness never starts the game: the showman sends `start`. The showman can start
-manually in either mode without waiting for readiness. Leaving the player role
-clears that player's readiness.
+`settings.autoStart` defaults to `true`: a ready command starts play when all
+connected players are ready. Manual mode requires the showman's `start`; the
+showman can start in either mode without readiness. Leaving the player role
+clears readiness. The lobby package overview reads published metadata, which may
+differ from the game's snapshot after package edits.
 
-React keeps a highlighted showman slot above the player seats, including when it
-is vacant. The showman can take a player seat; an available showman role can be
-claimed through the existing role-change action. The lobby shows package round
-and theme names, including final themes, without displaying question content.
-Its overview reads the published package; an already-created game's package
-snapshot may differ if the author has since edited the package.
+The React field fits between header and dock; overflow scrolls within content
+panels. All 15 players and the showman remain visible with full signed scores up
+to `SCORE_ABS_LIMIT` (`2_100_000_000`). Tabs preserve mounted media. Previewing an
+option image never selects it. Physical `KeyP` invokes Pass across keyboard
+languages, excluding typing, dialogs and repeats.
 
-The live question fits between the header and action dock. Images/videos keep
-their aspect ratio, captions and long text have bounded scroll regions, and the
-dock owns buzzer readiness feedback. There is no duplicate buzzer announcement
-on the question stage. Prominent player names use a shared highlighted style.
-
-The React score bar wraps all 15 players and the showman into compact cards.
-Names truncate, but scores reserve space for the full signed `SCORE_ABS_LIMIT`
-(`2_100_000_000`, below PostgreSQL int32). Hover, keyboard focus or a tap opens
-an expanded card; avatar images open in a centered modal. The current user's
-card and secret-question recipient have a subtle highlight. Showman card actions
-send the existing authoritative `score-changed` command, adding/subtracting the
-current question value (including stake/no-risk rules), or the last completed
-question value while choosing. No score is updated optimistically. The client
-records the last value on `question-finish`; a fresh/reconnect snapshot clears
-this history because the server does not send the last played value. Unknown
-values, offline state, pending commands and finished games disable these actions.
-
-Short question captions sit below media; long text uses a separate side panel.
-On narrow stages, Media/Text tabs keep both mounted and preserve playback.
-Text, answer lists and private showman details have local bounded scroll regions.
-Choice questions put their options beside the question. Image clicks open a read-only
-full-screen preview without selecting an answer; clipped option text expands on hover/focus; narrow screens switch Question/Options tabs without
-remounting media. Up to eight options fit in the desktop grid; short viewports scroll
-the options locally. Board themes use a vertical scroll region with about nine rows
-visible on desktop, ellipsized names with hover/focus/tap disclosure, and prices sized
-to their cell width and formatted length (upload maximum `1_000_000`). Secret
-recipients and final themes retain pages sized to the remaining stage height.
-The public side panel lists connected spectators and their count, and disappears
-when none remain. Showman management stays in Host tools and player-card actions.
-The game field itself does not scroll. The compact dock keeps its
-next-step explanation in a disclosure on small screens. Buzz remains centered
-with the Space hint at the edge; the physical `KeyP` key invokes an available
-Pass action across keyboard languages, excluding typing, dialogs and repeats.
+Showman score shortcuts use authoritative `score-changed` with the current question
+value (including stake/no-risk rules), or the last completed value while choosing.
+Reconnect clears the locally remembered value; unknown values, offline/pending
+state and finished games disable shortcuts. Scores never update optimistically.
 
 ### Media: current protocol vs product target
 
@@ -224,27 +193,14 @@ When changing gameplay state, make sure:
   zero radius compares coordinates at three-decimal wire precision. Legacy
   metadata-free points keep their original distance calculation until republished.
   The browser preserves the image frame through input and marks submitted points
-  at reveal instead of repeating raw coordinates. All points and nicknames appear
-  together at their actual coordinates. Coincident names may overlap by design;
-  individual results remain visible in the top player cards. The target ring uses
-  light/dark contrast edges and pulses with the point dots every two seconds;
-  reduced motion disables animation without changing the target geometry.
-  The target region is the answer: no separate answer panel or player-result list.
-  Correct-player names and score changes appear as a local system chat summary at
-  public reveal. Repeated reveal events update the same summary; a rejoin reconstructs
-  the current one. Older local summaries are not persisted in server chat history.
-  Top player cards show outcome outlines from authoritative judgments and passes:
-  green correct, gray zero/pass, red wrong. They persist for 15 seconds after the
-  question finishes, across board transitions, then fade out over 1.5 seconds.
-  Reduced motion removes the fade. Current outcomes take precedence.
-  Own-card accents follow that colour; acknowledged answer/bid submissions use blue.
-  Reviewed regular/all-play results clear the active yellow fill; final review uses
-  the same neutral card surface with the result outline. A zero award/pass is gray.
-  Final/all-play progress appears only in the header, without duplicate stage badges.
-  Manual score edits do not trigger them; undo/unpass removes the current outcome.
-  Snapshot outcomes are restored on rejoin; without a past completion timestamp,
-  a snapshot already in reveal starts a fresh local 15-second display window.
-  The footer uses compact counts and wraps explanatory text without internal scrolling.
+  with names at reveal; coincident labels may overlap. The target region replaces
+  a separate answer panel. Correct answers appear in a local chat summary,
+  deduplicated per question and rebuilt on rejoin, not persisted as server history.
+  Player outlines show authoritative results: green correct, gray zero/pass, red
+  wrong, retained for 15 seconds after completion plus a 1.5-second fade (no fade
+  with reduced motion). Current outcomes take precedence; undo/unpass clears them,
+  and manual score edits never create them. Rejoining during reveal restarts the
+  local display window when the completion timestamp is unavailable.
   Reveal data retains the target image for rejoin; a local selection may be lost.
   Private coordinates/radius are not exposed before reveal.
 - **Showman instruction:** the web UI places `questionComment` before question
