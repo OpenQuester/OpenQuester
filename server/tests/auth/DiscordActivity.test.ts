@@ -1,9 +1,12 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from "@jest/globals";
 import { type Repository } from "typeorm";
 
 import { container } from "tsyringe";
 
 import { DiscordEntryPointService } from "application/services/discord/DiscordEntryPointService";
+import { GameService } from "application/services/game/GameService";
+import { RedisService } from "application/services/redis/RedisService";
+import { getDiscordActivityLockKey } from "domain/constants/discord";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { User } from "infrastructure/database/models/User";
 import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
@@ -16,14 +19,26 @@ const CLIENT_ID = "123456789";
 const CLIENT_SECRET = "activity-secret";
 const GOOD_CODE = "good-code";
 const ACCESS_TOKEN = "discord-access-token";
+const BOT_TOKEN = "activity-bot-token";
+const INSTANCE_ID = "i-1234567890-gc-555-666";
 const DISCORD_USER = { id: "424242", username: "discord_pilot", avatar: null, email: null };
 const ACTIVITY_ORIGIN = `https://${CLIENT_ID}.discordsays.com`;
-/** Other people in the voice call; each signs in with the code `code-{name}` */
-const CALL_MEMBERS = ["listener", "host", "guest", "first", "second"] as const;
+/**
+ * People who can open the Activity; each signs in with the code `code-{name}`.
+ * All but the outsider are in INSTANCE_ID's voice call.
+ */
+const CALL_MEMBERS = ["listener", "host", "guest", "first", "second", "outsider"] as const;
 
 type CallMember = (typeof CALL_MEMBERS)[number];
 
-const ENV_KEYS = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_API_URL"] as const;
+const ENV_KEYS = [
+  "DISCORD_CLIENT_ID",
+  "DISCORD_CLIENT_SECRET",
+  "DISCORD_API_URL",
+  "DISCORD_BOT_TOKEN"
+] as const;
+
+const discordIdOf = (name: CallMember): string => String(500 + CALL_MEMBERS.indexOf(name));
 
 interface LoggedInUser {
   user: User;
@@ -56,15 +71,20 @@ describe("Discord Activity", () => {
       code: GOOD_CODE,
       accessToken: ACCESS_TOKEN,
       user: DISCORD_USER,
-      others: CALL_MEMBERS.map((name, index) => ({
+      others: CALL_MEMBERS.map((name) => ({
         code: `code-${name}`,
         accessToken: `token-${name}`,
-        user: { id: String(500 + index), username: name, avatar: null, email: null }
-      }))
+        user: { id: discordIdOf(name), username: name, avatar: null, email: null }
+      })),
+      botToken: BOT_TOKEN,
+      instances: {
+        [INSTANCE_ID]: CALL_MEMBERS.filter((name) => name !== "outsider").map(discordIdOf)
+      }
     });
     process.env.DISCORD_CLIENT_ID = CLIENT_ID;
     process.env.DISCORD_CLIENT_SECRET = CLIENT_SECRET;
     process.env.DISCORD_API_URL = discord.url;
+    process.env.DISCORD_BOT_TOKEN = BOT_TOKEN;
 
     harness = await ServerTestHarness.start({ apiPort: 0 });
     http = createHttpTestClient(harness.serverUrl);
@@ -72,6 +92,7 @@ describe("Discord Activity", () => {
   });
 
   afterEach(async () => {
+    jest.restoreAllMocks();
     await deleteAll(userRepo);
     await harness.resetState();
   });
@@ -221,6 +242,15 @@ describe("Discord Activity", () => {
       expect(res.headers["set-cookie"]).toBeUndefined();
     });
 
+    it("refuses a Discord token that Discord rejects", async () => {
+      const res = await http
+        .post("/v1/auth/oauth2")
+        .send({ oauthProvider: "discord", tokenSchema: "Bearer", token: "stolen-token" });
+
+      expect(res.status).toBe(401);
+      expect(res.headers["set-cookie"]).toBeUndefined();
+    });
+
     it("validates the body", async () => {
       const res = await http.post("/v1/auth/discord/activity").send({});
 
@@ -229,8 +259,7 @@ describe("Discord Activity", () => {
   });
 
   describe("one lobby per call", () => {
-    const instanceId = "i-1234567890-gc-555-666";
-    const path = `/v1/discord/activity/instances/${instanceId}/game`;
+    const path = `/v1/discord/activity/instances/${INSTANCE_ID}/game`;
 
     it("has no game until someone picks a package", async () => {
       const { cookie } = await joinCall("listener");
@@ -264,7 +293,45 @@ describe("Discord Activity", () => {
         .get(`/v1/discord/activity/instances/i-other/game`)
         .set("Cookie", guest.cookie);
 
-      expect(otherCall.body.game).toBeNull();
+      expect(otherCall.status).toBe(403);
+      expect(otherCall.body.password).toBeUndefined();
+    });
+
+    it("keeps the call's game and password from Activity users outside the call", async () => {
+      const host = await joinCall("host");
+      const outsider = await joinCall("outsider");
+      const packageId = await createPackage(host.user, host.cookie);
+
+      await http.post(path).set("Cookie", host.cookie).send(gameBody(packageId));
+
+      const read = await http.get(path).set("Cookie", outsider.cookie);
+      const create = await http.post(path).set("Cookie", outsider.cookie).send(gameBody(packageId));
+
+      expect(read.status).toBe(403);
+      expect(read.body.password).toBeUndefined();
+      expect(create.status).toBe(403);
+      expect(create.body.password).toBeUndefined();
+    });
+
+    it("leaves a newer launch's lock alone when a slow create outlives its own", async () => {
+      const host = await joinCall("host");
+      const packageId = await createPackage(host.user, host.cookie);
+      const redis = container.resolve(RedisService);
+      const gameService = container.resolve(GameService);
+      const lockKey = getDiscordActivityLockKey(INSTANCE_ID);
+      const create = gameService.create.bind(gameService);
+
+      // The first launch's lock expires mid-create and another launch takes it
+      jest.spyOn(gameService, "create").mockImplementationOnce(async (user, data) => {
+        await redis.set(lockKey, "newer-launch", 10_000);
+
+        return create(user, data);
+      });
+
+      const res = await http.post(path).set("Cookie", host.cookie).send(gameBody(packageId));
+
+      expect(res.status).toBe(200);
+      expect(await redis.get(lockKey)).toBe("newer-launch");
     });
 
     it("never makes two games when the call launches at once", async () => {

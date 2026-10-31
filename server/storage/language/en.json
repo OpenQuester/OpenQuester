@@ -25,6 +25,8 @@
   "discord_code_exchange_failed": "Discord did not accept the sign-in code (%reason)",
   "discord_activity_game_busy": "This call's game is being created, try again in a moment",
   "discord_activity_session_required": "Open OpenQuester from the Discord Activity to see this call's game",
+  "discord_activity_not_in_call": "Only people in this Discord call can see its game. Join the call and open the Activity again",
+  "discord_token_rejected": "Discord did not accept the sign-in token. Sign in with Discord again",
   "session_saving_error": "Something went wrong during session save, please try again",
   "game_data_corrupted": "Game data is corrupted",
   "game_join_password_invalid": "Password is incorrect",

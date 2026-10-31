@@ -37,7 +37,14 @@ signs in separately.
    lobby calls need a session signed in through the Activity
    (`session.discordActivity`); a website or guest session gets 403
    `discord_activity_session_required`, so it can never read a call's password.
-   A Redis lock makes concurrent launches share one game; a loser gets 409
+   With `DISCORD_BOT_TOKEN` set, the server also asks Discord who is in the
+   instance (`GET /applications/{id}/activity-instances/{instanceId}`) and
+   answers 403 `discord_activity_not_in_call` to anyone not listed; a
+   confirmed member is cached in Redis for 10 minutes so lobby polling doesn't
+   hit Discord every 3 s. Without the bot token, knowing the instance id is
+   enough.
+   A Redis lock (released only by the launch that holds it) makes concurrent
+   launches share one game; a loser gets 409
    `discord_activity_game_busy` and picks up the game on its next poll. A
    finished or deleted game frees the call for a new one.
    The lobby screen also lists other open games and takes a game code or link,
@@ -83,7 +90,9 @@ Use the same application as "Log in with Discord" so `discord_id` matches.
 4. Activities → Art Assets: upload `assets/discord-activity/cover.png`
    (and `icon.png` as the app icon if needed).
 5. Activities → Settings: Enable Activities.
-6. Server: set `DISCORD_CLIENT_SECRET`. Pages: set the `DISCORD_CLIENT_ID` variable.
+6. Server: set `DISCORD_CLIENT_SECRET`, and `DISCORD_BOT_TOKEN` (Bot → Reset
+   Token) so only people in the call get its lobby. Pages: set the
+   `DISCORD_CLIENT_ID` variable.
 
 The server registers the Activity's "Launch" entry point command at startup
 when the application has none (`DiscordEntryPointService`, using a

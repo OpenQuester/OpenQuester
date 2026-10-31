@@ -35,6 +35,8 @@ export class DiscordActivityRestApiController {
 
     const { instanceId } = this._validateParams(req);
 
+    await this._requireCallMember(req, instanceId);
+
     const result = await this.discordActivityService.getInstanceGame(instanceId);
 
     res.status(HttpStatus.OK).json(result);
@@ -51,9 +53,11 @@ export class DiscordActivityRestApiController {
     ).validate();
 
     const user = await this.userService.getUserBySession(req.session.userId, {
-      select: ["id", "username", "name"],
+      select: ["id", "username", "name", "discord_id"],
       relations: []
     });
+
+    await this.discordActivityService.assertInCall(instanceId, user.discord_id ?? null);
 
     const result = await this.discordActivityService.getOrCreateInstanceGame(
       instanceId,
@@ -63,6 +67,15 @@ export class DiscordActivityRestApiController {
 
     res.status(HttpStatus.OK).json(result);
   };
+
+  private async _requireCallMember(req: Request, instanceId: string): Promise<void> {
+    const user = await this.userService.getUserBySession(req.session.userId, {
+      select: ["id", "discord_id"],
+      relations: []
+    });
+
+    await this.discordActivityService.assertInCall(instanceId, user.discord_id ?? null);
+  }
 
   private _validateParams(req: Request): InstanceParams {
     return new RequestDataValidator<InstanceParams>(
