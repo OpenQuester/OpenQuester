@@ -16,6 +16,7 @@ export function ExpandableText({ text, className }: { text: string; className?: 
     panel.style.top = `${Math.max(12, Math.min(rect.bottom, window.innerHeight * 0.6 - 12))}px`;
   };
   const show = (event: SyntheticEvent<HTMLButtonElement>) => {
+    if (event.currentTarget.scrollWidth <= event.currentTarget.clientWidth) return;
     position(event);
     popup.current?.showPopover?.();
   };

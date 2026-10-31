@@ -164,9 +164,14 @@ test.describe("question media", () => {
     await expect(dockPhase(big.page)).toHaveText("Ready to buzz", { timeout: 15_000 });
     const text = big.page.getByTestId("question-text");
     const fontSize = await text.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-    expect(fontSize).toBeGreaterThanOrEqual(56);
+    // The compact question block caps its type while keeping media and text visible together.
+    expect(fontSize).toBeGreaterThanOrEqual(32);
+    await expect(text).toBeInViewport({ ratio: 1 });
     const frame = await big.page.getByTestId("media-frame").boundingBox();
     expect(frame!.width).toBeGreaterThanOrEqual(1200);
+    expect(
+      await big.page.getByTestId("game-stage").evaluate((el) => el.scrollHeight - el.clientHeight),
+    ).toBeLessThanOrEqual(1);
     await shot(big.page, "question-2k");
     await host.context.close();
     await big.context.close();
@@ -193,7 +198,8 @@ test.describe("side panels", () => {
       await expect(page.getByTestId("pin-host")).toHaveCount(0);
       await page.keyboard.press("Escape");
       await expect(tools).toHaveCount(0);
-      // Clicking a player's chip opens their tools right away.
+      // Touch opens the expanded card; management is an action inside it.
+      await page.locator('[data-testid="player-chip"][data-player="Pat"] button').click();
       await page.getByRole("button", { name: "Manage Pat" }).first().click();
       await expect(page.getByTestId("player-admin")).toBeVisible();
       await pat.context.close();

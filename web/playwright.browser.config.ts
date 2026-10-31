@@ -3,6 +3,7 @@ import { defineConfig } from "@playwright/test";
 /** Native storage and media regressions; no backend, auth or Docker required. */
 export default defineConfig({
   testDir: "./browser-tests",
+  fullyParallel: true,
   workers: process.env.CI ? 2 : 1,
   retries: 0,
   globalTimeout: process.env.CI ? 10 * 60_000 : undefined,

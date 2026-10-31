@@ -221,6 +221,7 @@ test.describe("full game", () => {
     // ── Choice question: buzz, then pick an option ─────────────────────────
     await cell(host.page, "Specials", 400).click();
     await expectPhase(all, "Ready to buzz");
+    await alice.page.getByRole("tab", { name: "Answer options · 4" }).click();
     await expect(alice.page.getByRole("button", { name: /Dolphin/ })).toBeDisabled();
     await buzz(alice.page);
     await expect(alice.page.getByRole("button", { name: /Dolphin/ })).toBeEnabled();

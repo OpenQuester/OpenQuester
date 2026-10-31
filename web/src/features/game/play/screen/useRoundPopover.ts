@@ -21,7 +21,10 @@ export function useRoundPopover() {
   const hide = () => {
     clearTimer();
     pinned.current = false;
+    // Native dismissal can synchronously restore focus to the trigger.
+    restoringFocus.current = true;
     panel.current?.hidePopover();
+    restoringFocus.current = false;
   };
   const show = () => {
     clearTimer();

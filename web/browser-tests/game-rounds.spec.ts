@@ -17,6 +17,8 @@ async function mount(page: Page, count = 4, current = 1, final = true, metadata 
 test("round capsule supports hover, pinned click and keyboard without moving the field", async ({
   page,
 }) => {
+  const errors: Error[] = [];
+  page.on("pageerror", (error) => errors.push(error));
   await page.setViewportSize({ width: 1440, height: 900 });
   await mount(page);
   await page.evaluate(async () => {
@@ -88,6 +90,7 @@ test("round capsule supports hover, pinned click and keyboard without moving the
       .evaluate((el) => parseFloat(getComputedStyle(el).transitionDuration)),
   ).toBeLessThan(0.001);
   expect(await stage.boundingBox()).toEqual(bounds);
+  expect(errors).toEqual([]);
 });
 
 for (const width of [375, 1280]) {

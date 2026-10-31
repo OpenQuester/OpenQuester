@@ -366,9 +366,9 @@ it (e.g. `Host(\`dev.openquester.app\`)`) to use the app there.
 
 `.github/workflows/web.yml` builds, runs unit and e2e tests, then deploys
 `dist/` with `functions/` to the Cloudflare Pages project `openquester-web`.
-Native browser tests run separately; desktop, tablet and phone E2E jobs each
-have an isolated backend. Playwright stops before the job deadline to preserve
-failure reports; each job uploads its own report and backend log.
+Native browser tests run separately on two workers; desktop, tablet and phone
+E2E jobs each have an isolated backend. Playwright stops before the job deadline
+to preserve reports; each E2E job uploads its own report and backend log.
 Previews proxy to `https://dev-api.openquester.app`, production (`main`) to
 `https://api.openquester.app` (`wrangler.toml`). Because of the proxy the app
 and the session cookie share one origin, so no CORS or third-party cookies.
