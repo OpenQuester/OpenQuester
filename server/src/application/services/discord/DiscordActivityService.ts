@@ -1,20 +1,27 @@
-import { singleton } from "tsyringe";
+import { randomUUID } from "crypto";
+import { inject, singleton } from "tsyringe";
 
 import { GameService } from "application/services/game/GameService";
 import { RedisService } from "application/services/redis/RedisService";
 import {
   DISCORD_ACTIVITY_GAME_TTL_MS,
   DISCORD_ACTIVITY_LOCK_TTL_SECONDS,
+  DISCORD_ACTIVITY_MEMBER_TTL_MS,
   getDiscordActivityGameKey,
-  getDiscordActivityLockKey
+  getDiscordActivityLockKey,
+  getDiscordActivityMemberKey
 } from "domain/constants/discord";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
+import { COMPARE_AND_DELETE_SCRIPT } from "domain/lua/actionLuaScripts";
 import { type DiscordActivityGameDTO } from "domain/types/dto/discord/DiscordActivityGameDTO";
 import { type GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { type GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { type ShortUserInfo } from "domain/types/user/ShortUserInfo";
+import { DiscordApiClient } from "infrastructure/discord/DiscordApiClient";
+import { type Environment } from "shared/config/Environment";
+import { DI_TOKENS } from "shared/di/tokens";
 
 /**
  * One lobby per Discord Activity instance. Everyone who launches the Activity
@@ -24,10 +31,41 @@ import { type ShortUserInfo } from "domain/types/user/ShortUserInfo";
 @singleton()
 export class DiscordActivityService {
   constructor(
+    @inject(DI_TOKENS.Environment) private readonly env: Environment,
     private readonly redisService: RedisService,
-    private readonly gameService: GameService
+    private readonly gameService: GameService,
+    private readonly discordApiClient: DiscordApiClient
   ) {
     //
+  }
+
+  /**
+   * The lobby hands out its password, so with a bot token configured only the
+   * people Discord lists in the instance get it. Without one, any Activity
+   * session that knows the instance id does (instance ids are hard to guess).
+   */
+  public async assertInCall(instanceId: string, discordUserId: string | null): Promise<void> {
+    if (!this.env.DISCORD_BOT_TOKEN) {
+      return;
+    }
+
+    if (!discordUserId) {
+      throw new ClientError(ClientResponse.DISCORD_ACTIVITY_NOT_IN_CALL, HttpStatus.FORBIDDEN);
+    }
+
+    const memberKey = getDiscordActivityMemberKey(instanceId, discordUserId);
+
+    if (await this.redisService.get(memberKey)) {
+      return;
+    }
+
+    const users = await this.discordApiClient.getActivityInstanceUsers(instanceId);
+
+    if (!users?.includes(discordUserId)) {
+      throw new ClientError(ClientResponse.DISCORD_ACTIVITY_NOT_IN_CALL, HttpStatus.FORBIDDEN);
+    }
+
+    await this.redisService.set(memberKey, "1", DISCORD_ACTIVITY_MEMBER_TTL_MS);
   }
 
   /** The instance's game, or an empty result when there is none to join */
@@ -59,7 +97,12 @@ export class DiscordActivityService {
     gameData: GameCreateDTO
   ): Promise<DiscordActivityGameDTO> {
     const lockKey = getDiscordActivityLockKey(instanceId);
-    const locked = await this.redisService.setLockKey(lockKey, DISCORD_ACTIVITY_LOCK_TTL_SECONDS);
+    const lockToken = randomUUID();
+    const locked = await this.redisService.setLockKey(
+      lockKey,
+      DISCORD_ACTIVITY_LOCK_TTL_SECONDS,
+      lockToken
+    );
 
     if (!locked) {
       throw new ClientError(ClientResponse.DISCORD_ACTIVITY_GAME_BUSY, HttpStatus.CONFLICT);
@@ -82,7 +125,8 @@ export class DiscordActivityService {
 
       return { game, password: await this._getPassword(game.id), created: true };
     } finally {
-      await this.redisService.del(lockKey);
+      // A slow create can outlive the lock's TTL; never drop a lock another launch took since
+      await this.redisService.eval(COMPARE_AND_DELETE_SCRIPT, 1, lockKey, lockToken);
     }
   }
 
