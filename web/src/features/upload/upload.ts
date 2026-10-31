@@ -1,7 +1,14 @@
 import { api, ApiError, unwrap } from "@/api/client";
 import type { components } from "@/api/schema";
 
-import { md5Base64, md5Hex, mimeFor, readZip } from "./archive";
+import {
+  scanSiq,
+  scanOq,
+  PackageImportCancelledError,
+  HtmlConfirmationRequiredError,
+  type HtmlRemovalReport,
+} from "./htmlRemoval";
+import { EntryIndex, md5Base64, md5Hex, mimeFor, readZip } from "./archive";
 import { parseOq } from "./oq";
 import { parseSiq } from "./siq";
 import type { OptimizeProgress } from "./optimize/index";
@@ -13,11 +20,86 @@ import { withFinalMediaDurations } from "./finalMediaDuration";
 export const ACCEPT = ".siq,.oq";
 
 /** Reads a picked .siq or .oq file. Errors carry an i18n code as their message. */
-export async function readPackageFile(file: File): Promise<ParsedPackage> {
+export async function readPackageFile(
+  file: File,
+  options: {
+    confirmHtmlRemoval?: (report: HtmlRemovalReport) => Promise<boolean>;
+    signal?: AbortSignal;
+  } = {},
+): Promise<ParsedPackage> {
   const ext = file.name.split(".").pop()?.toLowerCase();
   if (ext !== "siq" && ext !== "oq") throw new Error("wrongType");
-  const entries = await readZip(new Uint8Array(await file.arrayBuffer()));
-  return ext === "siq" ? parseSiq(entries) : parseOq(entries);
+  const check = () => {
+    if (options.signal?.aborted) throw new PackageImportCancelledError();
+  };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  check();
+  const names: string[] = [];
+  const nonEmptyNames: string[] = [];
+  const manifestName = ext === "siq" ? "content.xml" : "content.json";
+  const isManifest = (name: string) => {
+    if (ext === "oq") return name === manifestName;
+    let decoded = name;
+    try {
+      decoded = decodeURIComponent(name);
+    } catch {
+      /* Keep the literal name. */
+    }
+    return decoded.toLowerCase() === manifestName;
+  };
+  const manifest = await readZip(bytes, (name, originalSize) => {
+    names.push(name);
+    if (originalSize > 0) nonEmptyNames.push(name);
+    return isManifest(name);
+  });
+  check();
+  // Duplicate names cannot be matched reliably after ZIP extraction collapses them.
+  if (new Set(names).size !== names.length) throw new Error("notZip");
+  // Async inflate completion can reorder keys. Never approve one alias and parse another.
+  if (names.filter(isManifest).length > 1) throw new Error("ambiguousManifest");
+  let report: HtmlRemovalReport;
+  if (ext === "siq") {
+    const raw = new EntryIndex(manifest).find(manifestName)?.bytes;
+    if (!raw) throw new Error("noContentXml");
+    const doc = new DOMParser().parseFromString(new TextDecoder().decode(raw), "application/xml");
+    if (
+      doc.documentElement?.localName !== "package" ||
+      doc.getElementsByTagName("parsererror").length
+    )
+      throw new Error("badContentXml");
+    report = scanSiq(doc.documentElement, names, false, nonEmptyNames);
+  } else {
+    const raw = manifest["content.json"];
+    if (!raw) throw new Error("noContentJson");
+    let json: unknown;
+    try {
+      json = JSON.parse(new TextDecoder().decode(raw));
+    } catch {
+      throw new Error("badContentJson");
+    }
+    if (
+      typeof json !== "object" ||
+      json === null ||
+      Array.isArray(json) ||
+      !Array.isArray((json as Record<string, unknown>).rounds)
+    )
+      throw new Error("badContentJson");
+    report = scanOq(json as Record<string, unknown>, false);
+  }
+  let approved = false;
+  if (report.questions.length) {
+    if (!options.confirmHtmlRemoval) throw new HtmlConfirmationRequiredError(report);
+    const accepted = await options.confirmHtmlRemoval(report);
+    check();
+    if (!accepted) throw new PackageImportCancelledError();
+    approved = true;
+    if (report.questions.length === report.totalQuestions) throw new Error("allHtmlQuestions");
+  }
+  const entries = await readZip(bytes);
+  check();
+  const result = await (ext === "siq" ? parseSiq(entries, approved) : parseOq(entries, approved));
+  check();
+  return result;
 }
 
 export type FileState = "waiting" | "uploading" | "done" | "failed";

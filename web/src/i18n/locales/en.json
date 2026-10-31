@@ -864,7 +864,9 @@
       "noContentJson": "This .oq file has no content.json, so there's nothing to read.",
       "badContentJson": "The package description inside this .oq file is broken.",
       "generic": "Couldn't read this file.",
-      "otherSource": "This file isn't the one this package was uploaded from, so it can't finish that upload. Upload it as a new package instead."
+      "otherSource": "This file isn't the one this package was uploaded from, so it can't finish that upload. Upload it as a new package instead.",
+      "allHtmlQuestions": "No usable questions remain after import. Other questions may have missing media.",
+      "ambiguousManifest": "This archive contains multiple conflicting package manifests."
     },
     "format": {
       "siq": "SIGame package",
@@ -888,7 +890,8 @@
       "unknownType": "Question type “{{detail}}” isn't supported yet and plays as a regular question.",
       "finalAsSimple": "A final round outside the last position was converted to a regular round. Review its questions and prices.",
       "extraFinalQuestions": "Only the first question of this final theme was imported; {{detail}} additional questions were left out. Review the source archive.",
-      "hashMismatch": "Media file {{detail}} is damaged and was left out."
+      "hashMismatch": "Media file {{detail}} is damaged and was left out.",
+      "htmlQuestionRemoved": "Unsupported HTML question removed."
     },
     "showAll": "Show all {{count}}",
     "showFewer": "Show fewer",
@@ -940,6 +943,15 @@
       "by": "By {{author}} · {{when}}",
       "resume": "Finish this upload",
       "open": "Open it"
+    },
+    "htmlRemoval": {
+      "title": "Unsupported HTML questions",
+      "explanation_one": "HTML questions are not supported. To continue, remove {{count}} question. The original file will not be changed.",
+      "explanation_other": "HTML questions are not supported. To continue, remove {{count}} questions. The original file will not be changed.",
+      "all": "No questions would remain, so this file cannot be imported.",
+      "item": "{{round}} › {{theme}} › question {{number}} › {{price}}",
+      "cancel": "Cancel",
+      "confirm": "Remove and continue"
     }
   },
   "editor": {

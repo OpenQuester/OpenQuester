@@ -7,13 +7,16 @@ import { Spinner } from "@/ui/Spinner";
 import { Button } from "@/ui/Button";
 import { DraftActions } from "./home/DraftActions";
 import { DraftList } from "./home/DraftList";
+import { HtmlRemovalDialog } from "@/features/upload/HtmlRemovalDialog";
 import { useDraftLibrary } from "./home/useDraftLibrary";
 
 export function PackageDraftsPage() {
   const { t } = useTranslation();
-  const { drafts, busy, error, create, importFile, remove, reload } = useDraftLibrary();
+  const { confirmation, drafts, busy, error, create, importFile, remove, reload } =
+    useDraftLibrary();
   return (
     <PageContainer width={960}>
+      <HtmlRemovalDialog report={confirmation.report} settle={confirmation.settle} />
       <div className="flex flex-col gap-6">
         <Link to="/packages" className={layoutStyles.backLink}>
           <BackIcon size={18} />

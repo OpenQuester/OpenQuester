@@ -14,7 +14,7 @@ const shade = () => Math.floor(Math.random() * 256);
  * A .siq with two small pictures (too small to be re-encoded, so their MD5s
  * stay as they are). Random colours keep them out of storage from earlier runs.
  */
-function twoPicturePack(title: string) {
+function twoPicturePack(title: string, includeHtml = false) {
   const amber = new Uint8Array(makePng(24, 16, [shade(), shade(), shade()]));
   const teal = new Uint8Array(makePng(24, 16, [shade(), shade(), shade()]));
   const question = (price: number, file: string) => `
@@ -30,6 +30,7 @@ function twoPicturePack(title: string) {
   <rounds><round name="Round one"><themes><theme name="Colours"><questions>
     ${question(100, "amber.png")}
     ${question(200, "teal.png")}
+    ${includeHtml ? '<question price="300" type="html"/>' : ""}
   </questions></theme></themes></round></rounds>
 </package>`;
   const buffer = Buffer.from(
@@ -190,6 +191,41 @@ test.describe("unfinished uploads", () => {
     expect(errors).toEqual([]);
   });
 
+  test("reconfirms a cleaned package when resuming on another device", async ({
+    page,
+    browser,
+  }) => {
+    await signInAsAuthor(page);
+    const { buffer, lost } = twoPicturePack(`Clean resume ${Date.now()}`, true);
+    const restore = await breakUploadsOf(page, lost);
+    await page.goto("/packages/upload");
+    await pickPackage(page, buffer);
+    await page.getByRole("button", { name: "Remove and continue" }).click();
+    const created = createdPackageId(page);
+    await page.getByRole("button", { name: "Upload package" }).click();
+    const id = await created;
+    await expect(page.getByTestId("upload-partial")).toBeVisible({ timeout: 30000 });
+    await restore();
+    const other = await newAuthorPage(browser, test.info().project);
+    await other.goto(`/packages/${id}/upload`);
+    let mutations = 0;
+    other.on("request", (request) => {
+      if (["POST", "PUT"].includes(request.method())) mutations++;
+    });
+    await pickPackage(other, buffer);
+    await expect(other.getByRole("dialog")).toContainText("question 3");
+    await other.getByRole("button", { name: "Cancel" }).click();
+    await expect(other.getByTestId("resume-pick")).toBeVisible();
+    expect(mutations).toBe(0);
+    await pickPackage(other, buffer);
+    await other.getByRole("button", { name: "Remove and continue" }).click();
+    await expect(other.getByTestId("resume-done")).toContainText("All media is uploaded", {
+      timeout: 30000,
+    });
+    const state = await (await other.request.get(`/v1/packages/${id}/upload`)).json();
+    expect(state.status).toBe("ready");
+    await other.context().close();
+  });
   test("resumes on another device by picking the same file", async ({ page, browser }) => {
     await signInAsAuthor(page);
     const { buffer, lost } = twoPicturePack(`Two devices ${Date.now()}`);

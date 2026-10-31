@@ -56,7 +56,12 @@ export function PackageImportDropZone({
             if (file) onFile(file);
           }}
         />
-        <Button variant="accent" size="lg" onClick={() => input.current?.click()}>
+        <Button
+          data-import-picker
+          variant="accent"
+          size="lg"
+          onClick={() => input.current?.click()}
+        >
           {t("upload.choose")}
         </Button>
       </div>

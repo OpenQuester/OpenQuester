@@ -1,13 +1,15 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { readPackageFile } from "@/features/upload/upload";
+import { PackageImportCancelledError } from "@/features/upload/htmlRemoval";
+import { useHtmlRemovalConfirmation } from "@/features/upload/HtmlRemovalDialog";
 import { deleteDraft, listDrafts, type PackageDraftSummary } from "../draftStorage";
 import { draftFromParsed, newDraft } from "../createDraft";
 
 export function useDraftLibrary() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const confirmation = useHtmlRemovalConfirmation();
   const [drafts, setDrafts] = useState<PackageDraftSummary[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,11 +57,21 @@ export function useDraftLibrary() {
   };
 
   const importFile = async (file: File) => {
+    const { promise, signal } = confirmation.begin(file);
     setError(null);
     setBusy(file.name);
     try {
-      open(await draftFromParsed(await readPackageFile(file)));
+      const parsed = await promise;
+      if (signal.aborted) return;
+      const draftId = await draftFromParsed(parsed);
+      if (signal.aborted) return;
+      open(draftId);
     } catch (err) {
+      if (signal.aborted) return;
+      if (err instanceof PackageImportCancelledError) {
+        setBusy(null);
+        return;
+      }
       const code = err instanceof Error ? err.message : "";
       setError(t(`upload.readErrors.${code}`, { defaultValue: t("upload.readErrors.generic") }));
       setBusy(null);
@@ -75,5 +87,5 @@ export function useDraftLibrary() {
       setError(t("editor.storageFailed"));
     }
   };
-  return { drafts, busy, error, create, importFile, remove, reload };
+  return { confirmation, drafts, busy, error, create, importFile, remove, reload };
 }
