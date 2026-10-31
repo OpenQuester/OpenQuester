@@ -32,6 +32,7 @@ export const gameTimerSettingsScheme = () =>
 /** Rules and timers as accepted on game creation and when the showman changes them */
 export const gameSettingsScheme = () =>
   Joi.object<GameSettingsInput>({
+    autoStart: Joi.boolean().optional(),
     falseStart: Joi.boolean().optional(),
     buttonPressMode: Joi.valid(...Object.values(ButtonPressMode)).optional(),
     wrongAnswerPenalty: Joi.valid(...Object.values(WrongAnswerPenalty)).optional(),

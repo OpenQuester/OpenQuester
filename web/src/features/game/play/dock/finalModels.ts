@@ -23,6 +23,13 @@ export function finalEliminationModel({
   const turn = s.currentTurnPlayerId;
   const left = remainingFinalThemes(session).length;
   return {
+    statusPlayer:
+      turn === myId
+        ? undefined
+        : {
+            key: role === "showman" ? "dock.final.elimShowman" : "dock.final.elimOther",
+            name: name(turn),
+          },
     status:
       turn === myId
         ? t("dock.final.elimYou")
@@ -100,7 +107,8 @@ export function finalAnswerModel({
   const players = seatedPlayers(session).filter(
     (p) => isEligible(session, p.meta.id) && finalBid(session, p.meta.id) != null,
   );
-  const done = players.filter((p) => session.finalSubmitted.includes(p.meta.id)).length;
+  const submitted = new Set(session.finalSubmitted);
+  const done = players.filter((p) => submitted.has(p.meta.id)).length;
   const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
   const point = !!pointPicture(q);
   const next = t(point ? "dock.final.pointNext" : "dock.final.answerNext");
@@ -125,7 +133,7 @@ export function finalAnswerModel({
       next,
     };
   }
-  if (session.finalSubmitted.includes(myId)) {
+  if (submitted.has(myId)) {
     return {
       status: t("dock.final.answerLocked"),
       action: { kind: "info", text: t("dock.final.waitOthers", { done, total: players.length }) },

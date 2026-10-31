@@ -323,6 +323,7 @@ describe("Showman tools", () => {
       );
       // Rules that were not sent keep their value
       expect(changed.settings).toEqual({
+        autoStart: true,
         falseStart: false,
         buttonPressMode: ButtonPressMode.FIRST_WINS,
         wrongAnswerPenalty: WrongAnswerPenalty.NONE,

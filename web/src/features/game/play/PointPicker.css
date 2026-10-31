@@ -1,0 +1,13 @@
+.point-target {
+  box-shadow:
+    0 0 0 2px var(--oq-on-primary),
+    0 0 0 4px var(--oq-scrim),
+    inset 0 0 0 1px var(--oq-scrim);
+}
+/* Match the selected point's two-second pulse without moving the answer geometry. */
+@media (prefers-reduced-motion: no-preference) {
+  .game-screen .point-target,
+  .game-screen [data-testid="point-answer-dot"] {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}

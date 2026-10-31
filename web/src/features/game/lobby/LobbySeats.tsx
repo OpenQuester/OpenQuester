@@ -57,19 +57,14 @@ export function LobbySeats({ lobby }: { lobby: LobbyModel }) {
             <li key={`empty-${i}`}>
               <button
                 type="button"
-                disabled={role === "showman"}
                 onClick={() => takeSlot(i)}
                 className={lobbyStyles.emptySeat}
-                aria-label={
-                  role === "showman" ? t("lobby.openSlot") : t("lobby.takeSlot", { n: i + 1 })
-                }
+                aria-label={t("lobby.takeSlot", { n: i + 1 })}
               >
                 <span className={lobbyStyles.emptyAvatar}>+</span>
                 <span className="flex flex-col">
                   <span className="font-semibold">{t("lobby.openSlot")}</span>
-                  <span className="text-[13px]">
-                    {role === "showman" ? t("lobby.waitingForPlayer") : t("lobby.clickToSit")}
-                  </span>
+                  <span className="text-[13px]">{t("lobby.clickToSit")}</span>
                 </span>
               </button>
             </li>

@@ -195,7 +195,10 @@
         "secretTransferMs": "Time to hand over a secret question",
         "allPlayAnswerMs": "Time to write when everyone answers",
         "finalAnswerMs": "Time for the final answer"
-      }
+      },
+      "startMode": "Start game",
+      "startAutomatic": "When everyone is ready",
+      "startManual": "When the showman decides"
     }
   },
   "settings": {
@@ -265,6 +268,14 @@
     "scores": "Scores",
     "noPlayers": "No players are seated. You can pick questions yourself.",
     "roundLabel": "Round {{n}} · {{name}}",
+    "rounds": {
+      "title": "Package rounds",
+      "position": "{{current}} of {{total}}",
+      "open": "Rounds. {{position}}. Current: {{name}}",
+      "done": "Completed",
+      "current": "Now",
+      "next": "Next"
+    },
     "you": "You:",
     "youAre": "You are {{role}}",
     "delete": "Delete game",
@@ -297,7 +308,7 @@
     "youreSeated": "You're in seat {{n}} as a player",
     "imReady": "I'm ready",
     "readyUndo": "✓ Ready — click to undo",
-    "readyHelp": "Only the showman can start. Being ready tells them you're here and set.",
+    "readyHelp": "The game starts when every connected player is ready. The showman can also start it earlier.",
     "waitingForHost": "Waiting for {{name}} to start · {{ready}} of {{total}} ready.",
     "watchInstead": "Watch instead",
     "youreWatching": "You're watching",
@@ -324,7 +335,18 @@
     "kick": "Remove {{name}} from the game",
     "moveToSpectators": "Move {{name}} to spectators",
     "moreSeats_one": "{{count}} more open seat",
-    "moreSeats_other": "{{count}} more open seats"
+    "moreSeats_other": "{{count}} more open seats",
+    "readyManualHelp": "Mark yourself ready. The showman decides when to start.",
+    "waitingForReady": "{{ready}} / {{total}} players ready. Waiting for everyone to be ready.",
+    "startManualHelp": "Readiness is a signal to you. The game starts only when you press Start.",
+    "automaticMode": "Automatic start · starts when every connected player is ready.",
+    "manualMode": "Showman starts · ready players wait for the showman.",
+    "showmanOpen": "Showman seat is open",
+    "showmanHelp": "Runs the game and judges answers",
+    "becomeShowman": "Become showman",
+    "packageOverview": "Rounds and themes",
+    "packageUnavailable": "Could not load the package overview.",
+    "finalRound": "Final round"
   },
   "banner": {
     "reconnecting": "Connection lost — reconnecting…",
@@ -377,7 +399,8 @@
       "rules": "changed the rules: {{changes}}",
       "ruleOn": "on",
       "ruleOff": "off"
-    }
+    },
+    "system": "System"
   },
   "menu": {
     "title": "Game menu",
@@ -466,6 +489,7 @@
     "answering": "answering",
     "passed": "passed",
     "givingAway": "giving away",
+    "choosingPrice": "choosing price",
     "bidding": "bidding",
     "removing": "removing",
     "bidPlaced": "bid placed",
@@ -507,15 +531,11 @@
     "recap": "Question: {{text}}",
     "audioEnded": "Finished",
     "replay": "Play again",
-    "cue": {
-      "open": "The buzzer is open",
-      "soon": "The buzzer opens in a moment",
-      "player": "Know it? Buzz now with the button below or Space.",
-      "showman": "Waiting for a player to buzz. With no buzz, the answer is revealed when time runs out.",
-      "spectator": "Players can buzz now.",
-      "timeLeft": "{{seconds}} sec. left"
-    },
-    "optionNumber": "Option {{n}}"
+    "optionNumber": "Option {{n}}",
+    "mediaTab": "Media",
+    "textTab": "Text",
+    "scrollHint": "Scroll to read more",
+    "expandOption": "Open option {{n}}"
   },
   "showman": {
     "panel": "Only you can see this",
@@ -523,7 +543,7 @@
     "answer": "Correct answer",
     "noAnswerText": "No answer text in the package",
     "hint": "Hint: {{hint}}",
-    "answering": "{{name}} answers:",
+    "answering": "<player>{{name}}</player> answers:",
     "sayingOutLoud": "Answering out loud",
     "emptySubmission": "No answer text was sent.",
     "alreadyAnswered": "Already answered",
@@ -535,26 +555,27 @@
   },
   "reveal": {
     "answer": "The answer",
-    "gotIt": "{{name}} answers correctly · {{points}}",
+    "gotIt": "<player>{{name}}</player> answers correctly · <points>{{points}}</points>",
     "nobody": "No one answered correctly.",
     "correctPlayers": "Correct answers: {{players}}",
+    "correctCount": "Correct: {{correct}}/{{total}}",
     "noSubmissions": "No one submitted an answer.",
     "unresolved": "Some answers have not been judged.",
     "playerFallback": "Player {{id}}",
-    "submitted": "{{name}} answered: “{{answer}}”",
-    "alsoRight": "Also accepted: {{answers}}",
+    "submitted": "<player>{{name}}</player> answered: “{{answer}}”",
+    "alsoRight": "Also accepted: <answers>{{answers}}</answers>",
     "authors": "By {{names}}",
     "sources": "Source: {{list}}"
   },
   "secret": {
     "youPicked": "You picked a secret question. Who should answer it?",
-    "picked": "{{name}} picked a secret question and is choosing who answers.",
+    "picked": "<player>{{name}}</player> picked a secret question and is choosing who answers.",
     "ruleAny": "It can go to any player, including the one who picked it. They answer alone — no buzzer.",
     "ruleExcept": "It must go to another player. They answer alone — no buzzer.",
     "giveTo": "Give the question to",
     "prices": "Prices to pick from",
     "pickPriceYou": "The question is yours — pick its price",
-    "pickPrice": "{{name}} got the question and picks its price"
+    "pickPrice": "<player>{{name}}</player> got the question and picks its price"
   },
   "stake": {
     "kicker": "Stake question · auction",
@@ -651,13 +672,14 @@
     "choosing": {
       "yourTurn": "Your turn to pick",
       "pickInfo": "Pick any amber cell on the board",
-      "isPicking": "{{name}} is picking",
+      "isPicking": "<player>{{name}}</player> is picking",
       "showmanPicks": "The showman picks the next question",
-      "showmanStatus": "{{name}} picks next",
+      "showmanStatus": "<player>{{name}}</player> picks next",
       "youPick": "Pick the next question",
       "showmanInfo": "Wait for {{name}}, or pick for them",
       "pickAny": "Pick any cell on the board",
-      "nextRound": "Skip to next round",
+      "randomQuestion": "Pick random question",
+      "noQuestions": "No questions left",
       "next": "The question opens for everyone as soon as it's picked.",
       "nextYou": "The question opens for everyone right after you pick.",
       "unknownShowman": "A player picks next — or pick for them",
@@ -675,7 +697,7 @@
       "status": "Players can buzz now",
       "open": "Buzzer is open",
       "buzz": "Buzz!",
-      "pass": "Pass on this question",
+      "pass": "Pass",
       "unpass": "Undo pass",
       "wrongCost": "Wrong: −{{points}} and the buzzer reopens for the others",
       "wrongFree": "Wrong: no penalty",
@@ -693,13 +715,13 @@
       "showmanNextEarly": "The buzzer opens when the question finishes. Open it now to let players buzz early."
     },
     "answering": {
-      "autoSubmitted": "{{name}} sent an answer — waiting for the result",
+      "autoSubmitted": "<player>{{name}}</player> sent an answer — waiting for the result",
       "autoSubmittedHelp": "The answer was sent. Wait for the result or skip without points.",
       "questionLoading": "Waiting for question details.",
-      "autoWait": "{{name}} is answering — wait for their action",
+      "autoWait": "<player>{{name}}</player> is answering — wait for their action",
       "autoWaitHelp": "The player must select, enter, or mark an answer.",
       "autoWaitNext": "The answer will be checked automatically when possible.",
-      "judge": "{{name}} is answering — judge it",
+      "judge": "<player>{{name}}</player> is answering — judge it",
       "showmanNext": "Correct: {{name}} scores and picks next. Wrong: −{{points}} and the buzzer reopens.",
       "showmanNextSingle": "Only {{name}} answers this one. Either way the answer is revealed next.",
       "you": "You're answering!",
@@ -713,7 +735,7 @@
       "youNext": "The showman judges your answer. Wrong costs points and the buzzer reopens for the others.",
       "choiceNext": "Recognized answers are checked automatically. If no result arrives, the showman can skip without points.",
       "youNextSingle": "The showman judges your answer. Right or wrong, the answer is revealed next.",
-      "other": "{{name}} is answering",
+      "other": "<player>{{name}}</player> is answering",
       "wait": "Wait for the showman's call",
       "otherNext": "If {{name}} is wrong, the buzzer reopens for everyone else.",
       "otherNextSingle": "Only {{name}} answers this question.",
@@ -721,7 +743,7 @@
       "numberPlaceholder": "Type a number"
     },
     "reveal": {
-      "correct": "{{name}} answers correctly · {{points}}",
+      "correct": "<player>{{name}}</player> answers correctly · <points>{{points}}</points>",
       "nobody": "Here's the answer",
       "continue": "Continue",
       "info": "Back to the board in a moment",
@@ -730,20 +752,21 @@
     },
     "secret": {
       "choose": "Choose who answers",
-      "giveQ": "Give it to {{name}}?",
-      "otherChoosing": "{{name}} is choosing who answers",
+      "giveQ": "Give it to <player>{{name}}</player>?",
+      "otherChoosing": "<player>{{name}}</player> is choosing who answers",
       "give": "Give to {{name}}",
       "pickFirst": "Pick a player first",
       "wait": "Wait — you might get this question",
       "next": "They must answer: +{{points}} if right, −{{points}} if wrong.",
       "nextNoPrice": "They must answer alone.",
       "priceYou": "Pick the price of your question",
-      "priceOther": "{{name}} is picking the price",
+      "priceOther": "<player>{{name}}</player> is picking the price",
       "priceWait": "Waiting for {{name}} to pick a price",
-      "priceNext": "Right answer wins the picked price, wrong costs it. If time runs out, the lowest price is used."
+      "priceNext": "Right answer wins the picked price, wrong costs it. If time runs out, the lowest price is used.",
+      "priceAbove": "Choose the question price above"
     },
     "stake": {
-      "waitFor": "Waiting for {{name}}'s bid",
+      "waitFor": "Waiting for <player>{{name}}</player>'s bid",
       "watching": "Players are bidding — nothing to do yet",
       "beat": "Your bid — beat {{amount}}",
       "open": "Your bid",
@@ -751,8 +774,8 @@
     },
     "final": {
       "elimYou": "Your turn — remove one theme",
-      "elimOther": "{{name}} removes a theme",
-      "elimShowman": "{{name}} removes a theme",
+      "elimOther": "<player>{{name}}</player> removes a theme",
+      "elimShowman": "<player>{{name}}</player> removes a theme",
       "elimInfo": "Click a theme you don't want",
       "elimNext_one": "{{count}} theme left — it becomes the final question.",
       "elimNext_other": "{{count}} themes left. Players take turns until one remains.",
@@ -825,7 +848,14 @@
     "noShowman": "No showman right now",
     "noSpectators": "Nobody is watching.",
     "seat": "Seat as player",
-    "showmanHelp": "Manage a player to fix their score, give them the turn, move them to spectators or remove them."
+    "showmanHelp": "Manage a player to fix their score, give them the turn, move them to spectators or remove them.",
+    "viewAvatar": "Open avatar of {{name}}",
+    "avatar": "Avatar of {{name}}",
+    "currentValue": "Current question value",
+    "lastValue": "Last question value",
+    "valueUnavailable": "The previous question value is not available. Use player management to set a score.",
+    "addScore": "Add {{amount}} to {{name}}",
+    "subtractScore": "Subtract {{amount}} from {{name}}"
   },
   "upload": {
     "finalMedia": {

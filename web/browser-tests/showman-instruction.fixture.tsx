@@ -18,6 +18,7 @@ export function mountInstruction(myId: number, final: boolean) {
   });
   useGameStore.setState({ session: game, connection: "connected", pending: null });
   const container = document.createElement("div");
+  container.className = "game-screen flex h-dvh min-h-0 overflow-hidden p-3";
   document.body.append(container);
   createRoot(container).render(
     <GameContext.Provider

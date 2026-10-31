@@ -28,6 +28,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   inactive?: boolean;
   icon?: ReactNode;
   fullWidth?: boolean;
+  /** A trailing hint with symmetric space so the action label stays centered. */
+  shortcut?: string;
 }
 
 export function Button({
@@ -37,6 +39,7 @@ export function Button({
   disabled,
   icon,
   fullWidth,
+  shortcut,
   className,
   children,
   type = "button",
@@ -55,12 +58,21 @@ export function Button({
           ? "bg-surface-2 text-faint border border-line-strong cursor-not-allowed"
           : variants[variant],
         fullWidth && "w-full",
+        shortcut && "relative px-14",
         className,
       )}
       {...rest}
     >
       {icon}
       {children}
+      {shortcut && (
+        <kbd
+          aria-hidden="true"
+          className="absolute right-2 rounded border border-current/25 px-1 py-0.5 font-mono text-[10px] leading-none font-normal opacity-70"
+        >
+          {shortcut}
+        </kbd>
+      )}
     </button>
   );
 }

@@ -3,7 +3,17 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GameConnection } from "@/game/connection";
-import { ALICE, BOB, question, round, SAM, session, SHOWMAN, timer } from "@/game/fixtures";
+import {
+  ALICE,
+  BOB,
+  choosing,
+  question,
+  round,
+  SAM,
+  session,
+  SHOWMAN,
+  timer,
+} from "@/game/fixtures";
 import { reduce, type GameSession } from "@/game/reducer";
 import { useGameStore } from "@/game/store";
 
@@ -34,6 +44,77 @@ const showing = (extra = {}) =>
 
 describe("Dock", () => {
   beforeEach(() => useGameStore.setState({ session: null, pending: null }));
+
+  it.each([ALICE, SHOWMAN])("randomly picks only unplayed cells for eligible user %s", (id) => {
+    const s = choosing();
+    s.state.currentRound!.themes[0]!.questions[0]!.isPlayed = true;
+    const emit = renderDock(s, id);
+    const random = vi.spyOn(Math, "random");
+    try {
+      random.mockReturnValueOnce(0).mockReturnValueOnce(0.999);
+      const button = screen.getByRole("button", { name: "Pick random question" });
+      fireEvent.click(button);
+      expect(emit).toHaveBeenLastCalledWith("question-pick", { questionId: 101 });
+      fireEvent.click(button);
+      expect(emit).toHaveBeenLastCalledWith("question-pick", { questionId: 110 });
+      expect(screen.queryByRole("button", { name: "Skip to next round" })).not.toBeInTheDocument();
+    } finally {
+      random.mockRestore();
+    }
+  });
+
+  it.each([BOB, SAM])("does not offer a random pick without board permissions to %s", (id) => {
+    renderDock(choosing(), id);
+    expect(screen.queryByTestId("pick-random-question")).not.toBeInTheDocument();
+  });
+
+  it("uses the board's unknown-turn fallback and explains an exhausted board", () => {
+    const s = choosing();
+    s.state.currentTurnPlayerId = null;
+    s.turnUnknown = true;
+    renderDock(s, BOB);
+    expect(screen.getByTestId("pick-random-question")).toBeEnabled();
+    act(() =>
+      useGameStore.setState({
+        session: {
+          ...s,
+          state: { ...s.state, currentRound: { ...s.state.currentRound!, themes: [] } },
+        },
+      }),
+    );
+    expect(screen.getByRole("button", { name: "No questions left" })).toBeDisabled();
+  });
+
+  it("waits for acceptance and rejects stale random clicks after a phase or turn change", () => {
+    const s = choosing();
+    const emit = renderDock(s, ALICE);
+    const button = screen.getByTestId("pick-random-question");
+    emit.mockImplementation(() => useGameStore.getState().setPending("question-pick"));
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(emit).toHaveBeenCalledTimes(1);
+    act(() => useGameStore.getState().setPending(null));
+    expect(button).toBeEnabled();
+    // Update the store before React commits, as with an incoming socket event.
+    act(() => {
+      useGameStore.setState({ session: { ...s, state: { ...s.state, currentTurnPlayerId: BOB } } });
+      fireEvent.click(button);
+    });
+    expect(emit).toHaveBeenCalledTimes(1);
+    act(() => useGameStore.setState({ session: s }));
+    const restored = screen.getByTestId("pick-random-question");
+    act(() => {
+      useGameStore.setState({ connection: "reconnecting" });
+      fireEvent.click(restored);
+    });
+    expect(emit).toHaveBeenCalledTimes(1);
+    act(() => useGameStore.setState({ connection: "connected" }));
+    act(() => {
+      useGameStore.setState({ session: { ...s, state: { ...s.state, questionState: "showing" } } });
+      fireEvent.click(restored);
+    });
+    expect(emit).toHaveBeenCalledTimes(1);
+  });
 
   it.each([ALICE, SHOWMAN])("explains final media readiness for player or showman %s", (id) => {
     const s = session({
@@ -381,7 +462,7 @@ describe("Dock", () => {
 
   it("only offers Pass for questions that accept it before buzzing", async () => {
     const emit = renderDock(showing(), ALICE);
-    await userEvent.click(screen.getByRole("button", { name: "Pass on this question" }));
+    await userEvent.click(screen.getByRole("button", { name: "Pass" }));
     expect(emit).toHaveBeenCalledWith("question-skip");
 
     act(() =>
@@ -393,7 +474,7 @@ describe("Dock", () => {
       }),
     );
     expect(screen.getByTestId("buzz")).toBeEnabled();
-    expect(screen.queryByRole("button", { name: "Pass on this question" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Pass" })).toBeNull();
   });
 
   it.each(["noRisk", "secret", "stake"] as const)(

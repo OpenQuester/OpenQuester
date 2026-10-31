@@ -16,32 +16,39 @@ For every visible game phase, each role should know:
 
 ## Roles
 
-| Role | Meaning |
-|---|---|
-| Showman | Host/controller. Chooses questions, controls flow, marks answers, manages lobby/game. |
-| Player | Competes, buzzes/answers, bids, eliminates final themes, sees role-specific prompts. |
+| Role      | Meaning                                                                                 |
+| --------- | --------------------------------------------------------------------------------------- |
+| Showman   | Host/controller. Chooses questions, controls flow, marks answers, manages lobby/game.   |
+| Player    | Competes, buzzes/answers, bids, eliminates final themes, sees role-specific prompts.    |
 | Spectator | Watches game state without gameplay actions. Should still understand what is happening. |
 
 ## High-level phases
 
+While choosing, the dock offers **Pick random question** to the showman and any
+player currently allowed to pick on the board (including its unknown-turn
+fallback). It samples uniformly from unplayed cells in the current round and
+sends the existing `question-pick` command. Pending, disconnected and stale
+phase/turn states cannot send another pick; an exhausted board explains that no
+questions remain. Skip round remains in showman tools, outside the dock.
+
 Names in code may differ. Use nearby enums/types as the implementation source of truth, but preserve this product behavior.
 
-| Phase | Showman primary CTA | Player primary CTA | Spectator primary CTA | Disabled reason examples | Feedback |
-|---|---|---|---|---|---|
-| Lobby | Configure/start game | Ready/unready, choose slot/role if allowed | Join/watch | “Waiting for players”, “Only showman can start”, “Package missing” | ready state, role badges, copied link toast |
-| Choosing | Choose theme/question | Waiting for question choice | Watching choice | “Only showman/current player can choose”, “Question already played” | chosen cell highlight, phase transition |
-| Media downloading | Observe preparation; showman readiness does not block | Prepare media, then report readiness | Observe preparation; spectator readiness does not block | “Waiting for media”, “Waiting for active players” | media timer, per-player readiness; content should remain gated |
-| Showing question | Continue/watch question | Wait until buzzer ready | Watching question | “Button locked until question is ready”, “You joined after question started” | question timer, role-aware controls |
-| Ready to buzz | Observe/prepare to judge | Press buzzer | Watching who buzzes | “You already answered”, “You are skipped”, “Spectators cannot answer” | Ready state, keyboard hint, pulse/sound when active |
-| Answering | Mark correct/wrong/skip | Answer if selected, otherwise wait | Watching active answerer | “Another player is answering” | active player highlight, answer prompt |
-| Reviewing answer | Correct/wrong/score result | Waiting for showman decision | Watching review | “Only showman can mark answer” | score delta, correct/wrong result, next phase |
-| Between questions | Pick next / next round | Waiting | Watching | “Round is not ready”, “Game paused” | phase label, next action visible |
-| Final theme elimination | Eliminate for current player / observe | Eliminate if it is your turn | Watching elimination | “Not your turn”, “Theme already eliminated” | eliminated theme animation, next player indicator |
-| Final bidding | Observe / proceed when bids complete | Submit bid if eligible | Watching bids | “Bid already submitted”, “Insufficient score”, “Spectators cannot bid” | bid submitted state, timer, all-bids-ready state |
-| Final answering | Wait/review later | Submit final answer | Watching answer phase | “You did not bid”, “Answer already submitted”, “Timer expired” | submitted state, remaining time |
-| Final reviewing | Review each answer | Waiting for review | Watching review | “Only showman can review” | per-answer correct/wrong, final score updates |
-| Finished | Start/rematch/share/admin actions | See results/rematch/share | See results | “Game already finished” | winner, podium, summary, score deltas |
-| Paused/reconnecting | Resume or wait | Reconnecting/waiting | Reconnecting/waiting | “Game paused”, “Connection lost” | reconnect banner, restored state |
+| Phase                   | Showman primary CTA                                   | Player primary CTA                         | Spectator primary CTA                                   | Disabled reason examples                                                                 | Feedback                                                                                 |
+| ----------------------- | ----------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Lobby                   | Configure/start game                                  | Ready/unready, choose slot/role if allowed | Join/watch                                              | “Waiting for players”, “Waiting for the showman” in manual mode, “Package missing”       | selected start mode, ready state, showman slot, package rounds/themes, copied link toast |
+| Choosing                | Choose a cell or random question                      | Choose if it is your turn; otherwise wait  | Watching choice                                         | “Only showman/current player can choose”, “Question already played”, “No questions left” | chosen cell highlight, phase transition                                                  |
+| Media downloading       | Observe preparation; showman readiness does not block | Prepare media, then report readiness       | Observe preparation; spectator readiness does not block | “Waiting for media”, “Waiting for active players”                                        | media timer, per-player readiness; content should remain gated                           |
+| Showing question        | Continue/watch question                               | Wait until buzzer ready                    | Watching question                                       | “Button locked until question is ready”, “You joined after question started”             | question timer, role-aware controls                                                      |
+| Ready to buzz           | Observe/prepare to judge                              | Press buzzer                               | Watching who buzzes                                     | “You already answered”, “You are skipped”, “Spectators cannot answer”                    | Ready state, keyboard hint, pulse/sound when active                                      |
+| Answering               | Mark correct/wrong/skip                               | Answer if selected, otherwise wait         | Watching active answerer                                | “Another player is answering”                                                            | active player highlight, answer prompt                                                   |
+| Reviewing answer        | Correct/wrong/score result                            | Waiting for showman decision               | Watching review                                         | “Only showman can mark answer”                                                           | score delta, correct/wrong result, next phase                                            |
+| Between questions       | Pick next / next round                                | Waiting                                    | Watching                                                | “Round is not ready”, “Game paused”                                                      | phase label, next action visible                                                         |
+| Final theme elimination | Eliminate for current player / observe                | Eliminate if it is your turn               | Watching elimination                                    | “Not your turn”, “Theme already eliminated”                                              | eliminated theme animation, next player indicator                                        |
+| Final bidding           | Observe / proceed when bids complete                  | Submit bid if eligible                     | Watching bids                                           | “Bid already submitted”, “Insufficient score”, “Spectators cannot bid”                   | bid submitted state, timer, all-bids-ready state                                         |
+| Final answering         | Wait/review later                                     | Submit final answer                        | Watching answer phase                                   | “You did not bid”, “Answer already submitted”, “Timer expired”                           | submitted state, remaining time                                                          |
+| Final reviewing         | Review each answer                                    | Waiting for review                         | Watching review                                         | “Only showman can review”                                                                | per-answer correct/wrong, final score updates                                            |
+| Finished                | Start/rematch/share/admin actions                     | See results/rematch/share                  | See results                                             | “Game already finished”                                                                  | winner, podium, summary, score deltas                                                    |
+| Paused/reconnecting     | Resume or wait                                        | Reconnecting/waiting                       | Reconnecting/waiting                                    | “Game paused”, “Connection lost”                                                         | reconnect banner, restored state                                                         |
 
 Final questions with non-null `textItems` use a server-provided `contentPlan`:
 eligible players preload files (up to 30 seconds), then watch the sequence before
@@ -56,6 +63,25 @@ the new sequence or preparation acknowledgement, so mixed games may reach the
 timeout. See [package validation](package-validation-spec.md) for duration rules.
 
 ## Required frontend behavior
+
+### Lobby and question layout
+
+`settings.autoStart` defaults to `true`: a ready command starts play when all
+connected players are ready. Manual mode requires the showman's `start`; the
+showman can start in either mode without readiness. Leaving the player role
+clears readiness. The lobby package overview reads published metadata, which may
+differ from the game's snapshot after package edits.
+
+The React field fits between header and dock; overflow scrolls within content
+panels. All 15 players and the showman remain visible with full signed scores up
+to `SCORE_ABS_LIMIT` (`2_100_000_000`). Tabs preserve mounted media. Previewing an
+option image never selects it. Physical `KeyP` invokes Pass across keyboard
+languages, excluding typing, dialogs and repeats.
+
+Showman score shortcuts use authoritative `score-changed` with the current question
+value (including stake/no-risk rules), or the last completed value while choosing.
+Reconnect clears the locally remembered value; unknown values, offline/pending
+state and finished games disable shortcuts. Scores never update optimistically.
 
 ### Media: current protocol vs product target
 
@@ -75,6 +101,13 @@ protocol semantics. Backend transport tests do not establish this UI target.
 
 React shows a non-dismissible 3.5-second transition at game start and between rounds, including the final.
 It skips joining/reloading an active game, respects reduced motion and does not pause play.
+The React header shows the current/total round count in a neutral capsule, including
+the final in the total. Hover or keyboard focus opens the animated, read-only round
+list; click pins it, Escape or outside click closes it. The list marks completed,
+current and next rounds, uses an SVG trophy for the final and scrolls independently
+without resizing the field. Reduced motion disables the transition. If package
+metadata is unavailable, the server's current round label remains visible without
+an invented total. Round changes follow the live snapshot and close the old list.
 React covers and disables the game field during pause while preserving its state and board-edit mode.
 The showman can resume from the header or host tools; chat and permitted management remain available.
 Join retries preserve drafts and errors with busy buttons; masked passwords have a visibility toggle.
@@ -160,7 +193,14 @@ When changing gameplay state, make sure:
   zero radius compares coordinates at three-decimal wire precision. Legacy
   metadata-free points keep their original distance calculation until republished.
   The browser preserves the image frame through input and marks submitted points
-  with player names/results at reveal instead of repeating raw coordinates.
+  with names at reveal; coincident labels may overlap. The target region replaces
+  a separate answer panel. Correct answers appear in a local chat summary,
+  deduplicated per question and rebuilt on rejoin, not persisted as server history.
+  Player outlines show authoritative results: green correct, gray zero/pass, red
+  wrong, retained for 15 seconds after completion plus a 1.5-second fade (no fade
+  with reduced motion). Current outcomes take precedence; undo/unpass clears them,
+  and manual score edits never create them. Rejoining during reveal restarts the
+  local display window when the completion timestamp is unavailable.
   Reveal data retains the target image for rejoin; a local selection may be lost.
   Private coordinates/radius are not exposed before reveal.
 - **Showman instruction:** the web UI places `questionComment` before question
@@ -169,7 +209,10 @@ When changing gameplay state, make sure:
   secret in the current protocol.
 - **Secret, customPrice:** after the transfer, the receiver picks the price
   from `allowedPrices` (`secret-question-price`, 30 s; on timeout the lowest
-  price). The question is then shown and answered at that price.
+  price). The question is then shown and answered at that price. On the web, the
+  receiver chooses with centered stage buttons; other roles see non-interactive
+  price tiles with neutral borders. The dock contains a hint, not duplicate price buttons. Pause, pending
+  commands and disconnection disable the stage controls.
 - **Hidden price:** the board shows the price as unknown until the question
   is picked.
 - **No risk (single player):** only the player who picked the question may

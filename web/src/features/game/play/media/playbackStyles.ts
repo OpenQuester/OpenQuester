@@ -1,7 +1,7 @@
 /** Same fixed frame for images, video and failed media. */
 
 export const mediaFrame =
-  "relative mx-auto flex aspect-video max-h-[min(55dvh,560px)] 3xl:max-h-[min(58dvh,860px)] w-full items-center justify-center overflow-hidden rounded-lg border border-line";
+  "question-media-frame relative mx-auto flex aspect-video max-h-[min(55dvh,560px)] 3xl:max-h-[min(58dvh,860px)] w-full items-center justify-center overflow-hidden rounded-lg border border-line";
 
 const playbackButton = "inline-flex min-h-11 items-center gap-2 rounded-full px-4 font-semibold";
 

@@ -30,6 +30,16 @@ export function onPlaytestKey(
   const role = myRole(session, perspective);
   const phase = phaseOf(session);
   const key = event.key.toLowerCase();
+  if (event.code === "KeyP" || (!event.code && key === "p")) {
+    const pass = event.currentTarget.querySelector<HTMLButtonElement>(
+      '[data-hotkey="pass"]:not(:disabled):not([aria-disabled="true"])',
+    );
+    if (pass && !pass.closest("[hidden]") && !session.state.isPaused) {
+      event.preventDefault();
+      pass.click();
+    }
+    return;
+  }
   if (event.code === "Space" || key === " ") {
     if (
       target instanceof HTMLElement &&

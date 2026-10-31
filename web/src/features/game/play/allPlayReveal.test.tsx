@@ -98,16 +98,18 @@ describe("all-play reveal", () => {
     });
     const rejoined = sessionFromSnapshot("ABCD", snapshot(live.state, live.players));
     const { stage, dock } = renderResult(rejoined);
-    expect(stage.getByText("Correct answers: user2 (0), user3 (0)")).toBeInTheDocument();
-    expect(dock).toHaveTextContent("Correct answers: user2 (0), user3 (0)");
+    expect(stage.getByTestId("reveal-result")).toHaveTextContent(
+      "Correct answers: user2 (0), user3 (0)",
+    );
+    expect(dock).toHaveTextContent("Correct: 2/2");
   });
 
   it("retains a single correct player without a name or fabricated score", () => {
     const { stage, dock } = renderResult(
       revealSession([entry(999, { isCorrect: true, scoreChange: null }), entry(BOB)]),
     );
-    expect(stage.getByText("Correct answers: Player 999")).toBeInTheDocument();
-    expect(dock).toHaveTextContent("Correct answers: Player 999");
+    expect(stage.getByTestId("reveal-result")).toHaveTextContent("Correct answers: Player 999");
+    expect(dock).toHaveTextContent("Correct: 1/2");
     expect(stage.queryByTestId("submitted-answer")).toBeNull();
     expect(stage.queryByText(/999\)/)).toBeNull();
   });
@@ -118,7 +120,7 @@ describe("all-play reveal", () => {
     [[entry(ALICE, { isCorrect: null, scoreChange: null })], "Some answers have not been judged."],
   ])("distinguishes empty, wrong and unresolved answers", (entries, message) => {
     const { stage, dock } = renderResult(revealSession(entries));
-    expect(stage.getByText(message)).toBeInTheDocument();
+    expect(stage.getByTestId("reveal-result")).toHaveTextContent(message);
     expect(dock).toHaveTextContent(message);
     expect(stage.queryByTestId("submitted-answer")).toBeNull();
   });
@@ -131,7 +133,7 @@ describe("all-play reveal", () => {
       ]),
     );
     const message = "Correct answers: user2 (+100) Some answers have not been judged.";
-    expect(stage.getByText(message)).toBeInTheDocument();
-    expect(dock).toHaveTextContent(message);
+    expect(stage.getByTestId("reveal-result")).toHaveTextContent(message);
+    expect(dock).toHaveTextContent("Correct: 1/2 · Some answers have not been judged.");
   });
 });

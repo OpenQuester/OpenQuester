@@ -22,7 +22,8 @@ export function LobbyActions({ lobby }: { lobby: LobbyModel }) {
 }
 function PlayerReadiness({ lobby }: { lobby: LobbyModel }) {
   const { t } = useTranslation();
-  const { me, pending, meReady, connection, host, readyCount, activeSeated, myId } = lobby;
+  const { me, pending, meReady, connection, host, readyCount, activeSeated, myId, autoStart } =
+    lobby;
   return (
     <section className={cn("flex flex-col gap-3.5", lobbyStyles.actionPanel)}>
       <h2 className={lobbyStyles.actionTitle}>
@@ -44,12 +45,12 @@ function PlayerReadiness({ lobby }: { lobby: LobbyModel }) {
       </button>
       <p className="m-0 text-sm text-soft">
         {meReady
-          ? t("lobby.waitingForHost", {
+          ? t(autoStart ? "lobby.waitingForReady" : "lobby.waitingForHost", {
               name: host?.meta.username ?? t("roles.showman"),
               ready: readyCount,
               total: activeSeated.length,
             })
-          : t("lobby.readyHelp")}
+          : t(autoStart ? "lobby.readyHelp" : "lobby.readyManualHelp")}
       </p>
       <Button
         size="sm"
@@ -89,7 +90,7 @@ function SpectatorActions({ lobby }: { lobby: LobbyModel }) {
 }
 function HostStart({ lobby }: { lobby: LobbyModel }) {
   const { t } = useTranslation();
-  const { activeSeated, readyCount, pending, connection, session } = lobby;
+  const { activeSeated, readyCount, pending, connection, session, autoStart } = lobby;
   return (
     <section className={cn("flex flex-col gap-4", lobbyStyles.actionPanel)}>
       <h2 className={lobbyStyles.actionTitle}>{t("lobby.startTitle")}</h2>
@@ -115,7 +116,9 @@ function HostStart({ lobby }: { lobby: LobbyModel }) {
         {t("lobby.start")}
       </Button>
       <p className="m-0 text-sm text-muted">
-        {activeSeated.length === 0 ? t("lobby.startAloneHelp") : t("lobby.startHelp")}
+        {activeSeated.length === 0
+          ? t("lobby.startAloneHelp")
+          : t(autoStart ? "lobby.startHelp" : "lobby.startManualHelp")}
       </p>
       <div className="border-t border-line-strong pt-4">
         <DeleteGameButton gameId={session.gameId} />

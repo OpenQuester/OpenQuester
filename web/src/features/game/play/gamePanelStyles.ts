@@ -12,9 +12,7 @@ export const gamePanelStyles = {
   hostForm: "flex flex-col gap-4 border-b border-line p-4",
   hostFormSummary: "flex min-h-11 cursor-pointer items-center font-semibold",
   hostFormBody: "mt-3 flex flex-col gap-4",
-  playerChips: "m-0 flex list-none gap-2 overflow-x-auto p-0 pb-0.5 [scrollbar-width:thin]",
-  showmanChip:
-    "flex shrink-0 items-center gap-2 rounded-full border border-accent-line/60 bg-surface py-1 pl-1 pr-3 text-sm",
+  playerChips: "player-cards",
   moderation: "flex flex-col gap-4 border-t border-line px-3 py-3",
   playerRestrictions: "flex flex-col gap-2.5 border-t border-line pt-3",
   playerGroupTitle: "m-0 text-sm font-semibold uppercase tracking-wider text-muted",

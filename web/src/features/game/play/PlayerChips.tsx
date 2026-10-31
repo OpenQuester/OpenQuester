@@ -1,11 +1,12 @@
 import { gamePanelStyles } from "./gamePanelStyles";
 import { useTranslation } from "react-i18next";
 import { phaseOf, seatedPlayers, showman } from "@/game/selectors";
-import { Avatar } from "@/ui/Avatar";
 import { useSession } from "../GameContext";
-import { PlayerChip, ChipName } from "./players/PlayerChip";
+import { PlayerChip } from "./players/PlayerChip";
+import { PlayerCard } from "./players/PlayerCard";
 import { useFinalContent } from "./useFinalContent";
 import { usePointImageReady } from "./question/useQuestionStage";
+import { useQuestionOutcomes } from "./players/useQuestionOutcomes";
 
 /** Score bar: every seated player, their score, and what they are doing now. */
 export function PlayerChips({ onManage }: { onManage?: (playerId: number) => void }) {
@@ -19,15 +20,14 @@ export function PlayerChips({ onManage }: { onManage?: (playerId: number) => voi
     !pointImageReady;
   const host = showman(session);
   const players = seatedPlayers(session);
+  const outcomes = useQuestionOutcomes();
 
   return (
     <>
       <ul className={gamePanelStyles.playerChips} aria-label={t("game.scores")}>
         {host && (
-          <li className={gamePanelStyles.showmanChip}>
-            <Avatar name={host.meta.username} src={host.meta.avatar} size={28} />
-            <ChipName name={host.meta.username} />
-            <span className="text-xs font-semibold text-accent-strong">{t("roles.showman")}</span>
+          <li>
+            <PlayerCard player={host} />
           </li>
         )}
         {players.map((player) => (
@@ -37,6 +37,7 @@ export function PlayerChips({ onManage }: { onManage?: (playerId: number) => voi
             onManage={onManage}
             finalContentPlaying={content.playing}
             pointWaiting={pointWaiting}
+            outcome={outcomes[player.meta.id]}
           />
         ))}
       </ul>

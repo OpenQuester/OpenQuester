@@ -7995,6 +7995,11 @@
         "type": "object",
         "description": "Rules the host picks when creating a game; the showman may change them mid-game. Missing fields use their defaults.",
         "properties": {
+          "autoStart": {
+            "type": "boolean",
+            "default": true,
+            "description": "Start automatically when every connected player is ready. When false, only the showman can start manually. Chosen at game creation; omitted values preserve automatic start."
+          },
           "falseStart": {
             "type": "boolean",
             "default": true,
@@ -8021,6 +8026,11 @@
         "type": "object",
         "description": "Game settings on creation (omitted fields use their defaults) or a showman's mid-game change via game-settings-change (omitted fields keep their current value)",
         "properties": {
+          "autoStart": {
+            "type": "boolean",
+            "default": true,
+            "description": "Start automatically when every connected player is ready. When false, only the showman can start manually. Chosen at game creation; omitted values preserve automatic start."
+          },
           "falseStart": {
             "type": "boolean",
             "default": true,

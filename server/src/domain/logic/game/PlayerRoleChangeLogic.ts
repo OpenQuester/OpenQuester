@@ -64,6 +64,11 @@ export class PlayerRoleChangeLogic {
     newRole: PlayerRole
   ): RoleChangeMutation {
     const originalRole = targetPlayer.role;
+    if (originalRole === PlayerRole.PLAYER && newRole !== PlayerRole.PLAYER) {
+      // Remove player from ready list if they are leaving the PLAYER role
+      game.gameState.readyPlayers =
+        game.gameState.readyPlayers?.filter((id) => id !== targetPlayer.meta.id) ?? null;
+    }
     targetPlayer.role = newRole;
 
     let newSlot: number | null = null;
@@ -75,10 +80,7 @@ export class PlayerRoleChangeLogic {
       }
       targetPlayer.gameSlot = firstFreeSlot;
       newSlot = firstFreeSlot;
-    } else if (
-      newRole === PlayerRole.SPECTATOR ||
-      newRole === PlayerRole.SHOWMAN
-    ) {
+    } else if (newRole === PlayerRole.SPECTATOR || newRole === PlayerRole.SHOWMAN) {
       // SPECTATOR and SHOWMAN roles don't have slots
       targetPlayer.gameSlot = null;
     }
@@ -86,16 +88,14 @@ export class PlayerRoleChangeLogic {
     return {
       originalRole,
       newSlot,
-      wasPlayer: originalRole === PlayerRole.PLAYER,
+      wasPlayer: originalRole === PlayerRole.PLAYER
     };
   }
 
   /**
    * Build result for role change operation with broadcasts.
    */
-  public static buildResult(
-    input: PlayerRoleChangeResultInput
-  ): RoleChangeResult {
+  public static buildResult(input: PlayerRoleChangeResultInput): RoleChangeResult {
     const { game, targetPlayer } = input;
 
     const targetPlayerDTO = targetPlayer.toDTO();
@@ -104,7 +104,7 @@ export class PlayerRoleChangeLogic {
     const broadcastData: PlayerRoleChangeBroadcastData = {
       playerId: targetPlayerDTO.meta.id,
       newRole: targetPlayer.role,
-      players,
+      players
     };
 
     const broadcasts: SocketEventBroadcast[] = [
@@ -112,13 +112,13 @@ export class PlayerRoleChangeLogic {
         event: SocketIOGameEvents.PLAYER_ROLE_CHANGE,
         data: broadcastData,
         target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<PlayerRoleChangeBroadcastData>,
+        gameId: game.id
+      } satisfies SocketEventBroadcast<PlayerRoleChangeBroadcastData>
     ];
 
     return {
       data: { game, targetPlayer: targetPlayerDTO, players },
-      broadcasts,
+      broadcasts
     };
   }
 }

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { standings } from "@/game/selectors";
 import { formatScore } from "@/lib/format";
 import { Avatar } from "@/ui/Avatar";
+import { ExpandableText } from "@/ui/ExpandableText";
 
 import { useGame, useSession } from "../GameContext";
 
@@ -37,11 +38,11 @@ export function GamePodium() {
             p ? (
               <li key={p.meta.id} className={stageStyles.podiumPlayer}>
                 <Avatar name={p.meta.username} src={p.meta.avatar} size={place === 1 ? 64 : 52} />
-                <span className="max-w-full truncate text-center font-semibold">
-                  {p.meta.username}
-                  {p.meta.id === myId && <span className="text-muted"> ({t("common.you")})</span>}
-                </span>
-                <b className="font-mono text-lg">{formatScore(p.score)}</b>
+                <ExpandableText
+                  text={`${p.meta.username}${p.meta.id === myId ? ` (${t("common.you")})` : ""}`}
+                  className="text-center font-semibold"
+                />
+                <b className="podium-score font-mono">{formatScore(p.score)}</b>
                 <div
                   className={cn(
                     stageStyles.podiumStep,
@@ -61,9 +62,11 @@ export function GamePodium() {
         <ol start={4} className={stageStyles.remainingPlaces}>
           {ranked.slice(3).map((p, i) => (
             <li key={p.meta.id} className={stageStyles.remainingPlayer}>
-              <span className="w-6 font-mono text-muted">{i + 4}</span>
-              <span className="flex-1">{p.meta.username}</span>
-              <b className="font-mono">{formatScore(p.score)}</b>
+              <span className="w-6 shrink-0 font-mono text-muted">{i + 4}</span>
+              <ExpandableText text={p.meta.username} className="flex-1" />
+              <b className="shrink-0 whitespace-nowrap font-mono text-sm sm:text-base">
+                {formatScore(p.score)}
+              </b>
             </li>
           ))}
         </ol>

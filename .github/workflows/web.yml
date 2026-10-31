@@ -52,11 +52,42 @@ jobs:
           path: web/dist
           retention-days: 7
 
-  e2e:
-    name: End-to-end (phone, tablet, desktop)
+  browser:
+    name: Native browser tests
     runs-on: ubuntu-latest
-    # Allow cold setup, both browser suites, and teardown/artifact upload.
-    timeout-minutes: 35
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ./web/package-lock.json
+      - run: npm ci
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-browser
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7
+
+  e2e:
+    name: End-to-end (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    # Isolated backends avoid shared admin/package state between device projects.
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, tablet, phone]
+    # Playwright's global timeout leaves time for teardown and reports.
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -71,25 +102,24 @@ jobs:
       - run: npm ci
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
-      - name: Native browser storage regressions
-        run: npm run test:browser
       - name: Start the backend stack and run Playwright
-        run: npm run e2e:full
+        run: npm run e2e:full -- --project=${{ matrix.project }}
       - name: Server log
-        if: failure()
+        if: always()
         run: cat .e2e-stack/server.log || true
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.project }}
           path: |
             web/playwright-report
             web/test-results
+            web/.e2e-stack/server.log
           retention-days: 7
 
   deploy:
     name: Deploy to Cloudflare Pages
-    needs: [check, e2e]
+    needs: [check, browser, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Forks and Dependabot have no access to the Cloudflare secrets.

@@ -256,6 +256,7 @@ export type ButtonPressMode = "random_within_window" | "first_wins";
 
 /** Rules the host picked when creating the game; the showman may change them. */
 export interface GameSettings {
+  autoStart?: boolean;
   /** The buzzer opens after the content; pressing earlier locks you out. */
   falseStart: boolean;
   buttonPressMode: ButtonPressMode;

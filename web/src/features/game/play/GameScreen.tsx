@@ -12,6 +12,7 @@ import { GameStage } from "./GameStage";
 import { GameHeader } from "./screen/GameHeader";
 import { GamePanels } from "./screen/GamePanels";
 import { useGameScreen } from "./screen/useGameScreen";
+import "./question/QuestionLayout.css";
 
 /** Persistent game layout: header, stage, action dock and responsive panels. */
 export function GameScreen() {
@@ -20,7 +21,11 @@ export function GameScreen() {
   const { session, role, phase, announcement, menuOpen, setMenuOpen, setPanel } = game;
 
   return (
-    <div className="flex min-h-dvh bg-bg" data-phase={phase} data-role={role}>
+    <div
+      className="game-screen flex h-dvh overflow-hidden bg-bg"
+      data-phase={phase}
+      data-role={role}
+    >
       <div className={layoutStyles.contentColumn}>
         <p className="sr-only" aria-live="polite" role="status">
           {announcement}
@@ -28,7 +33,7 @@ export function GameScreen() {
         <ConnectionBanner />
         <GameHeader game={game} />
 
-        <main className="relative isolate flex flex-1 flex-col">
+        <main className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden">
           <div
             className={cn(gameWidth, gameScreenStyles.stage)}
             inert={session.state.isPaused}
