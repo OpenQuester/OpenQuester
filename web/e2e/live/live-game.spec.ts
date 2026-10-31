@@ -53,7 +53,9 @@ test("a full game on the deployed site", async ({ browser }) => {
       await playQuestion(host.page, alice.page);
     }
     const roundName = await roundOf(host.page);
-    await host.page.getByRole("button", { name: "Skip to next round" }).click();
+    if (!(await host.page.getByTestId("host-panel").isVisible()))
+      await host.page.getByTestId("host-tools").click();
+    await host.page.getByTestId("host-panel").getByTestId("skip-round").click();
     // Skipping asks for confirmation first
     await host.page.getByTestId("skip-round-confirm").click();
     // Wait for the next round's board, or the results after the last round.

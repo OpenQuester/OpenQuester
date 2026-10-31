@@ -85,7 +85,7 @@ it("keeps all-play point players waiting until their target picture appears", ()
   expect(chips[0]).toHaveTextContent("waiting");
   expect(screen.queryByTestId("point-picker")).toBeNull();
   act(() => vi.advanceTimersByTime(2_030));
-  expect(chips[0]).toHaveTextContent("typing");
+  expect(chips[0]).toHaveTextContent("answering");
   expect(screen.getByTestId("point-picker")).toBeInTheDocument();
 });
 
@@ -161,14 +161,14 @@ it("centers the reveal and labels valid points using authoritative results", () 
     left: "20%",
     top: "70%",
   });
-  expect(within(markers[0]!).getByText("user2")).toBeVisible();
+  expect(within(markers[0]!).getByTestId("point-answer-label")).toHaveTextContent("user2");
   expect(markers[0]!.querySelector(".bg-success")).not.toBeNull();
   expect(within(markers[1]!).getByTestId("point-answer-dot")).toHaveStyle({
     left: "90%",
     top: "10%",
   });
-  expect(within(markers[1]!).getByText("user3")).toBeVisible();
-  expect(markers[1]!.querySelector(".bg-info")).not.toBeNull();
+  expect(within(markers[1]!).getByTestId("point-answer-label")).toHaveTextContent("user3");
+  expect(markers[1]!.querySelector(".bg-danger")).not.toBeNull();
 });
 
 it("keeps the final player's own point after submission", () => {

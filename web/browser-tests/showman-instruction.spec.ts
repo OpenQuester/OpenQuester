@@ -7,7 +7,7 @@ for (const final of [false, true]) {
     ["player", 2],
     ["spectator", 4],
   ] as const) {
-    test(`${final ? "final" : "regular"} instruction stays above long content for ${role}`, async ({
+    test(`${final ? "final" : "regular"} instruction stays accessible with bounded content for ${role}`, async ({
       page,
       context,
     }) => {
@@ -36,8 +36,13 @@ for (const final of [false, true]) {
         const bounds = (await instruction.boundingBox())!;
         expect(bounds.x).toBeGreaterThanOrEqual(0);
         expect(bounds.x + bounds.width).toBeLessThanOrEqual(375);
-        expect((await instruction.boundingBox())!.y).toBeLessThan((await text.boundingBox())!.y);
         expect((await instruction.boundingBox())!.y).toBeLessThan(900);
+        const region = final
+          ? page.locator(".game-final-question")
+          : page.getByTestId("showman-panel");
+        await expect(region.getByTestId("showman-instruction")).toBeVisible();
+        const regionBounds = (await region.boundingBox())!;
+        expect(regionBounds.y + regionBounds.height).toBeLessThanOrEqual(900);
       } else await expect(instruction).toHaveCount(0);
     });
   }

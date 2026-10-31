@@ -249,6 +249,9 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   scheduling. Preserve media keys, the latest clock read on resume, autoplay
   fallback and the timeline timer's cleanup. `QuestionMedia` only orders files;
   `ContentStage` composes screen steps, background sound and the final recap.
+  `question/QuestionBody` lays out only the content already revealed by that timeline:
+  short captions below media, long text beside it, Media/Text tabs on narrow stages.
+  Keep media mounted when changing tabs and bound scrolling to the text panel.
 - Showman actions (rulings, score fixes, kicks, pauses, skips, early buzzer...)
   are logged to the game chat by the server (`ShowmanActionLogLogic`, run from
   `SocketActionHooks`): a chat line with `system: { action, params }` that the
@@ -271,6 +274,10 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   `screen/useGameScreen` owns panel visibility, device pins, unread message IDs,
   focused-player tools and screen shortcuts. Preserve the current wide/sheet
   mount boundaries and keep the report dialog outside the changing stage.
+  `players/PlayerCard` owns score-bar cards; `game/questionFeedback` tracks outcomes,
+  and `game/pointSummary` builds local reveal summaries. See the
+  [game-state matrix](../docs/specs/game-state-matrix.md#required-frontend-behavior)
+  for layout, scoring and result-feedback rules.
   `play/GameActionDock.tsx` renders the phase, action and next step. `dock/` separates its
   presentation hook, pure role/phase models and answer/bid controls. Models return
   typed action data; `DockAction` owns markup and connection dispatch. `useTimedAnswer`
@@ -365,6 +372,9 @@ it (e.g. `Host(\`dev.openquester.app\`)`) to use the app there.
 
 `.github/workflows/web.yml` builds, runs unit and e2e tests, then deploys
 `dist/` with `functions/` to the Cloudflare Pages project `openquester-web`.
+Native browser tests run separately on two workers; desktop, tablet and phone
+E2E jobs each have an isolated backend. Playwright stops before the job deadline
+to preserve reports; each E2E job uploads its own report and backend log.
 Previews proxy to `https://dev-api.openquester.app`, production (`main`) to
 `https://api.openquester.app` (`wrangler.toml`). Because of the proxy the app
 and the session cookie share one origin, so no CORS or third-party cookies.

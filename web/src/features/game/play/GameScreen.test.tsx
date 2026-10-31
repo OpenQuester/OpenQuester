@@ -1,4 +1,5 @@
 import { act, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -41,10 +42,13 @@ function setup(chat: ChatMessage[]) {
     pending: null,
   });
   const connection = { emit: vi.fn(), connected: true } as unknown as GameConnection;
+  const client = new QueryClient({ defaultOptions: { queries: { enabled: false } } });
   render(
-    <GameContext.Provider value={{ connection, myId: ALICE }}>
-      <GameScreen />
-    </GameContext.Provider>,
+    <QueryClientProvider client={client}>
+      <GameContext.Provider value={{ connection, myId: ALICE }}>
+        <GameScreen />
+      </GameContext.Provider>
+    </QueryClientProvider>,
   );
   const add = (m: ChatMessage) =>
     act(() => {

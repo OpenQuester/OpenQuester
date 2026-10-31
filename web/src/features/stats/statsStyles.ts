@@ -12,5 +12,5 @@ export const statsStyles = {
   reportReason: "flex min-h-11 cursor-pointer items-center gap-3 rounded-md border px-3",
   reportComment: "m-0 line-clamp-3 text-sm [overflow-wrap:anywhere]",
   reportQuestion: "m-0 text-sm text-soft [overflow-wrap:anywhere]",
-  reportLink: "text-sm text-muted underline-offset-2 hover:text-text hover:underline",
+  reportLink: "text-xs text-muted underline underline-offset-2 hover:text-text",
 } as const;

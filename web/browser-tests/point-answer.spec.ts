@@ -160,7 +160,7 @@ for (const { shape, viewport } of [
       };
       return {
         image: box(img),
-        section: box(reveal),
+        section: box(reveal.querySelector('[data-testid="point-result-image"]')!),
         target: box(reveal.querySelector('[data-testid="point-target"]')!),
         first: box(reveal.querySelector('[data-testid="point-answer-dot"]')!),
       };
@@ -203,9 +203,10 @@ test("long point labels stay inside a narrow image at its edges", async ({
   await picture.evaluate((el: HTMLImageElement) => el.decode());
   const image = (await picture.boundingBox())!;
   const labels = page.getByTestId("point-answer-label");
+  await expect(page.getByTestId("point-answer-marker")).toHaveCount(3);
   await expect(labels).toHaveCount(3);
-  for (const label of await labels.all()) {
-    const box = (await label.boundingBox())!;
+  for (const id of [1, 2, 3]) {
+    const box = (await labels.nth(id - 1).boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(image.x - 0.5);
     expect(box.x + box.width).toBeLessThanOrEqual(image.x + image.width + 0.5);
     expect(box.y).toBeGreaterThanOrEqual(image.y - 0.5);

@@ -20,3 +20,14 @@ export function allPlayRevealText(session: GameSession, t: TranslateAction): str
   const summary = t("reveal.correctPlayers", { players: players.join(", ") });
   return result.unresolved ? `${summary} ${t("reveal.unresolved")}` : summary;
 }
+
+/** The dock has room for the outcome, while the stage retains the names and scores. */
+export function allPlayRevealStatus(session: GameSession, t: TranslateAction): string | null {
+  const result = allPlayReveal(session);
+  if (!result?.correct.length) return allPlayRevealText(session, t);
+  const summary = t("reveal.correctCount", {
+    correct: result.correct.length,
+    total: session.state.allPlay!.entries.length,
+  });
+  return result.unresolved ? `${summary} · ${t("reveal.unresolved")}` : summary;
+}

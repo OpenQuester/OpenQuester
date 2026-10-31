@@ -7,7 +7,6 @@ import { useTranslation } from "react-i18next";
 
 import {
   finalBid,
-  finalPlayers,
   findPlayer,
   isEligible,
   myRole,
@@ -15,19 +14,21 @@ import {
   remainingFinalThemes,
 } from "@/game/selectors";
 import { formatScore, formatSigned } from "@/lib/format";
-import { Badge } from "@/ui/Badge";
 
 import { useGame, useSession } from "../GameContext";
 import { AnswerReviewActions, ReviewedCorrectAnswer } from "./stages/AnswerReview";
 import { stageStyles } from "./stages/stageStyles";
+import { StagePages } from "./stages/StagePages";
+import { PlayerName } from "./PlayerName";
 import { QuestionMedia } from "./QuestionMedia";
 import { ShowmanInstruction } from "./question/ShowmanInstruction";
 import { PointAnswer } from "./question/PointAnswer";
 import { PointPicker } from "./PointPicker";
 import { ContentStage } from "./ContentStage";
+import { QuestionBody } from "./question/QuestionBody";
 import { useFinalContent } from "./useFinalContent";
 import type { ContentClock } from "@/game/reducer";
-import type { ReactNode } from "react";
+import { AnswerReveal } from "./question/AnswerReveal";
 
 /** Players take turns removing themes; the last one left is the final question. */
 export function FinalThemesStage() {
@@ -60,7 +61,7 @@ export function FinalThemesStage() {
         {t("final.themesTitle")}
       </h2>
       <p className="m-0 text-soft">{t("final.themesHelp")}</p>
-      <ul className={stageStyles.finalThemes}>
+      <StagePages role="list" label={t("final.themesTitle")} itemHeight={100}>
         {(s.currentRound?.themes ?? []).map((theme) => {
           const out = eliminated.has(theme.id);
           const protectedTheme = theme.id === protectedFinalThemeId;
@@ -81,9 +82,11 @@ export function FinalThemesStage() {
                   !out && disabled && "cursor-default border-line-strong bg-surface-2 text-text",
                 )}
                 aria-label={themeLabel(theme.name, protectedTheme, out)}
-                title={protectedTheme ? themeLabel(theme.name, true, out) : undefined}
+                title={themeLabel(theme.name, protectedTheme, out)}
               >
-                <span className="text-lg font-semibold [overflow-wrap:anywhere]">{theme.name}</span>
+                <span className="min-h-0 w-full overflow-y-auto text-base font-semibold [overflow-wrap:anywhere]">
+                  {theme.name}
+                </span>
                 <span
                   className={cn(
                     "text-sm no-underline",
@@ -96,7 +99,7 @@ export function FinalThemesStage() {
             </li>
           );
         })}
-      </ul>
+      </StagePages>
     </section>
   );
 }
@@ -113,49 +116,16 @@ function ThemeLine() {
   );
 }
 
-function finalStatusKey(mode: "bids" | "answers", done: boolean, contentPlaying: boolean) {
-  if (mode === "bids") return done ? "final.bidPlaced" : "final.bidding";
-  if (done) return "final.answered";
-  return contentPlaying ? "stake.waiting" : "final.typing";
-}
-
-function FinalStatuses({
-  mode,
-  contentPlaying = false,
-}: {
-  mode: "bids" | "answers";
-  contentPlaying?: boolean;
-}) {
-  const { t } = useTranslation();
-  const session = useSession();
-  const { myId } = useGame();
-  return (
-    <ul className={stageStyles.submittedPlayers}>
-      {finalPlayers(session).map((p) => {
-        const done =
-          mode === "bids"
-            ? finalBid(session, p.meta.id) != null
-            : session.finalSubmitted.includes(p.meta.id);
-        const label = p.meta.id === myId ? t("common.youCap") : p.meta.username;
-        return (
-          <li key={p.meta.id}>
-            <Badge tone={done ? "success" : contentPlaying ? "neutral" : "accent"}>
-              {label} · {t(finalStatusKey(mode, done, contentPlaying))}
-            </Badge>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 export function FinalBidStage() {
   const { t } = useTranslation();
   return (
     <section className={stageStyles.promptLayout}>
       <ThemeLine />
-      <p className={stageStyles.promptText}>{t("final.bidPrompt")}</p>
-      <FinalStatuses mode="bids" />
+      <div className={stageStyles.bidBody}>
+        <div className={stageStyles.bidCard}>
+          <p className={stageStyles.promptText}>{t("final.bidPrompt")}</p>
+        </div>
+      </div>
     </section>
   );
 }
@@ -189,7 +159,6 @@ export function FinalAnswerStage() {
         paused={session.state.isPaused}
         myId={myId}
       />
-      <FinalStatuses mode="answers" contentPlaying={contentPlaying} />
     </section>
   );
 }
@@ -209,48 +178,45 @@ function FinalQuestionContent({
   myId: number;
 }) {
   const { t } = useTranslation();
-  const files = q?.questionFiles ?? [];
-  const hasMedia = files.length > 0;
-  const target = pointImage(files, q?.pointImageOrder);
-  const showCaption =
-    (!content || q?.textOrder == null) && (!!q?.text || (!hasMedia && !q?.textItems?.length));
-  let media: ReactNode = null;
-  if (content && picture) {
-    media = <PointAnswer key={myId} src={picture} />;
-  } else if (content) {
-    media = (
+  if (!q) return <QuestionBody text={<p>{t("question.noContent")}</p>} />;
+  const files = q.questionFiles ?? [];
+  const showCaption = hasFinalCaption(q, !!picture, !!content);
+  const caption = showCaption ? (
+    <p className={stageStyles.finalQuestionText} data-testid="question-text">
+      {q.text || t("question.noContent")}
+    </p>
+  ) : undefined;
+  if (content && !picture)
+    return (
       <ContentStage
         content={content}
         files={files}
-        text={q?.text}
-        textOrder={q?.textOrder}
-        textItems={q?.textItems}
+        text={q.text}
+        textOrder={q.textOrder}
+        textItems={q.textItems}
         paused={paused}
+        caption={caption}
+        captionLength={showCaption ? q.text?.length : 0}
       />
     );
-  } else if (hasMedia) {
+  const point = picture ? <PointAnswer key={myId} src={picture} /> : null;
+  const target = pointImage(files, q.pointImageOrder);
+  let media = null;
+  if (content && point) media = point;
+  else if (files.length > 0)
     media = (
       <QuestionMedia
         files={files}
         playing={!paused}
-        replacePointImage={
-          picture && target
-            ? { file: target, view: <PointAnswer key={myId} src={picture} /> }
-            : undefined
-        }
+        replacePointImage={point && target ? { file: target, view: point } : undefined}
       />
     );
-  }
-  return (
-    <>
-      {media}
-      {showCaption && (
-        <p className={stageStyles.finalQuestionText} data-testid="question-text">
-          {q?.text || t("question.noContent")}
-        </p>
-      )}
-    </>
-  );
+  return <QuestionBody media={media} text={caption} textLength={q.text?.length} />;
+}
+
+function hasFinalCaption(q: Question, picking: boolean, timeline: boolean) {
+  if (!picking && timeline && q.textOrder != null) return false;
+  return !!q.text || (!q.questionFiles?.length && !q.textItems?.length);
 }
 
 export function FinalReviewStage() {
@@ -262,6 +228,8 @@ export function FinalReviewStage() {
   const isShowman = myRole(session, myId) === "showman";
   const q = final?.questionData?.question ?? s.currentQuestion;
   const reveal = s.answerShowData?.answerText;
+  if (s.answerShowData?.answerPoint && (s.answerShowData.answerPointImage || pointPicture(q)))
+    return <AnswerReveal />;
   return (
     <section className={stageStyles.reviewLayout}>
       <div className={stageStyles.questionColumn}>
@@ -310,7 +278,7 @@ function FinalReviewAnswer({
     >
       <div className={cn(layoutStyles.summaryColumn, pointReview && "basis-full")}>
         <span className="text-sm text-muted">
-          {p?.meta.username} · {t("final.bid")}{" "}
+          <PlayerName>{p?.meta.username}</PlayerName> · {t("final.bid")}{" "}
           <b className="font-mono text-text">{formatScore(bid)}</b>
         </span>
         <span className="text-lg [overflow-wrap:anywhere]">

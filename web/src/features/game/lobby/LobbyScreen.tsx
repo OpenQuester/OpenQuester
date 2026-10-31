@@ -7,6 +7,8 @@ import { ChatDrawer } from "../play/ChatPanel";
 import { ConnectionBanner } from "../play/ConnectionBanner";
 import { LobbyHeader } from "./LobbyHeader";
 import { LobbySeats } from "./LobbySeats";
+import { LobbyShowman } from "./LobbyShowman";
+import { LobbyPackage } from "./LobbyPackage";
 import { LobbyActions } from "./LobbyActions";
 import { useLobby } from "./useLobby";
 export function LobbyScreen() {
@@ -30,7 +32,9 @@ export function LobbyScreen() {
             )}
           </section>
 
+          <LobbyShowman lobby={lobby} />
           <LobbySeats lobby={lobby} />
+          <LobbyPackage packageId={preview.data?.package.id} />
 
           <section aria-labelledby="spec-h" className={lobbyStyles.metadata}>
             <h2 id="spec-h" className="m-0 text-base font-semibold text-text">

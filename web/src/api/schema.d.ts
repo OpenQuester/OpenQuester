@@ -5710,6 +5710,11 @@ export interface components {
         /** @description Rules the host picks when creating a game. Missing fields use their defaults. */
         GameSettings: {
             /**
+             * @description Start automatically when every connected player is ready. When false, only the showman can start manually. Chosen at game creation; omitted values preserve automatic start.
+             * @default true
+             */
+            autoStart: boolean;
+            /**
              * @description The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time
              * @default true
              */
@@ -5720,6 +5725,11 @@ export interface components {
         };
         /** @description Game settings on creation; omitted fields use their defaults */
         GameSettingsInput: {
+            /**
+             * @description Start automatically when every connected player is ready. When false, only the showman can start manually. Chosen at game creation; omitted values preserve automatic start.
+             * @default true
+             */
+            autoStart: boolean;
             /**
              * @description The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time
              * @default true

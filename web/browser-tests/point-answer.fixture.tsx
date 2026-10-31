@@ -5,7 +5,7 @@ import { createGameStore } from "@/game/store";
 import { buildContentPlan } from "@/game/contentPlan";
 import { QuestionStage } from "@/features/game/play/QuestionStage";
 import { AnswerReveal } from "@/features/game/play/question/AnswerReveal";
-import { PointPicker } from "@/features/game/play/PointPicker";
+import { PointResults } from "@/features/game/play/question/PointResults";
 
 let store = createGameStore();
 let perspective = ALICE;
@@ -131,9 +131,10 @@ export function mountMarkerBounds() {
   root = createRoot(container);
   const name = "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW";
   root.render(
-    <div className="flex justify-center bg-bg p-4">
-      <PointPicker
+    <div className="mx-auto flex h-[500px] max-w-[343px] justify-center bg-bg p-4">
+      <PointResults
         src={picture()}
+        target={{ x: 0, y: 0 }}
         markers={[
           { id: 1, name, x: 0, y: 0, correct: true },
           { id: 2, name, x: 0.65, y: 0.5, correct: false },

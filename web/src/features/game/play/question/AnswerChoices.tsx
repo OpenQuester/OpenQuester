@@ -1,34 +1,46 @@
-import { questionStyles } from "./questionStyles";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { useAnswerChoices } from "./useAnswerChoices";
+import { useState, type CSSProperties } from "react";
+import { Dialog } from "@/ui/Dialog";
+import { ChoiceOption } from "./ChoiceOption";
 import { mapUrl } from "@/lib/urlMappings";
 
 export function AnswerChoices() {
   const { t } = useTranslation();
   const { visible, answers, correct, correctOrder, answering, locked, picked, pick, rejected } =
     useAnswerChoices();
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const detail = expanded == null ? null : answers[expanded];
   if (!visible) return <p className="m-0 text-muted">{t("question.optionsSoon")}</p>;
 
   return (
-    <ol className={questionStyles.choices} aria-label={t("question.options")}>
-      {answers.map((a, i) => {
-        const text = a.text ?? "";
-        const isCorrect =
-          correctOrder != null
-            ? a.order === correctOrder
-            : correct != null && text.trim().toLowerCase() === correct;
-        const isRejected = rejected.has(a.order);
-        return (
-          <li key={a.id ?? i}>
-            <button
-              type="button"
+    <>
+      <ol
+        className="answer-choices"
+        aria-label={t("question.options")}
+        data-compact={answers.every(
+          (answer) => !answer.file?.link && (answer.text?.length ?? 0) <= 80,
+        )}
+        style={{ "--choice-rows": Math.ceil(answers.length / 2) } as CSSProperties}
+      >
+        {answers.map((a, i) => {
+          const text = a.text ?? "";
+          const isCorrect =
+            correctOrder != null
+              ? a.order === correctOrder
+              : correct != null && text.trim().toLowerCase() === correct;
+          const isRejected = rejected.has(a.order);
+          return (
+            <ChoiceOption
+              key={a.id ?? a.order}
+              index={i}
+              text={text}
+              image={a.file?.link ? mapUrl(a.file.link) : undefined}
               disabled={!answering || locked || isRejected}
-              data-option={i + 1}
-              aria-label={`${text || t("question.optionNumber", { n: i + 1 })}${isRejected ? `, ${t("judge.wrong")}` : ""}`}
-              onClick={() => pick(a, i)}
+              onPick={() => pick(a, i)}
+              onPreview={() => setExpanded(i)}
               className={cn(
-                questionStyles.choice,
                 isRejected
                   ? "border-danger/50 bg-danger-surface text-on-danger-surface"
                   : picked === i && locked
@@ -38,25 +50,35 @@ export function AnswerChoices() {
                       : "border-line-strong bg-surface-2",
                 answering && !locked && !isRejected ? "hover:border-accent" : "cursor-default",
               )}
-            >
-              <kbd className={questionStyles.choiceLetter}>{i + 1}</kbd>
-              <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
-                {text}
-                {isRejected && (
+              status={
+                isRejected && (
                   <span className="block text-sm font-semibold">{t("judge.wrong")}</span>
-                )}
-              </span>
-              {a.file?.link && (
-                <img
-                  src={mapUrl(a.file.link)}
-                  alt=""
-                  className="h-12 w-12 shrink-0 rounded object-cover"
-                />
-              )}
-            </button>
-          </li>
-        );
-      })}
-    </ol>
+                )
+              }
+            />
+          );
+        })}
+      </ol>
+      <Dialog
+        open={detail != null}
+        onOpenChange={(open) => {
+          if (!open) setExpanded(null);
+        }}
+        title={t("question.optionNumber", { n: (expanded ?? 0) + 1 })}
+        closeLabel={t("common.close")}
+      >
+        {detail && (
+          <div className="flex min-h-0 flex-1 items-center justify-center p-3">
+            {detail.file?.link && (
+              <img
+                src={mapUrl(detail.file.link)}
+                alt={detail.text ?? ""}
+                className="max-h-[65dvh] max-w-full object-contain"
+              />
+            )}
+          </div>
+        )}
+      </Dialog>
+    </>
   );
 }

@@ -177,7 +177,7 @@ describe("point answer reveal", () => {
     );
     expect(screen.queryByTestId("submitted-answer")).toBeNull();
     expect(screen.getByTestId("point-answer-marker")).toHaveTextContent("user2");
-    expect(screen.getByText(/answers correctly/)).toHaveTextContent("+100");
+    expect(store.getState().session!.chat.at(-1)?.system?.params.players).toBe("user2 (+100)");
     expect(screen.getByText(/user2 selected/)).toHaveClass("sr-only");
   });
 
@@ -243,7 +243,7 @@ describe("point answer reveal", () => {
       top: "50%",
       width: "20%",
     });
-    expect(screen.getByText("Center")).toBeInTheDocument();
+    expect(screen.queryByText("Center")).toBeNull();
   });
 
   it("uses the current question image when an older reveal payload has no image field", () => {
