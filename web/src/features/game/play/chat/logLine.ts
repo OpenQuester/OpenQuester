@@ -47,6 +47,8 @@ export function logLine(t: T, entry: ChatSystemEntry, fallback: string): string 
       return t("chat.log.undo", { player, points: formatSigned(num(p.points)) });
     case "game-join-mode-change":
       return t("chat.log.joinMode", { mode: t(`menu.joinModes.${String(p.joinMode)}`) });
+    case "game-settings-change":
+      return t("chat.log.rules", { changes: ruleChanges(t, p) });
     case "player-kick":
       return t("chat.log.kick", { player });
     case "player-restriction":
@@ -78,4 +80,41 @@ export function logLine(t: T, entry: ChatSystemEntry, fallback: string): string 
     default:
       return fallback;
   }
+}
+
+const TIMER_KEYS = [
+  "answerMs",
+  "answerSubmitMs",
+  "stakeMs",
+  "secretTransferMs",
+  "allPlayAnswerMs",
+  "finalAnswerMs",
+];
+
+/** "False starts: off; Time to answer after pressing: 10 sec." from the changed rules. */
+function ruleChanges(t: T, p: ChatSystemEntry["params"]): string {
+  const onOff = (on: boolean) => t(on ? "chat.log.ruleOn" : "chat.log.ruleOff");
+  const parts: string[] = [];
+  if (typeof p.falseStart === "boolean")
+    parts.push(`${t("create.rules.falseStart")}: ${onOff(p.falseStart)}`);
+  if (typeof p.buttonPressMode === "string")
+    parts.push(`${t("create.rules.pressMode")}: ${t(`create.rules.modes.${p.buttonPressMode}`)}`);
+  if (typeof p.wrongAnswerPenalty === "string")
+    parts.push(`${t("create.rules.penalty")}: ${onOff(p.wrongAnswerPenalty === "subtract")}`);
+  if (typeof p.roundMs === "number")
+    parts.push(
+      `${t("create.rules.roundLimit")}: ${
+        p.roundMs === 0
+          ? t("create.rules.noLimit")
+          : t("create.rules.minutes", { count: Math.round(p.roundMs / 60_000) })
+      }`,
+    );
+  for (const key of TIMER_KEYS) {
+    const ms = p[key];
+    if (typeof ms === "number")
+      parts.push(
+        `${t(`create.rules.timer.${key}`)}: ${t("create.rules.seconds", { count: ms / 1000 })}`,
+      );
+  }
+  return parts.join("; ");
 }

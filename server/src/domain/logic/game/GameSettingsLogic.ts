@@ -13,4 +13,13 @@ export class GameSettingsLogic {
       timers: { ...DEFAULT_GAME_TIMERS, ...(settings?.timers ?? {}) }
     };
   }
+
+  /** Apply a partial change on top of the current settings. */
+  public static merge(current: GameSettingsDTO, change: GameSettingsInput): GameSettingsDTO {
+    return this.normalize({
+      ...current,
+      ...change,
+      timers: { ...current.timers, ...(change.timers ?? {}) }
+    });
+  }
 }

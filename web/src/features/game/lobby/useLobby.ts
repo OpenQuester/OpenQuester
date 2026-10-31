@@ -15,7 +15,7 @@ export function useLobby() {
   const role = me?.role ?? "spectator";
   const host = showman(session);
   const seated = seatedPlayers(session);
-  const maxPlayers = preview.data?.maxPlayers ?? Math.max(seated.length, 2);
+  const maxPlayers = session.maxPlayers ?? preview.data?.maxPlayers ?? Math.max(seated.length, 2);
   const ready = new Set(session.state.readyPlayers ?? []);
   const activeSeated = seated.filter((p) => p.status === "in-game");
   const readyCount = activeSeated.filter((p) => ready.has(p.meta.id)).length;

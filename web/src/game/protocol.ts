@@ -254,7 +254,7 @@ export interface StakeQuestionData {
 
 export type ButtonPressMode = "random_within_window" | "first_wins";
 
-/** Rules the host picked when creating the game. */
+/** Rules the host picked when creating the game; the showman may change them. */
 export interface GameSettings {
   autoStart?: boolean;
   /** The buzzer opens after the content; pressing earlier locks you out. */
@@ -262,6 +262,23 @@ export interface GameSettings {
   buttonPressMode: ButtonPressMode;
   wrongAnswerPenalty?: "subtract" | "none";
   timers?: { roundMs: number } & Record<string, number>;
+}
+
+/** The showman's change: any subset of the rules and timers (ms). */
+export interface GameSettingsChange {
+  falseStart?: boolean;
+  buttonPressMode?: ButtonPressMode;
+  wrongAnswerPenalty?: "subtract" | "none";
+  timers?: Record<string, number>;
+}
+
+/**
+ * The lobby-wide `games` feed. The server also sends it to the game room when
+ * the showman edits the title, privacy or seat count.
+ */
+export interface GameListEvent {
+  event?: "created" | "changed" | "deleted" | string;
+  data?: { id?: string; title?: string; maxPlayers?: number };
 }
 
 export type AllPlayMode = "noRisk" | "stake";
@@ -443,6 +460,10 @@ export interface ServerEvents {
     canAnswerAgain: boolean;
   };
   "game-join-mode-change": { joinMode: GameJoinMode };
+  /** The showman changed the rules; they apply from the next timer or question. */
+  "game-settings-change": { settings: GameSettings };
+  /** Not in SERVER_EVENT_NAMES: the connection forwards it with its own listener. */
+  games: GameListEvent;
   "stake-question-picked": {
     pickerPlayerId: number;
     questionId: number;
@@ -523,6 +544,7 @@ export interface ClientEvents {
   "answer-result-undo": undefined;
   "buzzer-open": undefined;
   "game-join-mode-change": { joinMode: GameJoinMode };
+  "game-settings-change": GameSettingsChange;
   "all-play-stake": { amount: number };
   "all-play-answer": { answerText: string };
   "all-play-review": { playerId: number; isCorrect: boolean };
@@ -570,6 +592,7 @@ export const SERVER_EVENT_NAMES: ServerEventName[] = [
   "question-remove-restore",
   "answer-result-undo",
   "game-join-mode-change",
+  "game-settings-change",
   "all-play-stake",
   "all-play-answer",
   "all-play-reviewing",

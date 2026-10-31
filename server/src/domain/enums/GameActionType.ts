@@ -37,6 +37,8 @@ export enum GameActionType {
   LAST_ANSWER_RULING_REVERT = "answer-result-undo",
   /** Change whether newcomers can join as players, spectators, or neither. */
   GAME_JOIN_MODE_CHANGE = "game-join-mode-change",
+  /** Change the game rules and timers; they apply from the next timer or question. */
+  GAME_SETTINGS_CHANGE = "game-settings-change",
   EVERYONE_ANSWER_SUBMIT = "all-play-answer",
   EVERYONE_ANSWER_REVIEW = "all-play-review",
   STAKE_BID_SUBMIT = "stake-bid-submit",

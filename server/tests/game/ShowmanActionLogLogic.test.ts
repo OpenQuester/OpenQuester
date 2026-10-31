@@ -65,6 +65,21 @@ describe("ShowmanActionLogLogic", () => {
     expect(score?.system.params).toEqual({ player: "user-2", score: 900 });
   });
 
+  it("logs the rules and timers the showman changed as flat params", () => {
+    const game = buildGame("LOG", null);
+    const line = ShowmanActionLogLogic.build(
+      action(GameActionType.GAME_SETTINGS_CHANGE, 1, {
+        falseStart: false,
+        timers: { answerMs: 10_000 }
+      }),
+      { success: true, data: {} },
+      game
+    );
+
+    expect(line?.system.params).toEqual({ falseStart: false, answerMs: 10_000 });
+    expect(line?.message).toBe("Showman changed the game rules: falseStart, answerMs");
+  });
+
   it("ignores players, failed actions and routine moves", () => {
     const game = buildGame("LOG", null);
 

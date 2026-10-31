@@ -1,3 +1,7 @@
+import type {
+  GameSettingsDTO,
+  GameSettingsInput
+} from "domain/types/dto/game/settings/GameSettingsDTO";
 import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 
 export interface QuestionRemoveRestoreInputData {
@@ -25,6 +29,14 @@ export interface GameJoinModeChangeInputData {
 
 export interface GameJoinModeChangeEventPayload {
   joinMode: GameJoinMode;
+}
+
+/** Any subset of the rules and timers; omitted fields keep their current value */
+export type GameSettingsChangeInputData = GameSettingsInput;
+
+/** The game's rules after the showman changed them */
+export interface GameSettingsChangeEventPayload {
+  settings: GameSettingsDTO;
 }
 
 /** The showman opened the buzzer before the question finished */

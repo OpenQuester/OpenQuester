@@ -3,12 +3,16 @@ import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { WrongAnswerPenalty } from "domain/enums/game/GameSettings";
+import { ButtonPressMode, WrongAnswerPenalty } from "domain/enums/game/GameSettings";
+import { DEFAULT_GAME_TIMERS } from "domain/constants/gameSettings";
 import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { QuestionAnswerEventPayload } from "domain/types/socket/events/game/QuestionAnswerEventPayload";
+import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import {
   AnswerResultUndoEventPayload,
+  GameSettingsChangeEventPayload,
   QuestionRemoveRestoreEventPayload
 } from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
 import { GameJoinInputData } from "domain/types/socket/events/SocketEventInterfaces";
@@ -21,7 +25,7 @@ import { INSTANT_BUZZER_SETTINGS } from "tests/socket/game/utils/SocketGameTestL
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
-/** Board and ruling corrections, and opening/closing the game to newcomers */
+/** Board and ruling corrections, game rules, and opening/closing the game to newcomers */
 describe("Showman tools", () => {
   let suite: SocketGameTestSuite;
   let app: Express;
@@ -295,6 +299,84 @@ describe("Showman tools", () => {
         } as GameJoinInputData)
       );
       await utils.joinSpecificGame(player, gameId, PlayerRole.SPECTATOR);
+    });
+  });
+
+  it("changes the rules mid-game from the next timer on", async () => {
+    await suite.scenario(async (scenario) => {
+      const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        2,
+        0
+      );
+      await utils.startGame(showmanSocket);
+
+      const changed = await scenario.emitAndWaitForEvent<GameSettingsChangeEventPayload>(
+        playerSockets[0],
+        SocketIOGameEvents.GAME_SETTINGS_CHANGE,
+        () =>
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.GAME_SETTINGS_CHANGE, {
+            wrongAnswerPenalty: WrongAnswerPenalty.NONE,
+            timers: { answerSubmitMs: 7_000 }
+          })
+      );
+      // Rules that were not sent keep their value
+      expect(changed.settings).toEqual({
+        autoStart: true,
+        falseStart: false,
+        buttonPressMode: ButtonPressMode.FIRST_WINS,
+        wrongAnswerPenalty: WrongAnswerPenalty.NONE,
+        timers: { ...DEFAULT_GAME_TIMERS, answerSubmitMs: 7_000 }
+      });
+      expect((await utils.getGameFromGameService(gameId)).settings).toEqual(changed.settings);
+
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      const answer = await scenario.emitAndWaitForEvent<QuestionAnswerEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.QUESTION_ANSWER,
+        () => scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_ANSWER)
+      );
+      expect(answer.timer.durationMs).toBe(7_000);
+
+      const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.ANSWER_RESULT,
+        () =>
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+            answerType: AnswerResultType.WRONG,
+            scoreResult: -100
+          })
+      );
+      expect(result.answerResult.result).toBe(0);
+    });
+  });
+
+  it("refuses rule changes from players and values outside the creation limits", async () => {
+    await suite.scenario(async (scenario) => {
+      const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        1,
+        0
+      );
+      const refusals: [typeof showmanSocket, unknown][] = [
+        [playerSockets[0], { falseStart: true }],
+        [showmanSocket, { timers: { answerMs: 500 } }],
+        [showmanSocket, { timers: { roundMs: 60_000 } }],
+        [showmanSocket, { timers: {} }],
+        [showmanSocket, {}]
+      ];
+
+      for (const [socket, payload] of refusals) {
+        await scenario.emitAndWaitForEvent(socket, SocketIOEvents.ERROR, () =>
+          scenario.actor(socket).emit(SocketIOGameEvents.GAME_SETTINGS_CHANGE, payload)
+        );
+      }
+
+      const settings = (await utils.getGameFromGameService(gameId)).settings;
+      expect(settings.falseStart).toBe(false);
+      expect(settings.timers).toEqual(DEFAULT_GAME_TIMERS);
     });
   });
 });
