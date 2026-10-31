@@ -45,12 +45,7 @@ describe("GET /v1/files/:filename/content", () => {
     const res = await createHttpTestClient(harness.serverUrl)
       .get(`/v1/files/${md5}/content`)
       .set("Cookie", cookie)
-      .buffer(true)
-      .parse((response, done) => {
-        const chunks: Buffer[] = [];
-        response.on("data", (chunk: Buffer) => chunks.push(chunk));
-        response.on("end", () => done(null, Buffer.concat(chunks)));
-      });
+      .buffer(true);
 
     expect(res.status).toBe(200);
     expect(res.headers["content-type"]).toBe("application/octet-stream");
@@ -69,6 +64,22 @@ describe("GET /v1/files/:filename/content", () => {
       .set("Cookie", cookie);
 
     expect(res.status).toBe(404);
+  });
+
+  it("refuses to proxy files over the editor's size cap", async () => {
+    const body = Readable.from([Buffer.from("x")]);
+    jest.spyOn(container.resolve(S3ObjectStorage), "getObject").mockResolvedValue({
+      body,
+      size: 101 * 1024 * 1024
+    });
+    const { cookie } = await testUtils.createAndLoginUser(`file_large_${Date.now()}`);
+
+    const res = await createHttpTestClient(harness.serverUrl)
+      .get(`/v1/files/${md5}/content`)
+      .set("Cookie", cookie);
+
+    expect(res.status).toBe(413);
+    expect(body.destroyed).toBe(true);
   });
 
   it("needs a session", async () => {
