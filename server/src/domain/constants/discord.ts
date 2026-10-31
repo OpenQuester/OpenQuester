@@ -13,6 +13,9 @@ export const DISCORD_API_URL = "https://discord.com/api";
 /** Discord calls made at startup give up after this long */
 export const DISCORD_STARTUP_REQUEST_TIMEOUT_MS = 5000;
 
+/** Discord calls made while a request waits (sign-in, lobby checks) give up after this long */
+export const DISCORD_REQUEST_TIMEOUT_MS = 5000;
+
 /** Client-credentials scope that may create the application's own commands */
 export const DISCORD_COMMANDS_UPDATE_SCOPE = "applications.commands.update";
 
@@ -57,4 +60,11 @@ export const getDiscordActivityGameKey = (instanceId: string): string => {
 
 export const getDiscordActivityLockKey = (instanceId: string): string => {
   return `discord:activity:${instanceId}:lock`;
+};
+
+/** A confirmed call member isn't rechecked with Discord for this long (the lobby polls) */
+export const DISCORD_ACTIVITY_MEMBER_TTL_MS = 10 * 60 * 1000;
+
+export const getDiscordActivityMemberKey = (instanceId: string, discordUserId: string): string => {
+  return `discord:activity:${instanceId}:member:${discordUserId}`;
 };

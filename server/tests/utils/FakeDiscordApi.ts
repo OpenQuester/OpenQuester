@@ -15,11 +15,15 @@ export interface FakeDiscordAccount extends FakeDiscordMember {
   clientSecret: string;
   /** More people who can sign in, e.g. the rest of a voice call */
   others?: FakeDiscordMember[];
+  /** Bot token that may read Activity instances */
+  botToken?: string;
+  /** Running Activity instances: instance id to the Discord user ids in it */
+  instances?: Record<string, string[]>;
 }
 
 /**
- * Answers Discord's OAuth2 token exchange and `GET /users/@me` like
- * discord.com does, for DISCORD_API_URL in tests.
+ * Answers Discord's OAuth2 token exchange, `GET /users/@me` and Activity
+ * instance lookups like discord.com does, for DISCORD_API_URL in tests.
  */
 export class FakeDiscordApi {
   private constructor(
@@ -65,6 +69,7 @@ export class FakeDiscordApi {
     const members = [account, ...(account.others ?? [])];
     const appToken = `app-token-${account.clientId}`;
     const commandsPath = `/applications/${account.clientId}/commands`;
+    const instancesPath = `/applications/${account.clientId}/activity-instances/`;
 
     if (req.method === "POST" && req.url === "/oauth2/token") {
       const form = new URLSearchParams(body);
@@ -105,6 +110,19 @@ export class FakeDiscordApi {
       return member
         ? reply(200, member.user)
         : reply(401, { message: "401: Unauthorized", code: 0 });
+    }
+
+    if (req.method === "GET" && req.url?.startsWith(instancesPath)) {
+      if (!account.botToken || req.headers.authorization !== `Bot ${account.botToken}`) {
+        return reply(401, { message: "401: Unauthorized", code: 0 });
+      }
+
+      const instanceId = decodeURIComponent(req.url.slice(instancesPath.length));
+      const users = account.instances?.[instanceId];
+
+      return users
+        ? reply(200, { application_id: account.clientId, instance_id: instanceId, users })
+        : reply(404, { message: "Unknown Activity Instance", code: 10_000 });
     }
 
     if (req.url === commandsPath && req.headers.authorization === `Bearer ${appToken}`) {

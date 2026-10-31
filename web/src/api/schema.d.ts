@@ -3052,7 +3052,7 @@ export interface paths {
                         "application/json": components["schemas"]["GeneralErrorResponse"];
                     };
                 };
-                /** @description The session wasn't signed in through the Discord Activity (`discord_activity_session_required`) */
+                /** @description The session wasn't signed in through the Discord Activity (`discord_activity_session_required`), or Discord doesn't list the user in this instance (`discord_activity_not_in_call`) */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -3111,7 +3111,7 @@ export interface paths {
                         "application/json": components["schemas"]["GeneralErrorResponse"];
                     };
                 };
-                /** @description The session wasn't signed in through the Discord Activity (`discord_activity_session_required`) */
+                /** @description The session wasn't signed in through the Discord Activity (`discord_activity_session_required`), or Discord doesn't list the user in this instance (`discord_activity_not_in_call`) */
                 403: {
                     headers: {
                         [name: string]: unknown;

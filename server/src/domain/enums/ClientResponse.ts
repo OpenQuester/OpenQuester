@@ -22,6 +22,8 @@ export enum ClientResponse {
   DISCORD_CODE_EXCHANGE_FAILED = "discord_code_exchange_failed",
   DISCORD_ACTIVITY_GAME_BUSY = "discord_activity_game_busy",
   DISCORD_ACTIVITY_SESSION_REQUIRED = "discord_activity_session_required",
+  DISCORD_ACTIVITY_NOT_IN_CALL = "discord_activity_not_in_call",
+  DISCORD_TOKEN_REJECTED = "discord_token_rejected",
 
   // Validation
   VALIDATION_ERROR = "validation_error",

@@ -20,6 +20,9 @@ DISCORD_CLIENT_ID=
 # Server-only Discord application secret. With DISCORD_CLIENT_ID it turns on the
 # Discord Activity (POST /v1/auth/discord/activity exchanges the Activity's code)
 DISCORD_CLIENT_SECRET=
+# Optional bot token of the same application. When set, a call's lobby (and its
+# password) only goes to people Discord lists in that Activity instance
+DISCORD_BOT_TOKEN=
 
 # Domain (full) to which cookie will be assigned
 API_DOMAIN=

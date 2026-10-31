@@ -3,11 +3,19 @@ import { inject, singleton } from "tsyringe";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
-import { DISCORD_STARTUP_REQUEST_TIMEOUT_MS } from "domain/constants/discord";
+import {
+  DISCORD_REQUEST_TIMEOUT_MS,
+  DISCORD_STARTUP_REQUEST_TIMEOUT_MS
+} from "domain/constants/discord";
 import { type DiscordCommand, type DiscordCommandInput } from "domain/types/discord/DiscordCommand";
 import { type DiscordToken } from "domain/types/discord/DiscordToken";
 import { type Environment } from "shared/config/Environment";
 import { DI_TOKENS } from "shared/di/tokens";
+
+/** `GET /applications/{id}/activity-instances/{instanceId}`, the fields we read */
+interface DiscordActivityInstanceResponse {
+  users?: string[];
+}
 
 /** Token endpoint answer: a token, or an OAuth2 error */
 interface DiscordTokenResponse extends Partial<DiscordToken> {
@@ -37,7 +45,8 @@ export class DiscordApiClient {
         client_secret: this.env.DISCORD_CLIENT_SECRET,
         grant_type: "authorization_code",
         code
-      })
+      }),
+      signal: AbortSignal.timeout(DISCORD_REQUEST_TIMEOUT_MS)
     });
 
     const body = (await response.json().catch(() => ({}))) as DiscordTokenResponse;
@@ -115,10 +124,41 @@ export class DiscordApiClient {
   /** Raw body of `GET /users/@me` for the given Authorization header value */
   public async getCurrentUser(authorization: string): Promise<string> {
     const response = await fetch(`${this.env.DISCORD_API_URL}/users/@me`, {
-      headers: { authorization }
+      headers: { authorization },
+      signal: AbortSignal.timeout(DISCORD_REQUEST_TIMEOUT_MS)
     });
 
+    if (!response.ok) {
+      throw new ClientError(ClientResponse.DISCORD_TOKEN_REJECTED, HttpStatus.UNAUTHORIZED);
+    }
+
     return response.text();
+  }
+
+  /**
+   * Discord user ids in a running Activity instance, or `null` when Discord
+   * knows no such instance. Needs the application's bot token.
+   */
+  public async getActivityInstanceUsers(instanceId: string): Promise<string[] | null> {
+    const url =
+      `${this.env.DISCORD_API_URL}/applications/${this.env.DISCORD_CLIENT_ID}` +
+      `/activity-instances/${encodeURIComponent(instanceId)}`;
+    const response = await fetch(url, {
+      headers: { authorization: `Bot ${this.env.DISCORD_BOT_TOKEN}` },
+      signal: AbortSignal.timeout(DISCORD_REQUEST_TIMEOUT_MS)
+    });
+
+    if (response.status === HttpStatus.NOT_FOUND) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Discord activity instance lookup failed: HTTP ${response.status}`);
+    }
+
+    const body = (await response.json()) as DiscordActivityInstanceResponse;
+
+    return body.users ?? [];
   }
 
   private _commandsUrl(): string {

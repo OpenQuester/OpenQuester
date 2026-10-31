@@ -71,6 +71,11 @@ export class Environment {
   public DISCORD_CLIENT_SECRET!: string;
   /** Discord REST API base URL; tests point it at a local fake */
   public DISCORD_API_URL!: string;
+  /**
+   * Bot token of the same application. When set, a call's lobby (and its
+   * password) is only given to people Discord lists in that Activity instance.
+   */
+  public DISCORD_BOT_TOKEN!: string;
   public INFLUX_URL!: string;
   public LOG_LEVEL!: LogLevel;
   public CRON_S3_CLEANUP_EXPRESSION!: string;
@@ -247,6 +252,9 @@ export class Environment {
     ).trim();
     this.DISCORD_CLIENT_SECRET = (
       (this.getEnvVar("DISCORD_CLIENT_SECRET", "string", "", true) as string | undefined) ?? ""
+    ).trim();
+    this.DISCORD_BOT_TOKEN = (
+      (this.getEnvVar("DISCORD_BOT_TOKEN", "string", "", true) as string | undefined) ?? ""
     ).trim();
     this.DISCORD_API_URL = (
       (this.getEnvVar("DISCORD_API_URL", "string", DISCORD_API_URL, true) as string | undefined) ??
