@@ -71,6 +71,11 @@ so they exercise actual IndexedDB locking without sleeping or holding a DB lock.
 
 Run from `client/`.
 
+Flutter CI (`build_client.yml` builds and the `test_client` analyze job) is paused on
+PRs and `main` pushes unless the `FLUTTER_CI_ENABLED` repository variable is `"true"`.
+Manual dispatches and releases still run it, so run the checks below locally for
+client changes.
+
 | Change type | Minimum checks | Stronger checks |
 |---|---|---|
 | Docs-only frontend docs | Markdown review, path sanity | none required unless commands changed |

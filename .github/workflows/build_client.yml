@@ -35,7 +35,10 @@ jobs:
     permissions:
       contents: read
     outputs:
-      should_run: ${{ steps.found_paths.outputs.client == 'true' || steps.should_force.outputs.should_force == 'true' }}
+      # Flutter builds are paused while the React web client is the main focus.
+      # Set the FLUTTER_CI_ENABLED repository variable to "true" to run them on PRs again.
+      # Manual dispatches and releases still build.
+      should_run: ${{ (vars.FLUTTER_CI_ENABLED == 'true' && steps.found_paths.outputs.client == 'true') || steps.should_force.outputs.should_force == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -50,7 +53,7 @@ jobs:
 
       - name: Check if we should force jobs to run
         id: should_force
-        run: echo "should_force=${{ github.event_name == 'workflow_dispatch' || github.workflow == 'Release' || github.event_name == 'push' }}" >> "$GITHUB_OUTPUT"
+        run: echo "should_force=${{ github.event_name == 'workflow_dispatch' || github.workflow == 'Release' || (vars.FLUTTER_CI_ENABLED == 'true' && github.event_name == 'push') }}" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build client (Web & Android)
