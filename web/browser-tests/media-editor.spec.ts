@@ -1065,9 +1065,9 @@ test("remote download failure does not replace a published attachment", async ({
     .first()
     .click();
   const editor = page.getByTestId("media-editor");
-  await expect(editor.getByRole("alert")).toContainText("could not be loaded");
+  await expect(editor.getByRole("alert")).toContainText("couldn't be downloaded");
   await editor.getByRole("button", { name: "Retry", exact: true }).click();
-  await expect(editor.getByRole("alert")).toContainText("could not be loaded");
+  await expect(editor.getByRole("alert")).toContainText("couldn't be downloaded");
   await editor.getByRole("button", { name: "Cancel", exact: true }).click();
   expect((await readDraft(page, source.id)).questions[0]!.questionFiles[0]!.md5).toBe(source.md5);
 });
