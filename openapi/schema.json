@@ -220,6 +220,77 @@
         }
       }
     },
+    "/v1/files/{filename}/content": {
+      "get": {
+        "summary": "Download a stored file through the API",
+        "description": "Streams the file's bytes from the API's own origin, for clients that cannot fetch the public bucket link cross-origin.",
+        "tags": ["Files"],
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "examples": ["74ae4b7771e8661ba7599debaeff5110"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file's bytes",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad filename",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadFilenameResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign in (a guest account is enough) to download files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The file is not in storage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/packages": {
       "post": {
         "summary": "Get upload links for every file in `content.json`",

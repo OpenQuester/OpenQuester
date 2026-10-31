@@ -149,6 +149,8 @@ export enum ClientResponse {
   STORAGE_QUOTA_EXCEEDED = "storage_quota_exceeded",
   STORAGE_FULL = "storage_full",
   STORAGE_SIGN_IN_TO_UPLOAD = "storage_sign_in_to_upload",
+  STORAGE_SIGN_IN_TO_READ = "storage_sign_in_to_read",
+  STORAGE_FILE_NOT_FOUND = "storage_file_not_found",
 
   // Package upload state
   PACKAGE_UPLOAD_UNFINISHED = "package_upload_unfinished",

@@ -77,6 +77,14 @@ export class S3StorageService {
     return this.fileUrlBuilder.getUrl(filename);
   }
 
+  /** Reads a stored file through the API, for clients that can't fetch the bucket directly. */
+  public async getContent(filename: string) {
+    return this.objectStorage.getObject(
+      this.s3Context.bucket,
+      StorageUtils.parseFilePath(filename)
+    );
+  }
+
   /**
    * Fetches user avatar from discord's cdn and saves on out s3 bucket
    * @param cdnLink discord's cdn link for avatar file
