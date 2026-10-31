@@ -1,0 +1,163 @@
+<!doctype html>
+<!-- Discord Activity art assets. Render with `node web/scripts/render-activity-assets.mjs`. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@500;600&display=swap"
+    />
+    <style>
+      :root {
+        --bg: #0d0f1c;
+        --surface: #161a2e;
+        --surface-2: #1f2440;
+        --border: #343a63;
+        --text: #eef0ff;
+        --muted: #a3a9cf;
+        --accent: #ffb547;
+        --accent-strong: #ffd27d;
+        --on-accent: #1a1203;
+        --info: #8b95ff;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        background: var(--bg);
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+        color: var(--text);
+      }
+      .art {
+        position: relative;
+        overflow: hidden;
+        background:
+          radial-gradient(60% 80% at 18% 30%, rgb(74 85 217 / 0.38), transparent 70%),
+          radial-gradient(50% 60% at 92% 100%, rgb(255 181 71 / 0.22), transparent 70%),
+          var(--bg);
+      }
+      .cover {
+        width: 1920px;
+        height: 1080px;
+        display: grid;
+        grid-template-columns: 1fr 760px;
+        align-items: center;
+        gap: 80px;
+        padding: 0 160px;
+      }
+      .brand {
+        display: flex;
+        flex-direction: column;
+        gap: 44px;
+      }
+      .logo {
+        width: 200px;
+        height: 200px;
+        filter: drop-shadow(0 24px 60px rgb(0 0 0 / 0.5));
+      }
+      h1 {
+        font-family: "Bricolage Grotesque", system-ui, sans-serif;
+        font-weight: 800;
+        font-size: 150px;
+        line-height: 0.95;
+        letter-spacing: -0.035em;
+      }
+      .tagline {
+        font-size: 52px;
+        font-weight: 500;
+        line-height: 1.2;
+        color: var(--muted);
+        max-width: 760px;
+      }
+      .tagline b {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .board {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 18px;
+        transform: rotate(-4deg);
+      }
+      .theme,
+      .cell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 22px;
+        font-family: "Bricolage Grotesque", system-ui, sans-serif;
+        font-weight: 800;
+      }
+      .theme {
+        height: 92px;
+        background: var(--surface-2);
+        border: 2px solid var(--border);
+        color: var(--muted);
+        font-size: 30px;
+        font-weight: 600;
+      }
+      .cell {
+        height: 150px;
+        background: var(--surface);
+        border: 2px solid var(--border);
+        color: var(--info);
+        font-size: 56px;
+      }
+      .cell.used {
+        color: transparent;
+        background: rgb(22 26 46 / 0.5);
+        border-style: dashed;
+      }
+      .cell.live {
+        background: var(--accent);
+        border-color: var(--accent-strong);
+        color: var(--on-accent);
+        box-shadow: 0 0 0 10px rgb(255 181 71 / 0.18), 0 30px 80px rgb(255 181 71 / 0.35);
+      }
+
+      .icon {
+        width: 1024px;
+        height: 1024px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .icon img {
+        width: 760px;
+        height: 760px;
+        filter: drop-shadow(0 30px 80px rgb(0 0 0 / 0.55));
+      }
+    </style>
+  </head>
+  <body>
+    <section id="cover" class="art cover">
+      <div class="brand">
+        <img class="logo" src="../../web/public/favicon.svg" alt="" />
+        <h1>OpenQuester</h1>
+        <p class="tagline">Quiz night for the whole call. <b>Pick a pack, hit the buzzer.</b></p>
+      </div>
+      <div class="board" aria-hidden="true">
+        <div class="theme">Movies</div>
+        <div class="theme">Games</div>
+        <div class="theme">Music</div>
+        <div class="theme">Science</div>
+        <div class="cell used">100</div>
+        <div class="cell">100</div>
+        <div class="cell used">100</div>
+        <div class="cell">100</div>
+        <div class="cell">200</div>
+        <div class="cell live">200</div>
+        <div class="cell">200</div>
+        <div class="cell used">200</div>
+        <div class="cell">300</div>
+        <div class="cell">300</div>
+        <div class="cell">300</div>
+        <div class="cell">300</div>
+      </div>
+    </section>
+    <section id="icon" class="art icon">
+      <img src="../../web/public/favicon.svg" alt="" />
+    </section>
+  </body>
+</html>

@@ -694,7 +694,8 @@
       "nextWindow": "Everyone who presses within a split second of the first has an equal chance. Right: +{{points}}. {{wrong}}.",
       "showmanWait": "The question is playing — the buzzer opens after it",
       "openBuzzer": "Open buzzer now",
-      "showmanNextEarly": "The buzzer opens when the question finishes. Open it now to let players buzz early."
+      "showmanNextEarly": "The buzzer opens when the question finishes. Open it now to let players buzz early.",
+      "inDraw": "In the draw…"
     },
     "answering": {
       "autoSubmitted": "<player>{{name}}</player> sent an answer — waiting for the result",
@@ -1629,6 +1630,42 @@
     "help_other": "{{count}} questions are still on the board. They won't be played.",
     "helpEmpty": "The next round starts right away.",
     "confirm": "Skip round"
+  },
+  "discordActivity": {
+    "connecting": "Connecting to Discord…",
+    "findingGame": "Looking for this call's game…",
+    "retry": "Try again",
+    "pickTitle": "Pick a package for this call",
+    "pickHint": "Whoever picks first hosts the game. Everyone else in the call joins it automatically.",
+    "search": "Search packages",
+    "noPackages": "No packages found.",
+    "gameReady": "{{host}} is hosting this call's game.",
+    "joinGame": "Join the game",
+    "errors": {
+      "not_configured": "This server isn't set up to run as a Discord Activity.",
+      "auth_failed": "Couldn't sign in with Discord at this step: {{step}}",
+      "timeout": "Discord didn't answer at this step: {{step}}",
+      "settings": "Couldn't reach the OpenQuester server."
+    },
+    "steps": {
+      "handshake": "Connecting to Discord…",
+      "authorize": "Waiting for Discord permission…",
+      "sign_in": "Signing in to OpenQuester…",
+      "authenticate": "Finishing Discord sign-in…"
+    },
+    "rejoinGame": "Back to the game",
+    "otherGames": "Other games",
+    "gameCode": "Game code or link",
+    "joinByCode": "Join",
+    "noOtherGames": "No other open games right now.",
+    "presence": {
+      "lobby": "In the lobby",
+      "paused": "Paused",
+      "round": "{{round}}",
+      "finished": "Game over",
+      "lobbyDetails": "OpenQuester quiz",
+      "choosing": "Choosing a game"
+    }
   },
   "mediaEditor": {
     "title": "Edit media",

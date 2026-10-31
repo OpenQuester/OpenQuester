@@ -32,8 +32,17 @@ describe("Auth settings", () => {
     const res = await http.get("/v1/auth/settings");
 
     expect(res.status).toBe(200);
+    // No client secret, so the Discord Activity stays off
     expect(res.body).toEqual({
-      oauthProviders: [{ provider: "discord", clientId: "123456789" }]
+      oauthProviders: [{ provider: "discord", clientId: "123456789" }],
+      discordActivity: null
     });
+  });
+
+  it("turns the Discord Activity sign-in off without a client secret", async () => {
+    const res = await http.post("/v1/auth/discord/activity").send({ code: "any" });
+
+    expect(res.status).toBe(404);
+    expect(res.headers["set-cookie"]).toBeUndefined();
   });
 });

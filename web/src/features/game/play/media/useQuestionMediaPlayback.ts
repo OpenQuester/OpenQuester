@@ -52,7 +52,16 @@ export function useQuestionMediaPlayback(playing: boolean, positionMs?: () => nu
       else el.addEventListener("loadedmetadata", seek, { once: true });
     }
     el.play().catch((err: unknown) => {
-      if (!alive || (err as DOMException)?.name !== "NotAllowedError") return;
+      if (!alive) return;
+      const name = (err as DOMException)?.name;
+      if (name === "AbortError") {
+        // A new load (src changed) interrupted play(): start once it can play.
+        el.addEventListener("canplay", () => void el.play().catch(() => undefined), {
+          once: true,
+        });
+        return;
+      }
+      if (name !== "NotAllowedError") return;
       el.muted = true;
       setBlocked(true);
       void el.play().catch(() => undefined);

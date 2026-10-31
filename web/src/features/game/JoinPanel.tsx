@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Link } from "@tanstack/react-router";
 import type { GameListItem } from "@/api/types";
+import { useMe } from "@/features/auth/useMe";
 import { gameStatus, playerCount } from "@/features/home/useGames";
 import type { JoinOptions } from "@/game/connection";
 import { BackIcon } from "@/ui/icons";
@@ -32,7 +33,9 @@ export function JoinPanel({
   joining?: boolean;
 }) {
   const { t } = useTranslation();
-  const form = useJoinForm(!!game?.isPrivate, onJoin, joining, joinError);
+  const me = useMe();
+  const needsPassword = passwordNeeded(game, me.data?.id);
+  const form = useJoinForm(needsPassword, onJoin, joining, joinError);
   if (error && !game)
     return (
       <Frame>
@@ -55,7 +58,6 @@ export function JoinPanel({
   const status = gameStatus(game);
   const full = playerCount(game) >= game.maxPlayers;
   const canPlay = !full && status !== "finished";
-  const needsPassword = game.isPrivate;
   return (
     <Frame>
       <JoinSummary game={game} status={status} />
@@ -89,4 +91,14 @@ function Frame({ children }: { children: React.ReactNode }) {
       <section className={gameEntryStyles.joinForm}>{children}</section>
     </div>
   );
+}
+
+/**
+ * The server skips the password for the host and for anyone who already has a
+ * place in the game (a seat kept after leaving), so don't ask them for it.
+ */
+export function passwordNeeded(game: GameListItem | null, myId: number | undefined): boolean {
+  if (!game?.isPrivate) return false;
+  if (myId == null) return true;
+  return game.createdBy.id !== myId && !game.players.some((p) => p.id === myId);
 }

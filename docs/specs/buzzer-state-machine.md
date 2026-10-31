@@ -53,7 +53,10 @@ Per-game settings (`GameSettings`, chosen when the game is created):
   opens a 300 ms accept window (`gameState.buzzerWindow`). Everyone who presses
   inside it takes part in a random draw when it closes; the winner is announced
   with `question-answer`. `first_wins` gives the answer to the first press the
-  server receives.
+  server receives. The server sends nothing back for a press that only joined
+  the draw, so the web keeps that player's buzzer locked ("In the draw…") until
+  `question-answer` or a phase change arrives (15 s safety timeout), instead
+  of the 5 s used for other actions.
 - A designated answerer (stake/secret winner) answers on press, without these
   rules. Pausing drops a pending window; players press again after the pause.
 - The showman can open the buzzer early (`buzzer-open`, no input, SHOWING

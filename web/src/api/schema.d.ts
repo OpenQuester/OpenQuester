@@ -879,6 +879,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/discord/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign in inside the Discord Activity
+         * @description Exchanges the code from the Embedded App SDK's `authorize` command with the server's client secret, signs the Discord user in like `/v1/auth/oauth2` does, and returns the Discord access token for the SDK's `authenticate` command. The session cookie is host-only, `SameSite=None; Secure; Partitioned`, so it survives inside Discord's iframe. No session needed.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InputDiscordActivityLogin"];
+                };
+            };
+            responses: {
+                /** @description Signed in */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResponseDiscordActivityLogin"];
+                    };
+                };
+                /** @description Invalid body */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneralErrorResponse"];
+                    };
+                };
+                /** @description Discord refused the code (`discord_code_exchange_failed`) */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneralErrorResponse"];
+                    };
+                };
+                /** @description The Activity isn't set up on this server (`discord_activity_disabled`) */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneralErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/guest": {
         parameters: {
             query?: never;
@@ -2941,6 +3011,132 @@ export interface paths {
         };
         trace?: never;
     };
+    "/v1/discord/activity/instances/{instanceId}/game": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the lobby of a Discord Activity call
+         * @description Returns the game everyone in this Activity instance plays, with its password, or `game: null` when nobody has picked a package yet (or the last game finished).
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The Activity's `instanceId` from the Embedded App SDK. Everyone in one voice channel call shares it. */
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The call's lobby */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResponseDiscordActivityGame"];
+                    };
+                };
+                /** @description Not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneralErrorResponse"];
+                    };
+                };
+                /** @description The session wasn't signed in through the Discord Activity (`discord_activity_session_required`), or Discord doesn't list the user in this instance (`discord_activity_not_in_call`) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneralErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Get or create the lobby of a Discord Activity call
+         * @description Creates the call's game when it has none (`created: true`, the caller hosts it) or returns the existing one (`created: false`). The game is always private; `isPrivate` in the body is ignored.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The Activity's `instanceId` from the Embedded App SDK. Everyone in one voice channel call shares it. */
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GameCreateData"];
+                };
+            };
+            responses: {
+                /** @description The call's lobby */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ResponseDiscordActivityGame"];
+                    };
+                };
+                /** @description Invalid body */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneralErrorResponse"];
+                    };
+                };
+                /** @description Not signed in */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneralErrorResponse"];
+                    };
+                };
+                /** @description The session wasn't signed in through the Discord Activity (`discord_activity_session_required`), or Discord doesn't list the user in this instance (`discord_activity_not_in_call`) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneralErrorResponse"];
+                    };
+                };
+                /** @description Someone else in the call is creating the game right now (`discord_activity_game_busy`), or the package isn't fully uploaded (`package_upload_unfinished`) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneralErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2963,6 +3159,8 @@ export interface components {
         ResponseAuthSettings: {
             /** @description Sign-in providers the server has set up. A provider that isn't set up is left out; clients ignore providers they don't know. */
             oauthProviders: components["schemas"]["OauthProviderSettings"][];
+            /** @description Set when the web app may run as a Discord Activity; null otherwise. */
+            discordActivity: components["schemas"]["DiscordActivitySettings"] | null;
         };
         OauthProviderSettings: {
             /**
@@ -5868,6 +6066,35 @@ export interface components {
              * @example 4200
              */
             buzzerOpensAtMs: number;
+        };
+        DiscordActivitySettings: {
+            /** @description Hosts outside the app the Activity loads from (package media). Each needs the same URL mapping in the Discord Developer Portal. */
+            urlMappings: components["schemas"]["DiscordUrlMapping"][];
+        };
+        DiscordUrlMapping: {
+            /** @example /media */
+            prefix: string;
+            /**
+             * @description Host (and optional path) without the scheme
+             * @example s3.openquester.app
+             */
+            target: string;
+        };
+        InputDiscordActivityLogin: {
+            /** @description Code from the SDK's `authorize` command */
+            code: string;
+        };
+        ResponseDiscordActivityLogin: {
+            user: components["schemas"]["ResponseUser"];
+            /** @description Discord access token for the SDK's `authenticate` command */
+            accessToken: string;
+        };
+        ResponseDiscordActivityGame: {
+            game: components["schemas"]["GameListItem"] | null;
+            /** @description The private lobby's password, for everyone in the call */
+            password: string | null;
+            /** @description True when this request made the game, so the caller hosts it */
+            created: boolean;
         };
     };
     responses: never;

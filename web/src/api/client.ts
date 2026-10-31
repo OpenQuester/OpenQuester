@@ -18,7 +18,12 @@ const clockMiddleware: Middleware = {
   },
 };
 
-export const api = createClient<paths>({ baseUrl: API_URL, credentials: "include" });
+export const api = createClient<paths>({
+  baseUrl: API_URL,
+  credentials: "include",
+  // Read fetch per request: the Discord Activity patches it after startup.
+  fetch: (request) => globalThis.fetch(request),
+});
 api.use(clockMiddleware);
 
 export class ApiError extends Error {

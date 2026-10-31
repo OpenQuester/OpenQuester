@@ -77,6 +77,8 @@ export function showingModel({
       kind: "buzz",
       early,
       answering: sending("question-answer"),
+      // A press in the random draw waits for the draw, not for a reply
+      inDraw: session.settings?.buttonPressMode === "random_within_window",
       passing: sending("question-skip"),
       canPass: !isSingleAnswerer(s.currentQuestion),
     },

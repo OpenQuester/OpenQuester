@@ -15,7 +15,14 @@ export interface ActionDockModel {
 export type DockAction =
   | { kind: "info"; text: string; unpass?: boolean; randomQuestion?: boolean }
   | { kind: "show-question"; early: boolean; opening: boolean; revealing: boolean }
-  | { kind: "buzz"; early: boolean; answering: boolean; passing: boolean; canPass: boolean }
+  | {
+      kind: "buzz";
+      early: boolean;
+      answering: boolean;
+      inDraw: boolean;
+      passing: boolean;
+      canPass: boolean;
+    }
   | { kind: "judge"; value: number; wrong: number; pending: boolean }
   | { kind: "judge-wait"; pending: boolean; message: string }
   | {

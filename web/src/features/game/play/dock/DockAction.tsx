@@ -140,7 +140,9 @@ function BuzzAction({ action }: { action: Extract<DockActionDescriptor, { kind: 
           data-early={action.early || undefined}
         >
           {action.answering
-            ? t("dock.sending")
+            ? action.inDraw
+              ? t("dock.showing.inDraw")
+              : t("dock.sending")
             : action.early
               ? t("dock.showing.waitButton")
               : t("dock.showing.buzz")}

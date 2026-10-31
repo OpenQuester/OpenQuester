@@ -1,0 +1,143 @@
+import { once } from "node:events";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { type AddressInfo } from "node:net";
+import { text } from "node:stream/consumers";
+
+/** One Discord user the fake signs in: its code buys its token, the token its profile */
+export interface FakeDiscordMember {
+  code: string;
+  accessToken: string;
+  user: Record<string, unknown>;
+}
+
+export interface FakeDiscordAccount extends FakeDiscordMember {
+  clientId: string;
+  clientSecret: string;
+  /** More people who can sign in, e.g. the rest of a voice call */
+  others?: FakeDiscordMember[];
+  /** Bot token that may read Activity instances */
+  botToken?: string;
+  /** Running Activity instances: instance id to the Discord user ids in it */
+  instances?: Record<string, string[]>;
+}
+
+/**
+ * Answers Discord's OAuth2 token exchange, `GET /users/@me` and Activity
+ * instance lookups like discord.com does, for DISCORD_API_URL in tests.
+ */
+export class FakeDiscordApi {
+  private constructor(
+    private readonly server: Server,
+    public readonly url: string,
+    /** The application's commands, as Discord would store them */
+    public readonly commands: Record<string, unknown>[]
+  ) {
+    //
+  }
+
+  public static async start(account: FakeDiscordAccount): Promise<FakeDiscordApi> {
+    const commands: Record<string, unknown>[] = [];
+    const server = createServer((req, res) => {
+      void FakeDiscordApi.handle(account, commands, req, res);
+    });
+
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+
+    const { port } = server.address() as AddressInfo;
+
+    return new FakeDiscordApi(server, `http://127.0.0.1:${port}`, commands);
+  }
+
+  public async stop(): Promise<void> {
+    this.server.close();
+    await once(this.server, "close");
+  }
+
+  private static async handle(
+    account: FakeDiscordAccount,
+    commands: Record<string, unknown>[],
+    req: IncomingMessage,
+    res: ServerResponse
+  ): Promise<void> {
+    const body = await text(req);
+    const reply = (status: number, data: unknown): void => {
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(JSON.stringify(data));
+    };
+
+    const members = [account, ...(account.others ?? [])];
+    const appToken = `app-token-${account.clientId}`;
+    const commandsPath = `/applications/${account.clientId}/commands`;
+    const instancesPath = `/applications/${account.clientId}/activity-instances/`;
+
+    if (req.method === "POST" && req.url === "/oauth2/token") {
+      const form = new URLSearchParams(body);
+
+      if (form.get("grant_type") === "client_credentials") {
+        const allowed =
+          form.get("client_id") === account.clientId &&
+          form.get("client_secret") === account.clientSecret &&
+          form.get("scope") === "applications.commands.update";
+
+        return allowed
+          ? reply(200, { access_token: appToken, token_type: "Bearer", scope: form.get("scope") })
+          : reply(401, { error: "invalid_client" });
+      }
+
+      const member = members.find((candidate) => candidate.code === form.get("code"));
+      const valid =
+        form.get("client_id") === account.clientId &&
+        form.get("client_secret") === account.clientSecret &&
+        form.get("grant_type") === "authorization_code" &&
+        member !== undefined;
+
+      return valid
+        ? reply(200, {
+            access_token: member.accessToken,
+            token_type: "Bearer",
+            expires_in: 604800,
+            scope: "identify"
+          })
+        : reply(400, { error: "invalid_grant" });
+    }
+
+    if (req.method === "GET" && req.url === "/users/@me") {
+      const member = members.find(
+        (candidate) => req.headers.authorization === `Bearer ${candidate.accessToken}`
+      );
+
+      return member
+        ? reply(200, member.user)
+        : reply(401, { message: "401: Unauthorized", code: 0 });
+    }
+
+    if (req.method === "GET" && req.url?.startsWith(instancesPath)) {
+      if (!account.botToken || req.headers.authorization !== `Bot ${account.botToken}`) {
+        return reply(401, { message: "401: Unauthorized", code: 0 });
+      }
+
+      const instanceId = decodeURIComponent(req.url.slice(instancesPath.length));
+      const users = account.instances?.[instanceId];
+
+      return users
+        ? reply(200, { application_id: account.clientId, instance_id: instanceId, users })
+        : reply(404, { message: "Unknown Activity Instance", code: 10_000 });
+    }
+
+    if (req.url === commandsPath && req.headers.authorization === `Bearer ${appToken}`) {
+      if (req.method === "GET") {
+        return reply(200, commands);
+      }
+
+      if (req.method === "POST") {
+        const command = { id: String(commands.length + 1), ...JSON.parse(body) };
+        commands.push(command);
+
+        return reply(201, command);
+      }
+    }
+
+    reply(404, { message: "404: Not Found" });
+  }
+}
