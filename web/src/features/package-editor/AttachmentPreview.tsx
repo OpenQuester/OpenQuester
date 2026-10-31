@@ -1,11 +1,15 @@
 import { packageEditorStyles } from "./packageEditorStyles";
-import { useState, type SyntheticEvent } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { AlertIcon, ImageIcon, VideoIcon, VolumeIcon } from "@/ui/icons";
 import { mediaUrl } from "./packageMedia";
 import { useMediaFile } from "./packageEditorStore";
 import type { DraftMedia } from "./packageDraft";
+import { formatBytes } from "@/lib/format";
+import { EditorMediaPlayer } from "./EditorMediaPlayer";
+import { useAttachmentSize } from "./useAttachmentSize";
+import { PointPicker, type Spot } from "@/features/game/play/PointPicker";
 
 export function MediaIcon({ type, size = 16 }: { type: DraftMedia["type"]; size?: number }) {
   return type === "image" ? (
@@ -25,20 +29,21 @@ export function AttachmentPreview({
   media,
   small,
   className,
+  point,
+  disableImageDrag,
 }: {
   media: Pick<DraftMedia, "md5" | "type">;
   small?: boolean;
   className?: string;
+  point?: { target: Spot | null; radius: number | null };
+  disableImageDrag?: boolean;
 }) {
   const { t } = useTranslation();
   const file = useMediaFile(media.md5);
   const url = mediaUrl(file);
+  const size = useAttachmentSize(small ? undefined : file);
   const [duration, setDuration] = useState<{ url: string; seconds: number } | null>(null);
   const seconds = duration?.url === url ? duration?.seconds : null;
-  const readDuration = (event: SyntheticEvent<HTMLMediaElement>) => {
-    const seconds = event.currentTarget.duration;
-    setDuration(url && Number.isFinite(seconds) ? { url, seconds } : null);
-  };
   if (!url)
     return (
       <div className={cn(packageEditorStyles.missingAttachment, className)}>
@@ -46,45 +51,52 @@ export function AttachmentPreview({
         {t("editor.media.missing")}
       </div>
     );
-  if (media.type === "image")
-    return (
+  if (small)
+    return media.type === "image" ? (
       <img
         src={url}
         alt=""
         loading="lazy"
         className={cn("rounded-sm bg-surface-3 object-contain", className)}
       />
-    );
-  if (small)
-    return (
+    ) : (
       <div className={cn(packageEditorStyles.attachmentIcon, className)}>
         <MediaIcon type={media.type} size={18} />
       </div>
     );
   return (
-    <div className={cn("flex flex-col gap-1", className)}>
-      {media.type === "video" ? (
-        <video
+    <div className="flex min-w-0 flex-col gap-1">
+      {media.type === "image" && point ? (
+        <div className="flex w-full justify-center rounded-sm bg-surface-3">
+          <PointPicker
+            src={url}
+            target={point.target}
+            radius={point.radius}
+            imageClassName="max-h-64"
+          />
+        </div>
+      ) : media.type === "image" ? (
+        <img
           src={url}
-          controls
-          preload="metadata"
-          onDurationChange={readDuration}
-          className="max-h-56 w-full rounded-sm bg-black"
+          alt=""
+          draggable={disableImageDrag ? false : undefined}
+          loading="lazy"
+          className={cn("rounded-sm bg-surface-3 object-contain", className)}
         />
       ) : (
-        <audio
+        <EditorMediaPlayer
+          key={url}
           src={url}
-          controls
-          preload="metadata"
-          onDurationChange={readDuration}
-          className="w-full"
+          type={media.type}
+          className={className}
+          onDuration={(value) => setDuration(value == null ? null : { url, seconds: value })}
         />
       )}
-      {seconds != null && (
-        <span className="text-xs text-muted">
-          {t(`editor.media.${media.type}`)} · {t("editor.seconds", { count: Math.round(seconds) })}
-        </span>
-      )}
+      <span className="text-xs text-muted">
+        {t(`editor.media.${media.type}`)}
+        {seconds != null && ` · ${t("editor.seconds", { count: Math.round(seconds) })}`}
+        {` · ${size == null ? t("editor.media.sizeUnknown") : formatBytes(size)}`}
+      </span>
     </div>
   );
 }

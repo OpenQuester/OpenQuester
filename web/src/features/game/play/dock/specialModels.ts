@@ -19,8 +19,9 @@ export function secretModel({
     const mine = selection.playerId === myId;
     return {
       status: mine ? t("dock.secret.priceYou") : t("dock.secret.priceOther", { name: chooser }),
+      statusPlayer: mine ? undefined : { key: "dock.secret.priceOther", name: chooser },
       action: mine
-        ? { kind: "secret-price", prices: selection.allowedPrices }
+        ? { kind: "info", text: t("dock.secret.priceAbove") }
         : { kind: "info", text: t("dock.secret.priceWait", { name: chooser }) },
       next: t("dock.secret.priceNext"),
     };
@@ -35,6 +36,11 @@ export function secretModel({
       : undefined;
   const price = session.state.currentQuestion?.price;
   return {
+    statusPlayer: canChoose
+      ? targetPlayer
+        ? { key: "dock.secret.giveQ", name: targetPlayer.meta.username }
+        : undefined
+      : { key: "dock.secret.otherChoosing", name: picker?.meta.username ?? "" },
     status: canChoose
       ? targetPlayer
         ? t("dock.secret.giveQ", { name: targetPlayer.meta.username })
@@ -55,20 +61,22 @@ export function secretModel({
   };
 }
 
-export function stakeModel({ t, session, myId, reason }: ActionDockContext): ActionDockModel {
+export function stakeModel({
+  t,
+  session,
+  myId,
+  reason,
+  sending,
+}: ActionDockContext): ActionDockModel {
   const info = stakeInfo(session);
   const mePlayer = findMe(session, myId);
-  const myScore = mePlayer?.score ?? 0;
   const myTurn = info?.bidderId === myId && info?.stake.biddingPhase;
-  const max = Math.min(
-    info?.stake.maxPrice ?? Number.POSITIVE_INFINITY,
-    Math.max(myScore, info?.minBid ?? 0),
-  );
   const bidder = findPlayer(session, info?.bidderId);
   const next = t("dock.stake.next");
   if (!info) return { status: "", action: null, next };
   if (!myTurn) {
     return {
+      statusPlayer: { key: "dock.stake.waitFor", name: bidder?.meta.username ?? "" },
       status: t("dock.stake.waitFor", { name: bidder?.meta.username ?? "" }),
       action: {
         kind: "info",
@@ -80,6 +88,28 @@ export function stakeModel({ t, session, myId, reason }: ActionDockContext): Act
       next,
     };
   }
+  const { stake, price } = info;
+  const score = mePlayer?.score;
+  const effectivePrice = price == null ? null : price || 1;
+  const hasAllIn = session.players.some(
+    (player) =>
+      player.role === "player" &&
+      player.status === "in-game" &&
+      stake.bids[String(player.meta.id)] != null &&
+      stake.bids[String(player.meta.id)] === player.score,
+  );
+  const min = Math.max(1, Math.ceil(effectivePrice ?? 1), Math.floor(stake.highestBid ?? 0) + 1);
+  const max = Math.floor(Math.min(score ?? -Infinity, stake.maxPrice ?? Infinity));
+  const range = effectivePrice != null && !hasAllIn && max >= min ? { min, max } : null;
+  const allIn =
+    score != null &&
+    effectivePrice != null &&
+    score >= effectivePrice &&
+    (stake.highestBid == null || score > stake.highestBid) &&
+    (stake.maxPrice == null || score <= stake.maxPrice)
+      ? score
+      : null;
+  const pass = stake.highestBid != null || Object.keys(stake.bids).length > 0;
   return {
     status:
       info.stake.highestBid != null
@@ -88,9 +118,18 @@ export function stakeModel({ t, session, myId, reason }: ActionDockContext): Act
     action: {
       kind: "bid",
       event: "stake-bid-submit",
-      min: info.minBid,
-      max: Number.isFinite(max) ? max : info.minBid,
-      allIn: myScore > (info.stake.highestBid ?? 0) ? myScore : null,
+      range,
+      allIn,
+      pass,
+      pending: sending("stake-bid-submit"),
+      unavailable:
+        effectivePrice == null
+          ? t("bid.detailsUnavailable")
+          : hasAllIn
+            ? t("bid.afterAllIn")
+            : !range
+              ? t(pass || allIn != null ? "bid.noRegularBid" : "bid.waitTimer")
+              : undefined,
     },
     next,
   };

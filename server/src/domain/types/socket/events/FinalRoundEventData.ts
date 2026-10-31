@@ -56,6 +56,8 @@ export interface FinalPhaseCompleteEventData {
  */
 export interface FinalQuestionEventData {
   questionData: FinalRoundQuestionData;
+  /** Preparation timer, present only while a sequenced final preloads. */
+  timer?: GameStateTimerDTO;
 }
 
 /**

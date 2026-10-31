@@ -9,9 +9,9 @@ export function useBoardLayout(themes: BoardTheme[]) {
   // A theme name column plus one column per price only works while every cell
   // keeps a usable width. Otherwise each theme gets its own block: the name on
   // top, prices wrapping underneath.
-  const stacked = width > 0 && (width < 560 || (width - 220) / columns < 64);
+  const stacked = width > 0 && (width < 560 || (width - 240 - columns * 10) / columns < 80);
   // In stacked mode, spread prices evenly over rows (10 → 5 + 5, not 9 + 1).
-  const perRowMax = Math.max(1, Math.floor((width - 16 + 8) / (58 + 8)));
+  const perRowMax = Math.max(1, Math.floor((width - 16 + 8) / (88 + 8)));
   const rows = Math.ceil(columns / perRowMax);
   const perRow = Math.ceil(columns / rows);
 

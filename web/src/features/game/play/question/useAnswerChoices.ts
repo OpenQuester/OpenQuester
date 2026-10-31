@@ -3,8 +3,8 @@ import { timerElapsed } from "@/game/contentPlan";
 import type { ChoiceAnswer } from "@/game/protocol";
 import type { GameSession } from "@/game/reducer";
 import { myRole, phaseOf } from "@/game/selectors";
-import { useGameStore } from "@/game/store";
-import { useGame, useSession } from "../../GameContext";
+import { useGame, useGameState, useSession } from "../../GameContext";
+import { optionAnswer } from "./optionAnswer";
 
 /**
  * Milliseconds until a choice question's options appear, on the question's own
@@ -29,27 +29,12 @@ function optionsShowIn(session: GameSession): number {
   return Math.max(0, showAt - timerElapsed(s.timer, s.isPaused));
 }
 
-/** Image picks stay distinguishable from text options and are judged by the showman. */
-function optionAnswer(
-  text: string | null | undefined,
-  index: number,
-  options: readonly { text?: string | null }[],
-): string {
-  if (text?.trim()) return text.trim();
-  const texts = new Set(
-    options.map((option) => (option.text ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase()),
-  );
-  let answer = String(index + 1);
-  while (texts.has(answer)) answer = `#${answer}`;
-  return answer;
-}
-
 /** Keep the reveal timer and selected answer in the keyed choice component. */
 export function useAnswerChoices() {
   const session = useSession();
   const { connection, myId } = useGame();
-  const pending = useGameStore((st) => st.pending);
-  const online = useGameStore((st) => st.connection === "connected");
+  const pending = useGameState((st) => st.pending);
+  const online = useGameState((st) => st.connection === "connected");
   const s = session.state;
   const q = s.currentQuestion!;
   const role = myRole(session, myId);
@@ -67,16 +52,25 @@ export function useAnswerChoices() {
   }, [visible, s.isPaused, showIn]);
 
   const answers = [...(q.answers ?? [])].sort((a, b) => a.order - b.order);
+  const rejected = new Set(
+    (s.answeredPlayers ?? [])
+      .filter((attempt) => attempt.answerType === "wrong" && attempt.choiceOrder != null)
+      .map((attempt) => attempt.choiceOrder),
+  );
   const correct = role === "showman" ? q.answerText?.trim().toLowerCase() : undefined;
+  const correctOrder = role === "showman" ? q.correctChoiceOrder : undefined;
   // Locked while the pick is on its way or accepted; a failed send unlocks it
   const locked = pending?.action === "answer-submitted" || session.submittedAnswer != null;
 
   function pick(a: ChoiceAnswer, i: number) {
-    if (!answering || locked) return;
+    if (!answering || locked || rejected.has(a.order)) return;
     setPicked(i);
     connection.emit("answer-submitted", {
       answerText: optionAnswer(a.text, i, answers),
+      ...(answers.filter((option) => option.order === a.order).length === 1
+        ? { choiceOrder: a.order }
+        : {}),
     });
   }
-  return { visible, answers, correct, answering, locked, picked, pick };
+  return { visible, answers, correct, correctOrder, answering, locked, picked, pick, rejected };
 }

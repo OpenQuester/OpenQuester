@@ -35,9 +35,7 @@ test("only the no-risk picker answers; giving up reveals it without losing point
   await expectPhase([picker, other], "Ready to buzz");
   await expect(other.getByTestId("buzz")).toHaveCount(0);
   await expect(other.getByTestId("dock-info")).toContainText("Not your turn");
-  await expect(
-    picker.getByRole("button", { name: "Pass on this question", exact: true }),
-  ).toHaveCount(0);
+  await expect(picker.getByRole("button", { name: "Pass", exact: true })).toHaveCount(0);
   await buzz(picker);
   await picker.getByRole("button", { name: "Give up", exact: true }).click();
   await expectPhase([page, kim.page, host.page], "Answer");
@@ -51,7 +49,7 @@ test("only the no-risk picker answers; giving up reveals it without losing point
   // Real showman actions produce system entries, which must stay badge-free.
   await host.page.getByRole("button", { name: "Pause", exact: true }).click();
   await expectPhase([page], "Paused");
-  await host.page.getByRole("button", { name: "Resume", exact: true }).click();
+  await host.page.locator("header").getByRole("button", { name: "Resume", exact: true }).click();
   await expectPhase([page], "Choosing");
   await expect(page.getByTestId("open-chat").getByLabel(/unread/i)).toHaveCount(0);
   await host.page.getByTestId("open-chat").click();

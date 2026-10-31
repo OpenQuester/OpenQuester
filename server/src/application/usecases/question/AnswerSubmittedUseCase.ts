@@ -5,6 +5,8 @@ import { AnswerType } from "domain/enums/package/AnswerType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { AnswerCheckLogic } from "domain/logic/question/AnswerCheckLogic";
 import { AnswerSubmittedLogic } from "domain/logic/question/AnswerSubmittedLogic";
+import { ChoiceSelectionLogic } from "domain/logic/question/ChoiceSelectionLogic";
+import { ChoiceAnswerLogic } from "domain/logic/question/ChoiceAnswerLogic";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import { DataMutationConverter } from "domain/types/action/DataMutation";
@@ -22,7 +24,7 @@ import { QuestionValueLogic } from "domain/logic/question/QuestionValueLogic";
  * Context-aware: receives prefetched game/player from the executor's
  * IN pipeline and returns pure results — no Redis calls.
  *
- * Usually read-only: the typed answer goes to the showman, who judges it.
+ * The submitted answer is saved while the showman judges it.
  * Choice, number and point answers are checked by the server instead
  * ({@link AnswerCheckLogic}) and judged right away.
  */
@@ -44,15 +46,26 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
     AnswerSubmittedLogic.validate(game, currentPlayer);
 
     const answerText = ctx.action.payload.answerText;
-    const result = AnswerSubmittedLogic.buildResult({ game, answerText });
+    const choiceOrder = ChoiceSelectionLogic.resolve(
+      game,
+      answerText,
+      ctx.action.payload.choiceOrder
+    );
+    AnswerSubmittedLogic.recordSubmission(game, answerText, choiceOrder);
+    const result = AnswerSubmittedLogic.buildResult({ game, answerText, choiceOrder });
     const submitted = DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts);
 
-    const verdict = await this._check(game, answerText);
+    const verdict = await this._check(
+      game,
+      answerText,
+      choiceOrder,
+      ctx.action.payload.choiceOrder !== undefined
+    );
     if (verdict === null) {
       return {
         success: true,
         data: result.data,
-        mutations: submitted,
+        mutations: [DataMutationConverter.saveGameMutation(game), ...submitted],
         broadcastGame: game
       };
     }
@@ -72,7 +85,12 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
   }
 
   /** Choice, number and point answers are judged by the server */
-  private async _check(game: Game, answerText: string | null): Promise<boolean | null> {
+  private async _check(
+    game: Game,
+    answerText: string | null,
+    choiceOrder: number | null,
+    explicitSelection: boolean
+  ): Promise<boolean | null> {
     const current = game.gameState.currentQuestion;
     const checkable =
       current?.type === PackageQuestionType.CHOICE ||
@@ -83,6 +101,9 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
 
     const resources = await this.transitionResourceService.getCurrentQuestionWithTheme(game);
 
-    return AnswerCheckLogic.check(resources?.questionWithTheme?.question, answerText);
+    const question = resources?.questionWithTheme?.question;
+    return current?.type === PackageQuestionType.CHOICE
+      ? ChoiceAnswerLogic.check(question, answerText, choiceOrder, explicitSelection)
+      : AnswerCheckLogic.check(question, answerText);
   }
 }

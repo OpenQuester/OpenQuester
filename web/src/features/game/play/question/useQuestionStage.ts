@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { timerElapsed } from "@/game/contentPlan";
+import { isMainTextItem, timerElapsed } from "@/game/contentPlan";
+import { pointImage } from "@/lib/pointImage";
 import type { GameSession } from "@/game/reducer";
 import { canAnswerNow, pointPicture, boardQuestionMeta, myRole, phaseOf } from "@/game/selectors";
 import { useGame, useSession } from "../../GameContext";
@@ -24,17 +25,23 @@ export function useQuestionStage() {
   // A sequenced text appears in its own step instead of under the media.
   const textIsStep =
     content?.kind === "question" &&
-    content.plan.steps.some((st) => st.items.some((i) => i.kind === "text"));
+    content.plan.steps.some((step) =>
+      step.items.some((item) => isMainTextItem(item, q?.textOrder, q?.textItems)),
+    );
   const price = s.stakeQuestionData?.highestBid ?? q?.price ?? meta?.question.price ?? null;
   // Point answers: the player who answers now clicks the spot on the picture.
   const picture = pointPicture(q);
-  const picking = !!picture && canAnswerNow(session, myId);
-  // Once the content has played, the stage would otherwise go quiet (a sound
-  // that ended leaves nothing on it): say what happens now instead.
-  const contentDone = useContentDone(session.content, s.isPaused);
-  const cue = phase === "showing" && contentDone && !picking;
+  const pointReady = usePointImageReady(session);
+  const picking =
+    !!picture &&
+    pointReady &&
+    (canAnswerNow(session, myId) ||
+      (phase === "all_play_answering" &&
+        role === "player" &&
+        !!s.allPlay?.entries.some((entry) => entry.playerId === myId && entry.submitted)));
 
   return {
+    myId,
     s,
     phase,
     role,
@@ -49,27 +56,28 @@ export function useQuestionStage() {
     price,
     picture,
     picking,
-    cue,
   };
 }
 
-/** True once the question's content timeline has played to the end. */
-function useContentDone(content: GameSession["content"], paused: boolean): boolean {
-  const [, setTick] = useState(0);
-  const running = !!content?.timer && content.frozenAtMs == null && !paused;
-  const elapsed = !content
-    ? 0
-    : (content.frozenAtMs ??
-      (content.timer ? timerElapsed(content.timer, paused) : content.plan.totalMs));
-  const total = content?.plan.totalMs ?? 0;
-  const done = !content || content.kind !== "question" || elapsed >= total;
-  const waitMs = running && !done ? total - elapsed + 30 : null;
+/** Do not show a later answer image ahead of the running question timeline. */
+export function usePointImageReady(session: GameSession): boolean {
+  const [, tick] = useState(0);
+  const { currentQuestion: q, isPaused } = session.state;
+  const content = session.content;
+  const image = pointImage(q?.questionFiles, q?.pointImageOrder);
+  const step =
+    image && content?.kind === "question"
+      ? content.plan.steps.find((item) =>
+          item.items.some((part) => part.kind === "file" && part.order === image.order),
+        )
+      : undefined;
+  const running = content?.kind === "question" && content.timer && content.frozenAtMs == null;
+  const elapsed = running ? timerElapsed(content.timer, isPaused) : 0;
+  const wait = running && step ? Math.max(0, step.startMs - elapsed) : 0;
   useEffect(() => {
-    if (waitMs == null) return;
-    const id = window.setTimeout(() => setTick((n) => n + 1), waitMs);
+    if (!wait || isPaused) return;
+    const id = window.setTimeout(() => tick((value) => value + 1), wait + 30);
     return () => window.clearTimeout(id);
-    // Re-armed when the timeline changes, not on every render
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, running, done]);
-  return done;
+  }, [wait, isPaused]);
+  return wait === 0;
 }

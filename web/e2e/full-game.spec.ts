@@ -62,10 +62,10 @@ test.describe("full game", () => {
         p === host ? "Showman" : p === sam ? "Spectator" : "Player",
       );
 
-    // Everyone can see every player's score; the showman also gets host tools.
-    await sam.page.getByTestId("open-players").click();
-    await expect(sam.page.getByTestId("players-row")).toHaveCount(2);
-    await expect(sam.page.getByTestId("players-panel")).toContainText("Hana");
+    // Scores stay in the header; the public panel lists connected spectators.
+    await expect(sam.page.getByTestId("player-chip")).toHaveCount(2);
+    await sam.page.getByTestId("open-spectators").click();
+    await expect(sam.page.getByTestId("spectators-panel")).toContainText("Sam");
     await sam.page.keyboard.press("Escape");
     await expect(alice.page.getByTestId("host-tools")).toHaveCount(0);
     await host.page.getByTestId("host-tools").click();
@@ -102,7 +102,7 @@ test.describe("full game", () => {
     await shot(alice.page, "09-answering-player-phone");
     await host.page.keyboard.press("c");
     await expectPhase(all, "Answer");
-    await expect(dockStatus(bob.page)).toHaveText("Alice was right · +100");
+    await expect(dockStatus(bob.page)).toHaveText("Alice answers correctly · +100");
     await expect(sam.page.getByTestId("answer-reveal")).toContainText("Paris");
     await shot(bob.page, "10-reveal-tablet");
     await expect.poll(() => chipScore(sam.page, "Alice")).toBe("100");
@@ -132,7 +132,7 @@ test.describe("full game", () => {
     await expectPhase([alice.page, bob.page], "Ready to buzz");
     await expect(bob.page.getByTestId("dock-info")).toHaveText("You already answered this one");
     await expect.poll(() => chipScore(host.page, "Bob")).toBe("−200");
-    await alice.page.getByRole("button", { name: "Pass on this question" }).click();
+    await alice.page.getByRole("button", { name: "Pass" }).click();
     await expectPhase(all, "Answer");
     await expect(dockStatus(alice.page)).toHaveText("Here's the answer");
     await expect(alice.page.getByTestId("answer-reveal")).toContainText("Amber");
@@ -141,10 +141,10 @@ test.describe("full game", () => {
 
     // ── Pause freezes everyone; chat works for every role ──────────────────
     await host.page.getByRole("button", { name: "Pause" }).click();
-    await expect(alice.page.getByTestId("paused-banner")).toContainText("Paused by Hana");
+    await expect(alice.page.getByTestId("pause-overlay")).toContainText("Game paused");
+    await expect(sam.page.getByTestId("pause-overlay")).toContainText("Waiting for the showman");
+    await expect(host.page.getByTestId("game-stage")).toHaveAttribute("inert", "");
     await expect(dockPhase(alice.page)).toHaveText("Paused");
-    await host.page.getByRole("button", { name: "Resume" }).click();
-    await expect(alice.page.getByTestId("paused-banner")).toHaveCount(0);
     await sam.page.getByRole("button", { name: "Chat" }).click();
     await sam.page.getByLabel("Message").fill("good luck everyone");
     await sam.page.getByRole("button", { name: "Send" }).click();
@@ -152,6 +152,8 @@ test.describe("full game", () => {
     await alice.page.getByRole("button", { name: "Chat" }).click();
     await expect(alice.page.getByRole("dialog")).toContainText("good luck everyone");
     await alice.page.keyboard.press("Escape");
+    await host.page.locator("header").getByRole("button", { name: "Resume" }).click();
+    await expect(alice.page.getByTestId("pause-overlay")).toHaveCount(0);
 
     // ── No-risk question: a wrong answer costs nothing ─────────────────────
     // Played questions keep their price on the board, but can't be picked.
@@ -219,6 +221,7 @@ test.describe("full game", () => {
     // ── Choice question: buzz, then pick an option ─────────────────────────
     await cell(host.page, "Specials", 400).click();
     await expectPhase(all, "Ready to buzz");
+    await alice.page.getByRole("tab", { name: "Answer options · 4" }).click();
     await expect(alice.page.getByRole("button", { name: /Dolphin/ })).toBeDisabled();
     await buzz(alice.page);
     await expect(alice.page.getByRole("button", { name: /Dolphin/ })).toBeEnabled();

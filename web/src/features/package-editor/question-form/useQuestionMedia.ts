@@ -1,8 +1,14 @@
 import { useContext, useRef, useState, type DragEvent } from "react";
 import { StagedMediaContext } from "../packageEditorStore";
 import { useOpenMedia } from "../media-editor/useStagedMedia";
-import type { DraftMedia } from "../packageDraft";
+import { newId, type DraftMedia, type DraftQuestion } from "../packageDraft";
 import { usePackageEditor } from "../packageEditorStore";
+import {
+  changeMedia,
+  moveMedia,
+  type ApplyMediaChange,
+  type MediaSlot,
+} from "./questionMediaHistory";
 export type QuestionMediaListProps = {
   label: string;
   help: string;
@@ -12,26 +18,34 @@ export type QuestionMediaListProps = {
    * a removal or another drop during a read must not be overwritten.
    */
   onChange: (update: (files: DraftMedia[]) => DraftMedia[]) => void;
-  onGeometryChange?: (index: number) => (() => void) | undefined;
+  slot: MediaSlot;
+  applyMedia: ApplyMediaChange;
+  point?: DraftQuestion["answerPoint"];
+  pointImageId?: string;
 };
 /** Stage occurrence-specific changes; every async result reads the latest list. */
-export function useQuestionMedia({ label, onChange, onGeometryChange }: QuestionMediaListProps) {
+export function useQuestionMedia({
+  label,
+  files,
+  onChange,
+  slot,
+  applyMedia,
+}: QuestionMediaListProps) {
   const stored = usePackageEditor((s) => s.media);
   const staged = useContext(StagedMediaContext);
   const openMedia = useOpenMedia();
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
-  const [undo, setUndo] = useState<{ run: () => void } | null>(null);
 
   const add = (list: FileList | File[]) =>
     openMedia([...list], label, ({ file }) => {
       const added = {
+        occurrenceId: newId(),
         md5: file.md5,
         type: file.type,
         displayTime: file.type === "image" ? 5000 : null,
       };
-      onChange((current) => [...current, added]);
-      setUndo({ run: () => onChange((current) => current.filter((f) => f !== added)) });
+      applyMedia(changeMedia(slot, { kind: "add", file: added }));
     });
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer.files.length) return;
@@ -44,29 +58,23 @@ export function useQuestionMedia({ label, onChange, onGeometryChange }: Question
     const file = staged?.get(m.md5) ?? stored.get(m.md5);
     if (!file) return;
     openMedia([file], label, ({ file: result, geometryChanged }) => {
-      onChange((current) =>
-        current.map((f, j) =>
-          j === i && f.md5 === m.md5 ? { ...f, md5: result.md5, type: result.type } : f,
-        ),
+      applyMedia(
+        changeMedia(slot, {
+          kind: "edit",
+          index: i,
+          original: m,
+          file: { ...m, md5: result.md5, type: result.type },
+          geometryChanged,
+        }),
       );
-      const undoGeometry = geometryChanged ? onGeometryChange?.(i) : undefined;
-      setUndo({
-        run: () => {
-          onChange((current) =>
-            current.map((f, j) =>
-              j === i && f.md5 === result.md5 ? { ...f, md5: m.md5, type: m.type } : f,
-            ),
-          );
-          undoGeometry?.();
-        },
-      });
     });
   };
   const setDisplayTime = (i: number, value: string) => {
     const s = Number(value.replace(",", "."));
+    const id = files[i]?.occurrenceId;
     onChange((current) =>
       current.map((f, j) =>
-        j === i
+        (id ? f.occurrenceId === id : j === i)
           ? {
               ...f,
               displayTime: value === "" || Number.isNaN(s) ? null : Math.round(s * 1000),
@@ -75,21 +83,31 @@ export function useQuestionMedia({ label, onChange, onGeometryChange }: Question
       ),
     );
   };
-  const canEdit = (m: DraftMedia) => !!staged?.has(m.md5) || stored.has(m.md5);
-  const undoChange = () => {
-    undo?.run();
-    setUndo(null);
+  const move = (id: string, destination: number) => {
+    const next = moveMedia(files, id, destination);
+    if (next === files) return;
+    applyMedia(
+      changeMedia(slot, {
+        kind: "move",
+        occurrenceId: id,
+        destination,
+      }),
+    );
   };
+  const canEdit = (m: DraftMedia) => !!staged?.has(m.md5) || stored.has(m.md5);
   return {
     inputRef: input,
     over,
     setOver,
-    hasUndo: !!undo,
-    undoChange,
+    remove: (index: number) =>
+      applyMedia(
+        changeMedia(slot, { kind: "remove", index, occurrenceId: files[index]?.occurrenceId }),
+      ),
     add,
     onDrop,
     edit,
     canEdit,
     setDisplayTime,
+    move,
   };
 }

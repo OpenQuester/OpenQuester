@@ -1,25 +1,28 @@
 import { gameBoardStyles } from "./board/gameBoardStyles";
 import { useTranslation } from "react-i18next";
 import { findPlayer, myRole } from "@/game/selectors";
-import { useGameStore } from "@/game/store";
 import { Button } from "@/ui/Button";
-import { useGame, useSession } from "../GameContext";
+import { useGame, useGameState, useSession } from "../GameContext";
 import { BoardThemeRow } from "./board/BoardThemeRow";
 import { useBoardLayout } from "./board/useBoardLayout";
+import type { CSSProperties } from "react";
 
 /** The round board. Cells you can pick now are amber; played cells are empty. */
 export function GameBoard() {
   const { t } = useTranslation();
   const session = useSession();
   const { myId } = useGame();
-  const boardEdit = useGameStore((s) => s.boardEdit);
-  const setBoardEdit = useGameStore((s) => s.setBoardEdit);
+  const boardEdit = useGameState((s) => s.boardEdit);
+  const setBoardEdit = useGameState((s) => s.setBoardEdit);
   const themes = [...(session.state.currentRound?.themes ?? [])].sort((a, b) => a.order - b.order);
   const picker = findPlayer(session, session.state.currentTurnPlayerId);
   const { ref, columns, stacked, perRow } = useBoardLayout(themes);
 
   return (
-    <section aria-labelledby="board-caption" className="flex flex-1 flex-col gap-3">
+    <section
+      aria-labelledby="board-caption"
+      className="game-board flex min-h-0 flex-1 flex-col gap-3"
+    >
       <h2 id="board-caption" className="sr-only">
         {t("board.caption", { round: session.state.currentRound?.name ?? "" })}
         {picker ? `. ${t("board.picker", { name: picker.meta.username })}` : ""}
@@ -39,22 +42,26 @@ export function GameBoard() {
       )}
       <div
         ref={ref}
-        className="grid gap-2 sm:gap-2.5"
-        style={{ gridTemplateColumns: `minmax(0, 1fr)` }}
-        role="table"
-        aria-describedby="board-caption"
+        className="board-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain"
         data-layout={stacked ? "stacked" : "table"}
       >
-        {themes.map((theme) => (
-          <BoardThemeRow
-            key={theme.id}
-            theme={theme}
-            stacked={stacked}
-            columns={columns}
-            perRow={perRow}
-            boardEdit={boardEdit}
-          />
-        ))}
+        <table className="block w-full" aria-labelledby="board-caption">
+          <tbody
+            className="board-rows"
+            style={{ "--board-rows": Math.max(1, Math.min(9, themes.length)) } as CSSProperties}
+          >
+            {themes.map((theme) => (
+              <BoardThemeRow
+                key={theme.id}
+                theme={theme}
+                stacked={stacked}
+                columns={columns}
+                perRow={perRow}
+                boardEdit={boardEdit}
+              />
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );

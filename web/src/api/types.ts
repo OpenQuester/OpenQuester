@@ -6,6 +6,7 @@ export type User = S["ResponseUser"];
 export type AuthSettings = S["ResponseAuthSettings"];
 export type OauthProvider = S["OauthProviderSettings"]["provider"];
 export type GameListItem = S["GameListItem"];
+export type GameStatusFilter = S["GameStatusFilter"];
 export type PaginatedGames = S["PaginatedGames"];
 export type PackageListItem = S["PackageListItem"];
 export type PaginatedPackages = S["PaginatedPackages"];

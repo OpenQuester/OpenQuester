@@ -1134,7 +1134,7 @@ export interface paths {
         };
         /**
          * Get all games
-         * @description Returns lobby games from Redis-backed indexes. Games deleted by REST or by empty-game cleanup are removed from these indexes before they disappear from the listing.
+         * @description Returns games from Redis-backed indexes. Optional title, privacy, date and status filters apply together before pagination and the returned total. Omitting status includes every lifecycle status. Games deleted by REST or by empty-game cleanup are removed from these indexes before they disappear from the listing.
          */
         get: {
             parameters: {
@@ -1147,6 +1147,7 @@ export interface paths {
                     createdAtMax?: components["schemas"]["FilterCreatedAtMax"];
                     isPrivate?: components["schemas"]["FilterIsPrivate"];
                     titlePrefix?: components["schemas"]["PaginationTitlePrefix"];
+                    status?: components["schemas"]["GameStatusFilter"];
                 };
                 header?: never;
                 path?: never;
@@ -3512,6 +3513,11 @@ export interface components {
         /** @example false */
         FilterIsPrivate: boolean;
         /**
+         * @description Filter before pagination: lobby means neither started nor finished; playing means started and not finished. Omit to include all statuses, including finished games.
+         * @enum {string}
+         */
+        GameStatusFilter: "lobby" | "playing";
+        /**
          * @description Search by title prefix (start)
          * @example Anime
          */
@@ -3839,6 +3845,11 @@ export interface components {
         };
         /** @description Optional media-downloaded payload. Clients that can read media metadata report real audio/video lengths so the server can time the content timeline; the longest report per file wins. */
         SocketIOMediaDownloadedInput: {
+            /**
+             * Format: uuid
+             * @description Required for sequenced final media preparation; stale acknowledgements are ignored.
+             */
+            mediaPreparationId?: string;
             mediaDurations?: {
                 /** @example 32f6abdc2da002d5f992d2b244ca0820 */
                 md5: string;
@@ -3875,6 +3886,11 @@ export interface components {
              * @example null
              */
             textOrder?: number | null;
+            /** @description Additional sequential screen-text steps. Each order must be unique and must not equal textOrder or a question file order. The legacy text and textOrder retain their existing meaning. For final questions with a non-null array, every question audio/video requires an integer displayTime from 1 to 120000 milliseconds. */
+            textItems?: {
+                order: number;
+                text: string;
+            }[] | null;
             /**
              * @description Hint for the answer
              * @example It's in Europe
@@ -3886,6 +3902,8 @@ export interface components {
             answerNumber?: number | null;
             /** @description Point answers: the right spot. Showman only until the answer is revealed */
             answerPoint?: components["schemas"]["AnswerPoint"] | null;
+            /** @description Public order of the question image for point answers. An explicit order must identify exactly one image; null or absence selects the first image by order for legacy questions. This field does not reveal the correct coordinates. */
+            pointImageOrder?: number | null;
             /** @description How far off still counts: an amount for numbers, a fraction of the picture's width for points */
             answerDeviation?: number | null;
             /** @description Other answers that count as right (besides answerText). Only the showman sees them during the question; revealed with the answer */
@@ -3921,6 +3939,8 @@ export interface components {
             /** @constant */
             subType?: "simple";
             showDelay: components["schemas"]["QuestionShowDelay"];
+            /** @description Optional unique order of the authored correct choice; omitted for legacy questions and hidden from players before reveal */
+            correctChoiceOrder?: number | null;
             answers: components["schemas"]["QuestionChoiceAnswers"][];
         } & {
             /**
@@ -4286,6 +4306,12 @@ export interface components {
              * @example 727
              */
             answeringPlayer?: number | null;
+            /** @description Current regular submitted answer while awaiting a ruling; absent for legacy states */
+            submittedAnswer?: string | null;
+            /** @description Current regular choice order while awaiting a ruling; absent for legacy states */
+            submittedChoiceOrder?: number | null;
+            /** @description Answer reveal retained while showing the answer */
+            answerShowData?: components["schemas"]["SocketIOQuestionFinishEventPayload"] | null;
             answeredPlayers?: components["schemas"]["GameStateAnsweredPlayer"][] | null;
             /**
              * @description IDs of players who skipped the question
@@ -4389,6 +4415,10 @@ export interface components {
              */
             score: number;
             answerType: components["schemas"]["SocketIOGameAnswerType"];
+            /** @description Actual submitted answer, null or absent for oral and legacy answers */
+            answerText?: string | null;
+            /** @description Validated order of the selected choice, when known */
+            choiceOrder?: number | null;
             /** @description How much the score really moved (result clamped by the score limit); undoing the ruling takes back exactly this */
             appliedChange?: number;
         };
@@ -4525,6 +4555,8 @@ export interface components {
             contentPlan?: components["schemas"]["QuestionContentPlan"] | null;
             /** @description Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away */
             buzzerOpensAtMs?: number | null;
+            /** @description True when final media readiness timed out before playback started. */
+            timedOut?: boolean;
         };
         /** @description Data sent to all players when player unskips a question */
         SocketIOGameUnskipEventPayload: {
@@ -4743,6 +4775,8 @@ export interface components {
              * @example I don't know
              */
             answerText?: string | null;
+            /** @description Optional selected choice order for a regular choice question */
+            choiceOrder?: number;
         };
         /** @description Data sent to all players when the showman evaluates an answer */
         SocketIOAnswerResultEventPayload: {
@@ -5020,6 +5054,8 @@ export interface components {
         /** @description Data sent when final round question is revealed. Role-filtered: the showman's copy includes answerText and answerHint so they can judge; players and spectators get the question without the answer. */
         SocketIOFinalQuestionEventDataPayload: {
             questionData: components["schemas"]["FinalRoundQuestionData"];
+            /** @description Preparation timer, present while final media is being loaded. */
+            timer?: components["schemas"]["GameStateTimer"];
         };
         /** @description Data sent when final round answering phase ends */
         SocketIOFinalSubmitEndPayload: {
@@ -5034,6 +5070,8 @@ export interface components {
             answerText: components["schemas"]["QuestionAnswerText"] | null;
             /** @description ID of the next player to take their turn, null if no next player (game finished) */
             nextTurnPlayerId?: number | null;
+            /** @description Result of the regular answer, including actual submitted text when available */
+            answerResult?: components["schemas"]["GameStateAnsweredPlayer"];
             /** @description Answer files timeline on the SHOWING_ANSWER timer; the answer text stays visible as the headline */
             answerContentPlan?: components["schemas"]["QuestionContentPlan"] | null;
             /** @description Other answers that also counted as right */
@@ -5044,6 +5082,10 @@ export interface components {
             sources?: string[] | null;
             /** @description Point answers: the right spot */
             answerPoint?: components["schemas"]["AnswerPoint"] | null;
+            /** @description Original question image URL for the point-answer reveal, retained on rejoin */
+            answerPointImage?: string | null;
+            /** @description Image-only correct choice for the answer reveal, retained on rejoin */
+            correctChoiceImage?: string | null;
             answerDeviation?: number | null;
         };
         /** @description Data sent when a player automatically loses in final round */
@@ -5074,6 +5116,15 @@ export interface components {
              */
             themeName: string;
             question: components["schemas"]["PackageQuestion"];
+            /** @description Sequenced final question content on the answering timer; absent for legacy questions. The answer window starts after totalMs. */
+            contentPlan?: components["schemas"]["QuestionContentPlan"] | null;
+            /**
+             * Format: uuid
+             * @description Active final media preparation identifier; use it in media-downloaded.
+             */
+            mediaPreparationId?: string;
+            /** @description True if preparation timed out before playback. */
+            mediaPreparationTimedOut?: boolean;
         };
         /** @description Data for reviewing final round answers */
         AnswerReviewData: {
@@ -5533,6 +5584,11 @@ export interface components {
         /** @description Rules the host picks when creating a game. Missing fields use their defaults. */
         GameSettings: {
             /**
+             * @description Start automatically when every connected player is ready. When false, only the showman can start manually. Chosen at game creation; omitted values preserve automatic start.
+             * @default true
+             */
+            autoStart: boolean;
+            /**
              * @description The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time
              * @default true
              */
@@ -5543,6 +5599,11 @@ export interface components {
         };
         /** @description Game settings on creation; omitted fields use their defaults */
         GameSettingsInput: {
+            /**
+             * @description Start automatically when every connected player is ready. When false, only the showman can start manually. Chosen at game creation; omitted values preserve automatic start.
+             * @default true
+             */
+            autoStart: boolean;
             /**
              * @description The buzzer opens after the question content and a caption's reading time; pressing earlier locks the player out for 3 s. When false, players may press at any time
              * @default true
@@ -5725,6 +5786,8 @@ export interface components {
         AnswerPoint: {
             x: number;
             y: number;
+            /** @description Oriented first image width divided by height; absent for legacy questions. */
+            imageAspectRatio?: number;
         };
         /**
          * @description Who may join right now: everyone, spectators only, or nobody new. People already in the game can always come back

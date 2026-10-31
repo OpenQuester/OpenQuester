@@ -44,6 +44,17 @@ export const CheckIcon = (p: { size?: number }) => (
     <path d="M5 12l5 5L20 7" />
   </Icon>
 );
+export const TrophyIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M8 3h8v5a4 4 0 0 1-8 0V3Z" />
+    <path d="M8 5H5v2a3 3 0 0 0 3 3m8-5h3v2a3 3 0 0 1-3 3m-4 2v5m-4 4h8m-7-4h6v4H9z" />
+  </Icon>
+);
+export const SaveIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M5 3h12l4 4v14H3V3h2zM7 3v6h9V3M7 21v-8h10v8" />
+  </Icon>
+);
 export const CopyIcon = (p: { size?: number }) => (
   <Icon {...p}>
     <rect x="9" y="9" width="11" height="11" rx="2" />
@@ -105,9 +116,20 @@ export const VolumeOffIcon = (p: { size?: number }) => (
     <path d="M11 5L6 9H3v6h3l5 4V5zM16 9l5 6M21 9l-5 6" />
   </Icon>
 );
+export const FullscreenIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
+  </Icon>
+);
 export const EyeIcon = (p: { size?: number }) => (
   <Icon {...p}>
     <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </Icon>
+);
+export const EyeOffIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM3 3l18 18" />
     <circle cx="12" cy="12" r="3" />
   </Icon>
 );

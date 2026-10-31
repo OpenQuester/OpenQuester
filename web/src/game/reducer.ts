@@ -1,6 +1,13 @@
 import { serverNow } from "@/lib/clock";
+import { withPointSummary } from "./pointSummary";
+import {
+  snapshotFeedback,
+  updateQuestionFeedback,
+  type QuestionFeedback,
+} from "./questionFeedback";
 
 import { buildContentPlan, timerElapsed } from "./contentPlan";
+import { questionValue } from "./selectors";
 import type {
   AnsweredPlayer,
   ChatMessage,
@@ -52,6 +59,8 @@ export interface GameSession {
   finished: boolean;
   /** Text the answering player typed, shown to the showman. */
   submittedAnswer: string | null;
+  /** A regular answer-submitted event arrived, even when its text was null. */
+  hasAnswerSubmission: boolean;
   /** Most recent judged answer, for result feedback. */
   lastResult: (AnsweredPlayer & { key: number }) | null;
   /** Final round: players whose answer is in (text hidden until review). */
@@ -67,12 +76,15 @@ export interface GameSession {
   turnUnknown: boolean;
   /** Question or answer content timeline, when there is one to play. */
   content: ContentClock | null;
+  /** Client-known value of the last completed question; fresh joins may not know it. */
+  lastQuestionValue?: number;
+  questionFeedback?: QuestionFeedback;
 }
 
 export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSession {
   const state = normalizeState(data.gameState);
   const finalData = state.finalRoundData;
-  return {
+  return withPointSummary({
     gameId,
     title: data.meta.title,
     settings: data.meta.settings ?? null,
@@ -83,7 +95,15 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
       (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
     ),
     finished: false,
-    submittedAnswer: null,
+    submittedAnswer:
+      state.questionState === "answering" && state.currentRound?.type !== "final" && !state.allPlay
+        ? (state.submittedAnswer ?? null)
+        : null,
+    hasAnswerSubmission:
+      state.questionState === "answering" &&
+      state.currentRound?.type !== "final" &&
+      !state.allPlay &&
+      state.submittedAnswer != null,
     lastResult: null,
     finalSubmitted: finalData ? finalData.answers.map((a) => a.playerId) : [],
     finalAutoLoss: finalData
@@ -96,7 +116,8 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
     version: 0,
     turnUnknown: false,
     content: contentFromSnapshot(state),
-  };
+    questionFeedback: snapshotFeedback(state, Date.now()),
+  });
 }
 
 /** The question's own plan, or one built locally when the server sent none. */
@@ -106,6 +127,7 @@ function questionPlan(question: Question | null, sent: ContentPlan | null | unde
   return buildContentPlan({
     text: question.text,
     textOrder: question.textOrder,
+    textItems: question.textItems,
     files: question.questionFiles,
   });
 }
@@ -224,6 +246,8 @@ function backToChoosing(session: GameSession): GameSession {
       answeredPlayers: null,
       skippedPlayers: null,
       answerShowData: null,
+      submittedAnswer: null,
+      submittedChoiceOrder: null,
       secretQuestionData: null,
       stakeQuestionData: null,
       questionEligiblePlayers: null,
@@ -233,6 +257,7 @@ function backToChoosing(session: GameSession): GameSession {
       buzzerLocks: null,
     }),
     submittedAnswer: null,
+    hasAnswerSubmission: false,
     content: null,
     players: session.players.map((p) => ({ ...p, mediaDownloaded: false })),
   };
@@ -290,6 +315,8 @@ function onQuestionData(
       answeredPlayers: newPick ? null : s.answeredPlayers,
       skippedPlayers: newPick ? null : s.skippedPlayers,
       answerShowData: newPick ? null : s.answerShowData,
+      submittedAnswer: newPick ? null : s.submittedAnswer,
+      submittedChoiceOrder: newPick ? null : s.submittedChoiceOrder,
       questionEligiblePlayers: eligible ?? s.questionEligiblePlayers ?? null,
       buzzerOpensAtMs:
         buzzerOpensAtMs !== undefined ? buzzerOpensAtMs : newPick ? null : s.buzzerOpensAtMs,
@@ -299,6 +326,7 @@ function onQuestionData(
       allPlay: s.allPlay?.questionId === data.id ? s.allPlay : null,
     }),
     submittedAnswer: newPick ? null : session.submittedAnswer,
+    hasAnswerSubmission: newPick ? false : session.hasAnswerSubmission,
     content: questionContent(session, questionState, data, timer, sentPlan, newPick),
     players:
       newPick && questionState === "media_downloading"
@@ -328,14 +356,31 @@ function questionContent(
   // While someone answers, this event carries the answer timer, not the
   // question's: the position is unknown until the question resumes.
   const running =
-    newPick || questionState === "showing" || isDirectAnswer({ ...session.state, questionState });
+    newPick ||
+    questionState === "showing" ||
+    isDirectAnswer({ ...session.state, questionState, currentQuestion: question });
   return { kind: "question", plan, timer: running ? timer : null, frozenAtMs: null };
 }
 
 /** Applies one server event. Pure: never mutates `session`. */
 export function reduce(session: GameSession, event: ServerEvent): GameSession {
-  const next = apply(session, event);
-  return next === session ? session : { ...next, version: session.version + 1 };
+  const applied = apply(session, event);
+  const next = [
+    "question-finish",
+    "answer-result",
+    "answer-result-undo",
+    "all-play-review",
+    "final-answer-review",
+  ].includes(event.type)
+    ? withPointSummary(applied)
+    : applied;
+  return next === session
+    ? session
+    : {
+        ...next,
+        questionFeedback: updateQuestionFeedback(session, next, event, Date.now()),
+        version: session.version + 1,
+      };
 }
 
 const TURN_EVENTS = new Set<ServerEvent["type"]>([
@@ -348,7 +393,10 @@ const TURN_EVENTS = new Set<ServerEvent["type"]>([
 ]);
 
 function apply(session: GameSession, event: ServerEvent): GameSession {
-  const next = applyEvent(session, event);
+  let next = applyEvent(session, event);
+  if (event.type === "question-finish" && session.state.currentQuestion) {
+    next = { ...next, lastQuestionValue: questionValue(session) };
+  }
   return next.turnUnknown && TURN_EVENTS.has(event.type) ? { ...next, turnUnknown: false } : next;
 }
 
@@ -429,8 +477,15 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       return patchState(session, { readyPlayers: event.payload.readyPlayers });
 
     case "media-download-status": {
-      const { playerId, mediaDownloaded, allPlayersReady, timer, contentPlan, buzzerOpensAtMs } =
-        event.payload;
+      const {
+        playerId,
+        mediaDownloaded,
+        allPlayersReady,
+        timer,
+        contentPlan,
+        buzzerOpensAtMs,
+        timedOut,
+      } = event.payload;
       let players = session.players;
       if (allPlayersReady) {
         players = players.map((p) => (p.role === "player" ? { ...p, mediaDownloaded: true } : p));
@@ -439,6 +494,22 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       }
       const next = { ...session, players };
       if (allPlayersReady && s.questionState === "media_downloading") {
+        if (
+          s.currentRound?.type === "final" &&
+          s.finalRoundData?.questionData?.mediaPreparationId
+        ) {
+          const final = s.finalRoundData;
+          return patchState(
+            patchFinal(next, {
+              questionData: {
+                ...final.questionData!,
+                contentPlan: contentPlan ?? final.questionData!.contentPlan,
+                mediaPreparationTimedOut: !!timedOut,
+              },
+            }),
+            { questionState: "answering", timer: timer ?? s.timer },
+          );
+        }
         const plan = questionPlan(s.currentQuestion, contentPlan);
         const clock = timer ?? s.timer;
         return {
@@ -483,14 +554,24 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         ...patchState(session, {
           questionState: "answering",
           answeringPlayer: event.payload.userId,
+          submittedAnswer: null,
+          submittedChoiceOrder: null,
           timer: event.payload.timer,
         }),
         submittedAnswer: null,
+        hasAnswerSubmission: false,
         content: freeze(session.content, s.isPaused),
       };
 
     case "answer-submitted":
-      return { ...session, submittedAnswer: event.payload.answerText };
+      return {
+        ...patchState(session, {
+          submittedAnswer: event.payload.answerText,
+          submittedChoiceOrder: event.payload.choiceOrder ?? null,
+        }),
+        submittedAnswer: event.payload.answerText,
+        hasAnswerSubmission: true,
+      };
 
     case "answer-result": {
       const result = event.payload.answerResult;
@@ -506,6 +587,8 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       return {
         ...patchState(session, {
           answeringPlayer: null,
+          submittedAnswer: null,
+          submittedChoiceOrder: null,
           answeredPlayers: answered,
           // A correct answer is followed by question-finish and the reveal.
           questionState: reopened ? "showing" : s.questionState,
@@ -513,6 +596,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         }),
         players,
         submittedAnswer: null,
+        hasAnswerSubmission: false,
         lastResult: { ...result, key: session.version + 1 },
         // The server restores the showing timer: the content picks up there.
         content:
@@ -534,11 +618,14 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           questionState: "showing_answer",
           answerShowData: data,
           answeringPlayer: null,
+          submittedAnswer: null,
+          submittedChoiceOrder: null,
           currentTurnPlayerId: data.nextTurnPlayerId ?? s.currentTurnPlayerId,
           currentRound: markQuestionPlayed(s.currentRound, s.currentQuestion?.id),
           skippedPlayers: null,
           timer: null,
         }),
+        hasAnswerSubmission: false,
         content: revealPlan
           ? {
               kind: "answer",
@@ -816,6 +903,22 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
 
     case "final-question-data": {
       const next = patchFinal(session, { questionData: event.payload.questionData });
+      if (event.payload.questionData.mediaPreparationId) {
+        const samePreparation =
+          s.questionState === "media_downloading" &&
+          s.finalRoundData?.questionData?.mediaPreparationId ===
+            event.payload.questionData.mediaPreparationId;
+        return {
+          ...patchState(patchFinal(next, { phase: "answering" }), {
+            currentQuestion: event.payload.questionData.question,
+            questionState: "media_downloading",
+            timer: event.payload.timer ?? (samePreparation ? s.timer : null),
+          }),
+          players: samePreparation
+            ? next.players
+            : next.players.map((p) => (p.role === "player" ? { ...p, mediaDownloaded: false } : p)),
+        };
+      }
       return patchState(next, { currentQuestion: event.payload.questionData.question });
     }
 
@@ -879,6 +982,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         ...session,
         state: { ...state, isPaused: state.isPaused ?? s.isPaused },
         submittedAnswer: null,
+        hasAnswerSubmission: false,
         finalSubmitted: [],
         finalAutoLoss: {},
         players: session.players.map((p) => ({ ...p, mediaDownloaded: false })),
@@ -892,7 +996,19 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       };
 
     case "player-role-change":
-      return { ...session, players: event.payload.players };
+      return {
+        ...session,
+        players: event.payload.players,
+        state: {
+          ...session.state,
+          readyPlayers:
+            session.state.readyPlayers?.filter((id) =>
+              event.payload.players.some(
+                (player) => player.meta.id === id && player.role === "player",
+              ),
+            ) ?? null,
+        },
+      };
 
     case "player-slot-change":
       return { ...session, players: event.payload.players };

@@ -6,6 +6,7 @@ import {
   isEligible,
   me as findMe,
   myRole,
+  pointPicture,
   remainingFinalThemes,
   seatedPlayers,
 } from "@/game/selectors";
@@ -22,6 +23,13 @@ export function finalEliminationModel({
   const turn = s.currentTurnPlayerId;
   const left = remainingFinalThemes(session).length;
   return {
+    statusPlayer:
+      turn === myId
+        ? undefined
+        : {
+            key: role === "showman" ? "dock.final.elimShowman" : "dock.final.elimOther",
+            name: name(turn),
+          },
     status:
       turn === myId
         ? t("dock.final.elimYou")
@@ -37,7 +45,13 @@ export function finalEliminationModel({
   };
 }
 
-export function finalBidModel({ reason, t, session, myId }: ActionDockContext): ActionDockModel {
+export function finalBidModel({
+  reason,
+  t,
+  session,
+  myId,
+  sending,
+}: ActionDockContext): ActionDockModel {
   const role = myRole(session, myId);
   const mePlayer = findMe(session, myId);
   const players = seatedPlayers(session).filter((p) => isEligible(session, p.meta.id));
@@ -71,18 +85,40 @@ export function finalBidModel({ reason, t, session, myId }: ActionDockContext): 
   const score = mePlayer!.score;
   return {
     status: t("dock.final.bidRange", { max: formatScore(score) }),
-    action: { kind: "bid", event: "final-bid-submit", min: 1, max: score, allIn: score },
+    action: {
+      kind: "bid",
+      event: "final-bid-submit",
+      range: { min: 1, max: score },
+      allIn: score,
+      pending: sending("final-bid-submit"),
+    },
     next,
   };
 }
 
-export function finalAnswerModel({ t, session, myId, reason }: ActionDockContext): ActionDockModel {
+export function finalAnswerModel({
+  t,
+  session,
+  myId,
+  reason,
+  finalContentPlaying,
+}: ActionDockContext): ActionDockModel {
   const role = myRole(session, myId);
   const players = seatedPlayers(session).filter(
     (p) => isEligible(session, p.meta.id) && finalBid(session, p.meta.id) != null,
   );
-  const done = players.filter((p) => session.finalSubmitted.includes(p.meta.id)).length;
-  const next = t("dock.final.answerNext");
+  const submitted = new Set(session.finalSubmitted);
+  const done = players.filter((p) => submitted.has(p.meta.id)).length;
+  const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
+  const point = !!pointPicture(q);
+  const next = t(point ? "dock.final.pointNext" : "dock.final.answerNext");
+  if (finalContentPlaying) {
+    return {
+      status: t("dock.final.contentPlaying"),
+      action: { kind: "info", text: t("dock.final.contentWait") },
+      next: t("dock.final.contentNext"),
+    };
+  }
   if (role !== "player") {
     return {
       status: t("dock.final.answersIn", { done, total: players.length }),
@@ -97,16 +133,25 @@ export function finalAnswerModel({ t, session, myId, reason }: ActionDockContext
       next,
     };
   }
-  if (session.finalSubmitted.includes(myId)) {
+  if (submitted.has(myId)) {
     return {
       status: t("dock.final.answerLocked"),
       action: { kind: "info", text: t("dock.final.waitOthers", { done, total: players.length }) },
       next,
     };
   }
+  if (q?.answerType === "point" && !point) {
+    return {
+      status: t("point.finalPictureUnavailable"),
+      action: { kind: "info", text: t("point.finalPictureUnavailable") },
+      next,
+    };
+  }
   return {
-    status: t("dock.final.typeAnswer", { amount: formatScore(finalBid(session, myId) ?? 0) }),
-    action: { kind: "timed-answer" },
+    status: t(point ? "dock.final.pointAnswer" : "dock.final.typeAnswer", {
+      amount: formatScore(finalBid(session, myId) ?? 0),
+    }),
+    action: point ? { kind: "info", text: t("point.prompt") } : { kind: "timed-answer" },
     next,
   };
 }

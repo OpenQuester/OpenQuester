@@ -57,7 +57,7 @@ test.describe("layout on this device", () => {
     const buzz = page.getByTestId("buzz");
     await expect(buzz).toBeInViewport();
     const box = await buzz.boundingBox();
-    expect(box!.height, "buzzer is a big touch target").toBeGreaterThanOrEqual(64);
+    expect(box!.height, "compact buzzer remains a big touch target").toBeGreaterThanOrEqual(56);
     await expectNoHorizontalScroll(page);
     await expect(buzz).not.toHaveAttribute("data-early", /.*/, { timeout: 20_000 });
     await buzz.click();
@@ -76,17 +76,30 @@ test.describe("layout on this device", () => {
     await joinByLink(page, code, "Pat", "player");
     await page.getByRole("button", { name: "I'm ready" }).click();
     await expect(dockPhase(page)).toHaveText("Choosing");
-    await expect(page.getByTestId("board-cell")).toHaveCount(60);
+    const cells = page.getByTestId("board-cell");
+    await expect(cells).toHaveCount(60);
+    // Wait until the round intro no longer covers the board before measuring.
+    await cells.first().click({ trial: true });
+    const viewport = page.viewportSize()!;
+    // Every price stays a comfortable touch target and fully visible after responsive layout.
+    await expect
+      .poll(() =>
+        cells.evaluateAll(
+          (els, width) => ({
+            count: els.length,
+            invalid: els.flatMap((el, index) => {
+              const rect = el.getBoundingClientRect();
+              return rect.width < 44 || rect.right > width
+                ? [{ index, width: rect.width, right: rect.right }]
+                : [];
+            }),
+          }),
+          viewport.width,
+        ),
+      )
+      .toEqual({ count: 60, invalid: [] });
     await expectNoHorizontalScroll(page);
     await shot(page, `big-board-${test.info().project.name}`);
-    // Every price stays a comfortable touch target and fully visible.
-    const viewport = page.viewportSize()!;
-    for (const box of await page
-      .getByTestId("board-cell")
-      .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON() as DOMRect))) {
-      expect(box.width).toBeGreaterThanOrEqual(44);
-      expect(box.right).toBeLessThanOrEqual(viewport.width);
-    }
 
     // A missing media file is reported, not shown as an empty question. A
     // player whose media failed doesn't report ready, so the question opens

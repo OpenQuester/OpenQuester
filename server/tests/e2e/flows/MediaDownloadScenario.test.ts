@@ -263,10 +263,9 @@ describe("Media Download client-contract golden scenarios", () => {
       const remainingPlayer = flow.player(1);
       const afterDuplicates = flow.mark();
       const duplicateProbe = flow.createAcceptedMediaDownloadProbe(duplicatePlayer);
-      const firstPartialStatus = flow.waitForMediaDownloadStatus(
+      const duplicateStatusesReceived = flow.collectMediaStatuses(
         flow.showman,
-        afterDuplicates,
-        expectedStatus(duplicatePlayer.userId!, false, null)
+        DUPLICATE_MEDIA_DOWNLOAD_COMMANDS
       );
 
       duplicatePlayer.emitMany({
@@ -276,7 +275,7 @@ describe("Media Download client-contract golden scenarios", () => {
 
       await Promise.all([
         duplicateProbe.waitForCount(DUPLICATE_MEDIA_DOWNLOAD_COMMANDS),
-        firstPartialStatus
+        duplicateStatusesReceived.promise
       ]);
       await flow.waitForActionsComplete();
 
@@ -317,6 +316,7 @@ describe("Media Download client-contract golden scenarios", () => {
       await flow.expectActiveTimerDuration(MEDIA_DOWNLOAD_TIMEOUT);
       await flow.expectNoSocketErrors(flow.allRecipients, afterDuplicates);
 
+      duplicateStatusesReceived.stop();
       const afterRemainingDownload = flow.mark();
       const remainingProbe = flow.createAcceptedMediaDownloadProbe(remainingPlayer);
       const finalStatus = expectedStatus(remainingPlayer.userId!, true, IMAGE_QUESTION_TIMER_MS);

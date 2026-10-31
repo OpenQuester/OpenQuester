@@ -1,4 +1,5 @@
 import { act, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -41,10 +42,13 @@ function setup(chat: ChatMessage[]) {
     pending: null,
   });
   const connection = { emit: vi.fn(), connected: true } as unknown as GameConnection;
+  const client = new QueryClient({ defaultOptions: { queries: { enabled: false } } });
   render(
-    <GameContext.Provider value={{ connection, myId: ALICE }}>
-      <GameScreen />
-    </GameContext.Provider>,
+    <QueryClientProvider client={client}>
+      <GameContext.Provider value={{ connection, myId: ALICE }}>
+        <GameScreen />
+      </GameContext.Provider>
+    </QueryClientProvider>,
   );
   const add = (m: ChatMessage) =>
     act(() => {
@@ -81,6 +85,33 @@ it("counts only player messages, clears the badge on read, and handles a full ch
   expect(badge()).not.toBeInTheDocument();
   add(message("new-message"));
   expect(badge()).toHaveTextContent("1");
+});
+
+it("reports a skipped ruling neutrally in the live announcement and game log", async () => {
+  setup([]);
+  act(() => {
+    const session = useGameStore.getState().session!;
+    useGameStore.setState({
+      session: {
+        ...session,
+        lastResult: { key: 1, player: BOB, result: 0, score: 0, answerType: "skip" },
+        chat: [
+          {
+            ...message("skip", true),
+            message: "Showman judged user3 wrong (0)",
+            system: {
+              action: "answer-result",
+              params: { player: "user3", answerType: "skip", points: 0 },
+            },
+          },
+        ],
+      },
+    });
+  });
+  expect(screen.getByRole("status")).toHaveTextContent("user3's answer was skipped, 0");
+  await userEvent.click(screen.getByTestId("open-chat"));
+  expect(screen.getByTestId("chat-log")).toHaveTextContent("skipped user3's answer (0)");
+  expect(screen.getByTestId("chat-log")).not.toHaveTextContent("wrong");
 });
 
 it("keeps read messages read when a reconnect reorders equal timestamps", async () => {

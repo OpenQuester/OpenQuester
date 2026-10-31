@@ -12,4 +12,5 @@ export interface MediaDurationReport {
  */
 export interface MediaDownloadedInputData {
   mediaDurations?: MediaDurationReport[];
+  mediaPreparationId?: string;
 }

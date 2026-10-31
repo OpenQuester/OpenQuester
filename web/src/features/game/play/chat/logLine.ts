@@ -9,6 +9,12 @@ export function logLine(t: T, entry: ChatSystemEntry, fallback: string): string 
   const player = typeof p.player === "string" && p.player ? p.player : t("chat.someone");
   const num = (v: unknown) => (typeof v === "number" ? v : 0);
   switch (entry.action) {
+    case "point-summary": {
+      const summary = p.players
+        ? t("reveal.correctPlayers", { players: p.players })
+        : t(p.unresolved ? "reveal.unresolved" : "reveal.nobody");
+      return p.players && p.unresolved ? `${summary} ${t("reveal.unresolved")}` : summary;
+    }
     case "start":
       return t("chat.log.start");
     case "pause":
@@ -29,10 +35,14 @@ export function logLine(t: T, entry: ChatSystemEntry, fallback: string): string 
         price: formatScore(num(p.price)),
       });
     case "answer-result":
-      return t(p.answerType === "correct" ? "chat.log.answerRight" : "chat.log.answerWrong", {
-        player,
-        points: formatSigned(num(p.points)),
-      });
+      return t(
+        p.answerType === "skip"
+          ? "chat.log.answerSkipped"
+          : p.answerType === "correct"
+            ? "chat.log.answerRight"
+            : "chat.log.answerWrong",
+        { player, points: formatSigned(num(p.points)) },
+      );
     case "answer-result-undo":
       return t("chat.log.undo", { player, points: formatSigned(num(p.points)) });
     case "game-join-mode-change":

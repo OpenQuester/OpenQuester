@@ -1,4 +1,5 @@
 import { newId, type DraftQuestion } from "../packageDraft";
+import { correctChoice } from "../choiceCorrectness";
 export type QuestionFieldsProps = {
   q: DraftQuestion;
   set: (patch: Partial<DraftQuestion>) => void;
@@ -20,11 +21,20 @@ export function changeQuestionType(
 }
 
 export function editChoiceText(q: DraftQuestion, id: string, text: string): Partial<DraftQuestion> {
-  const old = q.options.find((o) => o.id === id);
-  const correct = q.answerText.trim();
-  const wasCorrect = old && old.text.trim() === correct && correct !== "";
+  const old = correctChoice(q);
+  const wasCorrect = old?.id === id && q.answerText === old.text;
   return {
     options: q.options.map((o) => (o.id === id ? { ...o, text } : o)),
     ...(wasCorrect ? { answerText: text } : {}),
   };
+}
+
+/** Keep separately authored reveal text when selecting an image-only option. */
+export function selectChoice(q: DraftQuestion, id: string): Partial<DraftQuestion> {
+  const option = q.options.find((item) => item.id === id);
+  if (!option) return {};
+  const previous = correctChoice(q);
+  const answerText =
+    option.text || (previous && q.answerText === previous.text ? "" : q.answerText);
+  return { correctChoiceOptionId: id, answerText };
 }

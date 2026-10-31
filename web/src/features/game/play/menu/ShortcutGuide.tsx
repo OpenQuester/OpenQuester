@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 
 const KEYS = [
   ["menu.keys.buzz", "keys.space"],
-  ["menu.keys.option", "1 – 4"],
+  ["dock.showing.pass", "P"],
+  ["menu.keys.option", "1 – 9"],
   ["menu.keys.judge", "C / W"],
   ["menu.keys.chat", "T"],
   ["menu.keys.menu", "?"],

@@ -35,6 +35,7 @@ export interface QuestionPickInputData {
 
 export interface AnswerSubmittedInputData {
   answerText: string | null;
+  choiceOrder?: number;
 }
 
 /**
@@ -114,6 +115,7 @@ export interface GameUnpauseBroadcastData {
 
 export interface AnswerSubmittedBroadcastData {
   answerText: string | null;
+  choiceOrder?: number | null;
 }
 
 export interface QuestionSkipBroadcastData {

@@ -1,9 +1,11 @@
 import { formatScore, formatSigned } from "@/lib/format";
 
 import { type ActionDockModel, type ActionDockContext } from "./actionDockModel";
+import { allPlayRevealStatus } from "../allPlayRevealText";
 
 import {
   canBuzz,
+  canManuallyJudge,
   hasSkipped,
   isSingleAnswerer,
   pointPicture,
@@ -90,14 +92,45 @@ export function answeringModel({
   name,
   value,
   sending,
+  pointImageReady,
 }: ActionDockContext): ActionDockModel {
   const s = session.state;
   const answerer = s.answeringPlayer;
   const q = s.currentQuestion;
   const single = isSingleAnswerer(q);
   if (role === "showman") {
+    if (!canManuallyJudge(session)) {
+      const message = t(
+        !q
+          ? "dock.answering.questionLoading"
+          : session.hasAnswerSubmission
+            ? "dock.answering.autoSubmittedHelp"
+            : "dock.answering.autoWaitHelp",
+      );
+      return {
+        statusPlayer: q
+          ? {
+              key: session.hasAnswerSubmission
+                ? "dock.answering.autoSubmitted"
+                : "dock.answering.autoWait",
+              name: name(answerer),
+            }
+          : undefined,
+        status: !q
+          ? message
+          : t(
+              session.hasAnswerSubmission
+                ? "dock.answering.autoSubmitted"
+                : "dock.answering.autoWait",
+              { name: name(answerer) },
+            ),
+        action: { kind: "judge-wait", pending: sending("answer-result"), message },
+        next: q && !session.hasAnswerSubmission ? t("dock.answering.autoWaitNext") : "",
+      };
+    }
     const wrong = wrongCostsPoints(session) ? -value : 0;
     return {
+      statusPlayer: { key: "dock.answering.judge", name: name(answerer) },
       status: t("dock.answering.judge", { name: name(answerer) }),
       action: { kind: "judge", value, wrong, pending: sending("answer-result") },
       next:
@@ -110,6 +143,18 @@ export function answeringModel({
                 points: formatScore(value),
               }),
     };
+  }
+  if (!q) {
+    const message = t("dock.answering.questionLoading");
+    return { status: message, action: { kind: "info", text: message }, next: "" };
+  }
+  if (answerer === myId && q.answerType === "point" && !pointPicture(q)) {
+    const message = t("point.pictureUnavailable");
+    return { status: message, action: { kind: "info", text: message }, next: "" };
+  }
+  if (answerer === myId && q.answerType === "point" && pointImageReady === false) {
+    const message = t("point.pictureWaiting");
+    return { status: message, action: { kind: "info", text: message }, next: "" };
   }
   if (answerer === myId) {
     return {
@@ -127,10 +172,18 @@ export function answeringModel({
         canGiveUp: single,
         pending: sending("question-skip"),
       },
-      next: single ? t("dock.answering.youNextSingle") : t("dock.answering.youNext"),
+      next:
+        q?.type === "choice"
+          ? t("dock.answering.choiceNext")
+          : q?.answerType === "number" || q?.answerType === "point"
+            ? t("dock.answering.autoNext")
+            : single
+              ? t("dock.answering.youNextSingle")
+              : t("dock.answering.youNext"),
     };
   }
   return {
+    statusPlayer: { key: "dock.answering.other", name: name(answerer) },
     status: t("dock.answering.other", { name: name(answerer) }),
     action: {
       kind: "info",
@@ -152,14 +205,25 @@ export function revealModel({
   const s = session.state;
   const result = s.answerShowData?.answerResult ?? (s.answeredPlayers ?? []).at(-1);
   const correct = result?.answerType === "correct";
+  const allPlaySummary = allPlayRevealStatus(session, t);
   const nextPicker = s.answerShowData?.nextTurnPlayerId ?? s.currentTurnPlayerId;
   return {
-    status: correct
-      ? t("dock.reveal.correct", {
-          name: name(result?.player),
-          points: formatSigned(result!.result),
-        })
-      : t("dock.reveal.nobody"),
+    statusPlayer:
+      !allPlaySummary && correct
+        ? {
+            key: "dock.reveal.correct",
+            name: name(result?.player),
+            values: { points: formatSigned(result!.result) },
+          }
+        : undefined,
+    status:
+      allPlaySummary ??
+      (correct
+        ? t("dock.reveal.correct", {
+            name: name(result?.player),
+            points: formatSigned(result!.result),
+          })
+        : t("dock.reveal.nobody")),
     action:
       role === "showman"
         ? { kind: "continue", pending: sending("skip-show-answer") }

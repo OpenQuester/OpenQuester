@@ -3,11 +3,15 @@ import { DataSource, Repository } from "typeorm";
 import { Permissions } from "domain/enums/Permissions";
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PackageUploadResponse } from "domain/types/package/PackageUploadResponse";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { Package } from "infrastructure/database/models/package/Package";
+import { AddCorrectChoiceOrder_0_31_0_1792700000000 } from "infrastructure/database/migrations/0.31.0_AddCorrectChoiceOrder_1792700000000";
+import { AddQuestionContentFields_0_32_0_1793200000000 } from "infrastructure/database/migrations/0.32.0_AddQuestionContentFields_1793200000000";
+import { AnswerType } from "domain/enums/package/AnswerType";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { ValueUtils } from "domain/utils/ValueUtils";
@@ -178,6 +182,133 @@ describe("PackageRestApiController", () => {
     expect(result.description).toBe(packageData.description);
     expect(result.language).toBe(packageData.language);
     expect(result.ageRestriction).toBe(packageData.ageRestriction);
+  });
+
+  it("round-trips an optional correct choice key through create, read and replace", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser("choice_key");
+    const content = packageUtils.createTestPackageData(user, false);
+    const choice = content.rounds[0].themes
+      .flatMap((theme) => theme.questions)
+      .find((question) => question.type === PackageQuestionType.CHOICE)!;
+    const created = await http.post("/v1/packages").set("Cookie", cookie).send({ content });
+    expect(created.status).toBe(200);
+    const id = created.body.id;
+    // The test database synchronizes entities; recreate the new column with
+    // the migration to prove an existing legacy package survives the upgrade.
+    const runner = dataSource.createQueryRunner();
+    const migration = new AddCorrectChoiceOrder_0_31_0_1792700000000();
+    try {
+      await migration.down(runner);
+      await migration.up(runner);
+    } finally {
+      await runner.release();
+    }
+    const legacy = await http.get(`/v1/packages/${id}`).set("Cookie", cookie);
+    expect(legacy.status).toBe(200);
+    const oldChoice = (legacy.body as PackageDTO).rounds
+      .flatMap((round) => round.themes)
+      .flatMap((theme) => theme.questions)
+      .find((question) => question.type === PackageQuestionType.CHOICE)!;
+    expect(oldChoice.correctChoiceOrder).toBeUndefined();
+    choice.correctChoiceOrder = 0;
+    const replaced = await http.put(`/v1/packages/${id}`).set("Cookie", cookie).send({ content });
+    expect(replaced.status).toBe(200);
+    const loaded = await http.get(`/v1/packages/${id}`).set("Cookie", cookie);
+    const saved = (loaded.body as PackageDTO).rounds
+      .flatMap((round) => round.themes)
+      .flatMap((theme) => theme.questions)
+      .find((question) => question.type === PackageQuestionType.CHOICE)!;
+    expect(saved.correctChoiceOrder).toBe(0);
+    for (const invalid of [99, 0.5]) {
+      choice.correctChoiceOrder = invalid;
+      expect(
+        (await http.put(`/v1/packages/${id}`).set("Cookie", cookie).send({ content })).status
+      ).toBe(400);
+    }
+    choice.correctChoiceOrder = 0;
+    const originalOrder = choice.answers![1].order;
+    choice.answers![1].order = 0;
+    expect(
+      (await http.put(`/v1/packages/${id}`).set("Cookie", cookie).send({ content })).status
+    ).toBe(400);
+    choice.answers![1].order = originalOrder;
+    const simple = content.rounds[0].themes
+      .flatMap((theme) => theme.questions)
+      .find((question) => question.type === PackageQuestionType.SIMPLE)!;
+    simple.correctChoiceOrder = 0;
+    expect(
+      (await http.put(`/v1/packages/${id}`).set("Cookie", cookie).send({ content })).status
+    ).toBe(400);
+    expect(
+      (await http.get(`/v1/packages/${id}`).set("Cookie", cookie)).body.rounds
+        .flatMap((round: PackageDTO["rounds"][number]) => round.themes)
+        .flatMap((theme: PackageDTO["rounds"][number]["themes"][number]) => theme.questions)
+        .find(
+          (question: PackageDTO["rounds"][number]["themes"][number]["questions"][number]) =>
+            question.type === PackageQuestionType.CHOICE
+        ).correctChoiceOrder
+    ).toBe(0);
+  });
+
+  it("migrates legacy content and round-trips sequenced text and explicit point targets", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser("content_fields");
+    const content = packageUtils.createTestPackageData(user, false);
+    const question = content.rounds[0].themes[0].questions[0];
+    question.answerType = AnswerType.POINT;
+    question.answerPoint = { x: 0.2, y: 0.4, imageAspectRatio: 1.5 };
+    question.text = "Main";
+    question.textOrder = 0;
+    question.questionFiles = [
+      { order: 1, displayTime: 5000, file: { md5: "a".repeat(32), type: PackageFileType.IMAGE } },
+      { order: 3, displayTime: 5000, file: { md5: "b".repeat(32), type: PackageFileType.IMAGE } }
+    ];
+    const created = await http.post("/v1/packages").set("Cookie", cookie).send({ content });
+    expect(created.status).toBe(200);
+    const runner = dataSource.createQueryRunner();
+    const migration = new AddQuestionContentFields_0_32_0_1793200000000();
+    try {
+      await migration.down(runner);
+      await migration.up(runner);
+    } finally {
+      await runner.release();
+    }
+    const getQuestion = async () => {
+      const response = await http.get(`/v1/packages/${created.body.id}`).set("Cookie", cookie);
+      expect(response.status).toBe(200);
+      return (response.body as PackageDTO).rounds
+        .flatMap((round) => round.themes)
+        .flatMap((theme) => theme.questions)
+        .find((item) => item.text === "Main")!;
+    };
+    const legacy = await getQuestion();
+    expect(legacy.pointImageOrder == null).toBe(true);
+    expect(legacy.textItems == null).toBe(true);
+    expect(legacy.answerPoint).toEqual(question.answerPoint);
+    question.pointImageOrder = 3;
+    question.textItems = [
+      { order: 2, text: "Middle" },
+      { order: 4, text: "Final" }
+    ];
+    expect(
+      (await http.put(`/v1/packages/${created.body.id}`).set("Cookie", cookie).send({ content }))
+        .status
+    ).toBe(200);
+    const saved = await getQuestion();
+    expect(saved.pointImageOrder).toBe(3);
+    expect(saved.textItems).toEqual(question.textItems);
+    expect(saved.answerPoint).toEqual(question.answerPoint);
+    question.pointImageOrder = 5;
+    expect(
+      (await http.put(`/v1/packages/${created.body.id}`).set("Cookie", cookie).send({ content }))
+        .status
+    ).toBe(400);
+    question.pointImageOrder = 3;
+    question.textItems = [{ order: 1, text: "Collision" }];
+    expect(
+      (await http.put(`/v1/packages/${created.body.id}`).set("Cookie", cookie).send({ content }))
+        .status
+    ).toBe(400);
+    expect((await getQuestion()).textItems).toEqual(saved.textItems);
   });
 
   it("preserves background and nonblocking answer media through package storage and retrieval", async () => {

@@ -114,6 +114,7 @@ export class GameValidator {
 
   public static validateMediaDownloaded(data: MediaDownloadedInputData) {
     const schema = Joi.object<MediaDownloadedInputData>({
+      mediaPreparationId: Joi.string().guid({ version: "uuidv4" }).optional(),
       mediaDurations: Joi.array()
         .items(
           Joi.object({
@@ -199,7 +200,8 @@ export class GameValidator {
 
   public static validateAnswerSubmitted(data: AnswerSubmittedData) {
     const schema = Joi.object<AnswerSubmittedData>({
-      answerText: Joi.string().max(255).allow(null)
+      answerText: Joi.string().max(255).allow(null),
+      choiceOrder: Joi.number()
     });
 
     return this._validate<AnswerSubmittedData>(data, schema);

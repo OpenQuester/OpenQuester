@@ -45,11 +45,16 @@ export function useGameFeedback(): string {
     if (last && last.key !== before.result) {
       const name = findPlayer(session, last.player)?.meta.username ?? "";
       setText(
-        last.answerType === "correct"
-          ? t("announce.correct", { name, points: formatSigned(last.result) })
-          : t("announce.wrong", { name, points: formatSigned(last.result) }),
+        t(
+          last.answerType === "skip"
+            ? "announce.skipped"
+            : last.answerType === "correct"
+              ? "announce.correct"
+              : "announce.wrong",
+          { name, points: formatSigned(last.result) },
+        ),
       );
-      cue(last.answerType === "correct" ? "correct" : "wrong");
+      if (last.answerType !== "skip") cue(last.answerType === "correct" ? "correct" : "wrong");
     } else if (phase !== before.phase) {
       setText(t(`phases.${phase}`));
       if (

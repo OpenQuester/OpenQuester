@@ -8,16 +8,22 @@ import { TextInput } from "@/ui/Field";
 import { PlusIcon, TrashIcon } from "@/ui/icons";
 import { SingleMediaField } from "../media-editor/SingleMediaField";
 import { newId } from "../packageDraft";
-import { editChoiceText } from "./questionUpdates";
-export function QuestionChoiceFields({ q, set }: QuestionFieldsProps) {
+import { editChoiceText, selectChoice } from "./questionUpdates";
+import { changeChoiceMedia, type ApplyMediaChange } from "./questionMediaHistory";
+import { correctChoice } from "../choiceCorrectness";
+export function QuestionChoiceFields({
+  q,
+  set,
+  applyMedia,
+}: QuestionFieldsProps & { applyMedia: ApplyMediaChange }) {
   const { t } = useTranslation();
-  const correct = q.answerText.trim();
+  const correct = correctChoice(q);
   return (
-    <fieldset className={layoutStyles.optionGroup}>
+    <fieldset className={layoutStyles.optionGroup} data-testid="choice-fields">
       <legend className="mb-1 text-[15px] font-semibold">{t("editor.form.options")}</legend>
       <span className="text-sm text-faint">{t("editor.form.optionsHelp")}</span>
       {q.options.map((o, i) => {
-        const isCorrect = correct !== "" && o.text.trim() === correct;
+        const isCorrect = correct?.id === o.id;
         return (
           <div key={o.id} className={questionFormStyles.choice}>
             <div className="flex items-center gap-2">
@@ -42,31 +48,41 @@ export function QuestionChoiceFields({ q, set }: QuestionFieldsProps) {
                   type="radio"
                   name="qf-correct"
                   checked={isCorrect}
-                  onChange={() => set({ answerText: o.text })}
+                  onChange={() => set(selectChoice(q, o.id))}
                 />
                 {t("editor.form.correct")}
               </label>
               <button
                 type="button"
                 aria-label={t("editor.form.removeOption", { letter: String.fromCharCode(65 + i) })}
-                onClick={() => set({ options: q.options.filter((x) => x.id !== o.id) })}
+                onClick={() =>
+                  set({
+                    options: q.options.filter((x) => x.id !== o.id),
+                    ...(q.correctChoiceOptionId === o.id
+                      ? {
+                          correctChoiceOptionId: null,
+                          ...(q.answerText === o.text ? { answerText: "" } : {}),
+                        }
+                      : {}),
+                  })
+                }
                 className={questionFormStyles.choiceRemove}
               >
                 <TrashIcon size={16} />
               </button>
             </div>
             <SingleMediaField
+              managedUndo
               label={t("mediaEditor.choiceImage", { letter: String.fromCharCode(65 + i) })}
               value={o.file}
-              onChange={(file) =>
-                set({ options: q.options.map((x) => (x.id === o.id ? { ...x, file } : x)) })
-              }
+              onChange={(file) => applyMedia(changeChoiceMedia(o.id, file))}
             />
           </div>
         );
       })}
       {q.options.length < 8 && (
         <Button
+          id="qf-add-option"
           size="sm"
           className="self-start"
           icon={<PlusIcon size={16} />}

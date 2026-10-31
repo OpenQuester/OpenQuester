@@ -4,6 +4,7 @@ import type { AgeRestriction } from "@/api/types";
 import { Label, Select, TextInput } from "@/ui/Field";
 import { RadioButton } from "@/ui/RadioButton";
 import { createGameStyles } from "./createGameStyles";
+import { PasswordInput } from "@/ui/PasswordInput";
 import type { CreateGameForm } from "./useCreateGame";
 
 export function GameSetupFields({ form }: { form: CreateGameForm }) {
@@ -75,7 +76,7 @@ export function GameSetupFields({ form }: { form: CreateGameForm }) {
       {isPrivate && (
         <div className={createGameStyles.field}>
           <Label htmlFor="g-pass">{t("create.password")}</Label>
-          <TextInput
+          <PasswordInput
             id="g-pass"
             value={password}
             maxLength={16}

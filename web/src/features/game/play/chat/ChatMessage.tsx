@@ -17,7 +17,9 @@ export function ChatMessage({ message: m }: { message: ChatEntry }) {
         data-testid="chat-log"
         data-action={m.system.action}
       >
-        <span className="font-semibold text-accent-strong">{t("roles.showman")}</span>
+        <span className="font-semibold text-accent-strong">
+          {t(m.system.action === "point-summary" ? "chat.system" : "roles.showman")}
+        </span>
         {" · "}
         {logLine(t, m.system, m.message)}
       </p>

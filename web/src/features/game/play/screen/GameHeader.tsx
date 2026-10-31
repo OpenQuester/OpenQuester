@@ -5,19 +5,21 @@ import { roundTimeLeft } from "@/game/selectors";
 import { formatSeconds } from "@/lib/timer";
 import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
-import { ChatIcon, EyeIcon, MenuIcon, PauseIcon, PlayIcon, UsersIcon } from "@/ui/icons";
+import { ChatIcon, EyeIcon, MenuIcon } from "@/ui/icons";
 import { useSession } from "../../GameContext";
 import { PlayerChips } from "../PlayerChips";
+import { GamePauseButton } from "../GamePauseButton";
 import type { GameScreenModel } from "./useGameScreen";
+import { RoundIndicator } from "./RoundIndicator";
 
 export function GameHeader({ game }: { game: GameScreenModel }) {
   const { t } = useTranslation();
   const {
     session,
-    connection,
     role,
     phase,
     round,
+    spectatorCount,
     isOpen,
     setPanel,
     setFocusPlayer,
@@ -31,17 +33,9 @@ export function GameHeader({ game }: { game: GameScreenModel }) {
       : role === "player"
         ? "bg-primary text-on-primary"
         : "bg-surface-3 text-text border border-line-strong";
-  const roundLabel =
-    phase === "finished"
-      ? t("game.over")
-      : round?.type === "final"
-        ? t("game.finalRound")
-        : round
-          ? t("game.roundLabel", { n: round.order + 1, name: round.name })
-          : "";
 
   return (
-    <header className="border-b border-line">
+    <header className="shrink-0 border-b border-line">
       <div className={cn(gameWidth, gameScreenStyles.header)}>
         <span
           className={cn(gameScreenStyles.phaseBadge, roleTone)}
@@ -51,9 +45,13 @@ export function GameHeader({ game }: { game: GameScreenModel }) {
           <span className="font-medium opacity-80">{t("game.you")}</span>
           <span data-testid="my-role">{t(`roles.${role}`)}</span>
         </span>
-        <span className={gameScreenStyles.roundName} title={round?.name} data-testid="round-name">
-          {roundLabel}
-        </span>
+        {phase === "finished" ? (
+          <span className={gameScreenStyles.roundName} data-testid="round-name">
+            {t("game.over")}
+          </span>
+        ) : round ? (
+          <RoundIndicator gameId={session.gameId} round={round} />
+        ) : null}
         <RoundClock />
         <div className="order-last w-full">
           <PlayerChips
@@ -63,18 +61,19 @@ export function GameHeader({ game }: { game: GameScreenModel }) {
             }}
           />
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          {role !== "showman" && (
+        <div className="game-header-tools ml-auto flex items-center gap-2">
+          {spectatorCount > 0 && (
             <Button
               size="sm"
               variant={isOpen("players") ? "secondary" : "ghost"}
               onClick={() => setPanel("players", !isOpen("players"))}
-              icon={<UsersIcon size={16} />}
-              aria-label={t("players.title")}
+              icon={<EyeIcon size={16} />}
+              aria-label={`${t("lobby.spectators")} · ${spectatorCount}`}
               aria-expanded={isOpen("players")}
-              data-testid="open-players"
+              data-testid="open-spectators"
             >
-              <span className="hidden sm:inline">{t("players.button")}</span>
+              <span className="hidden sm:inline">{t("lobby.spectators")}</span>
+              <span>{spectatorCount}</span>
             </Button>
           )}
           {role === "showman" && (
@@ -92,19 +91,11 @@ export function GameHeader({ game }: { game: GameScreenModel }) {
             </Button>
           )}
           {role === "showman" && phase !== "finished" && (
-            <Button
-              size="sm"
-              variant={session.state.isPaused ? "accent" : "ghost"}
-              onClick={() =>
-                connection.emit(session.state.isPaused ? "game-unpause" : "game-pause")
-              }
-              icon={session.state.isPaused ? <PlayIcon size={16} /> : <PauseIcon size={16} />}
-              aria-label={session.state.isPaused ? t("game.resume") : t("game.pause")}
-            >
+            <GamePauseButton>
               <span className="hidden sm:inline">
                 {session.state.isPaused ? t("game.resume") : t("game.pause")}
               </span>
-            </Button>
+            </GamePauseButton>
           )}
           <Button
             size="sm"

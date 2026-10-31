@@ -5,7 +5,7 @@ const closeButton =
 
 /** Keep the same focus surface and overlay for ordinary and full-screen forms. */
 export const dialogStyles = {
-  overlay: "fixed inset-0 z-40 bg-scrim/70 oq-pop",
+  overlay: "fixed inset-0 z-40 bg-scrim/70",
   surface,
   standardSurface: `${surface} border shadow-2xl`,
   closeButton,

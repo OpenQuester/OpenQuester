@@ -63,11 +63,14 @@ test.describe("game fixes", () => {
     await expect(dockPhase(page)).toHaveText("Choosing");
 
     // Skip round asks first; cancelling keeps the round
-    await page.getByTestId("skip-round").first().click();
+    await page.getByTestId("host-tools").click();
+    await page.getByTestId("host-panel").getByTestId("skip-round").click();
     await expect(page.getByRole("dialog", { name: "Skip to the next round?" })).toContainText(
       "6 questions are still on the board",
     );
     await page.getByRole("button", { name: "Cancel" }).click();
+    if ((page.viewportSize()?.width ?? 0) >= 1024) await page.getByTestId("host-tools").click();
+    else await page.keyboard.press("Escape");
     await expect(page.getByTestId("round-name")).toContainText("Warm-up");
 
     // The picture question plays for a few seconds; the showman opens the buzzer now
@@ -119,11 +122,11 @@ test.describe("game fixes", () => {
     await report.getByRole("button", { name: "Cancel" }).click();
     await expect(report).toHaveCount(0);
 
-    // Zero ruling: wrong, but no points lost, and the buzzer reopens
+    // Neutral skip: no points lost, and the buzzer reopens
     await cell(page, "Capitals", 100).click();
     await buzz(kim.page);
     await expect(dockPhase(page)).toHaveText("Answering");
-    await page.getByTestId("judge-wrong-zero").click();
+    await page.getByTestId("judge-skip").click();
     await expect(dockPhase(pat.page)).toHaveText("Ready to buzz");
     await expect.poll(() => chipScore(page, "Kim")).toBe("0");
     for (const p of [page, pat.page]) await expectNoHorizontalScroll(p);
@@ -156,7 +159,7 @@ test.describe("game fixes", () => {
     await page.getByRole("button", { name: "Pause", exact: true }).click();
     await expect(dockPhase(pat.page)).toHaveText("Paused");
     await expect(draft).toBeHidden();
-    await page.getByRole("button", { name: "Resume", exact: true }).click();
+    await page.locator("header").getByRole("button", { name: "Resume", exact: true }).click();
     await expect(draft).toBeVisible();
     await expect(draft).toHaveValue("Preserve this answer");
 
@@ -283,7 +286,10 @@ test.describe("game fixes", () => {
     await sam.context.close();
   });
 
-  test("after the question plays, the stage says the buzzer is open", async ({ browser, page }) => {
+  test("after the question plays, the dock shows readiness without a duplicate stage notice", async ({
+    browser,
+    page,
+  }) => {
     await signInAsGuest(page, "Host");
     const code = await hostGame(page, "Cue");
     const pat = await person(browser, "Pat", laptop);
@@ -292,11 +298,12 @@ test.describe("game fixes", () => {
     await expect(dockPhase(page)).toHaveText("Choosing");
 
     await cell(page, "Capitals", 100).click();
-    await expect(pat.page.getByTestId("buzzer-cue")).toContainText("The buzzer is open", {
+    await expect(dockPhase(pat.page)).toHaveText("Ready to buzz", {
       timeout: 15_000,
     });
-    await expect(pat.page.getByTestId("buzzer-cue-time")).toContainText("s left");
-    await expect(page.getByTestId("buzzer-cue")).toContainText("Waiting for a player");
+    await expect(pat.page.getByTestId("buzzer-cue")).toHaveCount(0);
+    await expect(page.getByTestId("buzzer-cue")).toHaveCount(0);
+    await expect(pat.page.getByTestId("buzz")).toBeVisible();
     await shot(pat.page, `fixes-cue-${test.info().project.name}`);
     await expectNoHorizontalScroll(pat.page);
     await pat.context.close();

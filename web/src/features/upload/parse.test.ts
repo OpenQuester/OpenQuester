@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { md5Hex, readZip } from "./archive";
 import { parseOq } from "./oq";
 import { parseSiq } from "./siq";
+import { fromUpload, toUpload } from "@/features/package-editor/packageDraft";
 
 // jsdom's TextEncoder returns a Uint8Array from another realm, which fflate
 // would mistake for a folder; copy it into this realm's Uint8Array.
@@ -226,6 +227,38 @@ describe("parseSiq", () => {
 });
 
 describe("parseOq", () => {
+  it("preserves ordered text steps and rejects malformed step data", async () => {
+    const question = {
+      type: "simple",
+      order: 0,
+      price: 100,
+      text: "Q",
+      textOrder: 0,
+      textItems: [{ order: 2, text: "Hint" }],
+    };
+    const content = {
+      title: "Text",
+      rounds: [{ name: "R", themes: [{ name: "T", questions: [question] }] }],
+    };
+    const read = (value: unknown) => parseOq({ "content.json": strToU8(JSON.stringify(value)) });
+    const parsed = await read(content);
+    expect(parsed.content.rounds[0]!.themes[0]!.questions[0]!.textItems).toEqual([
+      { order: 2, text: "Hint" },
+    ]);
+    question.textItems = [{ order: 2, text: "" }];
+    expect((await read(content)).content.rounds[0]!.themes[0]!.questions[0]!.textItems).toEqual([
+      { order: 2, text: "" },
+    ]);
+    await expect(
+      read({
+        ...content,
+        rounds: [
+          { name: "R", themes: [{ name: "T", questions: [{ ...question, textItems: "bad" }] }] },
+        ],
+      }),
+    ).rejects.toThrow("badContentJson");
+  });
+
   it("strips server fields, keeps media by hash and downgrades a one-option choice", async () => {
     const md5 = md5Hex(png);
     const content = {
@@ -254,6 +287,8 @@ describe("parseOq", () => {
                   price: 100,
                   text: "Q",
                   answerText: "A",
+                  answerType: "point",
+                  answerPoint: { x: 0.2, y: 0.7, imageAspectRatio: 2 },
                   showAnswerDuration: 5000,
                   questionFiles: [
                     { id: 4, order: 0, displayTime: null, file: { id: 5, md5, type: "image" } },
@@ -283,6 +318,10 @@ describe("parseOq", () => {
     expect(parsed.content).not.toHaveProperty("id");
     expect(parsed.content.tags).toEqual([{ tag: "fun" }]);
     expect(q1).not.toHaveProperty("id");
+    expect(q1!.answerPoint).toEqual({ x: 0.2, y: 0.7, imageAspectRatio: 2 });
+    expect(
+      toUpload(fromUpload(parsed.content)).rounds[0]!.themes[0]!.questions[0]!.answerPoint,
+    ).toEqual(q1!.answerPoint);
     expect(q1!.questionFiles).toEqual([
       { order: 0, displayTime: null, file: { md5, type: "image" } },
     ]);

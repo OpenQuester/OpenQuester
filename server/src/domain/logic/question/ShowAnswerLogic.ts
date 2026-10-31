@@ -3,6 +3,10 @@ import {
   SHOW_ANSWER_DURATION_TEXT,
   SHOW_ANSWER_DURATION_VIDEO
 } from "domain/constants/game";
+import { AnswerType } from "domain/enums/package/AnswerType";
+import { findPointAnswerImage } from "domain/logic/question/PointImageLogic";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import type { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
@@ -58,9 +62,25 @@ export class ShowAnswerLogic {
   public static revealDetails(
     question: PackageQuestionDTO | null | undefined
   ): AnswerRevealDetails {
+    const image =
+      question?.answerType === AnswerType.POINT
+        ? findPointAnswerImage(question.questionFiles, question.pointImageOrder)
+        : undefined;
+    const choices =
+      question?.type === PackageQuestionType.CHOICE && question.correctChoiceOrder != null
+        ? (question.answers ?? []).filter((option) => option.order === question.correctChoiceOrder)
+        : [];
+    const correctChoice = choices.length === 1 ? choices[0] : undefined;
     return {
+      answerPointImage: image?.file.link ?? null,
       answerPoint: question?.answerPoint ?? null,
       answerDeviation: question?.answerDeviation ?? null,
+      correctChoiceImage:
+        !question?.answerFiles?.length &&
+        !correctChoice?.text?.trim() &&
+        correctChoice?.file?.type === PackageFileType.IMAGE
+          ? (correctChoice.file.link ?? null)
+          : null,
       rightAnswers: question?.rightAnswers ?? null,
       authors: question?.authors ?? null,
       sources: question?.sources ?? null

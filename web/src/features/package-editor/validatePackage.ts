@@ -1,3 +1,4 @@
+import { draftPointImage } from "./packageDraft";
 import { questionMedia, type DraftPackage, type DraftQuestion } from "./packageDraft";
 
 /**
@@ -40,6 +41,7 @@ export type PackageIssueCode =
   | "choiceOptions"
   | "choiceEmptyOption"
   | "choiceNoCorrect"
+  | "choiceCorrectUnresolved"
   | "secretPrices"
   | "multipleFinals"
   | "finalNotLast"
@@ -162,7 +164,7 @@ export function validatePackage(
   };
 }
 
-function checkQuestion(
+export function checkQuestion(
   q: DraftQuestion,
   final: boolean,
   add: (
@@ -172,7 +174,12 @@ function checkQuestion(
   ) => void,
   hasMedia: (md5: string) => boolean,
 ) {
-  if (!q.text.trim() && q.questionFiles.length === 0) add("critical", "questionEmpty");
+  if (
+    !q.text.trim() &&
+    !q.textItems?.some((item) => item.text.trim()) &&
+    q.questionFiles.length === 0
+  )
+    add("critical", "questionEmpty");
   if (!final) {
     if (q.price == null) add("critical", "noPrice");
     else if (q.price < 0 || q.price > MAX_PRICE) add("critical", "priceRange", { max: MAX_PRICE });
@@ -181,19 +188,33 @@ function checkQuestion(
   if (missing) add("critical", "missingMedia", { count: missing });
 
   const type = final ? "simple" : q.type;
+  const numeric = type !== "choice" && q.answerType === "number";
   if (type === "choice") {
     if (q.options.length < 2 || q.options.length > 8)
       add("critical", "choiceOptions", { count: q.options.length });
     if (q.options.some((o) => !o.text.trim() && !o.file)) add("critical", "choiceEmptyOption");
-    if (!q.options.some((o) => o.text.trim() && o.text.trim() === q.answerText.trim()))
+    if (
+      q.correctChoiceOptionId === null ||
+      (q.correctChoiceOptionId !== undefined &&
+        !q.options.some((o) => o.id === q.correctChoiceOptionId))
+    )
+      add("critical", "choiceCorrectUnresolved");
+    else if (
+      q.correctChoiceOptionId === undefined &&
+      !q.options.some((o) => o.text.trim() && o.text.trim() === q.answerText.trim())
+    )
       add("warning", "choiceNoCorrect");
-  } else if (!q.answerText.trim() && q.answerFiles.length === 0) add("warning", "noAnswer");
+  } else if (
+    (numeric ? !Number.isFinite(q.answerNumber) : !q.answerText.trim()) &&
+    q.answerFiles.length === 0
+  )
+    add("warning", "noAnswer");
 
   // A number or point answer needs its target, or the server couldn't judge it
   if (type !== "choice" && q.answerType === "number" && !Number.isFinite(q.answerNumber))
     add("critical", "numberAnswerMissing");
   if (type !== "choice" && q.answerType === "point") {
-    const hasPicture = q.questionFiles.some((f) => f.type === "image");
+    const hasPicture = !!draftPointImage(q);
     const validPoint =
       q.answerPoint &&
       [q.answerPoint.x, q.answerPoint.y].every(
@@ -207,5 +228,6 @@ function checkQuestion(
     (q.allowedPrices.length < 2 || q.allowedPrices.length > 5)
   )
     add("critical", "secretPrices", { count: q.allowedPrices.length });
-  if (q.text.length > LONG_TEXT || q.answerText.length > LONG_TEXT) add("warning", "longText");
+  if (q.text.length > LONG_TEXT || (!numeric && q.answerText.length > LONG_TEXT))
+    add("warning", "longText");
 }

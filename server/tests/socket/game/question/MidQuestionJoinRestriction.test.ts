@@ -1,5 +1,10 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
+import { container } from "tsyringe";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 import { Repository } from "typeorm";
 
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -39,6 +44,137 @@ describe("Mid-Question Join Restriction", () => {
 
   afterAll(async () => {
     await suite?.stop();
+  });
+
+  it.each([
+    ["new player", PackageQuestionType.SIMPLE],
+    ["promoted spectator", PackageQuestionType.SIMPLE],
+    ["new player", PackageQuestionType.NO_RISK],
+    ["promoted spectator", PackageQuestionType.NO_RISK]
+  ])(
+    "does not let a %s block media readiness or report a duration for %s",
+    async (joining, questionType) => {
+      await suite.scenario(async (scenario) => {
+        const { showmanSocket, playerSockets, spectatorSockets, gameId, playerUsers } =
+          await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+        await utils.startGame(showmanSocket);
+        const questionId = await utils.getQuestionIdByType(gameId, questionType);
+        const store = container.resolve(PackageStore);
+        const savedQuestion = await store.getQuestionWithTheme(gameId, questionId);
+        await container.resolve(RedisRepository).hset(store.getPackageKey(gameId), {
+          [`q:${questionId}`]: JSON.stringify({
+            ...savedQuestion!.question,
+            questionFiles: [
+              {
+                order: 0,
+                displayTime: null,
+                file: {
+                  md5: "readiness-audio",
+                  type: PackageFileType.AUDIO,
+                  link: "https://example.test/audio.mp3"
+                }
+              }
+            ]
+          })
+        });
+        await utils.pickQuestion(showmanSocket, questionId, []);
+        let lateSocket = spectatorSockets[0];
+        if (joining === "new player") {
+          lateSocket = (await utils.createGameClient(app, userRepo)).socket;
+          await utils.joinGame(lateSocket, gameId, PlayerRole.PLAYER);
+        } else {
+          const changed = scenario.waitForEvent(
+            showmanSocket,
+            SocketIOGameEvents.PLAYER_ROLE_CHANGE
+          );
+          const lateUser = await utils.getSocketUserData(lateSocket);
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+            playerId: lateUser!.id,
+            newRole: PlayerRole.PLAYER
+          });
+          await changed;
+        }
+        await utils.waitForActionsComplete(gameId);
+        const lateUser = await utils.getSocketUserData(lateSocket);
+        const gameBefore = await utils.getGameFromGameService(gameId);
+        expect(gameBefore.isPlayerEligibleToAnswer(lateUser!.id)).toBe(false);
+        expect(gameBefore.isPlayerEligibleForMedia(lateUser!.id)).toBe(false);
+        expect(gameBefore.getMediaEligiblePlayerIds()).toEqual(
+          playerUsers.map((player) => player.id)
+        );
+        expect(playerUsers.every((player) => gameBefore.isPlayerEligibleForMedia(player.id))).toBe(
+          true
+        );
+
+        const accepted = utils.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.MEDIA_DOWNLOADED,
+          socketId: lateSocket.id!
+        });
+        try {
+          scenario.actor(lateSocket).emit(SocketIOGameEvents.MEDIA_DOWNLOADED, {
+            mediaDurations: [{ md5: "readiness-audio", durationMs: 90000 }]
+          });
+          await accepted.waitForCount(1);
+          await utils.waitForActionsComplete(gameId);
+        } finally {
+          accepted.dispose();
+        }
+        const waiting = await utils.getGameState(gameId);
+        expect(waiting?.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
+        expect(waiting?.mediaDurations?.["readiness-audio"]).toBeUndefined();
+
+        const ready = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.MEDIA_DOWNLOADED, {
+          mediaDurations: [{ md5: "readiness-audio", durationMs: 2000 }]
+        });
+        await ready;
+        await utils.waitForActionsComplete(gameId);
+        expect((await utils.getGameState(gameId))?.questionState).toBe(
+          QuestionState.MEDIA_DOWNLOADING
+        );
+        const allReady = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS
+        );
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+        await allReady;
+        await utils.waitForActionsComplete(gameId);
+        const showing = await utils.getGameState(gameId);
+        expect(showing?.questionState).toBe(QuestionState.SHOWING);
+        expect(showing?.mediaDurations?.["readiness-audio"]).toBe(2000);
+        const rejected = scenario.waitForEvent(lateSocket, SocketIOEvents.ERROR);
+        scenario.actor(lateSocket).emit(SocketIOGameEvents.QUESTION_ANSWER, {});
+        await rejected;
+      });
+    }
+  );
+
+  it("broadcasts readiness when the last eligible player leaves and a late player remains", async () => {
+    await suite.scenario(async (scenario) => {
+      const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        1,
+        0
+      );
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, []);
+      const lateSocket = (await utils.createGameClient(app, userRepo)).socket;
+      await utils.joinGame(lateSocket, gameId, PlayerRole.PLAYER);
+      const ready = scenario.waitForEvent<{ allPlayersReady: boolean; timer: unknown }>(
+        lateSocket,
+        SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS
+      );
+      const left = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+      scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.LEAVE);
+      await left;
+      expect(await ready).toMatchObject({ allPlayersReady: true, timer: expect.any(Object) });
+      expect((await utils.getGameState(gameId))?.questionState).toBe(QuestionState.SHOWING);
+    });
   });
 
   describe("Players joining during active question state should see current data", () => {

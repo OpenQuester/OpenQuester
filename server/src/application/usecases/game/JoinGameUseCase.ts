@@ -1,6 +1,7 @@
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { UserService } from "application/services/user/UserService";
+import { GameService } from "application/services/game/GameService";
 import { GAME_CHAT_HISTORY_RETRIEVAL_LIMIT } from "domain/constants/game";
 import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -15,16 +16,14 @@ import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
 import { GameJoinLogic } from "domain/logic/game/GameJoinLogic";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
-import {
-  DataMutationConverter,
-  type BroadcastMutation,
-} from "domain/types/action/DataMutation";
+import { DataMutationConverter, type BroadcastMutation } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { type GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import {
   type GameJoinInputData,
-  type GameJoinOutputData,
+  type GameJoinOutputData
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { GameValidator } from "domain/validators/GameValidator";
 
@@ -33,12 +32,11 @@ import { GameValidator } from "domain/validators/GameValidator";
  *
  * Total RT cost inside the Redis lock: 2 (user DB read + chat read).
  */
-export class JoinGameUseCase
-  implements GameActionHandler<GameJoinInputData, GameJoinOutputData>
-{
+export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, GameJoinOutputData> {
   constructor(
     private readonly userService: UserService,
-    private readonly socketIOChatService: SocketIOChatService
+    private readonly socketIOChatService: SocketIOChatService,
+    private readonly gameService: GameService
   ) {
     //
   }
@@ -72,10 +70,7 @@ export class JoinGameUseCase
       }
     });
     if (!user) {
-      throw new ClientError(
-        ClientResponse.USER_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     // 4. Check reconnect state and run domain validation (0 RT)
@@ -89,7 +84,7 @@ export class JoinGameUseCase
       role: payload.role,
       existingPlayer,
       targetSlot: payload.targetSlot,
-      password: payload.password ?? undefined,
+      password: payload.password ?? undefined
     });
 
     // 5. Mutate in-memory game state (0 RT)
@@ -100,6 +95,13 @@ export class JoinGameUseCase
       payload.role,
       payload.targetSlot
     );
+    if (
+      player.role === PlayerRole.PLAYER &&
+      game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING &&
+      game.isPlayerEligibleForMedia(player.meta.id)
+    ) {
+      player.mediaDownloaded = false;
+    }
 
     // 6. Fetch chat history for the joining socket (1 RT)
     const chatMessages = await this.socketIOChatService.getMessages(
@@ -109,11 +111,16 @@ export class JoinGameUseCase
     );
 
     // 7. Build output payload
+    const visibleGameState = this.buildJoinVisibleGameState(game, player.role);
+    const pausedTimer =
+      game.gameState.isPaused && game.gameState.questionState
+        ? await this.gameService.getTimer(game.id, game.gameState.questionState)
+        : null;
     const gameJoinData: GameJoinOutputData = {
       meta: { title: game.title, settings: game.settings },
       players: game.players.map((p) => p.toDTO()),
-      gameState: this.buildJoinVisibleGameState(game, player.role),
-      chatMessages,
+      gameState: pausedTimer ? { ...visibleGameState, timer: pausedTimer } : visibleGameState,
+      chatMessages
     };
 
     // 8. Build broadcasts
@@ -124,7 +131,7 @@ export class JoinGameUseCase
       event: SocketIOGameEvents.GAME_DATA,
       data: gameJoinData,
       target: SocketBroadcastTarget.SOCKET,
-      socketId,
+      socketId
     };
 
     // 9. Declare all side-effects as mutations
@@ -138,37 +145,25 @@ export class JoinGameUseCase
         DataMutationConverter.saveGameMutation(game),
 
         // Broadcast JOIN to all players in the room
-        ...DataMutationConverter.mutationFromSocketBroadcasts(
-          joinResult.broadcasts
-        ),
+        ...DataMutationConverter.mutationFromSocketBroadcasts(joinResult.broadcasts),
 
         // Send full game snapshot to the joining socket
         gameDataBroadcast,
 
         // Save gameId for socket session
-        DataMutationConverter.updateSocketSession(
-          socketId,
-          user.id,
-          payload.gameId
-        ),
+        DataMutationConverter.updateSocketSession(socketId, user.id, payload.gameId),
 
         // Player statistics: init session for new players, clear leftAt for
         // reconnecting players.
         ...(GameJoinLogic.shouldInitializeStats(existingPlayer, payload.role)
-          ? [
-              DataMutationConverter.initPlayerStatsSession(
-                payload.gameId,
-                user.id,
-                new Date()
-              ),
-            ]
+          ? [DataMutationConverter.initPlayerStatsSession(payload.gameId, user.id, new Date())]
           : []),
 
         ...(GameJoinLogic.shouldClearLeftAt(existingPlayer, payload.role)
           ? [DataMutationConverter.clearPlayerLeftAt(payload.gameId, user.id)]
-          : []),
+          : [])
       ],
-      broadcastGame: game,
+      broadcastGame: game
     };
   }
 
@@ -194,7 +189,7 @@ export class JoinGameUseCase
       ...gameState,
       currentRound,
       finalRoundData,
-      allPlay,
+      allPlay
     };
   }
 
@@ -213,14 +208,12 @@ export class JoinGameUseCase
       ...currentRound,
       themes: currentRound.themes.map((theme) => ({
         ...theme,
-        questions: [],
-      })),
+        questions: []
+      }))
     };
   }
 
-  private buildJoinVisibleFinalRoundData(
-    gameState: GameStateDTO
-  ): GameStateDTO["finalRoundData"] {
+  private buildJoinVisibleFinalRoundData(gameState: GameStateDTO): GameStateDTO["finalRoundData"] {
     const finalRoundData = gameState.finalRoundData;
 
     if (finalRoundData?.phase !== FinalRoundPhase.ANSWERING) {
@@ -232,8 +225,8 @@ export class JoinGameUseCase
       // Submitted final answers stay private until review reveals all answers.
       answers: finalRoundData.answers.map((answer) => ({
         ...answer,
-        answer: "",
-      })),
+        answer: ""
+      }))
     };
   }
 }

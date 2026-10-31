@@ -13,7 +13,7 @@ import {
   timer,
 } from "./fixtures";
 import type { ServerEvent } from "./protocol";
-import { isStarted, reduce, type GameSession } from "./reducer";
+import { isStarted, reduce, sessionFromSnapshot, type GameSession } from "./reducer";
 import { phaseOf } from "./selectors";
 
 const run = (s: GameSession, ...events: ServerEvent[]) => events.reduce(reduce, s);
@@ -51,6 +51,54 @@ describe("reducer: lobby", () => {
 });
 
 describe("reducer: regular question", () => {
+  it("restores a pending regular submission and clears it for a new answerer", () => {
+    let s = sessionFromSnapshot(
+      "game",
+      snapshot({
+        currentRound: round(),
+        questionState: "answering",
+        answeringPlayer: ALICE,
+        submittedAnswer: "0",
+      }),
+    );
+    expect(s.submittedAnswer).toBe("0");
+    const result = {
+      player: ALICE,
+      result: 0,
+      score: 0,
+      answerType: "wrong" as const,
+      answerText: "0",
+    };
+    s = reduce(s, { type: "answer-result", payload: { answerResult: result, timer: timer() } });
+    expect(s.submittedAnswer).toBeNull();
+    expect(s.state.submittedAnswer).toBeNull();
+    expect(s.state.answeredPlayers?.at(-1)?.answerText).toBe("0");
+    s = reduce(s, {
+      type: "answer-result-undo",
+      payload: { playerId: ALICE, revertedResult: 0, newScore: 0, canAnswerAgain: true },
+    });
+    s = reduce(s, { type: "question-answer", payload: { userId: BOB, timer: timer() } });
+    expect(s.submittedAnswer).toBeNull();
+    expect(s.state.submittedAnswer).toBeNull();
+  });
+
+  it("does not restore a regular pending answer in final or legacy snapshots", () => {
+    const old = sessionFromSnapshot(
+      "game",
+      snapshot({ currentRound: round(), questionState: "answering" }),
+    );
+    expect(old.submittedAnswer).toBeNull();
+    const final = sessionFromSnapshot(
+      "game",
+      snapshot({
+        currentRound: round("final"),
+        questionState: "answering",
+        submittedAnswer: "stale",
+      }),
+    );
+    expect(final.submittedAnswer).toBeNull();
+  });
+
   it("applies renamed board and join-mode broadcasts", () => {
     let s = choosing();
     const questionId = s.state.currentRound!.themes[0]!.questions[0]!.id;
@@ -210,10 +258,19 @@ describe("reducer: regular question", () => {
   });
 
   it("keeps the snapshot phase when question data is re-sent after a rejoin", () => {
-    let s = session({ currentRound: round(), questionState: "showing", timer: timer() });
+    let s = session({
+      currentRound: round(),
+      questionState: "showing",
+      timer: timer(),
+      submittedChoiceOrder: 0,
+    });
     s = reduce(s, { type: "question-data", payload: { data: question(101), timer: timer() } });
     expect(phaseOf(s)).toBe("showing");
     expect(s.state.currentQuestion?.id).toBe(101);
+    expect(s.state.submittedChoiceOrder).toBe(0);
+    s = session({ currentRound: round(), questionState: "choosing", submittedChoiceOrder: 0 });
+    s = reduce(s, { type: "question-data", payload: { data: question(102), timer: timer() } });
+    expect(s.state.submittedChoiceOrder).toBeNull();
   });
 
   it("keeps the question paused when it is re-sent while someone answers", () => {
@@ -376,6 +433,33 @@ describe("reducer: special questions", () => {
   });
 });
 
+describe("answer submission presence", () => {
+  it("keeps null submissions distinguishable until this answer ends", () => {
+    const initial = session({
+      currentRound: round(),
+      currentQuestion: question(100, { answerType: "number" }),
+      questionState: "answering",
+      answeringPlayer: ALICE,
+    });
+    expect(initial.hasAnswerSubmission).toBe(false);
+    const submitted = reduce(initial, { type: "answer-submitted", payload: { answerText: null } });
+    expect(submitted.hasAnswerSubmission).toBe(true);
+    const nextAnswerer = reduce(submitted, {
+      type: "question-answer",
+      payload: { userId: BOB, timer: timer() },
+    });
+    expect(nextAnswerer.hasAnswerSubmission).toBe(false);
+    const restored = session({
+      currentRound: round(),
+      currentQuestion: question(100, { answerType: "number" }),
+      questionState: "answering",
+      answeringPlayer: ALICE,
+      submittedAnswer: "",
+    });
+    expect(restored.hasAnswerSubmission).toBe(true);
+  });
+});
+
 describe("reducer: final round", () => {
   const final = () =>
     session({
@@ -390,6 +474,43 @@ describe("reducer: final round", () => {
         eliminatedThemes: [],
       },
     });
+
+  it("waits for final media and records a forced start before showing the question", () => {
+    const q = question(110, { text: "Final" });
+    let s = reduce(final(), {
+      type: "final-question-data",
+      payload: {
+        questionData: { themeId: 11, themeName: "Final", question: q, mediaPreparationId: "prep" },
+        timer: timer(30_000),
+      },
+    });
+    expect(phaseOf(s)).toBe("media");
+    expect(s.state.finalRoundData?.phase).toBe("answering");
+    const preparingTimer = s.state.timer;
+    s.players.find((player) => player.meta.id === ALICE)!.mediaDownloaded = true;
+    s = reduce(s, {
+      type: "final-question-data",
+      payload: {
+        questionData: { themeId: 11, themeName: "Final", question: q, mediaPreparationId: "prep" },
+      },
+    });
+    expect(s.state.timer).toEqual(preparingTimer);
+    expect(s.players.find((player) => player.meta.id === ALICE)?.mediaDownloaded).toBe(true);
+    const answerTimer = timer(80_000);
+    s = reduce(s, {
+      type: "media-download-status",
+      payload: {
+        playerId: ALICE,
+        mediaDownloaded: false,
+        allPlayersReady: true,
+        timer: answerTimer,
+        timedOut: true,
+      },
+    });
+    expect(phaseOf(s)).toBe("final_answering");
+    expect(s.state.timer).toEqual(answerTimer);
+    expect(s.state.finalRoundData?.questionData?.mediaPreparationTimedOut).toBe(true);
+  });
 
   it("eliminates themes, collects bids and answers, then reviews", () => {
     let s = reduce(final(), {
@@ -473,6 +594,35 @@ describe("reducer: final round", () => {
 });
 
 describe("reducer: snapshots and housekeeping", () => {
+  it("restores a host's final point question after the public rejoin snapshot", () => {
+    const publicQuestion = question(110, { answerType: "point" });
+    const publicData = { themeId: 11, themeName: "Science", question: publicQuestion };
+    const finalRoundData = {
+      phase: "reviewing" as const,
+      turnOrder: [ALICE],
+      bids: { [ALICE]: 100 },
+      eliminatedThemes: [],
+      answers: [{ id: "answer", playerId: ALICE, answer: "0.2,0.4", submittedAt: "2026-01-01" }],
+      questionData: publicData,
+    };
+    const snapshotEvent = snapshot({
+      currentRound: round("final"),
+      questionState: "reviewing",
+      finalRoundData,
+    });
+    const publicState = reduce(choosing(), { type: "game-data", payload: snapshotEvent });
+    expect(publicState.state.finalRoundData?.questionData?.question.answerPoint).toBeUndefined();
+    const full = { ...publicQuestion, answerPoint: { x: 0.7, y: 0.3 }, answerDeviation: 0.1 };
+    const hostState = reduce(publicState, {
+      type: "final-question-data",
+      payload: { questionData: { ...publicData, question: full } },
+    });
+    expect(hostState.state.finalRoundData?.questionData?.question).toEqual(full);
+    expect(hostState.state.finalRoundData?.answers).toEqual(finalRoundData.answers);
+    expect(phaseOf(hostState)).toBe("final_reviewing");
+    expect(publicState.state.finalRoundData?.questionData?.question.answerPoint).toBeUndefined();
+  });
+
   it("replaces everything with a fresh snapshot", () => {
     const s = reduce(choosing(), { type: "game-data", payload: snapshot() });
     expect(isStarted(s)).toBe(false);

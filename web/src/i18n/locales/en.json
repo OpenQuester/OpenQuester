@@ -7,7 +7,9 @@
     "dismiss": "Dismiss",
     "you": "you",
     "youCap": "You",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
   },
   "nav": {
     "main": "Main",
@@ -56,6 +58,9 @@
     "hostSubtitle": "Pick a package, set the room, share the link. You're the showman.",
     "createGame": "Create game",
     "openGames": "Open games",
+    "search": "Search games",
+    "clearSearch": "Clear search",
+    "noMatches": "No games match your search and filters.",
     "filter": "Filter games",
     "filters": {
       "all": "All",
@@ -181,7 +186,7 @@
       "roundLimitHelp": "When time is up, the round ends after the question being played, even if questions are left.",
       "noLimit": "No limit",
       "minutes": "{{count}} min",
-      "seconds": "{{count}} s",
+      "seconds": "{{count}} sec.",
       "timers": "Timers",
       "timer": {
         "answerMs": "Time to press the buzzer",
@@ -190,7 +195,10 @@
         "secretTransferMs": "Time to hand over a secret question",
         "allPlayAnswerMs": "Time to write when everyone answers",
         "finalAnswerMs": "Time for the final answer"
-      }
+      },
+      "startMode": "Start game",
+      "startAutomatic": "When everyone is ready",
+      "startManual": "When the showman decides"
     }
   },
   "settings": {
@@ -242,7 +250,8 @@
     "watch": "Spectate",
     "lobbyHelp": "Players buzz and score. Spectators watch everything but can't answer.",
     "playingHelp": "The game is in progress. Take a free seat and play from the next question, or watch.",
-    "fullHelp": "All seats are taken. You can watch and take a seat if one frees up."
+    "fullHelp": "All seats are taken. You can watch and take a seat if one frees up.",
+    "passwordInvalid": "Use 1–16 Latin letters, digits, - or _."
   },
   "game": {
     "joining": "Joining the game…",
@@ -259,6 +268,14 @@
     "scores": "Scores",
     "noPlayers": "No players are seated. You can pick questions yourself.",
     "roundLabel": "Round {{n}} · {{name}}",
+    "rounds": {
+      "title": "Package rounds",
+      "position": "{{current}} of {{total}}",
+      "open": "Rounds. {{position}}. Current: {{name}}",
+      "done": "Completed",
+      "current": "Now",
+      "next": "Next"
+    },
     "you": "You:",
     "youAre": "You are {{role}}",
     "delete": "Delete game",
@@ -291,7 +308,7 @@
     "youreSeated": "You're in seat {{n}} as a player",
     "imReady": "I'm ready",
     "readyUndo": "✓ Ready — click to undo",
-    "readyHelp": "Only the showman can start. Being ready tells them you're here and set.",
+    "readyHelp": "The game starts when every connected player is ready. The showman can also start it earlier.",
     "waitingForHost": "Waiting for {{name}} to start · {{ready}} of {{total}} ready.",
     "watchInstead": "Watch instead",
     "youreWatching": "You're watching",
@@ -318,13 +335,26 @@
     "kick": "Remove {{name}} from the game",
     "moveToSpectators": "Move {{name}} to spectators",
     "moreSeats_one": "{{count}} more open seat",
-    "moreSeats_other": "{{count}} more open seats"
+    "moreSeats_other": "{{count}} more open seats",
+    "readyManualHelp": "Mark yourself ready. The showman decides when to start.",
+    "waitingForReady": "{{ready}} / {{total}} players ready. Waiting for everyone to be ready.",
+    "startManualHelp": "Readiness is a signal to you. The game starts only when you press Start.",
+    "automaticMode": "Automatic start · starts when every connected player is ready.",
+    "manualMode": "Showman starts · ready players wait for the showman.",
+    "showmanOpen": "Showman seat is open",
+    "showmanHelp": "Runs the game and judges answers",
+    "becomeShowman": "Become showman",
+    "packageOverview": "Rounds and themes",
+    "packageUnavailable": "Could not load the package overview.",
+    "finalRound": "Final round"
   },
   "banner": {
     "reconnecting": "Connection lost — reconnecting…",
-    "reconnectingHelp": "Your seat and score are kept. The screen catches up as soon as you're back.",
-    "paused": "Paused by {{name}}",
-    "pausedHelp": "Timers are frozen. Nothing you press counts until the game resumes."
+    "reconnectingHelp": "Your seat and score are kept. The screen catches up as soon as you're back."
+  },
+  "pause": {
+    "title": "Game paused",
+    "waiting": "Waiting for the showman to continue the game."
   },
   "chat": {
     "title": "Chat",
@@ -349,6 +379,7 @@
       "toggleRestored": "put {{theme}} for {{price}} back on the board",
       "answerRight": "judged {{player}} right ({{points}})",
       "answerWrong": "judged {{player}} wrong ({{points}})",
+      "answerSkipped": "skipped {{player}}'s answer ({{points}})",
       "undo": "took back the ruling on {{player}} ({{points}})",
       "joinMode": "set who can join: {{mode}}",
       "kick": "removed {{player}} from the game",
@@ -365,7 +396,8 @@
       "reviewRight": "judged {{player}}'s answer right",
       "reviewWrong": "judged {{player}}'s answer wrong",
       "theme": "removed the theme {{theme}}"
-    }
+    },
+    "system": "System"
   },
   "menu": {
     "title": "Game menu",
@@ -439,6 +471,7 @@
     "answering": "answering",
     "passed": "passed",
     "givingAway": "giving away",
+    "choosingPrice": "choosing price",
     "bidding": "bidding",
     "removing": "removing",
     "bidPlaced": "bid placed",
@@ -480,15 +513,11 @@
     "recap": "Question: {{text}}",
     "audioEnded": "Finished",
     "replay": "Play again",
-    "cue": {
-      "open": "The buzzer is open",
-      "soon": "The buzzer opens in a moment",
-      "player": "Know it? Buzz now with the button below or Space.",
-      "showman": "Waiting for a player to buzz. With no buzz, the answer is revealed when time runs out.",
-      "spectator": "Players can buzz now.",
-      "timeLeft": "{{seconds}} s left"
-    },
-    "optionNumber": "Option {{n}}"
+    "optionNumber": "Option {{n}}",
+    "mediaTab": "Media",
+    "textTab": "Text",
+    "scrollHint": "Scroll to read more",
+    "expandOption": "Open option {{n}}"
   },
   "showman": {
     "panel": "Only you can see this",
@@ -496,33 +525,39 @@
     "answer": "Correct answer",
     "noAnswerText": "No answer text in the package",
     "hint": "Hint: {{hint}}",
-    "answering": "{{name}} answers:",
+    "answering": "<player>{{name}}</player> answers:",
     "sayingOutLoud": "Answering out loud",
+    "emptySubmission": "No answer text was sent.",
     "alreadyAnswered": "Already answered",
-    "comment": "Comment for players",
+    "comment": "Instruction for the showman",
     "alsoRight": "Also right: {{answers}}",
     "notRight": "Not right: {{answers}}",
     "number": "Right number: {{number}}{{deviation}}",
-    "autoChecked": "The game checks this answer itself."
+    "autoChecked": "The game checks recognized answers automatically."
   },
   "reveal": {
     "answer": "The answer",
-    "gotIt": "{{name}} got it · {{points}}",
-    "nobody": "Nobody got this one.",
-    "alsoRight": "Also accepted: {{answers}}",
+    "gotIt": "<player>{{name}}</player> answers correctly · <points>{{points}}</points>",
+    "nobody": "No one answered correctly.",
+    "correctPlayers": "Correct answers: {{players}}",
+    "correctCount": "Correct: {{correct}}/{{total}}",
+    "noSubmissions": "No one submitted an answer.",
+    "unresolved": "Some answers have not been judged.",
+    "playerFallback": "Player {{id}}",
+    "submitted": "<player>{{name}}</player> answered: “{{answer}}”",
+    "alsoRight": "Also accepted: <answers>{{answers}}</answers>",
     "authors": "By {{names}}",
     "sources": "Source: {{list}}"
   },
   "secret": {
     "youPicked": "You picked a secret question. Who should answer it?",
-    "picked": "{{name}} picked a secret question and is choosing who answers.",
+    "picked": "<player>{{name}}</player> picked a secret question and is choosing who answers.",
     "ruleAny": "It can go to any player, including the one who picked it. They answer alone — no buzzer.",
     "ruleExcept": "It must go to another player. They answer alone — no buzzer.",
     "giveTo": "Give the question to",
     "prices": "Prices to pick from",
     "pickPriceYou": "The question is yours — pick its price",
-    "pickPrice": "{{name}} got the question and picks its price",
-    "priceRule": "A bigger price wins more if you're right and costs more if you're wrong. You see the question after picking."
+    "pickPrice": "<player>{{name}}</player> got the question and picks its price"
   },
   "stake": {
     "kicker": "Stake question · auction",
@@ -535,6 +570,7 @@
     "waiting": "waiting"
   },
   "final": {
+    "mediaTimedOut": "Some players could not load the media in time. The question started anyway; some content may be missing.",
     "themesTitle": "Final round themes",
     "themesHelp": "Players take turns removing a theme. The last one left is the final question.",
     "removed": "Removed",
@@ -568,11 +604,15 @@
     "double": "×2 {{points}}",
     "correctDoubleLabel": "Right, double points: +{{points}}",
     "wrongDoubleLabel": "Wrong, double penalty: −{{points}}",
-    "correctZero": "Right, 0",
-    "wrongZero": "Wrong, 0"
+    "skipZero": "Skip, 0"
   },
   "bid": {
     "quick": "Quick bids",
+    "slider": "Bid amount slider",
+    "detailsUnavailable": "Bidding details are unavailable. Wait for the game to update.",
+    "afterAllIn": "After an all-in, only all-in or pass is allowed.",
+    "noRegularBid": "A regular bid is unavailable.",
+    "waitTimer": "No bid is available. Wait for the timer.",
     "amount": "Your bid",
     "bid": "Bid {{amount}}",
     "range": "Bid {{min}} – {{max}}",
@@ -601,6 +641,7 @@
   "announce": {
     "correct": "{{name}} is correct, {{points}}",
     "wrong": "{{name}} is wrong, {{points}}",
+    "skipped": "{{name}}'s answer was skipped, {{points}}",
     "yourTurn": "Your turn"
   },
   "dock": {
@@ -610,17 +651,17 @@
     "reconnecting": "Reconnecting",
     "offlineInfo": "Actions are paused until you're back",
     "paused": "Paused",
-    "pausedInfo": "Nothing counts while the game is paused",
     "choosing": {
       "yourTurn": "Your turn to pick",
       "pickInfo": "Pick any amber cell on the board",
-      "isPicking": "{{name}} is picking",
+      "isPicking": "<player>{{name}}</player> is picking",
       "showmanPicks": "The showman picks the next question",
-      "showmanStatus": "{{name}} picks next",
+      "showmanStatus": "<player>{{name}}</player> picks next",
       "youPick": "Pick the next question",
       "showmanInfo": "Wait for {{name}}, or pick for them",
       "pickAny": "Pick any cell on the board",
-      "nextRound": "Skip to next round",
+      "randomQuestion": "Pick random question",
+      "noQuestions": "No questions left",
       "next": "The question opens for everyone as soon as it's picked.",
       "nextYou": "The question opens for everyone right after you pick.",
       "unknownShowman": "A player picks next — or pick for them",
@@ -630,13 +671,15 @@
     },
     "media": {
       "status": "{{ready}} of {{total}} players ready",
+      "finalWait": "Waiting for players to load the final question.",
+      "finalNext": "The final question starts when the media is ready.",
       "next": "The buzzer opens as soon as every player has loaded the question."
     },
     "showing": {
       "status": "Players can buzz now",
       "open": "Buzzer is open",
       "buzz": "Buzz!",
-      "pass": "Pass on this question",
+      "pass": "Pass",
       "unpass": "Undo pass",
       "wrongCost": "Wrong: −{{points}} and the buzzer reopens for the others",
       "wrongFree": "Wrong: no penalty",
@@ -647,34 +690,42 @@
       "wait": "Buzzer opens after the question",
       "waitButton": "Wait for it…",
       "earlyHint": "Pressing before the buzzer opens locks you out for 3 seconds.",
-      "locked": "Too early! You can press again in {{seconds}} s",
+      "locked": "Too early! You can press again in {{seconds}} sec.",
       "nextWindow": "Everyone who presses within a split second of the first has an equal chance. Right: +{{points}}. {{wrong}}.",
       "showmanWait": "The question is playing — the buzzer opens after it",
       "openBuzzer": "Open buzzer now",
       "showmanNextEarly": "The buzzer opens when the question finishes. Open it now to let players buzz early."
     },
     "answering": {
-      "judge": "{{name}} is answering — judge it",
+      "autoSubmitted": "<player>{{name}}</player> sent an answer — waiting for the result",
+      "autoSubmittedHelp": "The answer was sent. Wait for the result or skip without points.",
+      "questionLoading": "Waiting for question details.",
+      "autoWait": "<player>{{name}}</player> is answering — wait for their action",
+      "autoWaitHelp": "The player must select, enter, or mark an answer.",
+      "autoWaitNext": "The answer will be checked automatically when possible.",
+      "judge": "<player>{{name}}</player> is answering — judge it",
       "showmanNext": "Correct: {{name}} scores and picks next. Wrong: −{{points}} and the buzzer reopens.",
       "showmanNextSingle": "Only {{name}} answers this one. Either way the answer is revealed next.",
       "you": "You're answering!",
-      "pickOption": "Pick an option above, or press 1 – 4",
+      "pickOption": "Pick an option or press its number",
       "typeLabel": "Your answer",
       "typePlaceholder": "Say it out loud or type it here",
       "send": "Send",
       "sent": "Sent ✓",
       "giveUp": "Give up",
+      "autoNext": "Recognized answers are checked automatically. If no result arrives, the showman can skip without points.",
       "youNext": "The showman judges your answer. Wrong costs points and the buzzer reopens for the others.",
+      "choiceNext": "Recognized answers are checked automatically. If no result arrives, the showman can skip without points.",
       "youNextSingle": "The showman judges your answer. Right or wrong, the answer is revealed next.",
-      "other": "{{name}} is answering",
+      "other": "<player>{{name}}</player> is answering",
       "wait": "Wait for the showman's call",
       "otherNext": "If {{name}} is wrong, the buzzer reopens for everyone else.",
       "otherNextSingle": "Only {{name}} answers this question.",
-      "showmanChoice": "When {{name}} picks an option, the game checks it and scores it. Judge only if they answer out loud.",
+      "showmanChoice": "The game checks {{name}}'s answer when possible. Judge it if review is needed.",
       "numberPlaceholder": "Type a number"
     },
     "reveal": {
-      "correct": "{{name}} was right · {{points}}",
+      "correct": "<player>{{name}}</player> answers correctly · <points>{{points}}</points>",
       "nobody": "Here's the answer",
       "continue": "Continue",
       "info": "Back to the board in a moment",
@@ -683,20 +734,21 @@
     },
     "secret": {
       "choose": "Choose who answers",
-      "giveQ": "Give it to {{name}}?",
-      "otherChoosing": "{{name}} is choosing who answers",
+      "giveQ": "Give it to <player>{{name}}</player>?",
+      "otherChoosing": "<player>{{name}}</player> is choosing who answers",
       "give": "Give to {{name}}",
       "pickFirst": "Pick a player first",
       "wait": "Wait — you might get this question",
       "next": "They must answer: +{{points}} if right, −{{points}} if wrong.",
       "nextNoPrice": "They must answer alone.",
       "priceYou": "Pick the price of your question",
-      "priceOther": "{{name}} is picking the price",
+      "priceOther": "<player>{{name}}</player> is picking the price",
       "priceWait": "Waiting for {{name}} to pick a price",
-      "priceNext": "Right answer wins the picked price, wrong costs it. If time runs out, the lowest price is used."
+      "priceNext": "Right answer wins the picked price, wrong costs it. If time runs out, the lowest price is used.",
+      "priceAbove": "Choose the question price above"
     },
     "stake": {
-      "waitFor": "Waiting for {{name}}'s bid",
+      "waitFor": "Waiting for <player>{{name}}</player>'s bid",
       "watching": "Players are bidding — nothing to do yet",
       "beat": "Your bid — beat {{amount}}",
       "open": "Your bid",
@@ -704,8 +756,8 @@
     },
     "final": {
       "elimYou": "Your turn — remove one theme",
-      "elimOther": "{{name}} removes a theme",
-      "elimShowman": "{{name}} removes a theme",
+      "elimOther": "<player>{{name}}</player> removes a theme",
+      "elimShowman": "<player>{{name}}</player> removes a theme",
       "elimInfo": "Click a theme you don't want",
       "elimNext_one": "{{count}} theme left — it becomes the final question.",
       "elimNext_other": "{{count}} themes left. Players take turns until one remains.",
@@ -718,12 +770,17 @@
       "bidNext": "Bids stay hidden until the review. Players with 0 or less sit the final out.",
       "sitOut": "You sit this final out",
       "typeAnswer": "Type your answer · bid {{amount}}",
+      "pointAnswer": "Pick a point · bid {{amount}}",
+      "pointNext": "Select a point on the picture to submit. If time runs out without an answer, the bid is lost.",
       "answerLabel": "Your final answer",
       "answerPlaceholder": "Type your answer",
       "submit": "Submit",
       "answerLocked": "Answer locked in",
       "answersIn": "{{done}} of {{total}} answers in",
       "answerShowman": "Players are answering",
+      "contentPlaying": "Question in progress",
+      "contentWait": "Watch the question first.",
+      "contentNext": "Answering opens after the question finishes.",
       "answerNext": "Answers are revealed in the review. Whatever you typed is sent when time runs out.",
       "reviewStatus": "{{done}} of {{total}} answers judged",
       "reviewShowman": "Judge each answer on the stage",
@@ -742,6 +799,8 @@
       "stakeNext": "When every stake is in, the question is shown to everyone.",
       "typeAnswer": "Type your answer — everyone answers this one",
       "answerWatch": "Players are writing their answers",
+      "answerNextStakeAuto": "Valid answers are checked automatically; the showman reviews unrecognized answers. Right wins your stake; wrong loses it.",
+      "answerNextNoRiskAuto": "Valid answers are checked automatically; the showman reviews unrecognized answers. Right wins {{points}}; wrong costs nothing.",
       "answerNextStake": "When time is up the showman judges every answer. Right wins your stake, wrong loses it.",
       "answerNextNoRisk": "When time is up the showman judges every answer. Right wins {{points}}, wrong costs nothing.",
       "reviewShowman": "Judge each answer on the stage",
@@ -771,9 +830,21 @@
     "noShowman": "No showman right now",
     "noSpectators": "Nobody is watching.",
     "seat": "Seat as player",
-    "showmanHelp": "Manage a player to fix their score, give them the turn, move them to spectators or remove them."
+    "showmanHelp": "Manage a player to fix their score, give them the turn, move them to spectators or remove them.",
+    "viewAvatar": "Open avatar of {{name}}",
+    "avatar": "Avatar of {{name}}",
+    "currentValue": "Current question value",
+    "lastValue": "Last question value",
+    "valueUnavailable": "The previous question value is not available. Use player management to set a score.",
+    "addScore": "Add {{amount}} to {{name}}",
+    "subtractScore": "Subtract {{amount}} from {{name}}"
   },
   "upload": {
+    "finalMedia": {
+      "unavailable": "Could not read the duration of {{name}} for the final question. Check the file and try again.",
+      "tooLong": "The duration for {{name}} exceeds two minutes. Shorten the file or its display time for the final question."
+    },
+    "pointImageDimensions": "Could not read the first image dimensions for a point answer. Check the image and try again.",
     "back": "Packages",
     "title": "Upload a package",
     "lead": "Bring a SIGame .siq pack or an OpenQuester .oq export. You'll see what's inside before anything is uploaded.",
@@ -813,6 +884,7 @@
       "emptyQuestion": "Question has no text or media, so it was skipped.",
       "noAnswer": "Question has no answer. The showman will judge it without one.",
       "choiceAsSimple": "Choice question has fewer than two options, so it plays as a regular question.",
+      "choiceCorrectUnresolved": "The correct option needs repair. Open the question in the editor and choose it again.",
       "unknownType": "Question type “{{detail}}” isn't supported yet and plays as a regular question.",
       "finalAsSimple": "A final round outside the last position was converted to a regular round. Review its questions and prices.",
       "extraFinalQuestions": "Only the first question of this final theme was imported; {{detail}} additional questions were left out. Review the source archive.",
@@ -884,9 +956,22 @@
     "notSaved": "Not saved yet",
     "missing": "This draft isn't in this browser",
     "missingHelp": "Drafts are kept in the browser they were made in. It may have been deleted, or made on another device.",
-    "seconds_one": "{{count}} s",
-    "seconds_other": "{{count}} s",
-    "secondsShort": "s",
+    "seconds_one": "{{count}} sec.",
+    "seconds_other": "{{count}} sec.",
+    "secondsShort": "sec.",
+    "player": {
+      "play": "Play",
+      "pause": "Pause",
+      "seek": "Seek",
+      "mute": "Mute",
+      "unmute": "Unmute",
+      "volume": "Volume",
+      "fullscreen": "Fullscreen",
+      "fullscreenError": "Fullscreen is unavailable.",
+      "exitFullscreen": "Exit fullscreen",
+      "loading": "Loading media…",
+      "error": "Unable to play this media."
+    },
     "defaults": {
       "title": "New package",
       "round": "Round {{n}}",
@@ -962,10 +1047,50 @@
       "cards": "Preview cards with media and answers"
     },
     "inspector": {
-      "label": "Selected question"
+      "label": "Selected question",
+      "resize": "Resize question inspector"
+    },
+    "playtest": {
+      "title": "Interactive game preview",
+      "description": "Local simulation of this unsaved question. No real game is created.",
+      "loading": "Preparing question media…",
+      "mediaError": "The question media could not be loaded. Check the files and try again.",
+      "retry": "Try again",
+      "fix": "Return to editing",
+      "invalid": "This question is not finished yet.",
+      "perspective": "View as",
+      "player": "Player {{number}}",
+      "showman": "Showman",
+      "spectator": "Spectator",
+      "continue": "Continue",
+      "restart": "Restart",
+      "pause": "Pause",
+      "resume": "Resume",
+      "controls": "Simulation controls",
+      "local": "Local draft question preview.",
+      "settings": "Test settings",
+      "waiting": "Advance the content or wait for the buzzer before answering.",
+      "legacy": "Preview uses the current image dimensions. The saved legacy question keeps its old server behavior until republished.",
+      "theme": "Test theme",
+      "round": "Test round",
+      "final": "Final round",
+      "number": "Number",
+      "deviation": "The answer tolerance must be zero or greater.",
+      "stakeLimit": "The maximum bid must be at least the question price for this auction.",
+      "keepTheme": "Kept for the preview",
+      "targetTheme": "{{name}} is kept for the preview question.",
+      "finished": "This run is complete. Restart to try again.",
+      "switchToPlayer": "Switch View as to a player who can act.",
+      "judgeAnswers": "Judge the submitted answers using the controls below.",
+      "switchToShowman": "Switch to the showman to judge the submitted answers."
     },
     "preview": {
+      "mediaCount": "Media files: {{count}}",
+      "mediaOnly": "Media answer",
+      "openFull": "Select the question for the full preview.",
       "answer": "Answer",
+      "pointAnswer": "Point on image",
+      "pointUnavailable": "The point or its image is unavailable.",
       "noAnswer": "No answer yet",
       "noQuestion": "No question text or media yet",
       "hint": "Showman hint",
@@ -977,6 +1102,11 @@
       "readOnly": "Preview · {{rounds}} rounds · {{questions}} questions · read only"
     },
     "media": {
+      "dragFile": "Drag file {{number}} to reorder",
+      "moveEarlier": "Move file {{number}} earlier",
+      "moveLater": "Move file {{number}} later",
+      "pointUndoConfirm": "Undo changes the picture for the correct point. The current point will be cleared. Continue?",
+      "sizeUnknown": "Size unknown",
       "image": "Image",
       "audio": "Audio",
       "video": "Video",
@@ -1011,13 +1141,13 @@
       "questionMediaHelp": "Drop images, audio or video here. A question needs text or media.",
       "textFirst": "Show the text first, then each file one at a time",
       "answer": "Correct answers",
-      "answerHelp": "One accepted answer per line. Players see them after the answer is judged.",
+      "answerHelp": "<strong>One accepted answer per line.</strong> Players see them after the answer is judged.",
       "hint": "Hint for the showman",
       "hintHelp": "Only the showman sees it, to judge close answers.",
       "answerMedia": "Shown with the answer",
       "answerMediaHelp": "Optional media revealed with the answer.",
       "comment": "Comment",
-      "commentHelp": "Read out by the showman after the answer.",
+      "commentHelp": "Instruction for the showman before reading the question.",
       "options": "Options",
       "optionsHelp": "Two to eight options. Mark the correct one.",
       "option": "Option {{letter}}",
@@ -1027,7 +1157,7 @@
       "settingsFor": "{{type}} settings",
       "maxBid": "Highest bid",
       "maxBidHelp": "Leave empty to allow all-in.",
-      "stakeEveryone": "Everyone bids at once",
+      "stakeEveryone": "Everyone bids and answers",
       "multiplier": "Price multiplier",
       "noRiskEveryone": "Everyone plays it",
       "transferTitle": "Who can receive it",
@@ -1037,9 +1167,11 @@
       },
       "allowedPrices": "Prices the receiver picks from",
       "allowedPricesHelp": "Optional: 2 to 5 prices separated by commas. Empty keeps the board price.",
-      "showDelay": "Options appear after (s)",
-      "timing": "Timing",
-      "showAnswer": "Answer shows (s)",
+      "showDelay": "Options appear after (sec.)",
+      "showAnswer": "Answer reveal duration",
+      "secondsUnit": "seconds",
+      "revealRange": "Enter a duration from 2 to 30 seconds.",
+      "revealMediaHelp": "Answer media determines the reveal timeline; this fallback duration does not apply.",
       "preview": "Preview",
       "save": "Save",
       "saveShortcut": "Ctrl+Enter saves",
@@ -1047,26 +1179,44 @@
       "discard": "Discard changes",
       "keepEditing": "Keep editing",
       "rightAnswers": "Also accept",
-      "rightAnswersHelp": "One per line. An option matching any of these answers also counts as correct.",
+      "rightAnswersHelp": "<strong>One per line.</strong> An option matching any of these answers also counts as correct.",
       "wrongAnswers": "Wrong answers",
-      "wrongAnswersHelp": "One per line. Common mistakes, so the showman can judge faster. Players never see them.",
+      "wrongAnswersHelp": "<strong>One per line.</strong> Common mistakes, so the showman can judge faster. Players never see them.",
       "authors": "Authors",
       "sources": "Sources",
       "sourcesHelp": "One per line: links or books. Shown with the answer.",
       "answerType": "How players answer",
       "answerTypes": {
-        "text": "Say or type it (the showman judges)",
-        "number": "A number (checked automatically)",
-        "point": "A spot on the picture (checked automatically)"
+        "text": "Text",
+        "number": "Number",
+        "point": "Point on image"
+      },
+      "answerTypeHelp": {
+        "text": "The showman judges the answer.",
+        "number": "The answer is checked automatically against the number.",
+        "point": "The answer is checked automatically against a point on the image."
       },
       "answerNumber": "Right number",
       "answerNumberMissing": "Enter the right number",
       "deviation": "Allowed difference",
       "deviationHelp": "0 means exactly this number.",
-      "pointHelp": "Click the right spot on the question's first picture.",
-      "radius": "Radius (% of the width)",
-      "radiusHelp": "How close a click must be. 5% when empty.",
+      "pointHelp": "Click the right spot on the selected picture.",
+      "radius": "Answer radius",
+      "radiusLoading": "Loading image dimensions…",
+      "radiusValue": "{{percent}}% · {{pixels}} px radius",
+      "radiusLegacy": "This radius exceeds the slider range. It stays unchanged until you adjust it.",
+      "pointLegacy": "This published point uses legacy checking until you publish it again from the web editor.",
       "pointNeedsImage": "Add a picture to the question first."
+    },
+    "timeline": {
+      "add": "Add text step",
+      "text": "Additional text {{number}}",
+      "earlier": "Move step {{number}} earlier",
+      "later": "Move step {{number}} later",
+      "remove": "Remove text step {{number}}",
+      "mainFirstHelp": "Shown first, before the media and other text steps.",
+      "moveHandle": "Drag to reorder, or use the arrow keys",
+      "moveStatus": "Moved to position {{number}}"
     },
     "move": {
       "questionTitle": "Move question",
@@ -1165,6 +1315,7 @@
       "choiceOptions": "A choice question needs 2 to 8 options (has {{count}}).",
       "choiceEmptyOption": "An option has no text.",
       "choiceNoCorrect": "No option is marked as correct.",
+      "choiceCorrectUnresolved": "Choose the correct option again before publishing.",
       "secretPrices": "Pick 2 to 5 prices for the receiver, or leave the list empty (has {{count}}).",
       "multipleFinals": "Only one round can be the final.",
       "finalNotLast": "The final round has to be the last round.",
@@ -1338,6 +1489,7 @@
     "link": "My packages"
   },
   "storage": {
+    "loadFailed": "Could not load storage usage.",
     "title": "Storage",
     "used": "{{used}} of {{quota}} used",
     "usedNoLimit": "{{used}} used, no limit",
@@ -1381,8 +1533,16 @@
   "point": {
     "pick": "Click where the answer is",
     "picture": "Question picture",
+    "pictureWaiting": "Wait for the target picture to appear.",
+    "pictureUnavailable": "The target picture is unavailable. Ask the showman to skip.",
     "prompt": "Click the spot on the picture",
-    "cursor": "Cursor at {{x}}% from the left, {{y}}% from the top. Arrow keys move it, Enter picks."
+    "cursor": "Cursor at {{x}}% from the left, {{y}}% from the top. Arrow keys move it, Enter picks.",
+    "pickedDescription": "Your selected point: {{x}}% of the image width from the left, {{y}}% of its height from the top.",
+    "answerDescription": "{{name}} selected {{x}}% of the image width from the left, {{y}}% of its height from the top.",
+    "finalPictureUnavailable": "The target picture is unavailable. You cannot submit a point answer.",
+    "targetDescription": "Correct point: {{x}}% of the image width from the left, {{y}}% of its height from the top. Tolerance radius: {{radius}}% of the image width.",
+    "imageDimensions": "Image dimensions: {{width}} by {{height}} pixels.",
+    "imageDimensionsUnavailable": "Image dimensions are not yet available."
   },
   "stats": {
     "title": "Your games",
@@ -1457,6 +1617,11 @@
     "uploadStashed_one": "Upload {{count}} file",
     "uploadStashed_other": "Upload {{count}} files",
     "pickHelp": "Pick the same .siq or .oq file again. Only the media that's missing is uploaded."
+  },
+  "roundTransition": {
+    "title": "Next round",
+    "description": "Round {{n}} — {{name}}",
+    "firstTitle": "First round"
   },
   "skipRound": {
     "title": "Skip to the next round?",

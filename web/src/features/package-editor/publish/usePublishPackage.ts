@@ -1,18 +1,33 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { ApiError } from "@/api/client";
 import { useDiscordClientId } from "@/features/auth/discord";
 import { useMe } from "@/features/auth/useMe";
 import { useSettings } from "@/features/settings/settingsStore";
 import { uploadPackage, type UploadProgress } from "@/features/upload/upload";
+import { PointImageDimensionsError } from "@/features/upload/pointImageDimensions";
+import { FinalMediaDurationError } from "@/features/upload/finalMediaDuration";
 import { toParsed } from "../packageMedia";
 import { usePackageEditor } from "../packageEditorStore";
+import { playableNumericContent } from "../numericAnswer";
 
 export type PublishStep =
   | { kind: "check" }
   | { kind: "uploading"; progress: UploadProgress }
   | { kind: "done"; id: number; failed: number; unfinished: boolean }
   | { kind: "failed"; error: string };
+
+function publishError(err: unknown, replace: boolean, t: TFunction): string {
+  if (err instanceof FinalMediaDurationError)
+    return t(`upload.finalMedia.${err.reason}`, { name: err.fileName });
+  if (err instanceof PointImageDimensionsError) return t("upload.pointImageDimensions");
+  if (!(err instanceof ApiError)) return String(err);
+  if (err.status === 0) return t("upload.networkError");
+  if (err.status === 413 || err.status === 507) return err.message;
+  if (err.status === 403 && replace) return t("editor.publish.notYours");
+  return t("upload.serverRejected", { message: err.message });
+}
 
 export function usePublishPackage(setStep: (step: PublishStep) => void) {
   const { t } = useTranslation();
@@ -28,7 +43,8 @@ export function usePublishPackage(setStep: (step: PublishStep) => void) {
   /** With `replace`, saves over the package this draft was published as. */
   const publish = async (replace: boolean) => {
     try {
-      const parsed = toParsed(pkg, media);
+      const draft = toParsed(pkg, media);
+      const parsed = { ...draft, content: playableNumericContent(draft.content) };
       const { id, failed, state } = await uploadPackage(
         parsed,
         (progress) => setStep({ kind: "uploading", progress }),
@@ -50,19 +66,7 @@ export function usePublishPackage(setStep: (step: PublishStep) => void) {
         unfinished: state === null || state.status !== "ready",
       });
     } catch (err) {
-      setStep({
-        kind: "failed",
-        error:
-          err instanceof ApiError
-            ? err.status === 0
-              ? t("upload.networkError")
-              : err.status === 413 || err.status === 507
-                ? err.message
-                : err.status === 403 && replace
-                  ? t("editor.publish.notYours")
-                  : t("upload.serverRejected", { message: err.message })
-            : String(err),
-      });
+      setStep({ kind: "failed", error: publishError(err, replace, t) });
     }
   };
 

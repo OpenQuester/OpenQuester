@@ -20,6 +20,23 @@ export function GameRules({
       <h2 id="g-rules" className="m-0 text-lg font-bold">
         {t("create.rules.title")}
       </h2>
+      <fieldset className={layoutStyles.optionGroup}>
+        <legend className="mb-2 text-[15px] font-semibold">{t("create.rules.startMode")}</legend>
+        <div role="radiogroup" aria-label={t("create.rules.startMode")} className="flex gap-2">
+          {[true, false].map((autoStart) => (
+            <RadioButton
+              key={String(autoStart)}
+              checked={(value.autoStart ?? true) === autoStart}
+              onClick={() => onChange({ ...value, autoStart })}
+            >
+              {t(autoStart ? "create.rules.startAutomatic" : "create.rules.startManual")}
+            </RadioButton>
+          ))}
+        </div>
+        <p className="m-0 text-sm text-muted">
+          {t(value.autoStart !== false ? "lobby.startHelp" : "lobby.startManualHelp")}
+        </p>
+      </fieldset>
       <RuleToggle
         checked={value.falseStart}
         onChange={(checked) => onChange({ ...value, falseStart: checked })}

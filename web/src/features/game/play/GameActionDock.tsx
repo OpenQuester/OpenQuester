@@ -3,13 +3,15 @@ import { useTranslation } from "react-i18next";
 import { TimerRing } from "@/ui/TimerRing";
 import { DockAction, DockInfo } from "./dock/DockAction";
 import { useDockPresentation } from "./dock/useDockPresentation";
-import { useSession } from "../GameContext";
+import { useGame, useSession } from "../GameContext";
+import { PlayerMessage } from "./PlayerName";
 
 /** Phase, role-specific action and next step, with the current timer. */
 export function GameActionDock() {
   const { t } = useTranslation();
   const session = useSession();
-  const { model, phase, paused, offline, fraction, left, ringLabel, ringColor } =
+  const { myId } = useGame();
+  const { model, phase, paused, offline, fraction, left, ringLabel, ringColor, isShowman } =
     useDockPresentation();
 
   return (
@@ -26,22 +28,30 @@ export function GameActionDock() {
             leftMs={left}
             label={ringLabel}
             color={ringColor}
-            size={52}
+            size={40}
           />
           <div className="flex min-w-0 flex-col">
             <span className={actionDockStyles.phase} data-testid="dock-phase">
               {offline ? t("dock.reconnecting") : paused ? t("dock.paused") : t(`phases.${phase}`)}
             </span>
             <span className={actionDockStyles.status} data-testid="dock-status">
-              {model.status}
+              {model.statusPlayer ? (
+                <PlayerMessage
+                  i18nKey={model.statusPlayer.key}
+                  name={model.statusPlayer.name}
+                  values={model.statusPlayer.values}
+                />
+              ) : (
+                model.status
+              )}
             </span>
           </div>
         </div>
         <div className={actionDockStyles.action}>
           {offline ? (
             <DockInfo>{t("dock.offlineInfo")}</DockInfo>
-          ) : paused ? (
-            <DockInfo>{t("dock.pausedInfo")}</DockInfo>
+          ) : paused && !isShowman ? (
+            <DockInfo>{t("pause.waiting")}</DockInfo>
           ) : null}
           <fieldset
             disabled={paused || offline}
@@ -49,7 +59,7 @@ export function GameActionDock() {
             className="m-0 min-w-0 w-full border-0 p-0"
           >
             <DockAction
-              key={`${session.gameId}:${session.state.currentRound?.id}:${session.state.currentQuestion?.id}:${session.state.answeringPlayer}:${model.action?.kind}`}
+              key={`${myId}:${session.gameId}:${session.state.currentRound?.id}:${session.state.currentQuestion?.id}:${session.state.answeringPlayer}:${model.action?.kind}`}
               action={model.action}
             />
           </fieldset>
@@ -60,7 +70,12 @@ export function GameActionDock() {
             <span>{model.next}</span>
           </p>
         )}
-        {model.next && <p className={actionDockStyles.compactNextStep}>{model.next}</p>}
+        {model.next && (
+          <details className={actionDockStyles.compactNextStep} data-no-shortcuts>
+            <summary aria-label={t("dock.next")}>?</summary>
+            <p>{model.next}</p>
+          </details>
+        )}
       </div>
     </div>
   );

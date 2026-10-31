@@ -28,6 +28,54 @@ export function useDragging(): DragItem | null {
   return d;
 }
 
+/** Scroll the editor pane under the pointer while an internal drag rests near its edge. */
+export function useDragAutoScroll() {
+  useEffect(() => {
+    let pane: HTMLElement | null = null;
+    let y = 0;
+    let frame: number | null = null;
+    const stop = () => {
+      if (frame != null) cancelAnimationFrame(frame);
+      frame = null;
+      pane = null;
+    };
+    const scroll = () => {
+      if (!current || !pane) return stop();
+      const rect = pane.getBoundingClientRect();
+      const edge = Math.min(48, rect.height / 4);
+      const distance =
+        y < rect.top + edge
+          ? y - rect.top - edge
+          : y > rect.bottom - edge
+            ? y - rect.bottom + edge
+            : 0;
+      if (!distance || !edge) {
+        frame = null;
+        return;
+      }
+      const before = pane.scrollTop;
+      pane.scrollTop += Math.sign(distance) * Math.ceil((Math.abs(distance) / edge) * 16);
+      frame = pane.scrollTop === before ? null : requestAnimationFrame(scroll);
+    };
+    const move = (event: globalThis.DragEvent) => {
+      if (!current) return;
+      pane = (event.target as Element | null)?.closest<HTMLElement>("[data-editor-scroll]") ?? null;
+      y = event.clientY;
+      if (!pane) return stop();
+      if (frame == null) frame = requestAnimationFrame(scroll);
+    };
+    document.addEventListener("dragover", move, true);
+    document.addEventListener("dragend", stop, true);
+    document.addEventListener("drop", stop, true);
+    return () => {
+      stop();
+      document.removeEventListener("dragover", move, true);
+      document.removeEventListener("dragend", stop, true);
+      document.removeEventListener("drop", stop, true);
+    };
+  }, []);
+}
+
 export function dragSource(item: DragItem, enabled = true) {
   if (!enabled) return {};
   return {

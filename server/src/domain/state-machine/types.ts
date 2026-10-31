@@ -225,6 +225,8 @@ export function getGamePhase(game: Game): GamePhase {
         return GamePhase.FINAL_THEME_ELIMINATION;
       case QuestionState.BIDDING:
         return GamePhase.FINAL_BIDDING;
+      case QuestionState.MEDIA_DOWNLOADING:
+        return GamePhase.MEDIA_DOWNLOADING;
       case QuestionState.ANSWERING:
         return GamePhase.FINAL_ANSWERING;
       case QuestionState.REVIEWING:

@@ -1,7 +1,8 @@
 import { useParams } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMe } from "@/features/auth/useMe";
 import type { JoinOptions } from "@/game/connection";
+import { useGameStore } from "@/game/store";
 import { takeJoinIntent } from "./joinIntent";
 import { useGamePreview } from "./useGamePreview";
 
@@ -12,8 +13,17 @@ export function useGameEntry() {
   const me = useMe();
   const preview = useGamePreview(gameId);
   const [intent] = useState(() => takeJoinIntent(gameId));
-  const [chosen, setChosen] = useState<JoinOptions | null>(intent ?? null);
-  const [autoRejoin, setAutoRejoin] = useState(true);
+  const [chosen, setChosen] = useState<JoinOptions | null>(null);
+  const joinError = useGameStore((s) => (s.gameId === gameId ? s.joinError : null));
+  const joined = useGameStore((s) => s.gameId === gameId && s.session !== null);
+  useEffect(
+    () => () => {
+      // Keep failures during retries, but let the next visit rejoin automatically.
+      const store = useGameStore.getState();
+      if (store.gameId === gameId) store.setJoinError(null);
+    },
+    [gameId],
+  );
   const myListing = useMemo(
     () =>
       me.data && preview.data ? preview.data.players.find((p) => p.id === me.data!.id) : undefined,
@@ -21,12 +31,14 @@ export function useGameEntry() {
   );
   const join: JoinOptions | null =
     chosen ??
-    (autoRejoin && myListing && !preview.data?.finishedAt
+    intent ??
+    (myListing && !preview.data?.finishedAt
       ? { role: myListing.role, targetSlot: myListing.slot ?? null }
       : null);
-  function reset() {
-    setChosen(null);
-    setAutoRejoin(false);
+  function beginJoin(options: JoinOptions) {
+    useGameStore.getState().begin(gameId);
+    setChosen(options);
   }
-  return { gameId, me, preview, join, setChosen, reset };
+  const joining = !!(chosen && me.data && !joinError && !joined);
+  return { gameId, me, preview, join, joinError, joining, beginJoin };
 }

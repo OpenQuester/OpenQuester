@@ -1,5 +1,6 @@
 import type { QuestionContentPlanItemDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import type { PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
+import type { QuestionTextItemDTO } from "domain/types/dto/package/PackageQuestionDTO";
 
 /** Fallback lengths when neither displayTime nor a reported length exists. */
 export interface ContentDefaults {
@@ -12,6 +13,7 @@ export interface QuestionContentSource {
   text?: string | null;
   /** Null/undefined keeps the text visible as a caption. */
   textOrder?: number | null;
+  textItems?: QuestionTextItemDTO[] | null;
   files?: PackageQuestionFileDTO[] | null;
 }
 

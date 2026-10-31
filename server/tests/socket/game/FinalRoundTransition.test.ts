@@ -1,6 +1,12 @@
 import { afterAll, beforeAll, afterEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
+import { container } from "tsyringe";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { PlayerRole } from "domain/types/game/PlayerRole";
+import { FinalQuestionEventData } from "domain/types/socket/events/FinalRoundEventData";
 
 import { FINAL_ROUND_THEME_ELIMINATION_TIME } from "domain/constants/game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -149,6 +155,81 @@ describe("Final Round Transition Test", () => {
       expect(gameState.currentRound).toBeDefined();
       expect(gameState.currentRound!.type).toBe(PackageRoundType.FINAL);
       expect(gameState.currentRound!.themes.length).toBe(3);
+      expect(
+        (await utils.getGameFromGameService(setup.gameId)).getMediaEligiblePlayerIds()
+      ).toEqual(setup.playerUsers.map((player) => player.id));
+    });
+  });
+
+  it("refreshes the media roster when a late player reaches final via next-round", async () => {
+    await suite.scenario(async (scenario) => {
+      const { gameId, showmanSocket, playerSockets, playerUsers } =
+        await utils.setupGameTestEnvironment(userRepo, app, 1, 0, true);
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, []);
+      const late = await utils.createGameClient(app, userRepo);
+      await utils.joinGame(late.socket, gameId, PlayerRole.PLAYER);
+      const game = await utils.getGameFromGameService(gameId);
+      game.players.find((player) => player.meta.id === playerUsers[0].id)!.score = 1500;
+      game.players.find((player) => player.meta.id === late.user.id)!.score = 1200;
+      await suite.testUtils.updateGame(game);
+      expect(
+        (await utils.getGameFromGameService(gameId)).isPlayerEligibleForMedia(late.user.id)
+      ).toBe(false);
+      await utils.progressToNextRound(showmanSocket);
+      const final = await utils.getGameFromGameService(gameId);
+      expect(final.getMediaEligiblePlayerIds()).toEqual([playerUsers[0].id, late.user.id]);
+      const bidding = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_PHASE_COMPLETE);
+      await suite.testUtils.completeThemeElimination([...playerSockets, late.socket], gameId, [
+        ...playerUsers,
+        late.user
+      ]);
+      await bidding;
+      const state = await suite.testUtils.getGameState(gameId);
+      const questionId = state.currentRound!.themes.find(
+        (theme) => !theme.questions?.some((question) => question.isPlayed)
+      )!.questions[0].id;
+      const store = container.resolve(PackageStore);
+      const question = await store.getQuestionWithTheme(gameId, questionId);
+      await container.resolve(RedisRepository).hset(store.getPackageKey(gameId), {
+        [`q:${questionId}`]: JSON.stringify({
+          ...question!.question,
+          text: "",
+          textOrder: null,
+          textItems: [],
+          questionFiles: [
+            {
+              order: 0,
+              displayTime: 1000,
+              file: { md5: "final-image", type: PackageFileType.IMAGE }
+            }
+          ]
+        })
+      });
+      const bid = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_BID_SUBMIT);
+      scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
+      await bid;
+      const prepared = scenario.waitForEvent<FinalQuestionEventData>(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_QUESTION_DATA
+      );
+      scenario.actor(late.socket).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
+      const questionData = await prepared;
+      const status = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS);
+      scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.MEDIA_DOWNLOADED, {
+        mediaPreparationId: questionData.questionData.mediaPreparationId
+      });
+      await status;
+      await utils.waitForActionsComplete(gameId);
+      expect((await utils.getGameState(gameId))?.questionState).toBe(
+        QuestionState.MEDIA_DOWNLOADING
+      );
+      const started = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_PHASE_COMPLETE);
+      scenario.actor(late.socket).emit(SocketIOGameEvents.MEDIA_DOWNLOADED, {
+        mediaPreparationId: questionData.questionData.mediaPreparationId
+      });
+      await started;
+      expect((await utils.getGameState(gameId))?.questionState).toBe(QuestionState.ANSWERING);
     });
   });
 

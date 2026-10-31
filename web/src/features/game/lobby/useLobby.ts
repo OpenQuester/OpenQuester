@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { me as findMe, seatedPlayers, showman } from "@/game/selectors";
 import { useGameStore } from "@/game/store";
-import { useGame, useSession } from "../GameContext";
+import { useLiveGame, useSession } from "../GameContext";
 import { useGamePreview } from "../useGamePreview";
 import { getLobbySeats } from "./getLobbySeats";
 
 export function useLobby() {
   const session = useSession();
-  const { connection, myId } = useGame();
+  const { connection, myId } = useLiveGame();
   const preview = useGamePreview(session.gameId);
   const pending = useGameStore((s) => s.pending);
   const [chatOpen, setChatOpen] = useState(false);
@@ -20,6 +20,7 @@ export function useLobby() {
   const activeSeated = seated.filter((p) => p.status === "in-game");
   const readyCount = activeSeated.filter((p) => ready.has(p.meta.id)).length;
   const meReady = ready.has(myId);
+  const autoStart = session.settings?.autoStart ?? preview.data?.settings?.autoStart ?? true;
   const freeSlots = Math.max(0, maxPlayers - seated.length);
   const { slots, hiddenEmpty } = getLobbySeats(seated, maxPlayers);
   const takeSlot = (slot: number) => {
@@ -43,6 +44,7 @@ export function useLobby() {
     activeSeated,
     readyCount,
     meReady,
+    autoStart,
     freeSlots,
     slots,
     hiddenEmpty,

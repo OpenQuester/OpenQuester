@@ -61,6 +61,8 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   never hard-code a colour in a component. A new theme is a `[data-theme]`
   block plus an entry in `themes.ts`.
 - All user-facing text goes through i18next keys in `src/i18n/locales/*.json`.
+  Server errors are already resolved to display text by the backend; show them
+  as received instead of mapping server error codes or rewriting their messages.
 - Use `cn()` from `src/lib/cn.ts` for class names so later utilities win.
 - Name files and exports by their actual responsibility: `PackageEditorPage`
   edits a package, `MediaEditor` owns an attachment session, and
@@ -88,8 +90,9 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   listener cleanup on close/unmount. Existing small UI primitives, theme tokens
   and shared browser hooks remain cohesive modules; do not split by line count.
 - Home (`features/home/`) composes join/host, rejoin and open-game views;
-  `useHomePage` owns route search, filters and hidden rejoin state. Keep the
-  existing distinction between a retained seat and the connected-player count.
+  `useHomePage` owns search, filters and hidden rejoin state. Keep rejoin
+  independent of list filters and preserve the distinction between a retained
+  seat and the connected-player count.
   Create-game keeps form state and request completion in `useCreateGame`;
   setup fields, package preview and timers are presentation components.
   Preserve password drafts when privacy changes and native timer disclosure
@@ -124,8 +127,14 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   cancellation and shortcuts; `useStagedMedia.tsx` owns the form's queue and
   pending files. Shared controls and types stay in `media-editor/`.
   `QuestionDialog.tsx` chooses read-only or editable presentation. Its keyed
-  `question-form/QuestionForm.tsx` composes the fields and keeps one responsive
-  settings panel in a CSS grid; resizing must not remount its fields.
+  `question-form/QuestionForm.tsx` composes one column of fields; resizing and
+  opening a preview must not remount the form or lose staged media.
+  `playtest/` runs the current unsaved question through the game stage in an
+  isolated store and local runtime. The preview selects the regular-round question
+  and advances media readiness automatically, but leaves secret transfers, bids,
+  final-round choices and answer review to the player. Preserve role-specific answer
+  visibility, local media and timer cleanup, and keep preview actions from persisting
+  settings or sending live game commands.
   `useQuestionForm.ts` owns staging/save/discard;
   `useQuestionMedia.ts` applies changes to one attachment occurrence using the
   latest list. `questionUpdates.ts` holds pure type/choice transformations.
@@ -161,8 +170,18 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   resumes inside the selection and restarts at its beginning otherwise.
   PointPicker's wrapper shrinks to the displayed image; target markers use a
   square aspect ratio so width-based radius stays circular in flex layouts.
-  Drag and drop is native HTML5; every drag has a Move dialog equivalent for
-  touch and keyboard.
+  The editor radius slider maps 100% to a diameter of 120% of the target image's
+  longer side. Before publication, the shared upload flow measures that final
+  image's oriented aspect ratio after optimization; failed decoding blocks the
+  create/replace request and remains retryable. Legacy packages without the
+  optional aspect keep their old server checking until web republication.
+  Board drag and drop is native HTML5, with a Move dialog for touch and keyboard.
+  Question media and additional text share one card list; its grips support native
+  mouse dragging, touch pointers and arrow keys, without click menus. Main question
+  text stays first and outside that list. Saving an edited legacy question stores
+  this normalized sequence; closing without saving preserves its original order.
+  Opening an old question preserves its point target; changing the image set/order
+  selects the last image and clears coordinates only if the target changes.
   `/packages/$id/preview` opens a published package in the same editor with
   `readOnly` set: no drag, menus, autosave or publish.
   A published package opens as a draft (`loadPublishedPackage.ts`) whose media keeps
@@ -230,6 +249,9 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   scheduling. Preserve media keys, the latest clock read on resume, autoplay
   fallback and the timeline timer's cleanup. `QuestionMedia` only orders files;
   `ContentStage` composes screen steps, background sound and the final recap.
+  `question/QuestionBody` lays out only the content already revealed by that timeline:
+  short captions below media, long text beside it, Media/Text tabs on narrow stages.
+  Keep media mounted when changing tabs and bound scrolling to the text panel.
 - Showman actions (rulings, score fixes, kicks, pauses, skips, early buzzer...)
   are logged to the game chat by the server (`ShowmanActionLogLogic`, run from
   `SocketActionHooks`): a chat line with `system: { action, params }` that the
@@ -252,6 +274,10 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   `screen/useGameScreen` owns panel visibility, device pins, unread message IDs,
   focused-player tools and screen shortcuts. Preserve the current wide/sheet
   mount boundaries and keep the report dialog outside the changing stage.
+  `players/PlayerCard` owns score-bar cards; `game/questionFeedback` tracks outcomes,
+  and `game/pointSummary` builds local reveal summaries. See the
+  [game-state matrix](../docs/specs/game-state-matrix.md#required-frontend-behavior)
+  for layout, scoring and result-feedback rules.
   `play/GameActionDock.tsx` renders the phase, action and next step. `dock/` separates its
   presentation hook, pure role/phase models and answer/bid controls. Models return
   typed action data; `DockAction` owns markup and connection dispatch. `useTimedAnswer`
@@ -288,9 +314,13 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   so these controls do not import the settings route component.
 - Game entry (`features/game/`) separates route join/rejoin decisions in
   `useGameEntry`, connection ownership in `connection/useGameConnection`, and
-  form state in `join/useJoinForm`. Keep the connection keyed by game and account ID and
+  form state in `join/useJoinForm`. `GamePage` keeps the join form visible with
+  busy submit buttons until acceptance; rejected passwords can be corrected inline.
+  `ConnectedGame` keeps the round interlude mounted across lobby and play.
+  Keep the connection keyed by game and account ID and
   create it once per mount; cleanup closes it without leaving its seat. A failed
-  join retry disables automatic rejoin. Ignore leave events for another game.
+  join disables automatic rejoin for the current visit; leaving the page clears
+  that failure so the next visit can rejoin. Ignore leave events for another game.
   Keep join drafts in `JoinPanel` even when its form is temporarily hidden.
   `lobby/` separates header, seats, role actions and invite views from `useLobby`;
   `getLobbySeats` preserves missing-slot fallback and the two-empty-seat limit.
@@ -336,6 +366,9 @@ it (e.g. `Host(\`dev.openquester.app\`)`) to use the app there.
 
 `.github/workflows/web.yml` builds, runs unit and e2e tests, then deploys
 `dist/` with `functions/` to the Cloudflare Pages project `openquester-web`.
+Native browser tests run separately on two workers; desktop, tablet and phone
+E2E jobs each have an isolated backend. Playwright stops before the job deadline
+to preserve reports; each E2E job uploads its own report and backend log.
 Previews proxy to `https://dev-api.openquester.app`, production (`main`) to
 `https://api.openquester.app` (`wrangler.toml`). Because of the proxy the app
 and the session cookie share one origin, so no CORS or third-party cookies.

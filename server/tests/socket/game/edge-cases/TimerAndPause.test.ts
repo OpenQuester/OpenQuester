@@ -12,6 +12,7 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { type GameAction, type GameActionResult } from "domain/types/action/GameAction";
 import { type TimerActionPayload } from "domain/types/action/TimerActionPayload";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { ValueUtils } from "domain/utils/ValueUtils";
 import { User } from "infrastructure/database/models/User";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
@@ -63,6 +64,52 @@ describe("Socket Timer and Pause Edge Cases", () => {
   });
 
   describe("Game Pause Edge Cases", () => {
+    it("ignores a stale expiration after a wrong answer rearms the showing timer", async () => {
+      await suite.scenario(async (scenario) => {
+        const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          2,
+          0
+        );
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+        const result = scenario.waitForEvent(playerSockets[1], SocketIOGameEvents.ANSWER_RESULT);
+        const ruling = scenario
+          .createAcceptedActionProbe({ gameId, actionType: GameActionType.ANSWER_RESULT })
+          .waitForCount(1);
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+          answerType: AnswerResultType.WRONG,
+          scoreResult: -100
+        });
+        await Promise.all([result, ruling]);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        const before = (await utils.getGameState(gameId))!;
+        expect(before.questionState).toBe(QuestionState.SHOWING);
+        expect(before.timer?.resumedAt).toBeTruthy();
+
+        const mark = scenario.mark();
+        const accepted = scenario
+          .createAcceptedActionProbe({ gameId, actionType: GameActionType.TIMER_QUESTION_SHOWING_EXPIRED })
+          .waitForCount(1);
+        await Promise.all([
+          submitTimerExpiration(gameId, GameActionType.TIMER_QUESTION_SHOWING_EXPIRED, QuestionState.SHOWING),
+          accepted
+        ]);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        const after = (await utils.getGameState(gameId))!;
+        expect(after.questionState).toBe(QuestionState.SHOWING);
+        expect(after.timer).toEqual(before.timer);
+        await scenario.assert.noInbound({
+          actor: scenario.actor(playerSockets[1]),
+          event: SocketIOGameEvents.QUESTION_FINISH,
+          afterSequence: mark,
+          durationMs: 100
+        });
+      });
+    });
+
     it("ignores a delayed expiration after give-up starts a fresh reveal timer", async () => {
       await suite.scenario(async (scenario) => {
         const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(

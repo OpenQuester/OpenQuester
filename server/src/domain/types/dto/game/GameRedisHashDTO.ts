@@ -12,6 +12,8 @@ export interface GameRedisHashDTO {
   roundIndex: string; // JSON string of RoundIndexEntry[]
   roundsCount: string;
   questionsCount: string;
+  /** Server-only player roster captured when media playback was selected. */
+  mediaEligiblePlayerIds?: string;
   gameState: string; // JSON string of GameStateDTO
   settings: string; // JSON string of GameSettingsDTO
 }

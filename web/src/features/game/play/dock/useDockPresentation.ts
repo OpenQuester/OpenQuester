@@ -1,8 +1,7 @@
-import { useGameStore } from "@/game/store";
 import { useCountdown } from "@/lib/useCountdown";
-import { useGame, useSession } from "../../GameContext";
+import { useGame, useGameState, useSession } from "../../GameContext";
 import { useDockModel } from "./useDockModel";
-import { phaseOf, type Phase } from "@/game/selectors";
+import { myRole, phaseOf, type Phase } from "@/game/selectors";
 
 const RING_COLORS: Partial<Record<Phase, string>> = {
   media: "var(--oq-info)",
@@ -13,10 +12,24 @@ const RING_COLORS: Partial<Record<Phase, string>> = {
   finished: "var(--oq-success)",
 };
 
+function countdownLabel(
+  phase: Phase,
+  offline: boolean,
+  paused: boolean,
+  left: number | null,
+  fallback: string | undefined,
+) {
+  if (phase === "finished") return "✓";
+  if (offline) return "…";
+  if (paused) return "II";
+  return left == null ? (fallback ?? "") : undefined;
+}
+
 export function useDockPresentation() {
   const session = useSession();
   const { myId } = useGame();
-  const connection = useGameStore((s) => s.connection);
+  const isShowman = myRole(session, myId) === "showman";
+  const connection = useGameState((s) => s.connection);
   const phase = phaseOf(session);
   const s = session.state;
   const paused = s.isPaused;
@@ -29,21 +42,12 @@ export function useDockPresentation() {
   const model = useDockModel(session, myId);
   const offline = connection !== "connected";
 
-  const ringLabel =
-    phase === "finished"
-      ? "✓"
-      : offline
-        ? "…"
-        : paused
-          ? "II"
-          : left == null
-            ? (model.ringLabel ?? "")
-            : undefined;
+  const ringLabel = countdownLabel(phase, offline, paused, left, model.ringLabel);
 
   const ringColor = offline
     ? "var(--oq-danger)"
     : paused || (left == null && phase !== "finished")
       ? "var(--oq-border-strong)"
       : (RING_COLORS[phase] ?? "var(--oq-accent)");
-  return { model, phase, paused, offline, fraction, left, ringLabel, ringColor };
+  return { model, phase, paused, offline, fraction, left, ringLabel, ringColor, isShowman };
 }

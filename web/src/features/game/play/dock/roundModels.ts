@@ -1,6 +1,6 @@
 import { type ActionDockModel, type ActionDockContext } from "./actionDockModel";
 
-import { me as findMe, seatedPlayers } from "@/game/selectors";
+import { canPick, me as findMe, seatedPlayers } from "@/game/selectors";
 
 export function choosingModel({
   t,
@@ -15,6 +15,7 @@ export function choosingModel({
   const mine = picker === myId;
   if (role === "showman") {
     return {
+      statusPlayer: picker ? { key: "dock.choosing.showmanStatus", name: name(picker) } : undefined,
       status: picker
         ? t("dock.choosing.showmanStatus", { name: name(picker) })
         : session.turnUnknown
@@ -25,7 +26,7 @@ export function choosingModel({
         text: picker
           ? t("dock.choosing.showmanInfo", { name: name(picker) })
           : t("dock.choosing.pickAny"),
-        nextRound: true,
+        randomQuestion: true,
       },
       next: t("dock.choosing.next"),
     };
@@ -36,11 +37,14 @@ export function choosingModel({
       action: {
         kind: "info",
         text: role === "spectator" ? t("dock.choosing.watching") : t("dock.choosing.unknownInfo"),
+        randomQuestion: canPick(session, myId).ok,
       },
       next: t("dock.choosing.next"),
     };
   }
   return {
+    statusPlayer:
+      !mine && picker ? { key: "dock.choosing.isPicking", name: name(picker) } : undefined,
     status: mine
       ? t("dock.choosing.yourTurn")
       : picker
@@ -53,6 +57,7 @@ export function choosingModel({
         : role === "spectator"
           ? t("dock.choosing.watching")
           : reason("not_your_turn"),
+      randomQuestion: canPick(session, myId).ok,
     },
     next: mine ? t("dock.choosing.nextYou") : t("dock.choosing.next"),
   };
@@ -64,8 +69,16 @@ export function mediaModel({ t, session, reason }: ActionDockContext): ActionDoc
   return {
     status: t("dock.media.status", { ready, total: players.length }),
     ringLabel: `${ready}/${players.length}`,
-    action: { kind: "info", text: reason("waiting_for_media") },
-    next: t("dock.media.next"),
+    action: {
+      kind: "info",
+      text:
+        session.state.currentRound?.type === "final"
+          ? t("dock.media.finalWait")
+          : reason("waiting_for_media"),
+    },
+    next: t(
+      session.state.currentRound?.type === "final" ? "dock.media.finalNext" : "dock.media.next",
+    ),
   };
 }
 

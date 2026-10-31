@@ -85,6 +85,44 @@ it("shows a zero storage quota as full and an unlimited quota without a bar", as
   await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
 });
 
+it("uses the same storage colours at the 50 and 75 percent boundaries and clamps over-quota usage", async () => {
+  const client = makeClient();
+  client.setQueryData(["me", "storage"], { usedBytes: 49, quotaBytes: 100 });
+  render(
+    <QueryClientProvider client={client}>
+      <StorageMeter />
+    </QueryClientProvider>,
+  );
+  const bar = screen.getByRole("progressbar");
+  expect(bar.firstElementChild).toHaveClass("bg-success");
+  act(() => client.setQueryData(["me", "storage"], { usedBytes: 50, quotaBytes: 100 }));
+  await waitFor(() => expect(bar.firstElementChild).toHaveClass("bg-warning"));
+  act(() => client.setQueryData(["me", "storage"], { usedBytes: 75, quotaBytes: 100 }));
+  await waitFor(() => expect(bar.firstElementChild).toHaveClass("bg-danger"));
+  act(() => client.setQueryData(["me", "storage"], { usedBytes: 120, quotaBytes: 100 }));
+  await waitFor(() => expect(bar).toHaveAttribute("aria-valuenow", "100"));
+});
+
+it("shows loading and failure for an unavailable storage request", async () => {
+  let reject!: (error: Error) => void;
+  fetchMock.mockImplementationOnce(
+    () =>
+      new Promise((_, fail) => {
+        reject = fail;
+      }),
+  );
+  const client = makeClient();
+  render(
+    <QueryClientProvider client={client}>
+      <StorageMeter />
+    </QueryClientProvider>,
+  );
+  expect(screen.getByText("Loading…")).toBeInTheDocument();
+  await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+  await act(async () => reject(new Error("offline")));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not load storage usage.");
+});
+
 it("navigates authorized tabs by keyboard and hides a selected panel after permission revocation", async () => {
   const client = makeClient();
   client.setQueryData(["me"], person(1, ["admin_panel_access", "view_users_info"]));

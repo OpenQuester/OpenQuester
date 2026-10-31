@@ -5,6 +5,7 @@ import type {
   UploadContent,
   UploadQuestion,
 } from "@/features/upload/types";
+import { questionSteps } from "./question-form/questionTimeline";
 
 /**
  * The editor works on its own tree with stable ids, so selection, undo and
@@ -22,6 +23,8 @@ export const QUESTION_TYPES: QuestionType[] = [
 ];
 
 export interface DraftMedia {
+  /** Editor-only identity of this occurrence; a file may be used more than once. */
+  occurrenceId?: string;
   md5: string;
   type: MediaType;
   /** Milliseconds the file stays on screen; null lets the game decide. */
@@ -30,6 +33,13 @@ export interface DraftMedia {
   placement?: "screen" | "background";
   /** False shows the next item together with this one. */
   waitForFinish?: boolean;
+}
+
+export interface DraftTextItem {
+  id: string;
+  text: string;
+  /** Position in the combined sequence of main text, media and extra text. */
+  order: number;
 }
 
 export interface DraftChoiceOption {
@@ -48,6 +58,10 @@ export interface DraftQuestion {
    * null shows it as a caption next to the media for the whole question.
    */
   textPosition: number | null;
+  /** New editor questions keep the main prompt first; imports keep their authored order. */
+  mainTextFirst?: boolean;
+  /** Absent for legacy questions; an empty array marks the new sequence format. */
+  textItems?: DraftTextItem[];
   questionFiles: DraftMedia[];
   answerText: string;
   answerFiles: DraftMedia[];
@@ -55,7 +69,9 @@ export interface DraftQuestion {
   /** How players answer: typed/said (the showman judges), a number or a spot. */
   answerType: "text" | "number" | "point";
   answerNumber: number | null;
-  answerPoint: { x: number; y: number } | null;
+  answerPoint: { x: number; y: number; imageAspectRatio?: number } | null;
+  /** Explicit target occurrence; absent preserves legacy first-image behavior. */
+  pointImageId?: string;
   /** Numbers: how far off still counts. Points: radius as a share of the width. */
   answerDeviation: number | null;
   /** Other answers that count as right. */
@@ -78,6 +94,8 @@ export interface DraftQuestion {
   priceMultiplier: number;
   /** Choice. */
   options: DraftChoiceOption[];
+  /** Undefined is legacy, null requires the author to select a replacement. */
+  correctChoiceOptionId?: string | null;
   showDelay: number;
 }
 
@@ -124,7 +142,9 @@ export function newQuestion(
     type: "simple",
     price,
     text: "",
-    textPosition: null,
+    textPosition: 0,
+    mainTextFirst: true,
+    textItems: [],
     questionFiles: [],
     answerText: "",
     answerFiles: [],
@@ -149,6 +169,13 @@ export function newQuestion(
     showDelay: 0,
     ...patch,
   };
+}
+
+/** The authored occurrence, or the first image on a legacy question. */
+export function draftPointImage(q: DraftQuestion): DraftMedia | undefined {
+  return q.pointImageId !== undefined
+    ? q.questionFiles.find((file) => file.occurrenceId === q.pointImageId && file.type === "image")
+    : q.questionFiles.find((file) => file.type === "image");
 }
 
 export function newTheme(name: string, questions: DraftQuestion[] = []): DraftTheme {
@@ -220,7 +247,12 @@ const toMedia = (files: QuestionFile[] | null | undefined): DraftMedia[] =>
   [...(files ?? [])]
     .sort((a, b) => a.order - b.order)
     .map((f) => {
-      const m: DraftMedia = { md5: f.file.md5, type: f.file.type, displayTime: f.displayTime };
+      const m: DraftMedia = {
+        occurrenceId: newId(),
+        md5: f.file.md5,
+        type: f.file.type,
+        displayTime: f.displayTime,
+      };
       if (f.placement === "background") m.placement = "background";
       if (f.waitForFinish === false) m.waitForFinish = false;
       return m;
@@ -232,6 +264,88 @@ const textPosition = (q: UploadQuestion): number | null =>
 
 const byOrder = <T extends { order: number }>(list: T[]): T[] =>
   [...list].sort((a, b) => a.order - b.order);
+
+/** Decode one question independently of the surrounding round and theme tree. */
+function questionFromUpload(q: UploadQuestion): DraftQuestion {
+  const sourceFiles = byOrder(q.questionFiles ?? []);
+  const questionFiles = toMedia(sourceFiles);
+  const mainTextFirst =
+    q.textItems != null &&
+    (q.textOrder === 0 ||
+      (q.textOrder == null && (!q.text?.trim() || (!sourceFiles.length && !q.textItems.length))));
+  const sourceTextItems = q.textItems?.map((item) => ({ ...item, id: newId() }));
+  const sourceSteps = [
+    ...sourceFiles.map((file) => ({ order: file.order, id: null as string | null })),
+    ...(q.textOrder == null || !q.text?.trim() ? [] : [{ order: q.textOrder, id: null }]),
+    ...(sourceTextItems ?? []).map((item) => ({ order: item.order, id: item.id })),
+  ].sort((a, b) => a.order - b.order);
+  const textItems = sourceTextItems?.map((item) => ({
+    ...item,
+    // A new main-first question retains its empty main slot in the editor,
+    // although that slot is omitted from the exported sequence.
+    order:
+      sourceSteps.findIndex((step) => step.id === item.id) +
+      (mainTextFirst && !q.text?.trim() ? 1 : 0),
+  }));
+  const targets =
+    q.pointImageOrder == null
+      ? []
+      : sourceFiles.flatMap((file, index) =>
+          file.order === q.pointImageOrder && file.file.type === "image" ? [index] : [],
+        );
+  const pointImageId =
+    q.pointImageOrder == null
+      ? undefined
+      : targets.length === 1
+        ? questionFiles[targets[0]!]!.occurrenceId
+        : "";
+  const sourceOptions = byOrder(q.answers ?? []);
+  const options = sourceOptions.map((a) => ({
+    id: newId(),
+    text: a.text ?? "",
+    file: a.file,
+  }));
+  const matches = sourceOptions
+    .map((a, index) => ({ a, index }))
+    .filter(({ a }) => q.correctChoiceOrder != null && a.order === q.correctChoiceOrder);
+  const correctChoiceOptionId =
+    q.correctChoiceNeedsRepair || q.correctChoiceOrder != null
+      ? matches.length === 1 && !q.correctChoiceNeedsRepair
+        ? options[matches[0]!.index]!.id
+        : null
+      : undefined;
+  return newQuestion(q.price, {
+    type: q.type,
+    text: q.text ?? "",
+    textPosition: mainTextFirst ? 0 : textPosition(q),
+    mainTextFirst: mainTextFirst || undefined,
+    textItems,
+    questionFiles,
+    ...(pointImageId === undefined ? {} : { pointImageId }),
+    answerText: q.answerText ?? "",
+    answerFiles: toMedia(q.answerFiles),
+    answerHint: q.answerHint ?? "",
+    answerType: q.answerType ?? "text",
+    answerNumber: q.answerNumber ?? null,
+    answerPoint: q.answerPoint ?? null,
+    answerDeviation: q.answerDeviation ?? null,
+    rightAnswers: q.rightAnswers ?? [],
+    wrongAnswers: q.wrongAnswers ?? [],
+    authors: q.authors ?? [],
+    sources: q.sources ?? [],
+    questionComment: q.questionComment ?? "",
+    answerDelay: q.answerDelay ?? 5000,
+    showAnswerDuration: q.showAnswerDuration,
+    maxPrice: q.maxPrice ?? null,
+    forEveryone: q.subType === "forEveryone",
+    transferType: q.transferType ?? "any",
+    allowedPrices: q.allowedPrices ?? [],
+    priceMultiplier: q.priceMultiplier ?? 2,
+    options,
+    correctChoiceOptionId,
+    showDelay: q.showDelay ?? 0,
+  });
+}
 
 export function fromUpload(c: UploadContent): DraftPackage {
   return {
@@ -252,39 +366,7 @@ export function fromUpload(c: UploadContent): DraftPackage {
         id: newId(),
         name: t.name,
         description: t.description ?? "",
-        questions: byOrder(t.questions).map((q) =>
-          newQuestion(q.price, {
-            type: q.type,
-            text: q.text ?? "",
-            textPosition: textPosition(q),
-            questionFiles: toMedia(q.questionFiles),
-            answerText: q.answerText ?? "",
-            answerFiles: toMedia(q.answerFiles),
-            answerHint: q.answerHint ?? "",
-            answerType: q.answerType ?? "text",
-            answerNumber: q.answerNumber ?? null,
-            answerPoint: q.answerPoint ?? null,
-            answerDeviation: q.answerDeviation ?? null,
-            rightAnswers: q.rightAnswers ?? [],
-            wrongAnswers: q.wrongAnswers ?? [],
-            authors: q.authors ?? [],
-            sources: q.sources ?? [],
-            questionComment: q.questionComment ?? "",
-            answerDelay: q.answerDelay ?? 5000,
-            showAnswerDuration: q.showAnswerDuration,
-            maxPrice: q.maxPrice ?? null,
-            forEveryone: q.subType === "forEveryone",
-            transferType: q.transferType ?? "any",
-            allowedPrices: q.allowedPrices ?? [],
-            priceMultiplier: q.priceMultiplier ?? 2,
-            options: byOrder(q.answers ?? []).map((a) => ({
-              id: newId(),
-              text: a.text ?? "",
-              file: a.file,
-            })),
-            showDelay: q.showDelay ?? 0,
-          }),
-        ),
+        questions: byOrder(t.questions).map(questionFromUpload),
       })),
     })),
   };
@@ -314,8 +396,8 @@ const listOrNull = (list: string[]): string[] | null => {
 };
 
 /**
- * The POST /v1/packages body. Mirrors the server's Joi scheme: type-specific
- * fields only on their type, final round questions are simple with no price.
+ * Archive-compatible content shared with the editor's publication projection.
+ * Type-specific fields stay on their type; final questions are simple with no price.
  */
 export function toUpload(pkg: DraftPackage): UploadContent {
   return {
@@ -342,19 +424,39 @@ export function toUpload(pkg: DraftPackage): UploadContent {
   };
 }
 
-function toUploadQuestion(q: DraftQuestion, order: number, final: boolean): UploadQuestion {
+export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean): UploadQuestion {
   const type: QuestionType = final ? "simple" : q.type;
-  // The text is a step of its own only next to media; alone it is just the text.
+  const steps = questionSteps(q).filter(
+    (step) =>
+      step.kind === "media" || (step.kind === "main" ? q.text.trim() : step.item.text.trim()),
+  );
+  const mainIndex = steps.findIndex((step) => step.kind === "main");
   const textStep =
-    q.textPosition != null && q.text.trim() && q.questionFiles.length
-      ? Math.min(q.textPosition, q.questionFiles.length)
+    mainIndex >= 0 && (q.mainTextFirst || q.questionFiles.length || (q.textItems?.length ?? 0) > 0)
+      ? mainIndex
       : null;
+  const questionFiles = steps.flatMap((step, index) =>
+    step.kind === "media" ? [{ ...fromMedia([step.file])![0]!, order: index }] : [],
+  );
+  const textItems =
+    q.textItems == null
+      ? undefined
+      : steps.flatMap((step, index) =>
+          step.kind === "text" ? [{ order: index, text: step.item.text }] : [],
+        );
+  const targetIndex =
+    q.pointImageId == null
+      ? -1
+      : q.questionFiles.findIndex(
+          (file) => file.occurrenceId === q.pointImageId && file.type === "image",
+        );
   const out: UploadQuestion = {
     type,
     order,
     price: final ? null : q.price,
     text: orNull(q.text),
     textOrder: textStep,
+    ...(textItems === undefined ? {} : { textItems }),
     questionComment: orNull(q.questionComment),
     answerText: orNull(q.answerText),
     answerHint: orNull(q.answerHint),
@@ -365,7 +467,10 @@ function toUploadQuestion(q: DraftQuestion, order: number, final: boolean): Uplo
     sources: listOrNull(q.sources),
     answerDelay: q.answerDelay,
     showAnswerDuration: q.showAnswerDuration,
-    questionFiles: fromMedia(q.questionFiles, textStep),
+    questionFiles: questionFiles.length ? questionFiles : null,
+    ...(type !== "choice" && q.answerType === "point" && q.pointImageId !== undefined
+      ? { pointImageOrder: questionFiles?.[targetIndex]?.order ?? -1 }
+      : {}),
     answerFiles: fromMedia(q.answerFiles),
   };
   switch (type) {
@@ -389,6 +494,11 @@ function toUploadQuestion(q: DraftQuestion, order: number, final: boolean): Uplo
       out.subType = "simple";
       out.showDelay = q.showDelay;
       out.answers = q.options.map((o, i) => ({ order: i, text: orNull(o.text), file: o.file }));
+      if (q.correctChoiceOptionId !== undefined) {
+        const index = q.options.findIndex((option) => option.id === q.correctChoiceOptionId);
+        if (index < 0) out.correctChoiceNeedsRepair = true;
+        else out.correctChoiceOrder = index;
+      }
       break;
   }
   return out;

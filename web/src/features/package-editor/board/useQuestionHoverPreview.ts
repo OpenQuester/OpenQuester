@@ -15,7 +15,7 @@ export function useQuestionHoverPreview() {
     const el = anchor.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const width = 340;
+    const width = Math.min(340, window.innerWidth - 16);
     const left =
       r.right + 12 + width < window.innerWidth ? r.right + 12 : Math.max(8, r.left - 12 - width);
     setPos({ top: Math.max(8, Math.min(r.top, window.innerHeight - 420)), left });
