@@ -43,6 +43,15 @@ describe("acquireMedia download", () => {
     expect(upstream.mock.calls[1]?.[1]).toMatchObject({ credentials: "include" });
   });
 
+  it("falls back to the API copy when the bucket body is cut off", async () => {
+    const cutOff = new Response(png.slice());
+    vi.spyOn(cutOff, "arrayBuffer").mockRejectedValue(new TypeError("network error"));
+    upstream.mockResolvedValueOnce(cutOff).mockResolvedValueOnce(new Response(png.slice()));
+    const { file } = await acquireMedia(stored, new AbortController().signal);
+    expect(file.bytes).toEqual(png);
+    expect(upstream).toHaveBeenCalledTimes(2);
+  });
+
   it("reports a failed download when both sources fail", async () => {
     upstream
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))

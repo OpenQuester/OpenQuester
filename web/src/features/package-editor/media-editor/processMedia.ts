@@ -32,7 +32,14 @@ async function downloadMedia(file: MediaFile, signal: AbortSignal) {
     }
     const length = Number(response.headers.get("Content-Length"));
     if (length > MAX_FILE_BYTES) throw new Error("mediaSize");
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    let bytes: Uint8Array;
+    try {
+      bytes = new Uint8Array(await response.arrayBuffer());
+    } catch (error) {
+      // A connection dropped mid-body fails like the fetch itself: try the next copy.
+      if (signal.aborted || last) throw signal.aborted ? error : new Error("downloadFailed");
+      continue;
+    }
     if (md5Hex(bytes) === file.md5) return bytes;
     if (last) throw new Error("downloadCorrupt");
   }
