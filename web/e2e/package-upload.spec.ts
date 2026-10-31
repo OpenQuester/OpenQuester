@@ -6,6 +6,7 @@ import { strToU8, zipSync } from "fflate";
 
 import { expectNoHorizontalScroll, shot, signInAsGuest } from "./support/game";
 import { makePng } from "./support/seed.mjs";
+import { mixedHtmlPack } from "./support/htmlRemoval";
 
 /** A SIGame format 5 pack: a picture question, a cat in a bag, a broken reference and a final. */
 function siqFile(title: string): Buffer {
@@ -128,6 +129,38 @@ test.describe("package upload", () => {
     expect(errors).toEqual([]);
   });
 
+  test("confirms removal before upload and stores only retained questions", async ({ page }) => {
+    await signInAsAuthor(page);
+    await page.goto("/packages/upload");
+    const title = `HTML removal ${Date.now()}`;
+    const input = { name: "mixed.siq", mimeType: "application/zip", buffer: mixedHtmlPack(title) };
+    let mutations = 0;
+    page.on("request", (request) => {
+      if (
+        ["POST", "PUT"].includes(request.method()) &&
+        new URL(request.url()).pathname.startsWith("/v1/packages")
+      )
+        mutations++;
+    });
+    await page.locator("#package-file").setInputFiles(input);
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("question 2");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    expect(mutations).toBe(0);
+    await page.locator("#package-file").setInputFiles(input);
+    await page.getByRole("button", { name: "Remove and continue" }).click();
+    await expect(page.getByTestId("upload-review")).toContainText("1 question");
+    expect(mutations).toBe(0);
+    await page.getByRole("button", { name: "Upload package" }).click();
+    const done = page.getByTestId("upload-done");
+    await expect(done).toBeVisible({ timeout: 30000 });
+    await done.getByRole("link", { name: "View package" }).click();
+    const id = Number(new URL(page.url()).searchParams.get("id"));
+    const stored = await (await page.request.get(`/v1/packages/${id}`)).json();
+    expect(stored.rounds[0].themes[0].questions).toHaveLength(1);
+    expect(stored.rounds[0].themes[0].questions[0].text).toBe("Normal question");
+    expect(stored.rounds[0].themes[0].questions[0].questionFiles).toHaveLength(1);
+  });
   test("a file that isn't a package gets a clear reason", async ({ page }) => {
     await signInAsAuthor(page);
     await page.goto("/packages/upload");

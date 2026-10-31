@@ -45,6 +45,7 @@ export function DraftActions({
         <Button
           size="lg"
           icon={<UploadIcon size={20} />}
+          data-import-picker
           onClick={() => input.current?.click()}
           disabled={busy != null}
         >
