@@ -39,10 +39,6 @@ export function useQuestionStage() {
       (phase === "all_play_answering" &&
         role === "player" &&
         !!s.allPlay?.entries.some((entry) => entry.playerId === myId && entry.submitted)));
-  // Once the content has played, the stage would otherwise go quiet (a sound
-  // that ended leaves nothing on it): say what happens now instead.
-  const contentDone = useContentDone(session.content, s.isPaused);
-  const cue = phase === "showing" && contentDone && !picking;
 
   return {
     myId,
@@ -60,29 +56,7 @@ export function useQuestionStage() {
     price,
     picture,
     picking,
-    cue,
   };
-}
-
-/** True once the question's content timeline has played to the end. */
-function useContentDone(content: GameSession["content"], paused: boolean): boolean {
-  const [, setTick] = useState(0);
-  const running = !!content?.timer && content.frozenAtMs == null && !paused;
-  const elapsed = !content
-    ? 0
-    : (content.frozenAtMs ??
-      (content.timer ? timerElapsed(content.timer, paused) : content.plan.totalMs));
-  const total = content?.plan.totalMs ?? 0;
-  const done = !content || content.kind !== "question" || elapsed >= total;
-  const waitMs = running && !done ? total - elapsed + 30 : null;
-  useEffect(() => {
-    if (waitMs == null) return;
-    const id = window.setTimeout(() => setTick((n) => n + 1), waitMs);
-    return () => window.clearTimeout(id);
-    // Re-armed when the timeline changes, not on every render
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, running, done]);
-  return done;
 }
 
 /** Do not show a later answer image ahead of the running question timeline. */

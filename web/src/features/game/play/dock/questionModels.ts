@@ -1,7 +1,7 @@
 import { formatScore, formatSigned } from "@/lib/format";
 
 import { type ActionDockModel, type ActionDockContext } from "./actionDockModel";
-import { allPlayRevealText } from "../allPlayRevealText";
+import { allPlayRevealStatus } from "../allPlayRevealText";
 
 import {
   canBuzz,
@@ -108,6 +108,14 @@ export function answeringModel({
             : "dock.answering.autoWaitHelp",
       );
       return {
+        statusPlayer: q
+          ? {
+              key: session.hasAnswerSubmission
+                ? "dock.answering.autoSubmitted"
+                : "dock.answering.autoWait",
+              name: name(answerer),
+            }
+          : undefined,
         status: !q
           ? message
           : t(
@@ -122,6 +130,7 @@ export function answeringModel({
     }
     const wrong = wrongCostsPoints(session) ? -value : 0;
     return {
+      statusPlayer: { key: "dock.answering.judge", name: name(answerer) },
       status: t("dock.answering.judge", { name: name(answerer) }),
       action: { kind: "judge", value, wrong, pending: sending("answer-result") },
       next:
@@ -174,6 +183,7 @@ export function answeringModel({
     };
   }
   return {
+    statusPlayer: { key: "dock.answering.other", name: name(answerer) },
     status: t("dock.answering.other", { name: name(answerer) }),
     action: {
       kind: "info",
@@ -195,9 +205,17 @@ export function revealModel({
   const s = session.state;
   const result = s.answerShowData?.answerResult ?? (s.answeredPlayers ?? []).at(-1);
   const correct = result?.answerType === "correct";
-  const allPlaySummary = allPlayRevealText(session, t);
+  const allPlaySummary = allPlayRevealStatus(session, t);
   const nextPicker = s.answerShowData?.nextTurnPlayerId ?? s.currentTurnPlayerId;
   return {
+    statusPlayer:
+      !allPlaySummary && correct
+        ? {
+            key: "dock.reveal.correct",
+            name: name(result?.player),
+            values: { points: formatSigned(result!.result) },
+          }
+        : undefined,
     status:
       allPlaySummary ??
       (correct

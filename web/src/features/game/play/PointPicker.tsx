@@ -1,3 +1,5 @@
+import { PointMarkers } from "./PointMarkers";
+import "./PointPicker.css";
 import { questionStyles } from "./question/questionStyles";
 import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,7 +11,8 @@ export interface Spot {
   y: number;
 }
 
-type PointMarker = Spot & { id: number; name: string; correct: boolean | null };
+export type PointMarker = Spot & { id: number; name: string; correct: boolean | null };
+const NO_MARKERS: PointMarker[] = [];
 
 /** Point answers within this share of the picture's width count by default. */
 export const DEFAULT_POINT_RADIUS = 0.05;
@@ -30,7 +33,7 @@ export function PointPicker({
   target,
   radius = DEFAULT_POINT_RADIUS,
   picked,
-  markers = [],
+  markers = NO_MARKERS,
   className,
   imageClassName,
   fitFrame = false,
@@ -109,6 +112,19 @@ export function PointPicker({
     e.preventDefault();
     setHover({ x: clamp(next.x), y: clamp(next.y) });
   };
+  const controls = onPick
+    ? {
+        onClick: (e: MouseEvent<HTMLDivElement>) => onPick(spotOf(e)),
+        onMouseMove: (e: MouseEvent<HTMLDivElement>) => setHover(spotOf(e)),
+        onKeyDown,
+        onFocus: () => setHover((h) => h ?? { x: 0.5, y: 0.5 }),
+        tabIndex: 0,
+        role: "button",
+        "aria-label": t("point.pick"),
+        "aria-description":
+          [cursorDescription, targetDescription].filter(Boolean).join(" ") || undefined,
+      }
+    : {};
 
   return (
     <div
@@ -118,19 +134,8 @@ export function PointPicker({
           ? { width: `min(100%, calc(100cqh * ${imageDimensions.width / imageDimensions.height}))` }
           : undefined
       }
-      onClick={onPick ? (e) => onPick(spotOf(e)) : undefined}
-      onMouseMove={onPick ? (e) => setHover(spotOf(e)) : undefined}
+      {...controls}
       onMouseLeave={() => setHover(null)}
-      onKeyDown={onPick ? onKeyDown : undefined}
-      onFocus={onPick ? () => setHover((h) => h ?? { x: 0.5, y: 0.5 }) : undefined}
-      tabIndex={onPick ? 0 : undefined}
-      role={onPick ? "button" : undefined}
-      aria-label={onPick ? t("point.pick") : undefined}
-      aria-description={
-        onPick
-          ? [cursorDescription, targetDescription].filter(Boolean).join(" ") || undefined
-          : undefined
-      }
       data-testid="point-picker"
     >
       <img
@@ -150,12 +155,47 @@ export function PointPicker({
         }}
         onError={() => setDimensions((current) => (current?.src === src ? null : current))}
       />
-      {targetDescription && !onPick && <span className="sr-only">{targetDescription}</span>}
-      {picked && !onPick && (
-        <span className="sr-only">
-          {t("point.pickedDescription", { x: percent(picked.x), y: percent(picked.y) })}
-        </span>
+      {!onPick && (
+        <PointDescription targetDescription={targetDescription} picked={picked} percent={percent} />
       )}
+      <PointOverlay target={target} radius={r} picked={picked} hover={hover} />
+      <PointMarkers markers={markers} percent={percent} />
+    </div>
+  );
+}
+
+function PointDescription({
+  targetDescription,
+  picked,
+  percent,
+}: {
+  targetDescription?: string;
+  picked?: Spot | null;
+  percent: (value: number) => string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <span className="sr-only">
+      {targetDescription}
+      {picked && t("point.pickedDescription", { x: percent(picked.x), y: percent(picked.y) })}
+    </span>
+  );
+}
+
+function PointOverlay({
+  target,
+  radius,
+  picked,
+  hover,
+}: {
+  target?: Spot | null;
+  radius: number;
+  picked?: Spot | null;
+  hover: Spot | null;
+}) {
+  const cursor = picked ?? hover;
+  return (
+    <>
       {target && (
         <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
           <span
@@ -163,79 +203,22 @@ export function PointPicker({
             style={{
               left: `${target.x * 100}%`,
               top: `${target.y * 100}%`,
-              width: `${r * 200}%`,
+              width: `${radius * 200}%`,
             }}
             data-testid="point-target"
           />
         </span>
       )}
-      {(picked ?? hover) && (
+      {cursor && (
         <span
           className={cn(
             questionStyles.chosenPoint,
             picked ? "bg-info motion-safe:animate-pulse" : "bg-accent/50",
           )}
-          style={{ left: `${(picked ?? hover)!.x * 100}%`, top: `${(picked ?? hover)!.y * 100}%` }}
+          style={{ left: `${cursor.x * 100}%`, top: `${cursor.y * 100}%` }}
           data-testid={picked ? "point-picked" : undefined}
         />
       )}
-      <PointMarkers markers={markers} percent={percent} />
-    </div>
-  );
-}
-
-/** Render each submitted point and its accessible description on the picture. */
-function PointMarkers({
-  markers,
-  percent,
-}: {
-  markers: PointMarker[];
-  percent: (value: number) => string;
-}) {
-  const { t } = useTranslation();
-  return (
-    <>
-      {markers.map((marker) => (
-        <span
-          key={marker.id}
-          className="pointer-events-none absolute inset-0"
-          data-testid="point-answer-marker"
-        >
-          <span
-            aria-hidden
-            className={cn(
-              questionStyles.chosenPoint,
-              "motion-safe:animate-pulse",
-              marker.correct === true ? "bg-success" : "bg-info",
-            )}
-            style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
-            data-testid="point-answer-dot"
-          />
-          <span
-            aria-hidden
-            className={cn("absolute w-32 max-w-full", marker.x > 0.5 && "text-right")}
-            style={{
-              left: `clamp(0px, calc(${marker.x * 100}% ${marker.x > 0.5 ? "- 0.75rem - min(8rem, 100%)" : "+ 0.75rem"}), max(0px, calc(100% - min(8rem, 100%))))`,
-              top: `clamp(0px, calc(${marker.y * 100}% ${marker.y > 0.85 ? "- 1.75rem" : "+ 0.5rem"}), max(0px, calc(100% - 1.5rem)))`,
-            }}
-            data-testid="point-answer-label"
-          >
-            <span className="inline-block max-w-full truncate rounded-sm bg-surface px-1.5 py-0.5 text-xs font-semibold text-text shadow">
-              {marker.name}
-            </span>
-          </span>
-          <span className="sr-only">
-            {t("point.answerDescription", {
-              name: marker.name,
-              x: percent(marker.x),
-              y: percent(marker.y),
-            })}
-            {marker.correct == null
-              ? ""
-              : ` : ${t(marker.correct ? "judge.correct" : "judge.wrong")}`}
-          </span>
-        </span>
-      ))}
     </>
   );
 }

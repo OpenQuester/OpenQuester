@@ -44,6 +44,12 @@ export const CheckIcon = (p: { size?: number }) => (
     <path d="M5 12l5 5L20 7" />
   </Icon>
 );
+export const TrophyIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M8 3h8v5a4 4 0 0 1-8 0V3Z" />
+    <path d="M8 5H5v2a3 3 0 0 0 3 3m8-5h3v2a3 3 0 0 1-3 3m-4 2v5m-4 4h8m-7-4h6v4H9z" />
+  </Icon>
+);
 export const SaveIcon = (p: { size?: number }) => (
   <Icon {...p}>
     <path d="M5 3h12l4 4v14H3V3h2zM7 3v6h9V3M7 21v-8h10v8" />

@@ -33,11 +33,7 @@ export class PlayerReadinessLogic {
   /**
    * Update player ready state by adding or removing from ready list.
    */
-  public static updateReadyState(
-    game: Game,
-    playerId: number,
-    isReady: boolean
-  ): number[] {
+  public static updateReadyState(game: Game, playerId: number, isReady: boolean): number[] {
     const currentReadyPlayers = game.gameState.readyPlayers || [];
 
     let newReadyPlayers: number[];
@@ -59,40 +55,36 @@ export class PlayerReadinessLogic {
    * Check if all players are ready for auto-start.
    */
   public static shouldAutoStart(game: Game): boolean {
-    return game.isEveryoneReady();
+    return game.settings.autoStart && game.isEveryoneReady();
   }
 
   /**
    * Build result for player readiness operation with broadcasts.
    */
-  public static buildResult(
-    input: PlayerReadinessResultInput
-  ): PlayerReadinessResult {
+  public static buildResult(input: PlayerReadinessResultInput): PlayerReadinessResult {
     const { game, playerId, isReady, readyPlayers, shouldAutoStart } = input;
 
     const readyData: PlayerReadinessBroadcastData = {
       playerId,
       isReady,
       readyPlayers,
-      autoStartTriggered: shouldAutoStart,
+      autoStartTriggered: shouldAutoStart
     };
 
-    const event = isReady
-      ? SocketIOGameEvents.PLAYER_READY
-      : SocketIOGameEvents.PLAYER_UNREADY;
+    const event = isReady ? SocketIOGameEvents.PLAYER_READY : SocketIOGameEvents.PLAYER_UNREADY;
 
     const broadcasts: SocketEventBroadcast[] = [
       {
         event,
         data: readyData,
         target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<PlayerReadinessBroadcastData>,
+        gameId: game.id
+      } satisfies SocketEventBroadcast<PlayerReadinessBroadcastData>
     ];
 
     return {
       data: { game, playerId, isReady, readyPlayers, shouldAutoStart },
-      broadcasts,
+      broadcasts
     };
   }
 }

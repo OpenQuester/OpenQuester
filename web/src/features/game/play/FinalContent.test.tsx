@@ -277,5 +277,5 @@ it("plays the final timeline before enabling answers", () => {
   );
   act(() => vi.advanceTimersByTime(2_030));
   expect(screen.getByTestId("final-submit")).toBeInTheDocument();
-  expect(screen.getAllByTestId("player-chip")[0]).toHaveTextContent("typing");
+  expect(screen.getAllByTestId("player-chip")[0]).toHaveTextContent("answering");
 });

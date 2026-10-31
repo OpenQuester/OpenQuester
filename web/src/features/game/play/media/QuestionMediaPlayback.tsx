@@ -41,7 +41,9 @@ export function QuestionMediaPlayback({
   };
 
   return (
-    <div className="flex w-full flex-col gap-2">
+    <div
+      className={cn("flex w-full flex-col gap-2", type === "video" && "question-media-playback")}
+    >
       {type === "video" ? (
         <div className={cn(mediaFrame, "bg-black")} data-testid="media-frame">
           <video

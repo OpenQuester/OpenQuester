@@ -23,6 +23,7 @@ export const DEFAULT_GAME_TIMERS: Readonly<GameTimerSettingsDTO> = Object.freeze
 });
 
 export const DEFAULT_GAME_SETTINGS: Readonly<GameSettingsDTO> = Object.freeze({
+  autoStart: true,
   falseStart: true,
   buttonPressMode: ButtonPressMode.RANDOM_WITHIN_WINDOW,
   wrongAnswerPenalty: WrongAnswerPenalty.SUBTRACT,

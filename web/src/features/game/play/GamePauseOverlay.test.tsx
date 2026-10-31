@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -39,10 +40,13 @@ function setup(myId = SHOWMAN, state: Partial<GameSession["state"]> = {}, boardE
   });
   const emit = vi.fn((action: string) => useGameStore.getState().setPending(action));
   const connection = { emit, connected: true } as unknown as GameConnection;
+  const client = new QueryClient({ defaultOptions: { queries: { enabled: false } } });
   render(
-    <GameContext.Provider value={{ connection, myId }}>
-      <GameScreen />
-    </GameContext.Provider>,
+    <QueryClientProvider client={client}>
+      <GameContext.Provider value={{ connection, myId }}>
+        <GameScreen />
+      </GameContext.Provider>
+    </QueryClientProvider>,
   );
   return emit;
 }

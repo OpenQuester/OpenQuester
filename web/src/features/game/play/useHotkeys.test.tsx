@@ -24,6 +24,34 @@ const answering = (answerType: "text" | "number" = "number") =>
   });
 
 describe("judge and buzzer shortcuts", () => {
+  it("uses physical P across layouts and leaves typing, repeats, dialogs and pending actions alone", () => {
+    const click = vi.fn();
+    const connection = { emit: vi.fn(), connected: true } as unknown as GameConnection;
+    useGameStore.setState({ session: answering(), connection: "connected", pending: null });
+    render(
+      <GameContext.Provider value={{ connection, myId: ALICE }}>
+        <Hotkeys />
+        <button data-hotkey="pass" onClick={click}>
+          Pass
+        </button>
+        <input aria-label="Answer" />
+      </GameContext.Provider>,
+    );
+    fireEvent.keyDown(window, { code: "KeyP", key: "з" });
+    expect(click).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(window, { code: "KeyP", key: "p", repeat: true });
+    fireEvent.keyDown(screen.getByRole("textbox"), { code: "KeyP", key: "з" });
+    act(() => useGameStore.setState({ pending: { action: "question-skip", at: Date.now() } }));
+    fireEvent.keyDown(window, { code: "KeyP", key: "з" });
+    expect(click).toHaveBeenCalledTimes(1);
+    act(() => useGameStore.setState({ pending: null }));
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    document.body.append(dialog);
+    fireEvent.keyDown(window, { code: "KeyP", key: "з" });
+    dialog.remove();
+    expect(click).toHaveBeenCalledTimes(1);
+  });
   it("blocks live C/W for structured submissions but preserves oral judging, pause, and pending guards", () => {
     const emit = vi.fn();
     const connection = { emit, connected: true } as unknown as GameConnection;

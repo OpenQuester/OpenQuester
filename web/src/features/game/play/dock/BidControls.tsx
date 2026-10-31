@@ -60,9 +60,16 @@ export function BidControls({
         </p>
       )}
       {unavailable && <p className="m-0 text-sm text-soft">{unavailable}</p>}
-      <fieldset disabled={pending} className="m-0 flex min-w-0 w-full flex-col gap-2 border-0 p-0">
-        {(quick.length > 0 || (allIn != null && onAllIn)) && (
-          <div className="flex flex-wrap gap-2" role="group" aria-label={t("bid.quick")}>
+      <fieldset
+        disabled={pending}
+        className="game-bid-fields m-0 grid min-w-0 w-full grid-cols-2 gap-2 border-0 p-0"
+      >
+        {(quick.length > 1 || (allIn != null && onAllIn)) && (
+          <div
+            className="col-span-full flex flex-wrap gap-2"
+            role="group"
+            aria-label={t("bid.quick")}
+          >
             {quick.map((q) => (
               <button
                 key={q}
@@ -96,7 +103,14 @@ export function BidControls({
           />
         )}
         {onPass && (
-          <Button variant="ghost" onClick={onPass} data-testid="bid-pass">
+          <Button
+            variant="ghost"
+            onClick={onPass}
+            data-testid="bid-pass"
+            data-hotkey="pass"
+            aria-keyshortcuts="P"
+            shortcut="P"
+          >
             {t("bid.pass")}
           </Button>
         )}
@@ -123,7 +137,7 @@ function BidAmountFields({
   const { t } = useTranslation();
   return (
     <>
-      <div className="grid grid-cols-[minmax(0,7fr)_minmax(0,3fr)] items-center gap-2">
+      <div className="col-span-full grid grid-cols-[minmax(0,7fr)_minmax(0,3fr)] items-center gap-2">
         <input
           type="range"
           min={range.min}

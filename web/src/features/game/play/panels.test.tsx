@@ -81,17 +81,17 @@ it("adapts an uneven board to its available width and disposes the resize observ
   );
   const { unmount } = renderPanel(<GameBoard />);
   const table = screen.getByRole("table");
-  expect(observe).toHaveBeenCalledExactlyOnceWith(table);
+  expect(observe).toHaveBeenCalledWith(table.parentElement);
   const setWidth = (width: number) =>
     act(() => resize([{ contentRect: { width } } as ResizeObserverEntry], {} as ResizeObserver));
   setWidth(1200);
-  expect(table).toHaveAttribute("data-layout", "table");
+  expect(table.parentElement).toHaveAttribute("data-layout", "table");
   expect(screen.getAllByRole("cell")).toHaveLength(4);
   setWidth(375);
-  expect(table).toHaveAttribute("data-layout", "stacked");
+  expect(table.parentElement).toHaveAttribute("data-layout", "stacked");
   expect(screen.getAllByRole("cell")).toHaveLength(3);
   act(() => useGameStore.getState().setBoardEdit(true));
   expect(observe).toHaveBeenCalledTimes(1);
   unmount();
-  expect(disconnect).toHaveBeenCalledOnce();
+  expect(disconnect).toHaveBeenCalledTimes(1);
 });

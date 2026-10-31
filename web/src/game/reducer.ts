@@ -1,6 +1,13 @@
 import { serverNow } from "@/lib/clock";
+import { withPointSummary } from "./pointSummary";
+import {
+  snapshotFeedback,
+  updateQuestionFeedback,
+  type QuestionFeedback,
+} from "./questionFeedback";
 
 import { buildContentPlan, timerElapsed } from "./contentPlan";
+import { questionValue } from "./selectors";
 import type {
   AnsweredPlayer,
   ChatMessage,
@@ -69,12 +76,15 @@ export interface GameSession {
   turnUnknown: boolean;
   /** Question or answer content timeline, when there is one to play. */
   content: ContentClock | null;
+  /** Client-known value of the last completed question; fresh joins may not know it. */
+  lastQuestionValue?: number;
+  questionFeedback?: QuestionFeedback;
 }
 
 export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSession {
   const state = normalizeState(data.gameState);
   const finalData = state.finalRoundData;
-  return {
+  return withPointSummary({
     gameId,
     title: data.meta.title,
     settings: data.meta.settings ?? null,
@@ -106,7 +116,8 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
     version: 0,
     turnUnknown: false,
     content: contentFromSnapshot(state),
-  };
+    questionFeedback: snapshotFeedback(state, Date.now()),
+  });
 }
 
 /** The question's own plan, or one built locally when the server sent none. */
@@ -353,8 +364,23 @@ function questionContent(
 
 /** Applies one server event. Pure: never mutates `session`. */
 export function reduce(session: GameSession, event: ServerEvent): GameSession {
-  const next = apply(session, event);
-  return next === session ? session : { ...next, version: session.version + 1 };
+  const applied = apply(session, event);
+  const next = [
+    "question-finish",
+    "answer-result",
+    "answer-result-undo",
+    "all-play-review",
+    "final-answer-review",
+  ].includes(event.type)
+    ? withPointSummary(applied)
+    : applied;
+  return next === session
+    ? session
+    : {
+        ...next,
+        questionFeedback: updateQuestionFeedback(session, next, event, Date.now()),
+        version: session.version + 1,
+      };
 }
 
 const TURN_EVENTS = new Set<ServerEvent["type"]>([
@@ -367,7 +393,10 @@ const TURN_EVENTS = new Set<ServerEvent["type"]>([
 ]);
 
 function apply(session: GameSession, event: ServerEvent): GameSession {
-  const next = applyEvent(session, event);
+  let next = applyEvent(session, event);
+  if (event.type === "question-finish" && session.state.currentQuestion) {
+    next = { ...next, lastQuestionValue: questionValue(session) };
+  }
   return next.turnUnknown && TURN_EVENTS.has(event.type) ? { ...next, turnUnknown: false } : next;
 }
 
@@ -967,7 +996,19 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       };
 
     case "player-role-change":
-      return { ...session, players: event.payload.players };
+      return {
+        ...session,
+        players: event.payload.players,
+        state: {
+          ...session.state,
+          readyPlayers:
+            session.state.readyPlayers?.filter((id) =>
+              event.payload.players.some(
+                (player) => player.meta.id === id && player.role === "player",
+              ),
+            ) ?? null,
+        },
+      };
 
     case "player-slot-change":
       return { ...session, players: event.payload.players };

@@ -394,7 +394,10 @@ export class Game {
         player.gameStatus === PlayerGameStatus.IN_GAME && player.role === PlayerRole.PLAYER
     );
 
-    return validPlayers.length === this.gameState.readyPlayers.length;
+    return (
+      validPlayers.length > 0 &&
+      validPlayers.every((player) => this.gameState.readyPlayers!.includes(player.meta.id))
+    );
   }
 
   /**
