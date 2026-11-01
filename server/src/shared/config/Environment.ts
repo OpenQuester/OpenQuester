@@ -4,7 +4,6 @@ import type Redis from "ioredis";
 import path from "path";
 import { type LoggerOptions } from "typeorm";
 
-import { DISCORD_API_URL } from "domain/constants/discord";
 import { CRON_EXP_2_AM_DAILY, CRON_EXP_3_AM_DAILY } from "domain/constants/cron";
 import { DEFAULT_API_PORT } from "domain/constants/server";
 import { SESSION_SECRET_REDIS_NSP } from "domain/constants/session";
@@ -17,6 +16,9 @@ import { SessionUtils } from "infrastructure/utils/SessionUtils";
 import { type ILogger } from "shared/logging/ILogger";
 import { type LogLevel } from "shared/logging/LoggerTypes";
 import { LogPrefix } from "shared/logging/LogPrefix";
+
+/** Discord REST API base URL; only overridden to point tests at a local fake */
+const DEFAULT_DISCORD_API_URL = "https://discord.com/api";
 
 export enum EnvType {
   DEV = "dev",
@@ -257,8 +259,9 @@ export class Environment {
       (this.getEnvVar("DISCORD_BOT_TOKEN", "string", "", true) as string | undefined) ?? ""
     ).trim();
     this.DISCORD_API_URL = (
-      (this.getEnvVar("DISCORD_API_URL", "string", DISCORD_API_URL, true) as string | undefined) ??
-      DISCORD_API_URL
+      (this.getEnvVar("DISCORD_API_URL", "string", DEFAULT_DISCORD_API_URL, true) as
+        | string
+        | undefined) ?? DEFAULT_DISCORD_API_URL
     ).replace(/\/+$/, "");
     const adminEmails = this.getEnvVar("ADMIN_EMAILS", "string", "", true) as string | undefined;
     this.ADMIN_EMAILS = [

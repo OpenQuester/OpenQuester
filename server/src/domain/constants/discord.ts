@@ -8,8 +8,6 @@ export const getDiscordCDNLink = (discordUserId: string, filename: string) => {
   return `https://cdn.discordapp.com/avatars/${discordUserId}/${filename}`;
 };
 
-export const DISCORD_API_URL = "https://discord.com/api";
-
 /** Discord calls made at startup give up after this long */
 export const DISCORD_STARTUP_REQUEST_TIMEOUT_MS = 5000;
 
