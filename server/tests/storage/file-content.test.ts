@@ -82,6 +82,18 @@ describe("GET /v1/files/:filename/content", () => {
     expect(body.destroyed).toBe(true);
   });
 
+  it("refuses a name that would point outside the file's own key", async () => {
+    const getObject = jest.spyOn(container.resolve(S3ObjectStorage), "getObject");
+    const { cookie } = await testUtils.createAndLoginUser(`file_traversal_${Date.now()}`);
+
+    const res = await createHttpTestClient(harness.serverUrl)
+      .get(`/v1/files/..%2F..%2Fa%2Faf%2F${md5}/content`)
+      .set("Cookie", cookie);
+
+    expect(res.status).toBe(400);
+    expect(getObject).not.toHaveBeenCalled();
+  });
+
   it("needs a session", async () => {
     const getObject = jest.spyOn(container.resolve(S3ObjectStorage), "getObject");
 
