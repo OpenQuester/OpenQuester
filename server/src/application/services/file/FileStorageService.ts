@@ -15,6 +15,10 @@ export class FileStorageService {
     return this.storage.getUrl(filename);
   }
 
+  public async getContent(filename: string) {
+    return this.storage.getContent(filename);
+  }
+
   public async upload(filename: string): Promise<string> {
     return this.storage.upload(filename);
   }

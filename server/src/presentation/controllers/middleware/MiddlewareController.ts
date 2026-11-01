@@ -69,10 +69,11 @@ export class MiddlewareController {
         contentSecurityPolicy: {
           directives: {
             // The web app compiles its AVIF encoder (WebAssembly) before upload.
-            scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+            // Cloudflare injects its Web Analytics beacon on proxied hosts.
+            scriptSrc: ["'self'", "'wasm-unsafe-eval'", "https://static.cloudflareinsights.com"],
             imgSrc: ["'self'", "data:", "blob:", "https://cdn.discordapp.com", ...s3],
             mediaSrc: ["'self'", "blob:", ...s3],
-            connectSrc: ["'self'", "https://discord.com", ...s3],
+            connectSrc: ["'self'", "https://discord.com", "https://cloudflareinsights.com", ...s3],
             fontSrc: ["'self'", "https:", "data:"],
             // Discord embeds the app when it runs as an Activity
             frameAncestors: activityEnabled

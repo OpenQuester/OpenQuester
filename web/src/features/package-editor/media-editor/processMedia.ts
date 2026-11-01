@@ -1,21 +1,55 @@
+import { API_URL } from "@/api/config";
 import { md5Hex, detectMediaMime } from "@/features/upload/archive";
 import type { MediaFile } from "@/features/upload/types";
 import type { ImageJob, ImageResult } from "@/features/upload/optimize/image.worker";
 import { MAX_FILE_BYTES, readMediaFile } from "../packageMedia";
 import type { AudioVideoEdits, ImageEdits } from "./mediaEdits";
 
+/**
+ * Downloads an uploaded file's bytes. The public bucket link is tried first; a
+ * bucket (or a CDN cache in front of it) without CORS headers makes that fetch
+ * fail with a TypeError, so the API's same-origin copy is the fallback.
+ */
+async function downloadMedia(file: MediaFile, signal: AbortSignal) {
+  const sources = [file.url, `${API_URL}/v1/files/${file.md5}/content`].filter(
+    (url): url is string => !!url,
+  );
+  for (const [index, url] of sources.entries()) {
+    const last = index === sources.length - 1;
+    let response: Response;
+    try {
+      response = await fetch(
+        url,
+        url === file.url ? { signal } : { signal, credentials: "include" },
+      );
+    } catch (error) {
+      if (signal.aborted || last) throw signal.aborted ? error : new Error("downloadFailed");
+      continue;
+    }
+    if (!response.ok) {
+      if (last) throw new Error("downloadFailed");
+      continue;
+    }
+    const length = Number(response.headers.get("Content-Length"));
+    if (length > MAX_FILE_BYTES) throw new Error("mediaSize");
+    let bytes: Uint8Array;
+    try {
+      bytes = new Uint8Array(await response.arrayBuffer());
+    } catch (error) {
+      // A connection dropped mid-body fails like the fetch itself: try the next copy.
+      if (signal.aborted || last) throw signal.aborted ? error : new Error("downloadFailed");
+      continue;
+    }
+    if (md5Hex(bytes) === file.md5) return bytes;
+    if (last) throw new Error("downloadCorrupt");
+  }
+  throw new Error("downloadFailed");
+}
+
 export async function acquireMedia(source: File | MediaFile, signal: AbortSignal) {
   const file = source instanceof File ? await readMediaFile(source) : source;
   let bytes = file.bytes;
-  if (!bytes.byteLength) {
-    if (!file.url) throw new Error("downloadFailed");
-    const response = await fetch(file.url, { signal });
-    if (!response.ok) throw new Error("downloadFailed");
-    const length = Number(response.headers.get("Content-Length"));
-    if (length > MAX_FILE_BYTES) throw new Error("mediaSize");
-    bytes = new Uint8Array(await response.arrayBuffer());
-    if (md5Hex(bytes) !== file.md5) throw new Error("downloadFailed");
-  }
+  if (!bytes.byteLength) bytes = await downloadMedia(file, signal);
   if (signal.aborted) throw new DOMException("Aborted", "AbortError");
   if (bytes.byteLength > MAX_FILE_BYTES) throw new Error("mediaSize");
   const mime = detectMediaMime(bytes, file.type, file.name);

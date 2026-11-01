@@ -34,7 +34,7 @@ export function MediaEditorFooter({
         <div className={mediaEditorStyles.failure} role="alert">
           <span>
             {t(
-              `mediaEditor.errors.${["mediaSize", "mediaType", "unsupported", "downloadFailed"].includes(failure) ? failure : "processingFailed"}`,
+              `mediaEditor.errors.${["mediaSize", "mediaType", "unsupported", "downloadFailed", "downloadCorrupt"].includes(failure) ? failure : "processingFailed"}`,
             )}
           </span>
           {!busy && <Button onClick={retryProcessing}>{t("mediaEditor.retry")}</Button>}
