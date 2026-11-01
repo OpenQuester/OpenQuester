@@ -18,7 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_run_server: ${{ steps.found_paths.outputs.server == 'true' || steps.should_force.outputs.should_force == 'true' }}
-      should_run_client: ${{ steps.found_paths.outputs.client == 'true' || steps.should_force.outputs.should_force == 'true' }}
+      # Flutter checks are paused; see the FLUTTER_CI_ENABLED note in build_client.yml.
+      should_run_client: ${{ (vars.FLUTTER_CI_ENABLED == 'true' && steps.found_paths.outputs.client == 'true') || steps.should_force.outputs.should_force == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
