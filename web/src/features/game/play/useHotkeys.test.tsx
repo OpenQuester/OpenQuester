@@ -1,9 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { GameConnection } from "@/game/connection";
-import { ALICE, BOB, question, round, session, SHOWMAN, timer } from "@/game/fixtures";
+import { ALICE, BOB, choosing, question, round, session, SHOWMAN, timer } from "@/game/fixtures";
 import { reduce } from "@/game/reducer";
-import { useGameStore } from "@/game/store";
+import { createGameStore, useGameStore } from "@/game/store";
 import { GameContext } from "../GameContext";
 import { useHotkeys } from "./useHotkeys";
 import { onPlaytestKey } from "@/features/package-editor/playtest/playtestKeyboard";
@@ -24,6 +24,59 @@ const answering = (answerType: "text" | "number" = "number") =>
   });
 
 describe("judge and buzzer shortcuts", () => {
+  it.each(["live", "preview"] as const)(
+    "blocks %s buzzing until its local opening finishes",
+    (mode) => {
+      const store = mode === "live" ? useGameStore : createGameStore();
+      store.setState({
+        session: choosing(),
+        connection: "connected",
+        pending: null,
+        questionPresentation: null,
+      });
+      store.getState().dispatch({
+        type: "question-data",
+        payload: { data: question(100, { textOrder: 0 }), timer: timer() },
+      });
+      store.getState().dispatch({
+        type: "media-download-status",
+        payload: {
+          playerId: ALICE,
+          mediaDownloaded: true,
+          allPlayersReady: true,
+          timer: timer(),
+          buzzerOpensAtMs: 0,
+        },
+      });
+      const emit = vi.fn();
+      const connection = { emit, connected: true } as unknown as GameConnection;
+      const game = {
+        store,
+        get session() {
+          return store.getState().session!;
+        },
+        commands: connection,
+      } as unknown as PreviewRuntime;
+      render(
+        <GameContext.Provider value={{ connection, myId: ALICE }}>
+          {mode === "live" ? (
+            <Hotkeys />
+          ) : (
+            <div
+              data-testid="opening-preview"
+              onKeyDown={(event) => onPlaytestKey(event, game, ALICE)}
+            />
+          )}
+        </GameContext.Provider>,
+      );
+      const target = mode === "live" ? window : screen.getByTestId("opening-preview");
+      fireEvent.keyDown(target, { key: " ", code: "Space" });
+      expect(emit).not.toHaveBeenCalled();
+      act(() => store.getState().finishQuestionOpening(store.getState().questionPresentation!.id));
+      fireEvent.keyDown(target, { key: " ", code: "Space" });
+      expect(emit).toHaveBeenCalledExactlyOnceWith("question-answer");
+    },
+  );
   it("uses physical P across layouts and leaves typing, repeats, dialogs and pending actions alone", () => {
     const click = vi.fn();
     const connection = { emit: vi.fn(), connected: true } as unknown as GameConnection;
@@ -152,6 +205,7 @@ describe("judge and buzzer shortcuts", () => {
       });
       const emit = vi.fn();
       const game = {
+        store: createGameStore(),
         get session() {
           return state;
         },
@@ -217,6 +271,7 @@ describe("judge and buzzer shortcuts", () => {
       const click = vi.fn();
       const emit = vi.fn();
       const game = {
+        store: createGameStore(),
         get session() {
           return state;
         },
@@ -259,6 +314,7 @@ describe("judge and buzzer shortcuts", () => {
     let state = answering();
     const emit = vi.fn();
     const game = {
+      store: createGameStore(),
       get session() {
         return state;
       },

@@ -108,9 +108,7 @@ for (const { shape, viewport } of [
     await img.evaluate((el: HTMLImageElement) => el.decode());
     await expect.poll(() => picker.evaluate((el) => el.style.width)).not.toBe("");
     // Click the settled picture so our intended fractional coordinate is stable.
-    await expect
-      .poll(() => picker.evaluate((el) => getComputedStyle(el.closest(".oq-pop")!).transform))
-      .toBe("none");
+    await expect(page.locator(".question-content")).not.toHaveClass(/\boq-pop\b/);
     const rect = (await img.boundingBox())!;
     await page.mouse.click(rect.x + rect.width * 0.25, rect.y + rect.height * 0.75);
     const [selectedX, selectedY] = (

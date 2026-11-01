@@ -7,8 +7,17 @@ import { FinalAnswerStage, FinalBidStage, FinalReviewStage, FinalThemesStage } f
 import { GamePodium } from "./GamePodium";
 import { QuestionStage } from "./QuestionStage";
 import { SecretStage, StakeStage } from "./SpecialStages";
+import { QuestionPickTransition } from "./QuestionPickTransition";
 
 export function GameStage() {
+  return (
+    <QuestionPickTransition>
+      <GamePhaseStage />
+    </QuestionPickTransition>
+  );
+}
+
+function GamePhaseStage() {
   const session = useSession();
   switch (phaseOf(session)) {
     case "choosing":

@@ -20,7 +20,10 @@ for (const viewport of [
       await expect(page.getByTestId("point-answer-marker")).toHaveCount(count);
       await expect(page.getByTestId("point-answer-label")).toHaveCount(count);
       await expect(page.getByTestId("dock-status")).toHaveText(`Correct: ${count}/${count}`);
-      expect((await page.getByTestId("dock").boundingBox())!.height).toBeLessThanOrEqual(110);
+      // The stable action budget replaces the old naturally sized footer.
+      expect((await page.getByTestId("dock").boundingBox())!.height).toBeLessThanOrEqual(
+        viewport.height * 0.4 + 2,
+      );
       await expect(page.getByTestId("point-answer-label").last()).toContainText(
         `player_${count + 1}_`,
       );

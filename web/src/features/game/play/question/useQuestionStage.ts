@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
-import { isMainTextItem, timerElapsed } from "@/game/contentPlan";
+import { isMainTextItem } from "@/game/contentPlan";
 import { pointImage } from "@/lib/pointImage";
 import type { GameSession } from "@/game/reducer";
 import { canAnswerNow, pointPicture, boardQuestionMeta, myRole, phaseOf } from "@/game/selectors";
-import { useGame, useSession } from "../../GameContext";
+import { useGame, useGameState, useSession } from "../../GameContext";
+import {
+  contentElapsed,
+  presentedQuestionContent,
+  questionOpening,
+} from "@/game/questionPresentation";
 
 /** Derive the question view from the authoritative session and content clock. */
 export function useQuestionStage() {
@@ -19,8 +24,7 @@ export function useQuestionStage() {
   );
   const reveal = phase === "reveal";
   const gated = phase === "media" && role !== "showman";
-  const playing = phase === "showing" && !s.isPaused;
-  const content = session.content;
+  const { content, playing } = useQuestionContent(session);
   const showmanPreview = phase === "media" && role === "showman";
   // A sequenced text appears in its own step instead of under the media.
   const textIsStep =
@@ -63,7 +67,7 @@ export function useQuestionStage() {
 export function usePointImageReady(session: GameSession): boolean {
   const [, tick] = useState(0);
   const { currentQuestion: q, isPaused } = session.state;
-  const content = session.content;
+  const { content } = useQuestionContent(session);
   const image = pointImage(q?.questionFiles, q?.pointImageOrder);
   const step =
     image && content?.kind === "question"
@@ -72,12 +76,22 @@ export function usePointImageReady(session: GameSession): boolean {
         )
       : undefined;
   const running = content?.kind === "question" && content.timer && content.frozenAtMs == null;
-  const elapsed = running ? timerElapsed(content.timer, isPaused) : 0;
-  const wait = running && step ? Math.max(0, step.startMs - elapsed) : 0;
+  const elapsed = content ? contentElapsed(content, isPaused) : 0;
+  const wait = step ? Math.max(0, step.startMs - elapsed) : 0;
   useEffect(() => {
-    if (!wait || isPaused) return;
+    if (!wait || isPaused || !running) return;
     const id = window.setTimeout(() => tick((value) => value + 1), wait + 30);
     return () => window.clearTimeout(id);
-  }, [wait, isPaused]);
+  }, [wait, isPaused, running]);
   return wait === 0;
+}
+
+/** Both the question view and point readiness use the same local presentation. */
+function useQuestionContent(session: GameSession) {
+  const presentation = useGameState((s) => s.questionPresentation);
+  return {
+    content: presentedQuestionContent(session, presentation),
+    playing:
+      phaseOf(session) === "showing" && !session.state.isPaused && !questionOpening(presentation),
+  };
 }

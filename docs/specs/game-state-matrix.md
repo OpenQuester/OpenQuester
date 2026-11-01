@@ -64,7 +64,102 @@ timeout. See [package validation](package-validation-spec.md) for duration rules
 
 ## Required frontend behavior
 
+### Question picking transition (React)
+
+A live, server-confirmed board pick in a regular round opens the theme and board
+price over a readonly view of the previous board. The whole overlay fades in for
+200 ms, holds for 300 ms, then waits another 250 ms before showing any loading
+hint. Early media readiness does not shorten these 750 ms. Once the next scene is
+ready, the overlay fades out for 300 ms: the fastest opening takes 1050 ms plus the
+initial paint opportunity. Each pick has its own animation identity.
+
+If media is still pending after 750 ms, the localized waiting text fades in for
+200 ms and pulses from 100% to 50% and back over two seconds. No progress bar,
+outline or extra readiness counter is added to the overlay. Player cards retain
+their existing preparation status. All roles and the editor playtest share this
+presentation; initial secret/stake picks open their existing scenes, while their
+later actions and final-round selections do not replay the transition.
+
+Readiness ACKs and all server events/timers continue normally. With no connected
+players in a regular round, the showman preloads and sends the same readiness ACK
+so the server can open the question; spectators and final preparation are excluded.
+The next scene mounts during fade out, but gameplay inputs and media playback remain blocked
+until it ends. The question and its content steps have no separate entrance animation;
+removing the overlay keeps the mounted question fully opaque and at its final scale.
+Chat, menus and permitted pause controls remain accessible.
+Question content then starts at local position zero through a presentation
+offset shared by text, images, foreground/background media and point-image
+readiness. Server buzzer/choice timing and deadlines are unchanged: the local
+delay can let a server phase change cut off the end of playback.
+
+The local offset survives pause, answer freezes/resume and same-question rejoin.
+Snapshots never start an opening; they cancel unfinished openings while retaining
+an already established offset for that question. New rounds, questions and exits
+clear obsolete presentation callbacks. Reduced motion removes fades/pulsation
+but preserves the logical opening duration. These are client presentation fields,
+not new server phases or socket contracts.
+
+### Local content replay (React)
+
+Question, answer, final and editor playtest timelines offer one localized
+“Replay presentation” action after the complete content plan finishes. Native
+audio/video `ended` events never expose per-file replay. The action is available
+for multiple content steps (including text/image-only sequences) or any audio/video,
+but not for one static text/image. It sits to the right of the shared volume control
+in a row reserved from the start, so appearing/disappearing does not resize the media,
+text or dock. Text/image-only sequences keep the same row without a volume slider.
+Nonblocking background tracks keep playing after the screen plan ends; replay
+waits until those tracks have finished too, including background-only plans.
+
+Replay restarts all steps and background tracks locally, preserving authored timing
+and grouping. It does not replay the picking overlay, emit readiness ACKs, change
+answer eligibility, or extend authoritative deadlines. Pause freezes replay;
+an answer freeze, replacement plan/snapshot, reconnect, or another scene cancels it.
+Repeated media occurrences restart at zero. Legacy finals preserve their initial
+view and point-answer rules while using `buildContentPlan` for ordered local replay.
+
+### Leaving and home notices (React)
+
+Online leave keeps the socket until this user's `user-leave` or game deletion is
+confirmed. Duplicate clicks are blocked. Other users' leaves and phase changes
+do not acknowledge the request. The existing five-second deadline or a server
+error enables retry without leaving the screen. Offline leave or connection loss
+during leave completes locally and does not rejoin automatically. Deleting the last
+lobby by leaving is a voluntary exit, not a showman-deletion notice.
+
+Before returning home, cancel stale catalogue requests and invalidate all `games`
+query variants. Confirmed removed/closed games are removed from cached lists first;
+ordinary leave does not hide a room that still exists on the server.
+
+Deleted/kicked/closed notices use warning colors and an accessible close button.
+They close automatically after 30 seconds with a 300 ms opacity/height/spacing
+transition; the close button starts it immediately. Reduced motion removes the
+transition. Closing removes only `notice` from the URL using history replacement,
+and obsolete notice timers are cancelled on replacement or unmount.
+
 ### Lobby and question layout
+
+The React action dock reserves a compact, constant height throughout an ordinary
+question: choosing, preparation/opening, showing, answering (manual or automatic),
+and reveal, including false starts, pause and reconnect. The border and device safe
+area are added to these content heights:
+
+| Available dock width | Player | Showman | Spectator |
+| -------------------- | ------ | ------- | --------- |
+| Below 768 px         | 176 px | 176 px  | 128 px    |
+| From 768 px          | 128 px | 128 px  | 128 px    |
+
+Container queries account for pinned side panels. Below 1280 px of available dock
+width, the next-step explanation stays in the existing `?` disclosure. A long name
+in the status uses an ellipsis with its full name retained in the DOM and title;
+the choosing hint does not repeat the name already shown in the status.
+The regular-flow budget covers `uk/en/ru`, 50-character names, question prices up
+to 1,000,000 and scores up to 2,100,000,000. The buzzer warning and a second status
+line do not resize the dock. Bid, secret-transfer, final and all-play stages are
+exceptions: their forms determine their height instead of inflating every ordinary
+question. Overflow remains locally scrollable for accessibility at enlarged text sizes.
+The score list is capped at 128 px / 20dvh with scrolling, and short fields use
+compact choice cards so a large roster and dock cannot hide the question controls.
 
 `settings.autoStart` defaults to `true`: a ready command starts play when all
 connected players are ready. Manual mode requires the showman's `start`; the
@@ -73,8 +168,9 @@ clears readiness. The lobby package overview reads published metadata, which may
 differ from the game's snapshot after package edits.
 
 The React field fits between header and dock; overflow scrolls within content
-panels. All 15 players and the showman remain visible with full signed scores up
-to `SCORE_ABS_LIMIT` (`2_100_000_000`). Tabs preserve mounted media. Previewing an
+panels. All 15 players and the showman remain accessible in the scrollable score
+list with full signed scores up to `SCORE_ABS_LIMIT` (`2_100_000_000`).
+Tabs preserve mounted media. Previewing an
 option image never selects it. Physical `KeyP` invokes Pass across keyboard
 languages, excluding typing, dialogs and repeats.
 
@@ -274,6 +370,7 @@ Use consistent categories in UI copy and server/client logic:
 - `already_done` — user already answered/bid/readied/skipped.
 - `not_eligible` — joined late, eliminated, insufficient score, muted/restricted, etc.
 - `waiting_for_media` — media readiness has not completed.
+- `question_opening` — the local question-pick transition has not finished.
 - `waiting_for_server` — local action submitted, server confirmation pending.
 - `rate_limited` — too many actions too quickly.
 - `connection_lost` — socket/session is reconnecting.

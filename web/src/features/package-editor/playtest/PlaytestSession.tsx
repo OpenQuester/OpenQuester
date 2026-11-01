@@ -16,6 +16,7 @@ import { previewTimer, PreviewRuntime } from "./previewRuntime";
 import { onPlaytestKey } from "./playtestKeyboard";
 import { needsPlayerPerspective } from "./playtestGuidance";
 import { usePlaytestWait } from "./usePlaytestWait";
+import { questionOpening } from "@/game/questionPresentation";
 
 export function PlaytestSession({
   initial,
@@ -50,6 +51,8 @@ export function PlaytestSession({
     [game, perspective],
   );
   const session = useStore(game.store, (state) => state.session!);
+  const presentation = useStore(game.store, (state) => state.questionPresentation);
+  const opening = questionOpening(presentation);
   const phase = phaseOf(session);
   useEffect(() => {
     game.activate();
@@ -79,7 +82,7 @@ export function PlaytestSession({
         );
   const needsPlayer = needsPlayerPerspective(game.session, perspective);
   const finished = phase === "finished";
-  const waitAvailable = usePlaytestWait(session);
+  const waitAvailable = usePlaytestWait(session, presentation);
   return (
     <GameContext.Provider value={gameContext}>
       <div
@@ -99,6 +102,7 @@ export function PlaytestSession({
             finished={finished}
             canContinue={
               !session.state.isPaused &&
+              !opening &&
               (phase === "choosing" || phase === "media" || phase === "reveal" || waitAvailable)
             }
             onPerspective={(id) => {

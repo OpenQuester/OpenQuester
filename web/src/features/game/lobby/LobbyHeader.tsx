@@ -6,7 +6,8 @@ import { BackIcon, ChatIcon } from "@/ui/icons";
 import type { LobbyModel } from "./useLobby";
 export function LobbyHeader({ lobby }: { lobby: LobbyModel }) {
   const { t } = useTranslation();
-  const { connection, setChatOpen, session, role } = lobby;
+  const { connection, setChatOpen, session, role, pending } = lobby;
+  const leaving = pending?.action === "user-leave";
   return (
     <header className="border-b border-line">
       <div className={lobbyStyles.header}>
@@ -14,9 +15,10 @@ export function LobbyHeader({ lobby }: { lobby: LobbyModel }) {
           variant="ghost"
           size="sm"
           onClick={() => connection.leave()}
+          disabled={leaving}
           icon={<BackIcon size={18} />}
         >
-          {t("lobby.leave")}
+          {t(leaving ? "game.leaving" : "lobby.leave")}
         </Button>
         <div className="flex-1" />
         <Button

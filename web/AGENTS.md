@@ -60,6 +60,9 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
 - Colours, radii and fonts come from CSS variables in `src/theme/themes.css`;
   never hard-code a colour in a component. A new theme is a `[data-theme]`
   block plus an entry in `themes.ts`.
+- Production CSS uses Lightning CSS with source maps. Preserve module execution
+  order when splitting Mediabunny: its class imports are cyclic. Verify package
+  publishing against a production build when changing this chunk configuration.
 - All user-facing text goes through i18next keys in `src/i18n/locales/*.json`.
   Server errors are already resolved to display text by the backend; show them
   as received instead of mapping server error codes or rewriting their messages.
@@ -229,8 +232,12 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   progress updates must preserve the file list's expanded state. Keep query
   and form mount boundaries stable when moving these views.
 - Question media: players ACK `media-downloaded` only once every file is
-  loaded (images decoded), so the question timer starts when everyone can see
-  it. Failed loads, decoding errors, and local preload timeouts never send a
+  loaded (images decoded), independently of the local question-pick transition.
+  The server timer can already run during that opening; its local content
+  offset and timing are described in `docs/specs/game-state-matrix.md`.
+  In a regular round with no connected players, the showman uses the same
+  preload/ACK flow so solo hosting does not wait for a nonexistent player.
+  Failed loads, decoding errors, and local preload timeouts never send a
   readiness ACK; the server's media timeout handles unavailable media.
   Replacing a question, leaving the media phase, disconnecting or closing the
   connection cancels preload resources. Deferred seek/autoplay callbacks must

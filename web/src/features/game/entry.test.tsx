@@ -77,9 +77,10 @@ it("keeps invite-copy feedback for the latest click and clears its timer on exit
   expect(vi.getTimerCount()).toBe(0);
 });
 
-it("keeps one mounted connection through updates and closes it on StrictMode replay and exit", () => {
+it("keeps one mounted connection through updates and closes it on StrictMode replay and exit", async () => {
   const connect = vi.spyOn(GameConnection.prototype, "connect").mockImplementation(() => {});
   const close = vi.spyOn(GameConnection.prototype, "close").mockImplementation(() => {});
+  const client = new QueryClient();
   useGameStore.getState().begin("ABCD");
   useGameStore.setState({ left: { gameId: "OLD", why: "deleted" } });
   const { result, rerender, unmount } = renderHook(
@@ -87,6 +88,9 @@ it("keeps one mounted connection through updates and closes it on StrictMode rep
     {
       initialProps: { myId: 2, join: { role: "player" } as JoinOptions },
       reactStrictMode: true,
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
     },
   );
   const connection = result.current.connection;
@@ -101,7 +105,7 @@ it("keeps one mounted connection through updates and closes it on StrictMode rep
   expect(result.current.replaced).toBe(true);
   expect(connect).toHaveBeenCalledTimes(2);
 
-  act(() => useGameStore.getState().markLeft("deleted"));
+  await act(async () => useGameStore.getState().markLeft("deleted"));
   expect(navigate).toHaveBeenCalledExactlyOnceWith({ to: "/", search: { notice: "deleted" } });
   unmount();
   expect(close.mock.contexts).toEqual([connection, connection]);

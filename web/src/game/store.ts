@@ -5,6 +5,12 @@ import { safeStorage } from "@/lib/storage";
 
 import { reduce, sessionFromSnapshot, type GameSession } from "./reducer";
 import type { ServerEvent } from "./protocol";
+import {
+  captureContentOffset,
+  newQuestionPresentation,
+  samePresentedQuestion,
+  type QuestionPresentation,
+} from "./questionPresentation";
 
 export type ConnectionStatus =
   | "idle"
@@ -31,7 +37,7 @@ export interface GameStore {
   pending: { action: string; at: number; playerId?: number } | null;
   toasts: GameToast[];
   /** Set once the local player left or was removed; the page navigates away. */
-  left: { gameId: string; why: "left" | "kicked" | "deleted" | "closed" } | null;
+  left: { gameId: string; why: "left" | "kicked" | "deleted" | "closed"; removed?: boolean } | null;
   /** Showman: board clicks remove or restore questions instead of picking. */
   boardEdit: boolean;
   setBoardEdit: (on: boolean) => void;
@@ -41,6 +47,14 @@ export interface GameStore {
   setPointSelection: (scope: string, playerId: number, spot: { x: number; y: number }) => void;
   previewVolume: number;
   setPreviewVolume: (volume: number) => void;
+  questionPresentation: QuestionPresentation | null;
+  startQuestionOpening: (id: number, at: number) => void;
+  coverQuestionBoard: (id: number) => void;
+  finishQuestionIntro: (id: number) => void;
+  revealQuestion: (id: number, at: number) => void;
+  finishQuestionOpening: (id: number) => void;
+  /** Accept a reduced session, including the role-filtered local playtest view. */
+  setSession: (session: GameSession, event?: ServerEvent) => void;
 
   begin: (gameId: string) => void;
   dispatch: (event: ServerEvent) => void;
@@ -49,11 +63,22 @@ export interface GameStore {
   setPending: (action: string | null, playerId?: number) => void;
   toast: (kind: GameToast["kind"], text: string) => void;
   dismissToast: (id: number) => void;
-  markLeft: (why: "left" | "kicked" | "deleted" | "closed") => void;
+  markLeft: (why: "left" | "kicked" | "deleted" | "closed", removed?: boolean) => void;
 }
 
 const gameStore = (live: boolean): StateCreator<GameStore> => {
   let toastId = 0;
+  let questionAttempt = 0;
+  const updateOpening = (
+    set: Parameters<StateCreator<GameStore>>[0],
+    id: number,
+    change: (p: QuestionPresentation) => QuestionPresentation,
+  ) =>
+    set((s) =>
+      s.questionPresentation?.id === id
+        ? { questionPresentation: change(s.questionPresentation) }
+        : s,
+    );
   return (set, get) => ({
     gameId: null,
     session: null,
@@ -79,6 +104,26 @@ const gameStore = (live: boolean): StateCreator<GameStore> => {
       })),
     previewVolume: 0.7,
     setPreviewVolume: (previewVolume) => set({ previewVolume }),
+    questionPresentation: null,
+    startQuestionOpening: (id, at) =>
+      updateOpening(set, id, (p) => (p.startedAt == null ? { ...p, startedAt: at } : p)),
+    coverQuestionBoard: (id) => updateOpening(set, id, (p) => ({ ...p, previousSession: null })),
+    finishQuestionIntro: (id) =>
+      updateOpening(set, id, (p) => ({
+        ...p,
+        introDone: true,
+        hintVisible: get().session?.state.questionState === "media_downloading",
+      })),
+    revealQuestion: (id, at) =>
+      updateOpening(set, id, (p) =>
+        p.revealStartedAt == null ? { ...p, revealStartedAt: at } : p,
+      ),
+    finishQuestionOpening: (id) =>
+      updateOpening(set, id, (p) => {
+        const next = { ...p, complete: true, previousSession: null };
+        const session = get().session;
+        return session ? captureContentOffset(next, session) : next;
+      }),
 
     begin: (gameId) =>
       set({
@@ -90,36 +135,51 @@ const gameStore = (live: boolean): StateCreator<GameStore> => {
         pending: null,
         toasts: [],
         left: null,
+        questionPresentation: null,
       }),
 
     dispatch: (event) => {
       const { session, gameId } = get();
       if (event.type === "game-data") {
-        // A snapshot replaces everything: no incremental patching after a gap.
-        set({
-          ...(shouldClearPointSelections(session, event)
-            ? { pointSelections: { scope: "", byPlayer: {} } }
-            : {}),
-          session: sessionFromSnapshot(gameId ?? "", event.payload),
-          joinError: null,
-          pending: null,
-        });
+        get().setSession(sessionFromSnapshot(gameId ?? "", event.payload), event);
         return;
       }
       if (!session) return;
       const next = reduce(session, event);
       if (next === session) return;
-      const { pending } = get();
+      get().setSession(next, event);
+    },
+    setSession: (next, event) => {
+      const { session, pending, questionPresentation: previous, boardEdit } = get();
+      const picked = newQuestionPresentation(session, next, event, questionAttempt + 1, boardEdit);
+      if (picked) questionAttempt++;
+      const retained =
+        previous &&
+        samePresentedQuestion(previous, next) &&
+        (event?.type !== "game-data" || previous.complete)
+          ? captureContentOffset(previous, next)
+          : null;
       set({
-        ...(shouldClearPointSelections(session, event)
+        ...(event && shouldClearPointSelections(session, event)
           ? { pointSelections: { scope: "", byPlayer: {} } }
           : {}),
         session: next,
-        pending: resolvesPending(pending, event, session, next) ? null : pending,
+        questionPresentation: picked ?? retained,
+        ...(event?.type === "game-data" ? { joinError: null, pending: null } : {}),
+        ...(event && session && resolvesPending(pending, event, session, next)
+          ? { pending: null }
+          : {}),
       });
     },
 
-    setConnection: (connection) => set({ connection }),
+    setConnection: (connection) =>
+      set((s) => ({
+        connection,
+        questionPresentation:
+          connection === "connected" || s.questionPresentation?.complete
+            ? s.questionPresentation
+            : null,
+      })),
     setJoinError: (joinError) => set({ joinError }),
     setPending: (action, playerId) =>
       set((s) => ({
@@ -140,10 +200,14 @@ const gameStore = (live: boolean): StateCreator<GameStore> => {
       if (live) window.setTimeout(() => get().dismissToast(id), 4500);
     },
     dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
-    markLeft: (why) => {
+    markLeft: (why, removed = false) => {
       const gameId = get().gameId;
       if (!gameId) return;
-      set({ left: { gameId, why } });
+      set({
+        left: { gameId, why, ...(removed ? { removed: true } : {}) },
+        pending: null,
+        questionPresentation: null,
+      });
       if (live && why === "left") rememberLeftGame(gameId);
     },
   });
@@ -218,6 +282,9 @@ function resolvesPending(
   after: GameSession,
 ): boolean {
   if (!pending) return false;
+  if (pending.action === "user-leave") {
+    return event.type === "user-leave" && event.payload.user === pending.playerId;
+  }
   if (event.type === pending.action) {
     if (
       (event.type === "all-play-answer" || event.type === "final-answer-submit") &&

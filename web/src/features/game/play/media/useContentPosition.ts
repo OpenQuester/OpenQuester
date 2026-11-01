@@ -1,16 +1,28 @@
-import { useEffect, useRef, useState } from "react";
-import { nextChangeAt, positionAt, timerElapsed } from "@/game/contentPlan";
+import { useEffect, useState } from "react";
+import { nextChangeAt, positionAt } from "@/game/contentPlan";
 import type { ContentClock } from "@/game/reducer";
-import { serverNow } from "@/lib/clock";
+import { contentElapsed } from "@/game/questionPresentation";
 
 /** Where the timeline is now, re-rendering exactly when the stage changes. */
-export function useContentPosition(content: ContentClock, paused: boolean) {
+export function useContentPosition(content: ContentClock, paused: boolean, replayEnabled = true) {
   const [, setTick] = useState(0);
-  const running = content.frozenAtMs == null && content.timer != null && !paused;
-  const elapsed =
-    content.frozenAtMs ??
-    (content.timer ? timerElapsed(content.timer, paused) : content.plan.totalMs);
+  const [replay, setReplay] = useState<{
+    plan: ContentClock["plan"];
+    kind: ContentClock["kind"];
+    offsetMs: number;
+    attempt: number;
+  } | null>(null);
+  const clockAvailable = content.frozenAtMs == null && content.timer != null && replayEnabled;
+  // A new plan (including a reconnect snapshot) or an answer freeze ends local replay.
+  const retained = replay?.plan === content.plan && replay.kind === content.kind && clockAvailable;
+  if (replay && !retained) setReplay(null);
+  const offsetMs = retained ? replay.offsetMs : 0;
+  const attempt = retained ? replay.attempt : 0;
+  const now = () => Math.max(0, contentElapsed(content, paused) - offsetMs);
+  const elapsed = now();
   const position = positionAt(content.plan, elapsed);
+  const finished = position.done && position.background.length === 0;
+  const running = clockAvailable && !paused;
   const next = running ? nextChangeAt(content.plan, elapsed) : null;
 
   useEffect(() => {
@@ -19,20 +31,23 @@ export function useContentPosition(content: ContentClock, paused: boolean) {
     return () => window.clearTimeout(id);
   }, [next, elapsed]);
 
-  // Read live when a clip (re)starts, so it seeks to where everyone else is.
-  const clockRef = useRef({ content, paused });
-  useEffect(() => {
-    clockRef.current = { content, paused };
-  });
-  const now = () => {
-    const c = clockRef.current;
-    return (
-      c.content.frozenAtMs ??
-      (c.content.timer
-        ? timerElapsed(c.content.timer, c.paused, serverNow())
-        : c.content.plan.totalMs)
-    );
-  };
+  function restart() {
+    if (paused || !clockAvailable || !finished) return;
+    setReplay({
+      plan: content.plan,
+      kind: content.kind,
+      offsetMs: contentElapsed(content, false),
+      attempt: attempt + 1,
+    });
+  }
 
-  return { position, running, now };
+  return {
+    position,
+    running,
+    now,
+    attempt,
+    restart,
+    finished,
+    canRestart: clockAvailable && !paused,
+  };
 }

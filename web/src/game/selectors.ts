@@ -16,6 +16,7 @@ export type DisabledReason =
   | "already_done"
   | "not_eligible"
   | "waiting_for_media"
+  | "question_opening"
   | "waiting_for_server"
   | "connection_lost"
   | "paused"

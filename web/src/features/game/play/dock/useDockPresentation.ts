@@ -2,6 +2,9 @@ import { useCountdown } from "@/lib/useCountdown";
 import { useGame, useGameState, useSession } from "../../GameContext";
 import { useDockModel } from "./useDockModel";
 import { myRole, phaseOf, type Phase } from "@/game/selectors";
+import { useTranslation } from "react-i18next";
+import { questionOpening } from "@/game/questionPresentation";
+import type { ActionDockModel } from "./actionDockModel";
 
 const RING_COLORS: Partial<Record<Phase, string>> = {
   media: "var(--oq-info)",
@@ -26,20 +29,30 @@ function countdownLabel(
 }
 
 export function useDockPresentation() {
+  const { t } = useTranslation();
   const session = useSession();
   const { myId } = useGame();
   const isShowman = myRole(session, myId) === "showman";
   const connection = useGameState((s) => s.connection);
+  const opening = questionOpening(useGameState((s) => s.questionPresentation));
   const phase = phaseOf(session);
   const s = session.state;
   const paused = s.isPaused;
   // While media loads there is no countdown to show: the question timer only
-  // starts once every player has the question in front of them.
+  // starts when the server confirms preparation; local opening runs independently.
   const { left, fraction } = useCountdown(
     phase === "finished" || phase === "media" ? null : s.timer,
     paused,
   );
-  const model = useDockModel(session, myId);
+  const currentModel = useDockModel(session, myId);
+  const model: ActionDockModel = opening
+    ? {
+        ...currentModel,
+        status: t("questionOpening.opening"),
+        statusPlayer: undefined,
+        action: { kind: "info", text: t("reasons.question_opening") },
+      }
+    : currentModel;
   const offline = connection !== "connected";
 
   const ringLabel = countdownLabel(phase, offline, paused, left, model.ringLabel);
@@ -49,5 +62,16 @@ export function useDockPresentation() {
     : paused || (left == null && phase !== "finished")
       ? "var(--oq-border-strong)"
       : (RING_COLORS[phase] ?? "var(--oq-accent)");
-  return { model, phase, paused, offline, fraction, left, ringLabel, ringColor, isShowman };
+  return {
+    model,
+    phase,
+    paused,
+    offline,
+    fraction,
+    left,
+    ringLabel,
+    ringColor,
+    isShowman,
+    opening,
+  };
 }

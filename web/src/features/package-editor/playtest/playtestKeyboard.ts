@@ -1,6 +1,7 @@
 import type { KeyboardEvent } from "react";
 import { canBuzz, canManuallyJudge, myRole, phaseOf, questionValue } from "@/game/selectors";
 import type { PreviewRuntime } from "./previewRuntime";
+import { questionOpening } from "@/game/questionPresentation";
 
 /** Shortcuts stay inside this preview; live-game listeners retain their dialog guard. */
 export function onPlaytestKey(
@@ -30,6 +31,21 @@ export function onPlaytestKey(
   const role = myRole(session, perspective);
   const phase = phaseOf(session);
   const key = event.key.toLowerCase();
+  if (questionOpening(game.store.getState().questionPresentation)) {
+    if (
+      (event.code === "Space" ||
+        key === "p" ||
+        key === "c" ||
+        key === "w" ||
+        /^[1-9]$/.test(key)) &&
+      !(
+        target instanceof HTMLElement &&
+        target.closest("button, a[href], summary, [role=button], [role=radio], [role=tab]")
+      )
+    )
+      event.preventDefault();
+    return;
+  }
   if (event.code === "KeyP" || (!event.code && key === "p")) {
     const pass = event.currentTarget.querySelector<HTMLButtonElement>(
       '[data-hotkey="pass"]:not(:disabled):not([aria-disabled="true"])',

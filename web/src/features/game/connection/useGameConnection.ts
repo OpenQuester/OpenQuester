@@ -1,11 +1,14 @@
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { GameConnection, type JoinOptions } from "@/game/connection";
 import { useGameStore } from "@/game/store";
+import { refreshGamesAfterExit } from "@/features/home/useGames";
 
 /** One connection per mounted game; cleanup retains the seat for a later rejoin. */
 export function useGameConnection(gameId: string, myId: number, join: JoinOptions) {
   const navigate = useNavigate();
+  const client = useQueryClient();
   const [connection] = useState(() => new GameConnection(gameId, myId, join));
   const session = useGameStore((s) => s.session);
   const joinError = useGameStore((s) => s.joinError);
@@ -16,11 +19,22 @@ export function useGameConnection(gameId: string, myId: number, join: JoinOption
     return () => connection.close();
   }, [connection]);
   useEffect(() => {
+    let active = true;
     // Only react to leaving *this* game: the store may still hold the previous one.
     if (left?.gameId === gameId) {
-      void navigate({ to: "/", search: left.why === "left" ? {} : { notice: left.why } });
+      void refreshGamesAfterExit(
+        client,
+        gameId,
+        !!left.removed || left.why === "deleted" || left.why === "closed",
+      ).then(() => {
+        if (active)
+          void navigate({ to: "/", search: left.why === "left" ? {} : { notice: left.why } });
+      });
     }
-  }, [left, gameId, navigate]);
+    return () => {
+      active = false;
+    };
+  }, [left, gameId, navigate, client]);
   const value = useMemo(() => ({ connection, myId }), [connection, myId]);
   return { connection, session, joinError, replaced, value };
 }

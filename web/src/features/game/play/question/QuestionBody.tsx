@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { onChoiceKeyDown } from "@/ui/choiceNavigation";
 import "./QuestionLayout.css";
+import { ContentControlsContext } from "../ContentControlsContext";
 
 /** Media and text share the remaining stage, never the document's height. */
 export function QuestionBody({
@@ -19,6 +20,7 @@ export function QuestionBody({
   footer?: ReactNode;
 }) {
   const { t } = useTranslation();
+  const controls = useContext(ContentControlsContext);
   const scroll = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(false);
   const [tab, setTab] = useState<"media" | "text">("media");
@@ -83,6 +85,7 @@ export function QuestionBody({
           {footer}
         </section>
       )}
+      {controls}
     </div>
   );
 }

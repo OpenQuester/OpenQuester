@@ -8,7 +8,7 @@
     "start:prod": "node ./dist/index.js",
     "checks:dev": "npm run validate:schema && npm run lint",
     "validate:schema": "node ./scripts/schema/validateSchema.mjs",
-    "clean": "rm -rf dist/*",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build:dev": "tsup --watch",
     "build": "npm run clean && tsc --noEmit && tsup",
     "test": "npm run test:pipeline --",

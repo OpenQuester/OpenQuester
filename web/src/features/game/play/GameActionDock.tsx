@@ -5,14 +5,26 @@ import { DockAction, DockInfo } from "./dock/DockAction";
 import { useDockPresentation } from "./dock/useDockPresentation";
 import { useGame, useSession } from "../GameContext";
 import { PlayerMessage } from "./PlayerName";
+import { myRole } from "@/game/selectors";
+import "./dock/ActionDock.css";
 
 /** Phase, role-specific action and next step, with the current timer. */
 export function GameActionDock() {
   const { t } = useTranslation();
   const session = useSession();
   const { myId } = useGame();
-  const { model, phase, paused, offline, fraction, left, ringLabel, ringColor, isShowman } =
-    useDockPresentation();
+  const {
+    model,
+    phase,
+    paused,
+    offline,
+    fraction,
+    left,
+    ringLabel,
+    ringColor,
+    isShowman,
+    opening,
+  } = useDockPresentation();
 
   return (
     <div
@@ -20,6 +32,8 @@ export function GameActionDock() {
       aria-label={t("dock.region")}
       className={actionDockStyles.root}
       data-testid="dock"
+      data-role={myRole(session, myId)}
+      data-phase={phase}
     >
       <div className={actionDockStyles.content}>
         <div className={actionDockStyles.statusGroup}>
@@ -30,7 +44,7 @@ export function GameActionDock() {
             color={ringColor}
             size={40}
           />
-          <div className="flex min-w-0 flex-col">
+          <div className="game-dock-status-copy flex min-w-0 flex-col">
             <span className={actionDockStyles.phase} data-testid="dock-phase">
               {offline ? t("dock.reconnecting") : paused ? t("dock.paused") : t(`phases.${phase}`)}
             </span>
@@ -46,6 +60,12 @@ export function GameActionDock() {
               )}
             </span>
           </div>
+          {model.next && (
+            <details className={actionDockStyles.compactNextStep} data-no-shortcuts>
+              <summary aria-label={t("dock.next")}>?</summary>
+              <p>{model.next}</p>
+            </details>
+          )}
         </div>
         <div className={actionDockStyles.action}>
           {offline ? (
@@ -54,7 +74,7 @@ export function GameActionDock() {
             <DockInfo>{t("pause.waiting")}</DockInfo>
           ) : null}
           <fieldset
-            disabled={paused || offline}
+            disabled={paused || offline || opening}
             hidden={paused || offline}
             className="m-0 min-w-0 w-full border-0 p-0"
           >
@@ -69,12 +89,6 @@ export function GameActionDock() {
             <span className="font-semibold text-text">{t("dock.next")}</span>
             <span>{model.next}</span>
           </p>
-        )}
-        {model.next && (
-          <details className={actionDockStyles.compactNextStep} data-no-shortcuts>
-            <summary aria-label={t("dock.next")}>?</summary>
-            <p>{model.next}</p>
-          </details>
         )}
       </div>
     </div>

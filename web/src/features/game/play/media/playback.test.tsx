@@ -72,7 +72,7 @@ it.each(["pause", "unmount"])(
   },
 );
 
-it("recovers blocked autoplay with muted playback, then restores sound and local replay", async () => {
+it("recovers blocked autoplay and restores sound without offering per-file replay", async () => {
   vi.mocked(HTMLMediaElement.prototype.play).mockRejectedValueOnce(
     new DOMException("Tap first", "NotAllowedError"),
   );
@@ -89,8 +89,7 @@ it("recovers blocked autoplay with muted playback, then restores sound and local
   expect(video.volume).toBe(0.4);
   video.currentTime = 6;
   fireEvent.ended(video);
-  fireEvent.click(screen.getByTestId("media-replay"));
-  expect(video.currentTime).toBe(0);
+  expect(video.currentTime).toBe(6);
   expect(screen.queryByTestId("media-replay")).toBeNull();
 });
 

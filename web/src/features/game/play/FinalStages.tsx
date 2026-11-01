@@ -135,7 +135,7 @@ export function FinalAnswerStage() {
   const session = useSession();
   const { myId } = useGame();
   const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
-  const { content, playing: contentPlaying } = useFinalContent(session);
+  const { content, playing: contentPlaying, legacy } = useFinalContent(session);
   const picture = pointPicture(q);
   const picking =
     picture &&
@@ -158,6 +158,7 @@ export function FinalAnswerStage() {
         picture={picking ? picture : null}
         paused={session.state.isPaused}
         myId={myId}
+        legacy={legacy}
       />
     </section>
   );
@@ -170,48 +171,68 @@ function FinalQuestionContent({
   picture,
   paused,
   myId,
+  legacy,
 }: {
   question: Question | null | undefined;
   content: ContentClock | null;
   picture: string | null;
   paused: boolean;
   myId: number;
+  legacy: boolean;
 }) {
   const { t } = useTranslation();
   if (!q) return <QuestionBody text={<p>{t("question.noContent")}</p>} />;
   const files = q.questionFiles ?? [];
-  const showCaption = hasFinalCaption(q, !!picture, !!content);
+  const showCaption = hasFinalCaption(q, !!picture, !!content && !legacy);
   const caption = showCaption ? (
     <p className={stageStyles.finalQuestionText} data-testid="question-text">
       {q.text || t("question.noContent")}
     </p>
   ) : undefined;
-  if (content && !picture)
-    return (
-      <ContentStage
-        content={content}
-        files={files}
-        text={q.text}
-        textOrder={q.textOrder}
-        textItems={q.textItems}
-        paused={paused}
-        caption={caption}
-        captionLength={showCaption ? q.text?.length : 0}
-      />
-    );
   const point = picture ? <PointAnswer key={myId} src={picture} /> : null;
   const target = pointImage(files, q.pointImageOrder);
-  let media = null;
-  if (content && point) media = point;
-  else if (files.length > 0)
-    media = (
+  const initialView = (
+    <LegacyFinalView question={q} point={point} paused={paused} caption={caption} />
+  );
+  if (!content) return initialView;
+  return (
+    <ContentStage
+      content={content}
+      files={files}
+      text={q.text}
+      textOrder={q.textOrder}
+      textItems={q.textItems}
+      paused={paused}
+      caption={caption}
+      captionLength={showCaption ? q.text?.length : 0}
+      pointAnswer={point && target ? { order: target.order, view: point } : undefined}
+      initialView={legacy ? initialView : undefined}
+    />
+  );
+}
+
+function LegacyFinalView({
+  question,
+  point,
+  paused,
+  caption,
+}: {
+  question: Question;
+  point: React.ReactNode;
+  paused: boolean;
+  caption: React.ReactNode;
+}) {
+  const files = question.questionFiles ?? [];
+  const target = pointImage(files, question.pointImageOrder);
+  const media =
+    files.length > 0 ? (
       <QuestionMedia
         files={files}
         playing={!paused}
         replacePointImage={point && target ? { file: target, view: point } : undefined}
       />
-    );
-  return <QuestionBody media={media} text={caption} textLength={q.text?.length} />;
+    ) : null;
+  return <QuestionBody media={media} text={caption} textLength={question.text?.length} />;
 }
 
 function hasFinalCaption(q: Question, picking: boolean, timeline: boolean) {

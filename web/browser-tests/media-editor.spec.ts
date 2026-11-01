@@ -779,6 +779,7 @@ test("local playtest uses unsaved content, separates roles, and leaves the form 
   });
   const controls = game.getByRole("group", { name: "Simulation controls" });
   await expect(game.getByTestId("question-text")).toHaveText(unsaved);
+  await expect(game.getByTestId("question-pick-transition")).toHaveCount(0);
   await controls.getByRole("button", { name: "Pause", exact: true }).click();
   const dir = process.env.OQ_MEDIA_SCREENSHOTS;
   for (const width of [375, 768, 1440, 1920]) {
@@ -790,8 +791,7 @@ test("local playtest uses unsaved content, separates roles, and leaves the form 
   }
   await expect(game.getByTestId("question-text")).toHaveText(unsaved);
   // The prompt also has a named text region inside the overall question stage.
-  const question = game.getByRole("region", { name: "Question", exact: true }).first();
-  const stage = question.locator("../..");
+  const stage = game.locator(".question-pick-stage");
   const media = game.getByTestId("content-stage").locator("img");
   const text = game.getByTestId("question-text");
   const dock = game.getByTestId("dock");
@@ -1001,10 +1001,11 @@ test("playtest pauses parent media, isolates volume, and releases its own media 
   await form.getByRole("button", { name: "Preview", exact: true }).click();
   const game = page.getByTestId("question-playtest");
   await expect(game).toBeVisible();
+  await expect(game.getByTestId("question-pick-transition")).toHaveCount(0);
   await expect.poll(() => parentVideo.evaluate((el: HTMLVideoElement) => el.paused)).toBe(true);
-  const video = game.getByTestId("media-video"),
-    handle = await video.elementHandle();
+  const video = game.getByTestId("media-video");
   await expect(video).toBeVisible();
+  const handle = await video.elementHandle();
   await expect
     .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime))
     .toBeGreaterThan(0.1);
@@ -1047,6 +1048,7 @@ test("playtest keyboard input and invalid-field return stay inside the editor", 
     .getByRole("group", { name: "Simulation controls" })
     .getByRole("button", { name: "Continue", exact: true });
   await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");
+  await expect(next).toBeEnabled();
   await next.focus();
   await page.keyboard.press("Enter");
   await expect(game.getByTestId("content-stage").locator("img")).toBeVisible();

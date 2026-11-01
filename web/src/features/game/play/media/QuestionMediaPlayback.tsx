@@ -1,9 +1,11 @@
 import { playbackStyles, mediaFrame } from "./playbackStyles";
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
-import { ReplayIcon, VolumeIcon } from "@/ui/icons";
+import { VolumeIcon } from "@/ui/icons";
 import { useQuestionMediaPlayback } from "./useQuestionMediaPlayback";
+import { MediaVolume } from "./MediaVolume";
+import { ContentControlsContext } from "../ContentControlsContext";
 
 /** Video or audio without controls, started and stopped by the game. */
 export function QuestionMediaPlayback({
@@ -15,6 +17,7 @@ export function QuestionMediaPlayback({
   onLoaded,
   onFailed,
   loading,
+  completed = false,
 }: {
   src: string;
   type: "video" | "audio";
@@ -24,10 +27,14 @@ export function QuestionMediaPlayback({
   onLoaded: () => void;
   onFailed: () => void;
   loading: ReactNode;
+  completed?: boolean;
 }) {
   const { t } = useTranslation();
-  const { volume, update, ref, blocked, ended, setEnded, replay, enableSound } =
-    useQuestionMediaPlayback(playing, positionMs);
+  const sharedControls = useContext(ContentControlsContext) !== undefined;
+  const { ref, blocked, ended, setEnded, enableSound } = useQuestionMediaPlayback(
+    playing,
+    positionMs,
+  );
 
   const common = {
     src,
@@ -65,7 +72,7 @@ export function QuestionMediaPlayback({
             <VolumeIcon size={26} />
           </span>
           <span className="font-semibold">
-            {ended
+            {ended || completed
               ? t("question.audioEnded")
               : playing
                 ? t("question.audioPlaying")
@@ -81,43 +88,23 @@ export function QuestionMediaPlayback({
           {loading}
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        {ended && (
-          <button
-            type="button"
-            onClick={replay}
-            className={playbackStyles.replay}
-            data-testid="media-replay"
-          >
-            <ReplayIcon size={18} />
-            {t("question.replay")}
-          </button>
-        )}
-        {blocked ? (
-          <button
-            type="button"
-            onClick={enableSound}
-            className={playbackStyles.enableSound}
-            data-testid="enable-sound"
-          >
-            <VolumeIcon size={18} />
-            {t("question.enableSound")}
-          </button>
-        ) : (
-          <label className="inline-flex items-center gap-2 text-sm text-muted">
-            <VolumeIcon size={18} />
-            <span className="sr-only">{t("settings.volume")}</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(volume * 100)}
-              onChange={(e) => update({ volume: Number(e.target.value) / 100 })}
-              className="w-36 accent-[var(--oq-accent)]"
-            />
-          </label>
-        )}
-      </div>
+      {(blocked || !sharedControls) && (
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {blocked ? (
+            <button
+              type="button"
+              onClick={enableSound}
+              className={playbackStyles.enableSound}
+              data-testid="enable-sound"
+            >
+              <VolumeIcon size={18} />
+              {t("question.enableSound")}
+            </button>
+          ) : (
+            <MediaVolume />
+          )}
+        </div>
+      )}
     </div>
   );
 }

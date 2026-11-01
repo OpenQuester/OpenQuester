@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { canBuzz, canManuallyJudge, myRole, phaseOf, questionValue } from "@/game/selectors";
 
 import { useGame, useGameStoreApi } from "../GameContext";
+import { questionOpening } from "@/game/questionPresentation";
 
 function isTyping(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -27,6 +28,21 @@ export function useHotkeys({ onChat, onMenu }: { onChat: () => void; onMenu: () 
       const role = myRole(session, myId);
       const phase = phaseOf(session);
       const key = e.key.toLowerCase();
+      if (questionOpening(store.getState().questionPresentation) && key !== "t" && key !== "?") {
+        if (
+          (e.code === "Space" ||
+            key === "p" ||
+            key === "c" ||
+            key === "w" ||
+            /^[1-9]$/.test(key)) &&
+          !(
+            e.target instanceof HTMLElement &&
+            e.target.closest("button, a[href], summary, [role=button], [role=radio], [role=tab]")
+          )
+        )
+          e.preventDefault();
+        return;
+      }
 
       if (e.code === "KeyP" || (!e.code && key === "p")) {
         const pass = document.querySelector<HTMLButtonElement>(

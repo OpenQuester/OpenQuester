@@ -6,7 +6,8 @@ import { buzzerLockLeft, canBuzz, findPlayer, myRole, phaseOf, type Phase } from
 import { formatSigned } from "@/lib/format";
 import { playCue } from "@/lib/sound";
 
-import { useGame, useSession } from "../GameContext";
+import { useGame, useGameState, useSession } from "../GameContext";
+import { questionOpening } from "@/game/questionPresentation";
 import { useBuzzer } from "./useBuzzer";
 
 /**
@@ -21,6 +22,8 @@ export function useGameFeedback(): string {
   const volume = useSettings((s) => s.volume);
   const [text, setText] = useState("");
   const buzzer = useBuzzer(session, myId);
+  const opening = questionOpening(useGameState((s) => s.questionPresentation));
+  const open = buzzer.open && !opening;
   const prev = useRef<{
     phase: Phase;
     turn: number | null | undefined;
@@ -31,7 +34,7 @@ export function useGameFeedback(): string {
     phase: phaseOf(session),
     turn: session.state.currentTurnPlayerId,
     result: session.lastResult?.key ?? null,
-    open: buzzer.open,
+    open,
     locked: buzzer.lockLeftMs > 0,
   });
 
@@ -59,7 +62,7 @@ export function useGameFeedback(): string {
       setText(t(`phases.${phase}`));
       if (
         phase === "showing" &&
-        buzzer.open &&
+        open &&
         myRole(session, myId) === "player" &&
         canBuzz(session, myId).ok
       )
@@ -67,7 +70,7 @@ export function useGameFeedback(): string {
       if (phase === "answering" && session.state.answeringPlayer === myId) cue("buzz");
     } else if (
       phase === "showing" &&
-      buzzer.open &&
+      open &&
       !before.open &&
       myRole(session, myId) === "player" &&
       canBuzz(session, myId).ok
@@ -89,8 +92,8 @@ export function useGameFeedback(): string {
       setText(t("announce.yourTurn"));
       cue("turn");
     }
-    prev.current = { phase, turn, result: last?.key ?? null, open: buzzer.open, locked };
-  }, [session, myId, sound, volume, t, buzzer.open]);
+    prev.current = { phase, turn, result: last?.key ?? null, open, locked };
+  }, [session, myId, sound, volume, t, open]);
 
   return text;
 }

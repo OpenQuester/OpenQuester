@@ -1,5 +1,5 @@
-import { act, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { QuestionFile } from "@/game/protocol";
 import { setUrlMappings } from "@/lib/urlMappings";
@@ -13,7 +13,12 @@ function file(type: "image" | "audio" | "video"): QuestionFile {
   } as unknown as QuestionFile;
 }
 
+beforeEach(() => {
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+});
+
 afterEach(() => {
+  cleanup();
   setUrlMappings([]);
   vi.restoreAllMocks();
 });

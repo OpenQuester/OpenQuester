@@ -13,7 +13,7 @@ for (const viewport of [
   { width: 320, height: 568 },
   { width: 812, height: 375 },
 ]) {
-  test(`all 16 cards and full scores fit at ${viewport.width}x${viewport.height}`, async ({
+  test(`all 16 cards stay reachable with full scores at ${viewport.width}x${viewport.height}`, async ({
     page,
   }) => {
     await page.setViewportSize(viewport);
@@ -25,10 +25,16 @@ for (const viewport of [
     const cards = page.locator(".player-cards > li");
     await expect(cards).toHaveCount(16);
     await expect(page.locator(".player-card-own")).toHaveCount(1);
+    // Large rosters scroll within their reserved header space on small screens.
+    await cards.last().getByRole("button").focus();
+    await expect(cards.last()).toBeInViewport();
+    await cards.first().getByRole("button").focus();
+    await expect(cards.first()).toBeInViewport();
     const geometry = await page.locator(".game-screen").evaluate((game) => {
       const main = game.querySelector("main")!;
       const dock = game.querySelector('[data-testid="dock"]')!.getBoundingClientRect();
       const header = game.querySelector("header")!.getBoundingClientRect();
+      const roster = game.querySelector(".player-cards")!.getBoundingClientRect();
       const scores = [...game.querySelectorAll(".player-card-score")];
       return {
         mainOverflow: main.scrollHeight - main.clientHeight,
@@ -36,7 +42,7 @@ for (const viewport of [
         fieldHeight: main.clientHeight,
         cardsFit: [...game.querySelectorAll(".player-cards > li")].every((el) => {
           const r = el.getBoundingClientRect();
-          return r.left >= 0 && r.right <= innerWidth && r.bottom <= header.bottom;
+          return r.left >= roster.left - 1 && r.right <= roster.right + 1;
         }),
         scoresFit: scores.every(
           (el) =>
@@ -46,9 +52,12 @@ for (const viewport of [
         mediaHeight: game.querySelector('[data-testid="media-frame"]')!.getBoundingClientRect()
           .height,
         dockBottom: dock.bottom,
+        rosterBottom: roster.bottom,
+        headerBottom: header.bottom,
       };
     });
     expect(geometry.cardsFit).toBe(true);
+    expect(geometry.rosterBottom).toBeLessThanOrEqual(geometry.headerBottom);
     expect(geometry.scoresFit).toBe(true);
     expect(geometry.mainOverflow).toBeLessThanOrEqual(1);
     expect(geometry.documentOverflow).toBeLessThanOrEqual(1);
@@ -79,6 +88,13 @@ test("expanded card offers showman score controls and an accessible centered ava
   await card.hover();
   const popup = page.locator(".player-card-popover");
   await expect(popup).toContainText("Very_long_player_nickname_02_XYZ");
+  const triggerBox = (await card.boundingBox())!;
+  await expect
+    .poll(async () => (await popup.boundingBox())!.y)
+    .toBeCloseTo(triggerBox.y + triggerBox.height + 8, 0);
+  await popup.hover();
+  await expect(popup).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("player-popover-below.png") });
   await expect(page.getByTestId("quick-score-subtract")).toBeDisabled();
   await page.getByTestId("quick-score-add").click();
   expect(

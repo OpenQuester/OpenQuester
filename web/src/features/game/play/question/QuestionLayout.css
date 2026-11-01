@@ -1,4 +1,9 @@
-/* The header and dock keep their natural height; the stage gets the remainder. */
+/* The bounded header and stable dock leave the remaining space to the stage. */
+.game-screen .player-cards {
+  max-block-size: min(128px, 20dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .game-screen .question-layout {
   min-height: 0;
   overflow: hidden;
@@ -35,6 +40,32 @@
 .question-body-split {
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
+}
+.content-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 44px;
+  flex-shrink: 0;
+}
+/* Reserve one row from the start; revealing replay never resizes the content. */
+.question-body:has(> .content-controls) {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.question-body-mixed:has(> .content-controls) {
+  grid-template-rows: minmax(0, 3fr) minmax(72px, 1fr) auto;
+}
+.question-body-split:has(> .content-controls) {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.question-body-split > .content-controls {
+  grid-column: 1;
+}
+.question-body-split:has(> .content-controls) > .question-body-text {
+  grid-column: 2;
+  grid-row: 1 / 3;
 }
 .question-body-media {
   min-height: 0;
@@ -178,6 +209,13 @@
 .choice-prompt .question-body-mixed {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr);
+}
+.choice-prompt .question-body-mixed:has(> .content-controls) {
+  grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+}
+.choice-prompt .question-body-split:has(> .content-controls) > .question-body-text {
+  grid-column: auto;
+  grid-row: auto;
 }
 .choice-prompt .question-text {
   font-size: clamp(18px, 1.5vw, 28px);
@@ -331,11 +369,6 @@
     max-height: 100%;
   }
 }
-@media (max-width: 1023px) {
-  .game-dock-status {
-    padding-right: 30px;
-  }
-}
 @media (max-width: 767px) {
   .game-header {
     gap: 6px;
@@ -359,28 +392,6 @@
     font-size: 11px;
     padding: 6px 8px;
   }
-  .game-dock-status {
-    gap: 8px;
-  }
-  .game-dock-status [data-testid="dock-status"] {
-    font-size: 13px;
-    line-height: 1.25;
-  }
-  .game-dock-status [data-testid="dock-phase"] {
-    font-size: 10px;
-  }
-  .game-dock-content {
-    gap: 6px;
-  }
-  .game-dock-content button {
-    min-height: 40px;
-    font-size: 14px;
-  }
-  .game-dock-content [data-testid="dock-info"] {
-    min-height: 40px;
-    padding: 6px 10px;
-    font-size: 13px;
-  }
 }
 /* Small remaining stages use tabs, with media mounted so playback stays in sync. */
 .game-screen main {
@@ -391,6 +402,13 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
     gap: 6px;
+  }
+  .question-body-mixed:has(> .content-controls) {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+  .question-body-split:has(> .content-controls) > .question-body-text {
+    grid-column: auto;
+    grid-row: auto;
   }
   .question-body-mixed .question-body-tabs {
     display: flex;
@@ -650,6 +668,9 @@
   .choice-prompt .question-body-mixed {
     grid-template-rows: auto minmax(0, 1fr);
   }
+  .choice-prompt .question-body-mixed:has(> .content-controls) {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
 }
 
 /* Short prompts use their content height. Long prompts keep their own scroll area. */
@@ -698,5 +719,23 @@
 @container (max-width: 620px) {
   .question-body-mixed[data-short="true"] {
     grid-template-rows: auto minmax(0, 1fr);
+  }
+}
+
+/* Keep every choice reachable when the dock reserves its largest controls. */
+@container (max-height: 360px) {
+  .choice-options > .question-text-label {
+    display: none;
+  }
+  .choice-question,
+  .choice-options {
+    gap: 4px;
+  }
+  .choice-tabs button {
+    padding: 4px 8px;
+  }
+  .answer-choices {
+    grid-auto-rows: minmax(46px, 1fr);
+    gap: 4px;
   }
 }
