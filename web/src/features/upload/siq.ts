@@ -1,5 +1,6 @@
 import type { Unzipped } from "fflate";
 
+import { scanSiq, requireRemoval, removalWarnings } from "./htmlRemoval";
 import { EntryIndex, md5Hex, yieldToBrowser } from "./archive";
 import type {
   FileRef,
@@ -19,7 +20,10 @@ import type {
  * package. Mirrors client/packages/siq_file (the Flutter reader) and keeps its
  * defaults, but reports problems as warnings instead of failing the whole file.
  */
-export async function parseSiq(entries: Unzipped): Promise<ParsedPackage> {
+export async function parseSiq(
+  entries: Unzipped,
+  allowHtmlRemoval = false,
+): Promise<ParsedPackage> {
   const index = new EntryIndex(entries);
   const xml = index.find("content.xml");
   if (!xml) throw new Error("noContentXml");
@@ -31,9 +35,24 @@ export async function parseSiq(entries: Unzipped): Promise<ParsedPackage> {
   if (!pkg || pkg.localName !== "package" || doc.getElementsByTagName("parsererror").length)
     throw new Error("badContentXml");
 
-  const reader = new SiqReader(index);
+  const originalRounds = [...children(child(pkg, "rounds"), "round")];
+  const nonLastFinals = new Set(
+    originalRounds.slice(0, -1).filter((r) => r.getAttribute("type") === "final"),
+  );
+  const names = Object.keys(entries);
+  const nonEmptyNames = names.filter((name) => entries[name]!.length > 0);
+  const report = scanSiq(pkg, names, false, nonEmptyNames);
+  requireRemoval(report, allowHtmlRemoval);
+  if (report.questions.length) scanSiq(pkg, names, true, nonEmptyNames);
+  const reader = new SiqReader(index, nonLastFinals);
+  reader.warnings.push(...removalWarnings(report));
   await yieldToBrowser();
   const content = reader.readPackage(pkg);
+  if (
+    report.questions.length &&
+    !content.rounds.some((r) => r.themes.some((t) => t.questions.length))
+  )
+    throw new Error("allHtmlQuestions");
   return { format: "siq", content, files: reader.files, warnings: reader.warnings };
 }
 
@@ -73,7 +92,10 @@ class SiqReader {
   warnings: ImportWarning[] = [];
   private byPath = new Map<string, string>();
 
-  constructor(private readonly index: EntryIndex) {}
+  constructor(
+    private readonly index: EntryIndex,
+    private readonly nonLastFinals: Set<Element>,
+  ) {}
 
   readPackage(pkg: Element): UploadContent {
     const restriction = pkg.getAttribute("restriction")?.trim();
@@ -87,7 +109,8 @@ class SiqReader {
     // Normalize before parsing themes so converted rounds keep all their questions.
     const rounds = nodes.map((r, i) => {
       const final = r.getAttribute("type") === "final";
-      const type = final && i === nodes.length - 1 ? "final" : "simple";
+      const type =
+        final && i === nodes.length - 1 && !this.nonLastFinals.has(r) ? "final" : "simple";
       if (final && type === "simple")
         this.warnings.push({ code: "finalAsSimple", where: r.getAttribute("name") ?? "" });
       return this.round(r, i, type);

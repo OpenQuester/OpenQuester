@@ -110,6 +110,7 @@ export interface MediaFile {
 /** Something the reader fixed or skipped, shown before upload so nothing is a surprise. */
 export interface ImportWarning {
   code:
+    | "htmlQuestionRemoved"
     | "missingFile"
     | "externalMedia"
     | "emptyQuestion"

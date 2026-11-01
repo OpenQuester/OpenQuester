@@ -5,6 +5,7 @@ import { strToU8, zipSync } from "fflate";
 
 import { expectNoHorizontalScroll, packageId, shot } from "./support/game";
 import { makePng } from "./support/seed.mjs";
+import { mixedHtmlPack } from "./support/htmlRemoval";
 
 /** An .oq export with a picture question and two rounds, so moves can cross rounds. */
 function oqFile(title: string): Buffer {
@@ -69,6 +70,29 @@ const themeCards = (page: Page, theme: number) =>
   page.getByTestId("theme-row").nth(theme).getByTestId("question-card");
 
 test.describe("package editor", () => {
+  test("persists cleaned import and its warning after reload", async ({ page }) => {
+    await page.goto("/packages/editor");
+    const input = {
+      name: "mixed.siq",
+      mimeType: "application/zip",
+      buffer: mixedHtmlPack(`Editor HTML ${Date.now()}`),
+    };
+    await page.getByTestId("import-file").setInputFiles(input);
+    await expect(page.getByRole("dialog")).toContainText("question 2");
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByTestId("round-board")).toHaveCount(0);
+    await page.getByTestId("import-file").setInputFiles(input);
+    await page.getByRole("button", { name: "Remove and continue" }).click();
+    await expect(page.getByTestId("round-board")).toBeVisible();
+    await expect(page.getByTestId("upload-warnings")).toContainText(
+      "Unsupported HTML question removed",
+    );
+    await page.reload();
+    await expect(page.getByTestId("upload-warnings")).toContainText(
+      "Unsupported HTML question removed",
+    );
+    await expect(page.getByTestId("question-card")).toHaveCount(1);
+  });
   test("cards show question content and answers, and the form saves an edit", async ({ page }) => {
     await openInEditor(page, `Editor ${Date.now()}`);
     await expect(themeCards(page, 0)).toHaveCount(2);

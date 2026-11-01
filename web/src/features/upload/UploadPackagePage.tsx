@@ -7,11 +7,12 @@ import { UploadPageLayout } from "./UploadPageLayout";
 import { UploadReview } from "./UploadReview";
 import { UploadProgressCard } from "./UploadProgressCard";
 import { UploadPartial, UploadDone, UploadFailed } from "./UploadOutcome";
+import { HtmlRemovalDialog } from "./HtmlRemovalDialog";
 import { usePackageUpload } from "./usePackageUpload";
 
 export function UploadPackagePage() {
   const { t } = useTranslation();
-  const { step, pick, upload, resume, edit, retry, reset } = usePackageUpload();
+  const { confirmation, step, pick, upload, resume, edit, retry, reset } = usePackageUpload();
   return (
     <UploadPageLayout
       title={t("upload.title")}
@@ -19,6 +20,7 @@ export function UploadPackagePage() {
       backLabel={t("upload.back")}
       description={<p className="m-0 text-soft">{t("upload.lead")}</p>}
     >
+      <HtmlRemovalDialog report={confirmation.report} settle={confirmation.settle} />
       <UploadAccess>
         {step.kind === "pick" ? (
           <PackageImportDropZone onFile={(f) => void pick(f)} error={step.error} />

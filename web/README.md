@@ -13,3 +13,7 @@ node e2e/support/seed.mjs             # add a demo package with every question t
 
 Open http://localhost:5173, continue as a guest, pick the demo package and host
 a game. Open the invite link in another browser profile to join as a player.
+
+Set `VITE_DEBUG_LOGIN=true` in `.env.local` to show numbered dev-user sign-in
+in the topbar. It calls the existing `/v1/dev/login/:num` endpoint (`ENV=dev`)
+and reloads the app after signing in. Use the usual `npm run dev` command.

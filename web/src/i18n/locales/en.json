@@ -1,4 +1,11 @@
 {
+  "debugLogin": {
+    "number": "Dev user #",
+    "signIn": "Dev sign in",
+    "signingIn": "Signing in…",
+    "failed": "Dev sign-in failed (HTTP {{status}}). Check that the API uses ENV=dev.",
+    "networkError": "Could not reach the local API."
+  },
   "common": {
     "retry": "Retry",
     "loadFailed": "Couldn't load this. Try again.",
@@ -853,7 +860,7 @@
     "guestHelp": "A package needs an owner who can come back to it. Sign in with Discord to upload, and your packages stay with your account.",
     "discordUnavailable": "Discord sign-in isn't switched on for this site yet, so uploading isn't available here.",
     "drop": "Drop a package file here",
-    "formats": "SIGame .siq (formats 4 and 5) or OpenQuester .oq. Images, audio and video inside the file are uploaded too.",
+    "formats": "SIGame .siq (formats 4 and 5) or OpenQuester .oq.",
     "choose": "Choose a file",
     "reading": "Reading {{name}}…",
     "readErrors": {
@@ -864,7 +871,9 @@
       "noContentJson": "This .oq file has no content.json, so there's nothing to read.",
       "badContentJson": "The package description inside this .oq file is broken.",
       "generic": "Couldn't read this file.",
-      "otherSource": "This file isn't the one this package was uploaded from, so it can't finish that upload. Upload it as a new package instead."
+      "otherSource": "This file isn't the one this package was uploaded from, so it can't finish that upload. Upload it as a new package instead.",
+      "allHtmlQuestions": "No usable questions remain after import. Other questions may have missing media.",
+      "ambiguousManifest": "This archive contains multiple conflicting package manifests."
     },
     "format": {
       "siq": "SIGame package",
@@ -888,7 +897,8 @@
       "unknownType": "Question type “{{detail}}” isn't supported yet and plays as a regular question.",
       "finalAsSimple": "A final round outside the last position was converted to a regular round. Review its questions and prices.",
       "extraFinalQuestions": "Only the first question of this final theme was imported; {{detail}} additional questions were left out. Review the source archive.",
-      "hashMismatch": "Media file {{detail}} is damaged and was left out."
+      "hashMismatch": "Media file {{detail}} is damaged and was left out.",
+      "htmlQuestionRemoved": "Unsupported HTML question removed."
     },
     "showAll": "Show all {{count}}",
     "showFewer": "Show fewer",
@@ -909,10 +919,14 @@
     "serverRejected": "The server didn't accept this package: {{message}}",
     "editFirst": "Edit before uploading",
     "compress": {
-      "label": "Compress media before upload",
-      "help": "Pictures become AVIF, video VP9 and sound AAC, playable on every device. The first time, the browser downloads the encoders once. Files this browser can't encode are uploaded as they are.",
+      "label": "Media is automatically prepared for upload",
+      "help": "Files may be compressed or converted to another format. Media already prepared in the editor and files this browser cannot convert are kept as they are.",
       "progress": "Compressing media: {{done}} of {{total}} · {{before}} → {{after}}",
-      "saved": "Media compressed from {{before}} to {{after}}."
+      "saved": "Media compressed from {{before}} to {{after}}.",
+      "before": "Current media size",
+      "estimate": "Estimated after compression",
+      "estimating": "Estimating…",
+      "estimateHelp": "Approximate media size, not the archive size. Actual results vary; files we cannot estimate keep their original size. Files already in storage may need no extra space."
     },
     "checking": "Checking that every file arrived…",
     "fileType": {
@@ -940,7 +954,17 @@
       "by": "By {{author}} · {{when}}",
       "resume": "Finish this upload",
       "open": "Open it"
-    }
+    },
+    "htmlRemoval": {
+      "title": "Unsupported HTML questions",
+      "explanation_one": "HTML questions are not supported. To continue, remove {{count}} question. The original file will not be changed.",
+      "explanation_other": "HTML questions are not supported. To continue, remove {{count}} questions. The original file will not be changed.",
+      "all": "No questions would remain, so this file cannot be imported.",
+      "item": "{{round}} › {{theme}} › question {{number}} › {{price}}",
+      "cancel": "Cancel",
+      "confirm": "Remove and continue"
+    },
+    "includesMedia": "Images, audio and video inside the file are uploaded too."
   },
   "editor": {
     "storageFailed": "Couldn't update drafts on this device. Try again.",
@@ -1520,7 +1544,10 @@
       "imageBytes": "One picture",
       "audioBytes": "One sound file",
       "videoBytes": "One video"
-    }
+    },
+    "projected": "This package: approximately +{{size}}.",
+    "projectedOverQuota": "This package may need {{size}} more space and exceed your limit. The actual upload will check available storage.",
+    "projectedUsage": "{{used}} already used; this package may add {{pending}}."
   },
   "allPlay": {
     "kickerStake": "Stake for everyone",

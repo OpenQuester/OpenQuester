@@ -3263,7 +3263,7 @@ export interface components {
             /** @example en */
             language?: string | null;
             /** @description Logo file for the package */
-            logo?: components["schemas"]["PackageLogoFileItem"] | null;
+            logo?: components["schemas"]["PackageLogoFileItem"];
             /**
              * @description Tags for the package. Can be null or an array of tag objects
              * @example [
@@ -3321,7 +3321,7 @@ export interface components {
             /** @description Where the package's facts come from */
             sources?: string[] | null;
             /** @description Logo file for the package */
-            logo?: components["schemas"]["PackageLogoFileItem"] | null;
+            logo?: components["schemas"]["PackageLogoFileItem"];
             /** @description Rounds in the package */
             rounds: components["schemas"]["PackageRound"][];
             /**
@@ -3377,7 +3377,7 @@ export interface components {
             /** @example en */
             language?: string | null;
             /** @description Logo file for the package */
-            logo?: components["schemas"]["PackageLogoFileItem"] | null;
+            logo?: components["schemas"]["PackageLogoFileItem"];
             /** @example 5 */
             roundsCount: number;
             /** @example 183 */
@@ -3696,11 +3696,11 @@ export interface components {
              */
             link?: string | null;
         };
-        /** @description Logo file structure for package creation. Only images acceptable */
+        /** @description Logo file structure for package creation */
         PackageLogoFileInput: {
             file?: components["schemas"]["FileInput"];
         } | null;
-        /** @description Logo file structure for package creation. Only images acceptable */
+        /** @description Logo file structure for a package */
         PackageLogoFileItem: {
             file: components["schemas"]["FileItem"];
         } | null;
@@ -3844,7 +3844,7 @@ export interface components {
             sources?: string[] | null;
             /**
              * @description Delay in milliseconds before being able to answer, if applicable
-             * @default 4000
+             * @default 5000
              * @example 7000
              */
             answerDelay: number | null;
@@ -4018,7 +4018,7 @@ export interface components {
             /** @description Age restriction */
             ageRestriction: components["schemas"]["AgeRestriction"];
             /** @description Logo file for the package */
-            logo?: components["schemas"]["PackageLogoFileInput"] | null;
+            logo?: components["schemas"]["PackageLogoFileInput"];
             /**
              * @description Tags for the package. Can be null or an array of tag objects
              * @example [

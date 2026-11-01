@@ -4,17 +4,17 @@ import { useTranslation } from "react-i18next";
 import { ApiError } from "@/api/client";
 import { useMe } from "@/features/auth/useMe";
 import { usePackage } from "@/features/packages/usePackages";
-import { useSettings } from "@/features/settings/settingsStore";
 import { loadStash } from "./stash";
 import {
   getUploadState,
-  readPackageFile,
   resumeFromFile,
   resumeUpload,
   RESUME_OTHER_SOURCE,
   type UploadProgress,
   type UploadResult,
 } from "./upload";
+import { PackageImportCancelledError } from "./htmlRemoval";
+import { useHtmlRemovalConfirmation } from "./HtmlRemovalDialog";
 import { useUploadWarning } from "./useUploadWarning";
 
 type Run =
@@ -39,6 +39,7 @@ export function useResumeUpload(id: number) {
     enabled: missing.length > 0,
     queryFn: () => loadStash(id, missing),
   });
+  const confirmation = useHtmlRemovalConfirmation();
   const [run, setRun] = useState<Run>({ kind: "idle" });
 
   useUploadWarning(run.kind === "uploading");
@@ -81,9 +82,11 @@ export function useResumeUpload(id: number) {
   }
 
   async function pick(file: File) {
+    const { promise, signal } = confirmation.begin(file);
     setRun({ kind: "reading", name: file.name });
     try {
-      const parsed = await readPackageFile(file);
+      const parsed = await promise;
+      if (signal.aborted) return;
       // Saving from a different file would replace this package's content.
       if (pkg.data && parsed.content.title.trim() !== pkg.data.title.trim()) {
         setRun({
@@ -92,8 +95,13 @@ export function useResumeUpload(id: number) {
         });
         return;
       }
-      await finish(resumeFromFile(id, parsed, onProgress, useSettings.getState().compressMedia));
+      await finish(resumeFromFile(id, parsed, onProgress));
     } catch (err) {
+      if (signal.aborted) return;
+      if (err instanceof PackageImportCancelledError) {
+        setRun({ kind: "idle" });
+        return;
+      }
       const code = err instanceof Error ? err.message : "";
       setRun({
         kind: "idle",
@@ -103,6 +111,7 @@ export function useResumeUpload(id: number) {
   }
 
   return {
+    confirmation,
     me,
     pkg,
     state,

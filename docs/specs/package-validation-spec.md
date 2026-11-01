@@ -144,6 +144,12 @@ The editor should make validation actionable:
 6. Block publish/play only for critical errors.
 7. Explain storage/media limits before upload fails when possible.
 
+React `.siq`/`.oq` imports report each unsupported HTML question before processing
+media. After explicit consent, the entire affected question and containers made
+empty by removal are discarded; a local import warning persists with the draft.
+An archive with no remaining questions cannot be imported. The original archive
+is never modified. This is React-specific and does not change the server contract.
+
 ## Storage and media preflight
 
 Before upload/export/publish, validate:

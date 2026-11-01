@@ -1,17 +1,23 @@
-import { unzip, unzipSync, type Unzipped } from "fflate";
+import { unzip, unzipSync, type Unzipped, type UnzipFileInfo } from "fflate";
 import SparkMD5 from "spark-md5";
 
 /** Unzips off the main thread where the browser has workers. */
-export function readZip(bytes: Uint8Array): Promise<Unzipped> {
+export function readZip(
+  bytes: Uint8Array,
+  filter?: (name: string, originalSize: number) => boolean,
+): Promise<Unzipped> {
+  const options = filter
+    ? { filter: (file: UnzipFileInfo) => filter(file.name, file.originalSize) }
+    : {};
   if (typeof Worker === "undefined") {
     try {
-      return Promise.resolve(unzipSync(bytes));
+      return Promise.resolve(unzipSync(bytes, options));
     } catch {
       return Promise.reject(new Error("notZip"));
     }
   }
   return new Promise((resolve, reject) =>
-    unzip(bytes, (err, files) => (err ? reject(new Error("notZip")) : resolve(files))),
+    unzip(bytes, options, (err, files) => (err ? reject(new Error("notZip")) : resolve(files))),
   );
 }
 

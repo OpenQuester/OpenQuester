@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { useSettings } from "@/features/settings/settingsStore";
 import { emptyPackage, newQuestion, newRound, newTheme, toUpload } from "./packageDraft";
 import { uploadPackage } from "@/features/upload/upload";
 import { createPackageEditorStore, PackageEditorContext } from "./packageEditorStore";
@@ -23,13 +22,11 @@ vi.mock("@tanstack/react-router", () => ({
 
 afterEach(() => {
   fetchMock.mockReset();
-  useSettings.setState({ compressMedia: true });
 });
 
 it.each([false, true])(
   "publishes a numeric projection while preserving the editor draft (replace: %s)",
   async (replace) => {
-    useSettings.setState({ compressMedia: false });
     const question = newQuestion(100, {
       text: "Question",
       answerType: "number",

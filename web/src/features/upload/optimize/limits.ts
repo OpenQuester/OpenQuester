@@ -15,6 +15,7 @@ export const VP9_BITS_PER_PIXEL = 0.035;
 
 /** A result is kept only when it saves at least this share of the original. */
 export const MIN_SAVING = 0.05;
+export const MIN_BYTES = 8 * 1024;
 
 /** Size that fits the box without upscaling, rounded to even numbers for the video encoders. */
 export function fitBox(width: number, height: number): { width: number; height: number } {

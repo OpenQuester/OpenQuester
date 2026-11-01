@@ -4,7 +4,6 @@ import type { TFunction } from "i18next";
 import { ApiError } from "@/api/client";
 import { useDiscordClientId } from "@/features/auth/discord";
 import { useMe } from "@/features/auth/useMe";
-import { useSettings } from "@/features/settings/settingsStore";
 import { uploadPackage, type UploadProgress } from "@/features/upload/upload";
 import { PointImageDimensionsError } from "@/features/upload/pointImageDimensions";
 import { FinalMediaDurationError } from "@/features/upload/finalMediaDuration";
@@ -49,7 +48,6 @@ export function usePublishPackage(setStep: (step: PublishStep) => void) {
         parsed,
         (progress) => setStep({ kind: "uploading", progress }),
         replace ? publishedId : undefined,
-        useSettings.getState().compressMedia,
         // Edited content isn't any imported file any more.
         null,
       );

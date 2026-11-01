@@ -3,7 +3,7 @@ import type { MediaFile, ParsedPackage } from "../types";
 
 import { encodeAudioVideo } from "./audioVideo";
 import type { ImageJob, ImageResult } from "./image.worker";
-import { MIN_SAVING } from "./limits";
+import { MIN_BYTES, MIN_SAVING } from "./limits";
 
 export interface OptimizeProgress {
   /** Files finished, of those that can be re-encoded. */
@@ -20,8 +20,6 @@ export interface OptimizeResult {
   bytesBefore: number;
   bytesAfter: number;
 }
-
-const MIN_BYTES = 8 * 1024;
 
 /**
  * Result per original MD5 for this tab, so publishing a draft again reuses

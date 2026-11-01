@@ -1,5 +1,6 @@
 import type { Unzipped } from "fflate";
 
+import { scanOq, requireRemoval, removalWarnings } from "./htmlRemoval";
 import { md5Hex, yieldToBrowser } from "./archive";
 import type {
   FileRef,
@@ -21,7 +22,7 @@ import type {
  *   files/<md5>   every media file, named by its MD5
  * Server-side fields (ids, author, dates) are dropped so the upload validates.
  */
-export async function parseOq(entries: Unzipped): Promise<ParsedPackage> {
+export async function parseOq(entries: Unzipped, allowHtmlRemoval = false): Promise<ParsedPackage> {
   const raw = entries["content.json"];
   if (!raw) throw new Error("noContentJson");
   let json: unknown;
@@ -32,21 +33,30 @@ export async function parseOq(entries: Unzipped): Promise<ParsedPackage> {
   }
   if (!isObject(json) || !Array.isArray(json.rounds)) throw new Error("badContentJson");
 
-  const warnings: ImportWarning[] = [];
+  const report = scanOq(json, false);
+  requireRemoval(report, allowHtmlRemoval);
+  if (report.questions.length) scanOq(json, true);
+  const warnings: ImportWarning[] = removalWarnings(report);
   const types = new Map<string, MediaType>();
   const content = toContent(json, types, warnings);
+  if (
+    report.questions.length &&
+    !content.rounds.some((r) => r.themes.some((t) => t.questions.length))
+  )
+    throw new Error("allHtmlQuestions");
 
   const files = new Map<string, MediaFile>();
   for (const [name, bytes] of Object.entries(entries)) {
     if (!name.startsWith("files/") || bytes.length === 0) continue;
     const md5 = name.slice("files/".length).toLowerCase();
+    const type = types.get(md5);
+    if (!type) continue;
     await yieldToBrowser();
     if (md5Hex(bytes) !== md5) {
       warnings.push({ code: "hashMismatch", where: "", detail: md5 });
       continue;
     }
-    const type = types.get(md5);
-    if (type) files.set(md5, { md5, type, name, bytes });
+    files.set(md5, { md5, type, name, bytes });
   }
   for (const md5 of types.keys())
     if (!files.has(md5)) warnings.push({ code: "missingFile", where: "", detail: md5 });

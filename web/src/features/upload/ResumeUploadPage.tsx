@@ -8,6 +8,7 @@ import { UploadPageLayout } from "./UploadPageLayout";
 import { UploadProgressCard } from "./UploadProgressCard";
 import { ResumeUploadResult } from "./ResumeUploadResult";
 import { ResumeUploadProgress } from "./ResumeUploadProgress";
+import { HtmlRemovalDialog } from "./HtmlRemovalDialog";
 import { useResumeUpload } from "./useResumeUpload";
 
 /** Resume from this browser's stash or the same archive picked again. */
@@ -15,7 +16,7 @@ export function ResumeUploadPage() {
   const { t } = useTranslation();
   const { packageId } = useParams({ from: "/shell/packages/$packageId/upload" });
   const id = Number(packageId);
-  const { me, pkg, state, stash, run, pick, uploadStashed } = useResumeUpload(id);
+  const { confirmation, me, pkg, state, stash, run, pick, uploadStashed } = useResumeUpload(id);
   if (me.isFetched && !me.data)
     return <Navigate to="/login" search={{ redirect: `/packages/${id}/upload` }} />;
 
@@ -30,6 +31,7 @@ export function ResumeUploadPage() {
       backLabel={t("myPackages.title")}
       description={title && <p className="m-0 text-soft [overflow-wrap:anywhere]">{title}</p>}
     >
+      <HtmlRemovalDialog report={confirmation.report} settle={confirmation.settle} />
       {state.isLoading || me.isLoading ? (
         <Spinner label={t("common.loading")} />
       ) : err ? (

@@ -160,7 +160,7 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   `publish/` separates check/progress/result views from `usePublishPackage`.
   Keep the publish step in the owning dialog, reject close while uploading,
   retain error/retry and replacement semantics, and treat unknown server
-  completion as resumable. `MediaCompressionToggle` is shared with upload/resume without
+  completion as resumable. `MediaCompressionNotice` is shared with upload/resume without
   importing the upload page. Editor/preview headers reuse `shell/packageEditorShellStyles.ts`.
   Arbitrary rotation uses the same crop transform for rendering and pointer mapping.
   AV fields
@@ -198,7 +198,7 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   `PackageReportItem` renders each report. Keep pending actions disabled until
   the existing mutation completes and let query invalidation refresh counts.
 - Media is re-encoded in the browser before upload and publish
-  (`features/upload/optimize/`, on by default, `compressMedia` setting):
+  (`features/upload/optimize/`, always enabled):
   pictures to AVIF (libavif WebAssembly in a worker, WebP fallback), video to
   VP9 + Opus in WebM (AV1 is smaller but most iPads can't decode it; Apple
   plays VP9 only in WebM), and sound to AAC (Opus fallback) in fast-start MP4
@@ -210,7 +210,8 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
 - Storage limits (`docs/specs/storage-limits.md`): uploads send `fileSizes`
   so the server can refuse with a 413 that names the limit; the upload and
   publish screens show that message as is. `features/storage/` holds the
-  usage bar (`GET /v1/me/storage`) and the admin Storage tab.
+  usage bar (`GET /v1/me/storage`) and the admin Storage tab; upload forecasts
+  remain separate from actual usage (see the upload-state spec).
 - Upload state (`docs/specs/package-upload-state.md`): a package whose media
   isn't all in storage is `uploading` and can't be hosted. The upload screens
   show a row per file (`UploadProgressCard`), keep unsent files in IndexedDB
@@ -310,7 +311,7 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   `play/host/` separates host-control presentation from phase/store derivation;
   keep the player-management key and conditional next-round dialog lifetime.
   `play/menu/` holds shortcut and preference views; settings subscriptions stay
-  in `GameMenu`. `ui/Toggle` is shared with settings and package compression,
+  in `GameMenu`. `ui/Toggle` is shared by settings and game preferences,
   so these controls do not import the settings route component.
 - Game entry (`features/game/`) separates route join/rejoin decisions in
   `useGameEntry`, connection ownership in `connection/useGameConnection`, and

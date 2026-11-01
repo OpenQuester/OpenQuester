@@ -40,7 +40,10 @@ export function PackageImportDropZone({
           <UploadIcon size={30} />
         </span>
         <p className="m-0 text-lg font-semibold">{t("upload.drop")}</p>
-        <p className={uploadStyles.importHelp}>{t("upload.formats")}</p>
+        <p className={uploadStyles.importHelp}>
+          <span className="block">{t("upload.formats")}</span>
+          <span className="block">{t("upload.includesMedia")}</span>
+        </p>
         <input
           ref={input}
           id="package-file"
@@ -56,7 +59,12 @@ export function PackageImportDropZone({
             if (file) onFile(file);
           }}
         />
-        <Button variant="accent" size="lg" onClick={() => input.current?.click()}>
+        <Button
+          data-import-picker
+          variant="accent"
+          size="lg"
+          onClick={() => input.current?.click()}
+        >
           {t("upload.choose")}
         </Button>
       </div>

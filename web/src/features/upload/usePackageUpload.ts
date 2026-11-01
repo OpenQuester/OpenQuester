@@ -4,14 +4,12 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { ApiError } from "@/api/client";
-import { useSettings } from "@/features/settings/settingsStore";
 import type { ParsedPackage } from "./types";
 import { PointImageDimensionsError } from "./pointImageDimensions";
 import { FinalMediaDurationError } from "./finalMediaDuration";
 import {
   RESUME_OTHER_SOURCE,
   contentHash,
-  readPackageFile,
   resumeFromFile,
   resumeUpload,
   uploadPackage,
@@ -20,6 +18,8 @@ import {
   type UploadResult,
   type UploadState,
 } from "./upload";
+import { PackageImportCancelledError } from "./htmlRemoval";
+import { useHtmlRemovalConfirmation } from "./HtmlRemovalDialog";
 import { useUploadWarning } from "./useUploadWarning";
 
 export type UploadStep =
@@ -41,16 +41,24 @@ export function usePackageUpload() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const confirmation = useHtmlRemovalConfirmation();
   const [step, setStep] = useState<UploadStep>({ kind: "pick" });
 
   useUploadWarning(step.kind === "uploading");
 
   async function pick(file: File) {
+    const { promise, signal } = confirmation.begin(file);
     setStep({ kind: "reading", name: file.name });
     try {
-      const parsed = await readPackageFile(file);
+      const parsed = await promise;
+      if (signal.aborted) return;
       setStep({ kind: "review", name: file.name, parsed });
     } catch (err) {
+      if (signal.aborted) return;
+      if (err instanceof PackageImportCancelledError) {
+        setStep({ kind: "pick" });
+        return;
+      }
       const code = err instanceof Error ? err.message : "";
       setStep({
         kind: "pick",
@@ -80,16 +88,7 @@ export function usePackageUpload() {
     const onProgress = (progress: UploadProgress) =>
       setStep({ kind: "uploading", parsed, progress });
     try {
-      finish(
-        parsed,
-        await uploadPackage(
-          parsed,
-          onProgress,
-          undefined,
-          useSettings.getState().compressMedia,
-          contentHash(parsed),
-        ),
-      );
+      finish(parsed, await uploadPackage(parsed, onProgress, undefined, contentHash(parsed)));
     } catch (err) {
       setStep({ kind: "failed", parsed, name, error: uploadError(err, t) });
     }
@@ -100,11 +99,8 @@ export function usePackageUpload() {
     try {
       finish(
         parsed,
-        await resumeFromFile(
-          id,
-          parsed,
-          (progress) => setStep({ kind: "uploading", parsed, progress }),
-          useSettings.getState().compressMedia,
+        await resumeFromFile(id, parsed, (progress) =>
+          setStep({ kind: "uploading", parsed, progress }),
         ),
       );
     } catch (err) {
@@ -139,7 +135,16 @@ export function usePackageUpload() {
     }
   }
 
-  return { step, pick, upload, resume, edit, retry, reset: () => setStep({ kind: "pick" }) };
+  return {
+    confirmation,
+    step,
+    pick,
+    upload,
+    resume,
+    edit,
+    retry,
+    reset: () => setStep({ kind: "pick" }),
+  };
 }
 
 function uploadError(err: unknown, t: TFunction): string {

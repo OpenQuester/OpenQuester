@@ -6,13 +6,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useMe } from "@/features/auth/useMe";
-import { StorageMeter } from "@/features/storage/StorageMeter";
 import { formatBytes, timeAgo } from "@/lib/format";
 import { Badge } from "@/ui/Badge";
 import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
 import { AlertIcon, EditIcon, UploadIcon } from "@/ui/icons";
-import { MediaCompressionToggle } from "./MediaCompressionToggle";
+import { UploadMediaSummary } from "./UploadMediaSummary";
 import { ImportWarnings } from "./ImportWarnings";
 import type { ParsedPackage } from "./types";
 import { contentHash, describe, findDuplicates } from "./upload";
@@ -96,8 +95,7 @@ export function UploadReview({
 
       {parsed.warnings.length > 0 && <ImportWarnings warnings={parsed.warnings} />}
 
-      {totals.mediaCount > 0 && <MediaCompressionToggle />}
-      {totals.mediaCount > 0 && <StorageMeter />}
+      {totals.mediaCount > 0 && <UploadMediaSummary files={parsed.files} />}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <Button

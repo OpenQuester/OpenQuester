@@ -191,7 +191,7 @@ test("archive upload sends aspect measured from the optimized first image", asyn
     );
     const parsed = await parseOq(await readZip(new Uint8Array(await blob.arrayBuffer())));
     try {
-      await uploadPackage(parsed, () => {}, undefined, true);
+      await uploadPackage(parsed, () => {});
     } catch {
       /* captured request is deliberately rejected */
     }

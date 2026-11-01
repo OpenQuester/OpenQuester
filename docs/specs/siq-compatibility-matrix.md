@@ -65,6 +65,7 @@ This matrix should be updated as parser/editor/game support evolves.
 | Authors/sources/comments | Partial | Package and question authors and sources are kept (`authors`, `sources`) and shown with the answer and on the package page; round and theme authors/sources are dropped. Comments go to descriptions / `questionComment`. |
 | Multiple right answers / wrong answers | Supported | The first right answer is `answerText`, the rest go to `rightAnswers`; wrong answers go to `wrongAnswers`. The showman sees both; extra right answers are revealed with the answer and count for choice auto-check. |
 | Point-answer geometry | SupportedWithConversion | Web publication measures the first final image and attaches its oriented aspect ratio. Existing published questions without it retain legacy checking; no backfill is performed. `.oq` preserves the optional metadata. |
+| HTML questions (React SIQ/OQ import) | UnsupportedWithFallback | Requires [explicit removal consent](package-validation-spec.md#editor-ux-requirements); no HTML execution. Ambiguous manifest aliases are rejected. Flutter is unchanged. |
 | Complex scenario/scripted behavior | UnsupportedCritical | Block publish until manually resolved or removed. |
 | Unsupported media reference | UnsupportedCritical | Critical validation error. |
 | Unknown XML node/attribute with gameplay impact | Unknown | Add to unsupported feature accumulator. |
