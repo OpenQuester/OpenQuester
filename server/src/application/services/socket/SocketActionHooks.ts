@@ -191,7 +191,9 @@ export class SocketActionHooks {
       );
     }
 
-    const currentId = game.gameState.timer ? game.gameState.currentQuestion?.id : undefined;
+    // A paused game keeps its saved timer, so a rejoining showman still gets the question
+    const timer = await this.getQuestionTimer(game);
+    const currentId = timer ? game.gameState.currentQuestion?.id : undefined;
     const final = game.gameState.finalRoundData;
     const joinedPlayer = game.getPlayer(action.playerId, { fetchDisconnected: false });
     const finalId =
@@ -207,7 +209,7 @@ export class SocketActionHooks {
       : finalId === currentId
         ? currentQuestion
         : ((await this.packageStore.getQuestionWithTheme(game.id, finalId))?.question ?? null);
-    this.emitCurrentQuestionDataToJoinedSocket(action, game, currentQuestion);
+    this.emitCurrentQuestionDataToJoinedSocket(action, game, currentQuestion, timer);
     this.emitFinalReviewQuestionToShowman(action, game, finalQuestion);
 
     if (data.players.length > 1 && currentUserId) {
@@ -245,9 +247,9 @@ export class SocketActionHooks {
   private emitCurrentQuestionDataToJoinedSocket(
     action: GameAction,
     game: Game,
-    question: PackageQuestionDTO | null
+    question: PackageQuestionDTO | null,
+    timer: GameStateTimerDTO | null
   ): void {
-    const timer = game.gameState.timer;
     if (!question || !timer) {
       return;
     }
@@ -267,6 +269,21 @@ export class SocketActionHooks {
         buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
       } satisfies GameQuestionDataEventPayload)
     );
+  }
+
+  /**
+   * The running timer, or the one saved when the game was paused (by the
+   * showman, or by restart recovery): a paused game has no active timer, but
+   * a showman who rejoins it still needs the full question with its answer.
+   */
+  private async getQuestionTimer(game: Game): Promise<GameStateTimerDTO | null> {
+    const { timer, isPaused, questionState } = game.gameState;
+
+    if (timer || !isPaused || !questionState) {
+      return timer ?? null;
+    }
+
+    return this.gameService.getTimer(game.id, questionState);
   }
 
   private async afterLeaveGame({ action, game, result }: AfterExecutionHookContext): Promise<void> {

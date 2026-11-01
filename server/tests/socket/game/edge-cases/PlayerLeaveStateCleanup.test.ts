@@ -63,6 +63,29 @@ describe("Player Leave State Cleanup Edge Cases", () => {
       });
     });
 
+    it("should keep the pick turn when the current turn player only disconnects", async () => {
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+
+        await utils.startGame(showmanSocket);
+
+        const gameStateBefore = await utils.getGameState(gameId);
+        const turnPlayerId = gameStateBefore!.currentTurnPlayerId!;
+        const turnPlayerIndex = playerUsers.findIndex((u) => u.id === turnPlayerId);
+
+        const leavePromise = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+        scenario.actor(playerSockets[turnPlayerIndex]).disconnect();
+        await leavePromise;
+        await utils.waitForActionsComplete(gameId);
+
+        const gameStateAfter = await utils.getGameState(gameId);
+
+        expect(gameStateAfter!.questionState).toBe(QuestionState.CHOOSING);
+        expect(gameStateAfter!.currentTurnPlayerId).toBe(turnPlayerId);
+      });
+    });
+
     it("should handle new player joining after current turn player leaves", async () => {
       await suite.scenario(async (scenario) => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);

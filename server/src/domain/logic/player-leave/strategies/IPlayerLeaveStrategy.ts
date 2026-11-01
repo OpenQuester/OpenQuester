@@ -15,6 +15,8 @@ export interface StakeBiddingLeaveInput {
 export interface PlayerLeaveStrategyInput {
   game: Game;
   userId: number;
+  /** Only the connection dropped: the seat is kept for a rejoin */
+  keepsSeat?: boolean;
   stakeBidding?: StakeBiddingLeaveInput;
   transitionResources?: TransitionResources;
 }

@@ -25,6 +25,13 @@ export interface JoinOptions {
 const PENDING_TIMEOUT_MS = 5000;
 
 /**
+ * A buzz stays locked until the server says who answers (the random draw
+ * closes the accept window). The server sends nothing for a press that only
+ * joined the draw, so this is a safety net in case the result never comes.
+ */
+export const BUZZ_PENDING_TIMEOUT_MS = 15_000;
+
+/**
  * One Socket.IO connection to one game.
  *
  * On every (re)connect it authenticates the socket with the HTTP session and
@@ -156,10 +163,13 @@ export class GameConnection {
       name === "all-play-answer" || name === "final-answer-submit" ? this.myId : undefined,
     );
     window.clearTimeout(this.pendingTimer);
-    this.pendingTimer = window.setTimeout(() => {
-      if (useGameStore.getState().pending?.action === name)
-        useGameStore.getState().setPending(null);
-    }, PENDING_TIMEOUT_MS);
+    this.pendingTimer = window.setTimeout(
+      () => {
+        if (useGameStore.getState().pending?.action === name)
+          useGameStore.getState().setPending(null);
+      },
+      name === "question-answer" ? BUZZ_PENDING_TIMEOUT_MS : PENDING_TIMEOUT_MS,
+    );
     if (args.length > 0) this.socket.emit(name, args[0]);
     else this.socket.emit(name);
   }
