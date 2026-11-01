@@ -12,6 +12,9 @@ const fetchMock = vi.hoisted(() => {
 
 import type { ParsedPackage } from "./types";
 import { contentHash, RESUME_OTHER_SOURCE, resumeFromFile } from "./upload";
+import { optimizePackage } from "./optimize/index";
+
+vi.mock("./optimize/index", () => ({ optimizePackage: vi.fn() }));
 
 const json = (body: unknown) =>
   new Response(JSON.stringify(body), {
@@ -20,7 +23,56 @@ const json = (body: unknown) =>
   });
 
 describe("resuming an upload from a picked file", () => {
-  afterEach(() => fetchMock.mockReset());
+  afterEach(() => {
+    fetchMock.mockReset();
+    vi.mocked(optimizePackage).mockReset();
+  });
+
+  it("prepares a replacement once when encoded hashes differ, preserving the source fingerprint", async () => {
+    const original = {
+      md5: "original",
+      type: "audio" as const,
+      name: "sound.wav",
+      bytes: new Uint8Array(20),
+    };
+    const encoded = { ...original, md5: "encoded", name: "sound.m4a", bytes: new Uint8Array(10) };
+    const parsed: ParsedPackage = {
+      format: "oq",
+      content: { title: "Same source", rounds: [] } as unknown as ParsedPackage["content"],
+      warnings: [],
+      files: new Map([[original.md5, original]]),
+    };
+    vi.mocked(optimizePackage).mockResolvedValue({
+      parsed: { ...parsed, files: new Map([[encoded.md5, encoded]]) },
+      bytesBefore: 20,
+      bytesAfter: 10,
+    });
+    let replaced = false;
+    fetchMock.mockImplementation(async (input) => {
+      const request = input as Request;
+      const url = new URL(request.url);
+      if (url.pathname.endsWith("/upload"))
+        return json({
+          id: 7,
+          status: replaced ? "ready" : "uploading",
+          missing: replaced ? [] : ["other-encoded-hash"],
+          uploadLinks: {},
+        });
+      if (url.pathname === "/v1/packages")
+        return json({ data: [{ id: 7 }], pageInfo: { total: 1 } });
+      if (request.method === "PUT") {
+        expect(await request.json()).toMatchObject({
+          fileSizes: { encoded: 10 },
+          sourceHash: contentHash(parsed),
+        });
+        replaced = true;
+        return json({ id: 7, uploadStatus: "ready", uploadLinks: {} });
+      }
+      throw new Error(`Unexpected ${request.method} ${url.pathname}`);
+    });
+    expect((await resumeFromFile(7, parsed, () => {})).state?.status).toBe("ready");
+    expect(optimizePackage).toHaveBeenCalledOnce();
+  });
 
   it("refuses to replace the package from a different file", async () => {
     fetchMock.mockImplementation(async (input) => {
@@ -44,7 +96,7 @@ describe("resuming an upload from a picked file", () => {
       warnings: [],
     };
 
-    await expect(resumeFromFile(7, parsed, () => {}, false)).rejects.toThrow(RESUME_OTHER_SOURCE);
+    await expect(resumeFromFile(7, parsed, () => {})).rejects.toThrow(RESUME_OTHER_SOURCE);
     // Nothing was saved over the package
     expect(
       fetchMock.mock.calls.some(([input]) => input instanceof Request && input.method === "PUT"),
@@ -93,7 +145,7 @@ describe("resuming an upload from a picked file", () => {
         }
         throw new Error(`unexpected request ${request.method} ${url}`);
       });
-      expect((await resumeFromFile(7, parsed, () => {}, false)).state?.status).toBe("ready");
+      expect((await resumeFromFile(7, parsed, () => {})).state?.status).toBe("ready");
       expect(replaced).toBe(true);
       expect(offsets).toEqual(matchOffset ? [0, 5] : [0]);
     },

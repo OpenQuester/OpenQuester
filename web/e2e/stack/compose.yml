@@ -33,7 +33,9 @@ services:
   # so presigned uploads and public downloads both work without real keys.
   s3:
     image: chrislusf/seaweedfs:4.48
-    command: server -dir=/data -s3 -s3.port=8333 -master.volumeSizeLimitMB=64 -volume.max=8
+    # Metadata reserves volumes too; eight slots can leave the media bucket
+    # with only one 64 MiB volume and fail real-package uploads with S3 500s.
+    command: server -dir=/data -s3 -s3.port=8333 -master.volumeSizeLimitMB=64 -volume.max=32
     ports:
       - "127.0.0.1:58333:8333"
     tmpfs:

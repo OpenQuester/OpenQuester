@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { ApiError } from "@/api/client";
-import { useSettings } from "@/features/settings/settingsStore";
 import type { ParsedPackage } from "./types";
 import { PointImageDimensionsError } from "./pointImageDimensions";
 import { FinalMediaDurationError } from "./finalMediaDuration";
@@ -89,16 +88,7 @@ export function usePackageUpload() {
     const onProgress = (progress: UploadProgress) =>
       setStep({ kind: "uploading", parsed, progress });
     try {
-      finish(
-        parsed,
-        await uploadPackage(
-          parsed,
-          onProgress,
-          undefined,
-          useSettings.getState().compressMedia,
-          contentHash(parsed),
-        ),
-      );
+      finish(parsed, await uploadPackage(parsed, onProgress, undefined, contentHash(parsed)));
     } catch (err) {
       setStep({ kind: "failed", parsed, name, error: uploadError(err, t) });
     }
@@ -109,11 +99,8 @@ export function usePackageUpload() {
     try {
       finish(
         parsed,
-        await resumeFromFile(
-          id,
-          parsed,
-          (progress) => setStep({ kind: "uploading", parsed, progress }),
-          useSettings.getState().compressMedia,
+        await resumeFromFile(id, parsed, (progress) =>
+          setStep({ kind: "uploading", parsed, progress }),
         ),
       );
     } catch (err) {

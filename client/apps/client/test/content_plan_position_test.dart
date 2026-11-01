@@ -97,7 +97,7 @@ void main() {
         type: QuestionType.simple,
         order: 0,
         price: 100,
-        showAnswerDuration: null,
+        showAnswerDuration: 5000,
       ),
       timer: GameStateTimer(
         startedAt: now.subtract(const Duration(seconds: 3)),

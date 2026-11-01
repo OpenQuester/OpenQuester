@@ -195,11 +195,11 @@ class SiqImportHelper {
         username: 'local',
       ), // Placeholder author
       createdAt: DateTime.now(),
-      logo: siqData.logo?.file != null
+      logo: siqData.logo != null
           ? PackageLogoFileItem(
               file: FileItem(
-                md5: siqData.logo!.file!.md5,
-                type: siqData.logo!.file!.type,
+                md5: siqData.logo!.file.md5,
+                type: siqData.logo!.file.type,
               ),
             )
           : null,

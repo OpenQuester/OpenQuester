@@ -1,7 +1,7 @@
 import { packagePublishStyles } from "./packagePublishStyles";
 import { useTranslation } from "react-i18next";
 import { startDiscordLogin } from "@/features/auth/discord";
-import { MediaCompressionToggle } from "@/features/upload/MediaCompressionToggle";
+import { MediaCompressionNotice } from "@/features/upload/MediaCompressionNotice";
 import { ImportWarnings } from "@/features/upload/ImportWarnings";
 import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
@@ -75,7 +75,7 @@ export function PublishCheck({
           </ul>
         </section>
       ))}
-      {signedIn && report.critical === 0 && <MediaCompressionToggle />}
+      {signedIn && report.critical === 0 && <MediaCompressionNotice />}
       {step.kind === "failed" && (
         <p role="alert" className="m-0 text-danger [overflow-wrap:anywhere]">
           {step.error}

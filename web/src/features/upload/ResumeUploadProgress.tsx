@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/ui/Button";
 import { Card } from "@/ui/Card";
 import { UploadIcon } from "@/ui/icons";
-import { MediaCompressionToggle } from "./MediaCompressionToggle";
+import { MediaCompressionNotice } from "./MediaCompressionNotice";
 import { PackageImportDropZone } from "./PackageImportDropZone";
 import type { UploadState } from "./upload";
 
@@ -72,7 +72,7 @@ export function ResumeUploadProgress({
         <div className="flex flex-col gap-3" data-testid="resume-pick">
           <p className="m-0 text-soft">{t("resume.pickHelp")}</p>
           <PackageImportDropZone onFile={onFile} />
-          <MediaCompressionToggle />
+          <MediaCompressionNotice />
         </div>
       )}
     </div>

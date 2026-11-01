@@ -5,7 +5,7 @@ export const uploadStyles = {
   file: "flex flex-col gap-1.5 rounded-[12px] bg-surface-2 px-3 py-2",
   reviewActions:
     "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[12px] bg-surface-2 px-4 py-3",
-  importHelp: "m-0 max-w-[46ch] text-sm text-muted",
+  importHelp: "m-0 max-w-[64ch] text-sm text-muted",
   failureMessage: "m-0 font-semibold text-danger [overflow-wrap:anywhere]",
   progressFill: "h-full rounded-full bg-accent transition-[width]",
   fileSummary: "flex min-w-0 flex-[1_1_220px] flex-col gap-0.5",

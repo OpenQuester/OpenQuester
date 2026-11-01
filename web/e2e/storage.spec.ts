@@ -108,8 +108,6 @@ test.describe("storage limits", () => {
         mimeType: "application/zip",
         buffer: pictureOq(`Too big ${Date.now()}`),
       });
-      // Keep the picture as it is so its size is known.
-      await author.getByTestId("compress-toggle").getByRole("checkbox").uncheck();
       await author.getByRole("button", { name: "Upload package" }).click();
       await expect(author.getByTestId("upload-failed")).toContainText(
         "the limit for one package is 1 KB",

@@ -40,7 +40,10 @@ export function PackageImportDropZone({
           <UploadIcon size={30} />
         </span>
         <p className="m-0 text-lg font-semibold">{t("upload.drop")}</p>
-        <p className={uploadStyles.importHelp}>{t("upload.formats")}</p>
+        <p className={uploadStyles.importHelp}>
+          <span className="block">{t("upload.formats")}</span>
+          <span className="block">{t("upload.includesMedia")}</span>
+        </p>
         <input
           ref={input}
           id="package-file"

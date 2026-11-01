@@ -17,16 +17,20 @@ import {
   PackageEditorContext,
 } from "@/features/package-editor/packageEditorStore";
 import { validatePackage } from "@/features/package-editor/validatePackage";
-import { useSettings } from "@/features/settings/settingsStore";
 import type { MediaFile, ParsedPackage } from "./types";
 import type * as Upload from "./upload";
 import { uploadPackage } from "./upload";
 import { UploadPackagePage } from "./UploadPackagePage";
 import { draftFromParsed } from "@/features/package-editor/createDraft";
+import { optimizePackage } from "./optimize/index";
 
 vi.mock("@/features/package-editor/createDraft", () => ({ draftFromParsed: vi.fn() }));
 vi.mock("./optimize/index", () => ({
-  optimizePackage: () => Promise.reject(new Error("encoder failed")),
+  optimizePackage: vi.fn(async (parsed: ParsedPackage) => ({
+    parsed,
+    bytesBefore: 0,
+    bytesAfter: 0,
+  })),
 }));
 
 vi.mock("@/api/config", () => ({ API_URL: "http://api.test" }));
@@ -59,6 +63,7 @@ afterEach(() => {
 });
 
 it("reports a busy upload synchronously before loading or running the encoders", async () => {
+  vi.mocked(optimizePackage).mockRejectedValueOnce(new Error("encoder failed"));
   const progress = vi.fn();
   const file: MediaFile = {
     md5: "image",
@@ -74,8 +79,6 @@ it("reports a busy upload synchronously before loading or running the encoders",
       files: new Map([[file.md5, file]]),
     },
     progress,
-    undefined,
-    true,
   );
   expect(progress).toHaveBeenCalledExactlyOnceWith(
     expect.objectContaining({ phase: "optimizing" }),
@@ -168,7 +171,6 @@ it.each([
 ] as const)(
   "keeps %s resumable unless the final server status is ready (%s)",
   async (surface, ready) => {
-    useSettings.setState({ compressMedia: false });
     const md5 = "a".repeat(32);
     const question = newQuestion(100, {
       text: "Q?",

@@ -199,14 +199,13 @@ export async function uploadPackage(
   onProgress: (p: UploadProgress) => void,
   /** Replace the content of this published package instead of creating one. */
   replaceId?: number,
-  /** Re-encode media in the browser first (AVIF pictures, VP9 WebM video, AAC MP4 sound). */
-  optimize = false,
   /** `contentHash` of the picked file; null for edited content; undefined keeps it on replace. */
   sourceHash?: string | null,
 ): Promise<UploadResult> {
   let savings: UploadResult["savings"];
-  onProgress(idle(optimize && parsed.files.size > 0 ? "optimizing" : "creating"));
-  if (optimize && parsed.files.size > 0) {
+  const hasLocalMedia = [...parsed.files.values()].some((file) => file.bytes.byteLength > 0);
+  onProgress(idle(hasLocalMedia ? "optimizing" : "creating"));
+  if (hasLocalMedia) {
     // Its own chunk: the encoders are only downloaded by people who upload.
     const { optimizePackage } = await import("./optimize/index");
     const result = await optimizePackage(parsed, (p) =>
@@ -215,6 +214,17 @@ export async function uploadPackage(
     parsed = result.parsed;
     savings = { before: result.bytesBefore, after: result.bytesAfter };
   }
+  return uploadPreparedPackage(parsed, onProgress, replaceId, sourceHash, savings);
+}
+
+/** Resume can already have encoded bytes; keep their hashes instead of encoding twice. */
+async function uploadPreparedPackage(
+  parsed: ParsedPackage,
+  onProgress: (p: UploadProgress) => void,
+  replaceId?: number,
+  sourceHash?: string | null,
+  savings?: UploadResult["savings"],
+): Promise<UploadResult> {
   parsed = await withPointImageDimensions(parsed);
   parsed = await withFinalMediaDurations(parsed);
   onProgress(idle("creating"));
@@ -296,7 +306,6 @@ export async function resumeFromFile(
   id: number,
   parsed: ParsedPackage,
   onProgress: (p: UploadProgress) => void,
-  optimize: boolean,
 ): Promise<UploadResult & { unmatched: string[] }> {
   onProgress(idle("checking"));
   const state = await getUploadState(id);
@@ -305,7 +314,7 @@ export async function resumeFromFile(
   if (state.status === "ready" || covered(files)) return resumeUpload(id, files, onProgress);
 
   let source = parsed;
-  if (optimize && parsed.files.size > 0) {
+  if (parsed.files.size > 0) {
     const { optimizePackage } = await import("./optimize/index");
     source = (
       await optimizePackage(parsed, (p) => onProgress({ ...idle("optimizing"), optimize: p }))
@@ -322,7 +331,7 @@ export async function resumeFromFile(
     if (matches.length < DUPLICATES_PAGE_SIZE) throw new Error(RESUME_OTHER_SOURCE);
   }
 
-  const result = await uploadPackage(source, onProgress, id, false, hash);
+  const result = await uploadPreparedPackage(source, onProgress, id, hash);
   return { ...result, unmatched: [] };
 }
 

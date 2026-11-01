@@ -43,6 +43,18 @@ be played, and its author can finish the upload later.
   app's public list uses it; an author's own list ("Mine", My packages) shows
   unfinished packages with an "Upload not finished" badge.
 
+## React media preparation
+
+Uploads and editor publications always prepare local media, preserving accepted
+editor encodings, animation, small files and unsupported formats. Resuming stored
+bytes keeps their hashes; reselected files are prepared only when needed.
+
+The review shows current media size and an approximate encoded size, separate
+from archive size. Unknown files keep their original size in the estimate;
+encoding and deduplication can change the result. Storage shows a separate
+projected segment with a four-second pulse (disabled for reduced motion).
+Estimates are advisory; server limits use actual prepared sizes.
+
 ## Resuming
 
 `GET /v1/packages/{id}/upload` (author or `edit_package`) returns
@@ -59,16 +71,13 @@ for the missing MD5s. The web app resumes in this order:
    id) and only what storage lacks is sent. A file whose title differs is
    refused, so resuming can't replace a package with another one.
 
-For React, picking an archive containing unsupported HTML questions requires
-confirmation before media processing or resuming from that file. The same
-confirmation applies when the original file is picked again; the parsed content
-sent to the existing API has those questions removed. Existing unfinished uploads
-from older import behavior are not migrated.
+React reselected files require the same [HTML-removal consent](package-validation-spec.md#editor-ux-requirements)
+as new imports. Existing unfinished uploads are not migrated.
 
 ## Duplicates
 
 Uploads send `sourceHash`, the MD5 of the parsed package content before
-media is re-encoded (and after any confirmed HTML-question removal). Before uploading, the web app asks
+media is re-encoded, after any confirmed HTML removal. Before uploading, the web app asks
 `GET /v1/packages?sourceHash=` and, when the same file was uploaded before,
 offers to open that package (or finish your own unfinished upload of it)
 instead of making a copy; "Upload anyway" stays available. Content saved

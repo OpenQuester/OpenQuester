@@ -1,11 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { ApiError } from "@/api/client";
 import { i18n } from "@/i18n/index";
-import { useSettings } from "@/features/settings/settingsStore";
 import type * as Upload from "@/features/upload/upload";
 import type { MediaFile } from "@/features/upload/types";
 import { uploadPackage } from "@/features/upload/upload";
@@ -26,7 +25,6 @@ vi.mock("@tanstack/react-router", () => ({
 
 afterEach(() => {
   vi.mocked(uploadPackage).mockReset();
-  act(() => useSettings.setState({ compressMedia: true }));
 });
 
 it.each([
@@ -39,7 +37,7 @@ it.each([
   [new FinalMediaDurationError("tooLong", "video"), "upload.finalMedia.tooLong"],
   [new Error("Local failure"), "Error: Local failure"],
 ] as const)(
-  "preserves publish error %s and retries as a new package with current compression settings",
+  "preserves publish error %s and retries as a new package with automatic compression",
   async (error, message) => {
     const file: MediaFile = {
       md5: "a".repeat(32),
@@ -77,7 +75,6 @@ it.each([
     vi.mocked(uploadPackage)
       .mockRejectedValueOnce(error)
       .mockResolvedValueOnce({ id: 24, failed: [], state: null });
-    useSettings.setState({ compressMedia: false });
     render(
       <QueryClientProvider client={client}>
         <PackageEditorContext.Provider value={store}>
@@ -99,13 +96,12 @@ it.each([
     expect(await screen.findByRole("alert")).toHaveTextContent(expected);
     expect(store.getState().publishedId).toBe(12);
     expect(invalidate).not.toHaveBeenCalled();
-    expect(vi.mocked(uploadPackage).mock.calls[0]?.slice(2)).toEqual([12, false, null]);
+    expect(vi.mocked(uploadPackage).mock.calls[0]?.slice(2)).toEqual([12, null]);
 
-    act(() => useSettings.setState({ compressMedia: true }));
     await user.click(screen.getByRole("button", { name: i18n.t("editor.publish.publishAsNew") }));
     await screen.findByTestId("publish-done");
     const call = vi.mocked(uploadPackage).mock.calls[1]!;
-    expect(call.slice(2)).toEqual([undefined, true, null]);
+    expect(call.slice(2)).toEqual([undefined, null]);
     expect([...call[0].files.values()]).toEqual([file]);
     expect(call[0].files.get(file.md5)).toBe(file);
     expect(store.getState().publishedId).toBe(24);

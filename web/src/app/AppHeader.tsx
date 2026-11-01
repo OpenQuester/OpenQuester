@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { User } from "@/api/types";
 import { can } from "@/features/admin/useAdmin";
 import { displayName } from "@/features/auth/useMe";
+import { DebugLogin } from "@/features/auth/DebugLogin";
 import { cn } from "@/lib/cn";
 import { Avatar } from "@/ui/Avatar";
 import { LogoMark } from "@/ui/Logo";
@@ -52,6 +53,7 @@ export function AppHeader({ user, isLoading, path }: AppHeaderProps) {
           ))}
         </nav>
         <div className="flex-1" />
+        {import.meta.env.MODE === "debug" && <DebugLogin />}
         <AccountLink user={user} isLoading={isLoading} path={path} />
       </div>
     </header>

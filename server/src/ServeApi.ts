@@ -302,7 +302,7 @@ export class ServeApi {
     new StatsRestApiController(deps.app);
     new SwaggerRestApiController(deps.app, this._context.logger);
 
-    if (this._context.env.ENV === EnvType.DEV) {
+    if (this._context.env.ENV === EnvType.DEV || this._context.env.ENV === EnvType.DEBUG) {
       new DevelopmentRestApiController(
         deps.app,
         deps.userService,
@@ -518,7 +518,11 @@ export class ServeApi {
 
       this._server.once("error", onError);
       this._server.once("listening", onListening);
-      this._server.listen(this._port);
+      if (this._context.env.ENV === EnvType.DEBUG) {
+        this._server.listen(this._port, "127.0.0.1");
+      } else {
+        this._server.listen(this._port);
+      }
     });
   }
 

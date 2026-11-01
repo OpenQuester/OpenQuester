@@ -256,6 +256,10 @@ test.describe("media compression", () => {
   test("pictures, sound and video are re-encoded before upload", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    // An old opt-out must no longer bypass automatic preparation.
+    await page.addInitScript(() =>
+      localStorage.setItem("oq.settings", JSON.stringify({ language: "en", compressMedia: false })),
+    );
     await signInAsAuthor(page);
     await page.goto("/packages/upload");
     const title = `Compressed pack ${Date.now()}`;
@@ -267,14 +271,36 @@ test.describe("media compression", () => {
     });
     const review = page.getByTestId("upload-review");
     await expect(review.getByRole("heading", { name: title })).toBeVisible();
-    const toggle = page.getByTestId("compress-toggle").getByRole("checkbox");
-    await expect(toggle).toBeChecked();
+    await expect(review.getByRole("checkbox")).toHaveCount(0);
+    await expect(review.getByTestId("compression-notice")).toContainText("automatically");
+    await expect(review.getByTestId("upload-media-summary").getByRole("status")).toContainText("≈");
+    await expect(review.getByTestId("storage-pending")).toBeVisible();
+    const pending = review.getByTestId("storage-pending");
+    await expect(pending).toHaveCSS("animation-duration", "4s");
+    const opacity = await pending.evaluate((element) => {
+      const animation = element.getAnimations()[0];
+      animation.pause();
+      const values = [0, 2000, 4000].map((time) => {
+        animation.currentTime = time;
+        return Number(getComputedStyle(element).opacity);
+      });
+      animation.play();
+      return values;
+    });
+    expect(opacity).toEqual([0.35, 1, 0.35]);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(pending).toHaveCSS("animation-name", "none");
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await expectNoHorizontalScroll(page);
 
     await page.getByRole("button", { name: "Upload package" }).click();
     const done = page.getByTestId("upload-done");
     await expect(done.getByText("Package uploaded")).toBeVisible({ timeout: 90_000 });
     await expect(page.getByTestId("upload-savings")).toContainText("Media compressed from");
+    await expect(done.getByRole("link", { name: "View package" })).not.toHaveCSS(
+      "background-color",
+      "rgba(0, 0, 0, 0)",
+    );
     await shot(page, `upload-compressed-${test.info().project.name}`);
 
     await done.getByRole("link", { name: "View package" }).click();

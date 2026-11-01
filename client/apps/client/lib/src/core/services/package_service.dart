@@ -178,11 +178,11 @@ class PackageService {
         username: 'local',
       ), // Placeholder author
       createdAt: DateTime.now(),
-      logo: inputData.logo?.file != null
+      logo: inputData.logo != null
           ? PackageLogoFileItem(
               file: FileItem(
-                md5: inputData.logo!.file!.md5,
-                type: inputData.logo!.file!.type,
+                md5: inputData.logo!.file.md5,
+                type: inputData.logo!.file.type,
               ),
             )
           : null,

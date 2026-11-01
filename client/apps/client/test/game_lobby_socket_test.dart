@@ -138,7 +138,7 @@ void main() {
       'type': 'choice',
       'order': 0,
       'price': 100,
-      'showAnswerDuration': null,
+      'showAnswerDuration': 5000,
       'showDelay': 1500,
       'answers': [
         {'order': 0, 'text': 'First'},
@@ -182,7 +182,7 @@ void main() {
           type: QuestionType.simple,
           order: 0,
           price: 100,
-          showAnswerDuration: null,
+          showAnswerDuration: 5000,
         ),
         timer: timer,
         buzzerOpensAtMs: 8000,

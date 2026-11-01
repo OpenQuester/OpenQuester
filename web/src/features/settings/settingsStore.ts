@@ -13,8 +13,6 @@ export interface Settings {
   volume: number;
   /** In-game side panels kept open on wide screens (this device only). */
   pins: Partial<Record<PanelId, boolean>>;
-  /** Re-encode package media in the browser before uploading it. */
-  compressMedia: boolean;
 }
 
 export type PanelId = "host" | "players" | "chat";
@@ -45,7 +43,6 @@ function load(): Settings {
       players: saved.pins?.players === true,
       chat: saved.pins?.chat === true,
     },
-    compressMedia: typeof saved.compressMedia === "boolean" ? saved.compressMedia : true,
   };
 }
 

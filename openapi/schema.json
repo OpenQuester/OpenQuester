@@ -3086,6 +3086,9 @@
           "fileSizes": {
             "type": "object",
             "description": "Bytes of each media file, keyed by MD5. Checked against the uploader's storage limits before any upload link is issued; files already stored use their recorded size.",
+            "propertyNames": {
+              "pattern": "^[a-fA-F0-9]{32}(\\.[A-Za-z0-9]+)?$"
+            },
             "additionalProperties": {
               "type": "integer",
               "minimum": 0
@@ -3646,14 +3649,7 @@
             "examples": ["en"]
           },
           "logo": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/PackageLogoFileItem"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "$ref": "#/components/schemas/PackageLogoFileItem",
             "description": "Logo file for the package"
           },
           "tags": {
@@ -3752,14 +3748,7 @@
             "description": "Where the package's facts come from"
           },
           "logo": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/PackageLogoFileItem"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "$ref": "#/components/schemas/PackageLogoFileItem",
             "description": "Logo file for the package"
           },
           "rounds": {
@@ -3854,14 +3843,7 @@
             "examples": ["en"]
           },
           "logo": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/PackageLogoFileItem"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "$ref": "#/components/schemas/PackageLogoFileItem",
             "description": "Logo file for the package"
           },
           "roundsCount": {
@@ -4429,7 +4411,8 @@
             "$ref": "#/components/schemas/FileInput"
           }
         },
-        "description": "Logo file structure for package creation. Only images acceptable"
+        "required": ["file"],
+        "description": "Logo file structure for package creation"
       },
       "PackageLogoFileItem": {
         "type": ["object", "null"],
@@ -4439,7 +4422,7 @@
           }
         },
         "required": ["file"],
-        "description": "Logo file structure for package creation. Only images acceptable"
+        "description": "Logo file structure for a package"
       },
       "PackageEntitiesOrder": {
         "type": "integer",
@@ -4706,11 +4689,11 @@
           "answerDelay": {
             "type": ["integer", "null"],
             "description": "Delay in milliseconds before being able to answer, if applicable",
-            "default": 4000,
+            "default": 5000,
             "examples": [7000]
           },
           "showAnswerDuration": {
-            "type": ["integer", "null"],
+            "type": "integer",
             "description": "Duration in milliseconds for showing the answer",
             "examples": [5000]
           },
@@ -5060,14 +5043,7 @@
             "description": "Age restriction"
           },
           "logo": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/PackageLogoFileInput"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "$ref": "#/components/schemas/PackageLogoFileInput",
             "description": "Logo file for the package"
           },
           "tags": {

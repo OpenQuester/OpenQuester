@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { ApiError } from "@/api/client";
 import { useMe } from "@/features/auth/useMe";
 import { usePackage } from "@/features/packages/usePackages";
-import { useSettings } from "@/features/settings/settingsStore";
 import { loadStash } from "./stash";
 import {
   getUploadState,
@@ -96,7 +95,7 @@ export function useResumeUpload(id: number) {
         });
         return;
       }
-      await finish(resumeFromFile(id, parsed, onProgress, useSettings.getState().compressMedia));
+      await finish(resumeFromFile(id, parsed, onProgress));
     } catch (err) {
       if (signal.aborted) return;
       if (err instanceof PackageImportCancelledError) {
