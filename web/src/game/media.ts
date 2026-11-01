@@ -1,3 +1,5 @@
+import { mapUrl } from "@/lib/urlMappings";
+
 import type { Question, QuestionFile } from "./protocol";
 
 /**
@@ -51,7 +53,8 @@ function preloadFile(
   durations: MediaDuration[],
   signal: AbortSignal,
 ): Promise<boolean> {
-  const url = file.file.link!;
+  // Off-document elements: the Discord Activity's src patch doesn't reach them
+  const url = mapUrl(file.file.link!);
   return new Promise<boolean>((resolve) => {
     if (signal.aborted) return resolve(false);
     const el =

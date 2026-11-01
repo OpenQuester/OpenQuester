@@ -7,6 +7,10 @@ import Redis from "ioredis";
 
 import { ApiContext } from "shared/context/ApiContext";
 import { ClientError } from "domain/errors/ClientError";
+import {
+  DISCORD_ACTIVITY_FRAME_ANCESTORS,
+  getDiscordActivityOrigin
+} from "domain/constants/discord";
 import { EnvType } from "shared/config/Environment";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { verifySession } from "presentation/middleware/authMiddleware";
@@ -26,7 +30,10 @@ export class MiddlewareController {
     private readonly redisClient: Redis,
     private readonly metricsService: MetricsService
   ) {
-    this.allowedHosts = this.ctx.env.CORS_ORIGINS;
+    // The Discord Activity calls the API from its own discordsays.com origin
+    this.allowedHosts = this.ctx.env.DISCORD_ACTIVITY_ENABLED
+      ? [...this.ctx.env.CORS_ORIGINS, getDiscordActivityOrigin(this.ctx.env.DISCORD_CLIENT_ID)]
+      : this.ctx.env.CORS_ORIGINS;
 
     ctx.logger.info(`Allowed CORS origins for current instance: [${this.allowedHosts}]`, {
       prefix: CORS_PREFIX
@@ -55,6 +62,7 @@ export class MiddlewareController {
           .filter((origin): origin is string => origin != null)
       )
     ];
+    const activityEnabled = this.ctx.env.DISCORD_ACTIVITY_ENABLED;
 
     this.ctx.app.use(
       helmet({
@@ -66,11 +74,17 @@ export class MiddlewareController {
             mediaSrc: ["'self'", "blob:", ...s3],
             connectSrc: ["'self'", "https://discord.com", ...s3],
             fontSrc: ["'self'", "https:", "data:"],
+            // Discord embeds the app when it runs as an Activity
+            frameAncestors: activityEnabled
+              ? ["'self'", ...DISCORD_ACTIVITY_FRAME_ANCESTORS]
+              : ["'self'"],
             styleSrc: ["'self'", "https:", "'unsafe-inline'"],
             // Local stacks serve S3 over plain http.
             upgradeInsecureRequests: this.ctx.env.ENV === EnvType.PROD ? [] : null
           }
-        }
+        },
+        // X-Frame-Options can't name Discord; frame-ancestors above does the job
+        xFrameOptions: activityEnabled ? false : { action: "sameorigin" }
       })
     );
     this.ctx.app.use(
@@ -137,7 +151,8 @@ export class MiddlewareController {
     // dev.openquester.app beside dev-api.openquester.app). Browsers drop a cookie
     // scoped to a foreign domain, so use a host-only cookie on those hosts.
     this.ctx.app.use((req: Request, _res: Response, next: NextFunction) => {
-      if (req.session?.cookie) {
+      // A Discord Activity session keeps the host-only cookie it was issued
+      if (req.session?.cookie && !req.session.discordActivity) {
         req.session.cookie.domain = this._cookieDomainFor(req.hostname);
       }
 

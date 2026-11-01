@@ -45,6 +45,10 @@ import { SocketIOInitializer } from "presentation/controllers/io/SocketIOInitial
 import { SocketActionDispatcher } from "presentation/controllers/io/SocketActionDispatcher";
 import { MiddlewareController } from "presentation/controllers/middleware/MiddlewareController";
 import { AdminRestApiController } from "presentation/controllers/rest/AdminRestApiController";
+import { DiscordActivityService } from "application/services/discord/DiscordActivityService";
+import { DiscordAuthService } from "application/services/discord/DiscordAuthService";
+import { DiscordEntryPointService } from "application/services/discord/DiscordEntryPointService";
+import { DiscordActivityRestApiController } from "presentation/controllers/rest/DiscordActivityRestApiController";
 import { AuthRestApiController } from "presentation/controllers/rest/AuthRestApiController";
 import { DevelopmentRestApiController } from "presentation/controllers/rest/DevelopmentRestApiController";
 import { FileRestApiController } from "presentation/controllers/rest/FileRestApiController";
@@ -172,6 +176,8 @@ export class ServeApi {
       await this._initializeRedisSubscriptions();
       this._assertStartupCanContinue("cron initialization");
       await this._initializeCronScheduler();
+      this._assertStartupCanContinue("Discord entry point check");
+      await container.resolve(DiscordEntryPointService).ensureEntryPointCommand();
       this._assertStartupCanContinue("metrics start");
       this._startMetrics();
 
@@ -284,8 +290,14 @@ export class ServeApi {
       deps.fileService,
       deps.storage,
       deps.socketUserDataService,
+      container.resolve(DiscordAuthService),
       this._context.env,
       this._context.logger
+    );
+    new DiscordActivityRestApiController(
+      deps.app,
+      container.resolve(DiscordActivityService),
+      deps.userService
     );
     new PackageRestApiController(deps.app, deps.packageService, this._context.logger);
     new FileRestApiController(deps.app, deps.fileStorageService);

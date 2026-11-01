@@ -1720,6 +1720,42 @@
     "helpEmpty": "Следующий раунд начнётся сразу.",
     "confirm": "Пропустить раунд"
   },
+  "discordActivity": {
+    "connecting": "Подключение к Discord…",
+    "findingGame": "Ищем игру этого звонка…",
+    "retry": "Попробовать снова",
+    "pickTitle": "Выберите пакет для этого звонка",
+    "pickHint": "Кто выберет первым, тот ведёт игру. Остальные участники звонка присоединятся автоматически.",
+    "search": "Поиск пакетов",
+    "noPackages": "Пакеты не найдены.",
+    "gameReady": "{{host}} ведёт игру этого звонка.",
+    "joinGame": "Присоединиться к игре",
+    "errors": {
+      "not_configured": "Этот сервер не настроен для работы как Discord Activity.",
+      "auth_failed": "Не удалось войти через Discord на шаге: {{step}}",
+      "timeout": "Discord не ответил на шаге: {{step}}",
+      "settings": "Не удалось связаться с сервером OpenQuester."
+    },
+    "steps": {
+      "handshake": "Подключение к Discord…",
+      "authorize": "Ждём разрешения Discord…",
+      "sign_in": "Вход в OpenQuester…",
+      "authenticate": "Завершаем вход через Discord…"
+    },
+    "rejoinGame": "Вернуться в игру",
+    "otherGames": "Другие игры",
+    "gameCode": "Код или ссылка на игру",
+    "joinByCode": "Присоединиться",
+    "noOtherGames": "Сейчас нет других открытых игр.",
+    "presence": {
+      "lobby": "В лобби",
+      "paused": "Пауза",
+      "round": "{{round}}",
+      "finished": "Игра окончена",
+      "lobbyDetails": "Викторина OpenQuester",
+      "choosing": "Выбирает игру"
+    }
+  },
   "mediaEditor": {
     "title": "Редактирование медиа",
     "edit": "Редактировать",

@@ -5,6 +5,8 @@
 
 interface Env {
   API_ORIGIN: string;
+  /** Discord application id; lets the Discord Activity (its discordsays.com proxy) through */
+  DISCORD_CLIENT_ID?: string;
 }
 
 interface Context {
@@ -20,7 +22,7 @@ export async function proxy({ request, env }: Context): Promise<Response> {
   // on another site could otherwise drive the API, sockets included, with the
   // visitor's cookie.
   const origin = request.headers.get("Origin");
-  if (origin !== null && origin !== incoming.origin) {
+  if (origin !== null && origin !== incoming.origin && origin !== activityOrigin(env)) {
     return new Response("Cross-site requests are not allowed", { status: 403 });
   }
 
@@ -64,4 +66,14 @@ export async function proxy({ request, env }: Context): Promise<Response> {
     statusText: upstream.statusText,
     headers: out,
   });
+}
+
+/**
+ * Inside Discord the app runs on `{clientId}.discordsays.com`, whose URL
+ * mapping forwards here with that Origin. Its cookies live on that host, so a
+ * request from there carries only the Activity's own session.
+ */
+function activityOrigin(env: Env): string | null {
+  const clientId = env.DISCORD_CLIENT_ID?.trim();
+  return clientId && /^\d+$/.test(clientId) ? `https://${clientId}.discordsays.com` : null;
 }

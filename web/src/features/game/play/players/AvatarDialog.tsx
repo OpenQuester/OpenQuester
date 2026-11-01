@@ -2,6 +2,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { useTranslation } from "react-i18next";
 import { CloseIcon } from "@/ui/icons";
 import { dialogStyles } from "@/ui/dialogStyles";
+import { mapUrl } from "@/lib/urlMappings";
 
 export function AvatarDialog({
   name,
@@ -42,7 +43,7 @@ export function AvatarDialog({
             </Dialog.Close>
           </div>
           <img
-            src={src}
+            src={mapUrl(src)}
             alt={t("players.avatar", { name })}
             className="min-h-0 h-full w-full object-contain p-3 pt-0"
           />
