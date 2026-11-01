@@ -3698,7 +3698,7 @@ export interface components {
         };
         /** @description Logo file structure for package creation */
         PackageLogoFileInput: {
-            file: components["schemas"]["FileInput"];
+            file?: components["schemas"]["FileInput"];
         } | null;
         /** @description Logo file structure for a package */
         PackageLogoFileItem: {
@@ -3852,7 +3852,7 @@ export interface components {
              * @description Duration in milliseconds for showing the answer
              * @example 5000
              */
-            showAnswerDuration: number;
+            showAnswerDuration: number | null;
             /**
              * @description Comment or note about the question
              * @example You have to say full country name

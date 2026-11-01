@@ -4411,7 +4411,6 @@
             "$ref": "#/components/schemas/FileInput"
           }
         },
-        "required": ["file"],
         "description": "Logo file structure for package creation"
       },
       "PackageLogoFileItem": {
@@ -4693,7 +4692,7 @@
             "examples": [7000]
           },
           "showAnswerDuration": {
-            "type": "integer",
+            "type": ["integer", "null"],
             "description": "Duration in milliseconds for showing the answer",
             "examples": [5000]
           },

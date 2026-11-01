@@ -168,7 +168,7 @@ void main() {
     type: QuestionType.simple,
     order: 0,
     price: 100,
-    showAnswerDuration: 5000,
+    showAnswerDuration: null,
     text: 'Name this sound',
     textOrder: 4,
     questionFiles: [picture, nextPicture, sound, secondSound],
@@ -517,7 +517,7 @@ void main() {
       type: QuestionType.simple,
       order: 0,
       price: 100,
-      showAnswerDuration: 5000,
+      showAnswerDuration: null,
       text: 'Name this tune',
       questionFiles: [firstClip, secondClip],
     );

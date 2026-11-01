@@ -4,7 +4,7 @@ import { API_URL } from "@/api/config";
 import { Button } from "@/ui/Button";
 import { FieldError, TextInput } from "@/ui/Field";
 
-/** Only mounted by the debug build; the API also gates this development-only route. */
+/** Enabled by VITE_DEBUG_LOGIN; the API's existing dev route requires ENV=dev. */
 export function DebugLogin() {
   const { t } = useTranslation();
   const [number, setNumber] = useState("1");

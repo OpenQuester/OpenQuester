@@ -56,7 +56,7 @@ void main() {
           type: QuestionType.choice,
           order: 0,
           price: 100,
-          showAnswerDuration: 5000,
+          showAnswerDuration: null,
         ),
         timer: GameStateTimer(
           startedAt: DateTime.utc(2100),

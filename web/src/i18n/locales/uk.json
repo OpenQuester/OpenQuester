@@ -3,7 +3,7 @@
     "number": "Dev-користувач №",
     "signIn": "Dev-вхід",
     "signingIn": "Вхід…",
-    "failed": "Не вдалося увійти (HTTP {{status}}). Перевірте, що API використовує ENV=debug.",
+    "failed": "Не вдалося увійти (HTTP {{status}}). Перевірте, що API використовує ENV=dev.",
     "networkError": "Немає зв’язку з локальним API."
   },
   "common": {

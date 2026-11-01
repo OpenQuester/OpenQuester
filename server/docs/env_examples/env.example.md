@@ -1,9 +1,7 @@
 #
 
 ```bash
-## Environment type ("debug" | "dev" | "prod" | "test")
-# debug enables development routes and binds the API to 127.0.0.1 only.
-# Pair with `npm run dev:debug` in web/ for numbered dev-user login in the topbar.
+## Environment type ("dev" | "prod" | "test")
 ENV=
 
 # "*" will allow all origins. To set specific origin domain use this: "localhost,some-host,another-host"

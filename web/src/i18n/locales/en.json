@@ -3,7 +3,7 @@
     "number": "Dev user #",
     "signIn": "Dev sign in",
     "signingIn": "Signing in…",
-    "failed": "Dev sign-in failed (HTTP {{status}}). Check that the API uses ENV=debug.",
+    "failed": "Dev sign-in failed (HTTP {{status}}). Check that the API uses ENV=dev.",
     "networkError": "Could not reach the local API."
   },
   "common": {

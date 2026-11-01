@@ -7,7 +7,7 @@ void main() {
     type: QuestionType.choice,
     order: 0,
     price: 100,
-    showAnswerDuration: 5000,
+    showAnswerDuration: null,
     text: 'Pick one',
   );
   const plan = QuestionContentPlan(totalMs: 4000, steps: []);

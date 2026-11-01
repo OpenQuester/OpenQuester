@@ -53,7 +53,7 @@ export function AppHeader({ user, isLoading, path }: AppHeaderProps) {
           ))}
         </nav>
         <div className="flex-1" />
-        {import.meta.env.MODE === "debug" && <DebugLogin />}
+        {import.meta.env.VITE_DEBUG_LOGIN === "true" && <DebugLogin />}
         <AccountLink user={user} isLoading={isLoading} path={path} />
       </div>
     </header>

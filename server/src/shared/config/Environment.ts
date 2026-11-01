@@ -18,7 +18,6 @@ import { type LogLevel } from "shared/logging/LoggerTypes";
 import { LogPrefix } from "shared/logging/LogPrefix";
 
 export enum EnvType {
-  DEBUG = "debug",
   DEV = "dev",
   PROD = "prod",
   TEST = "test"
@@ -183,9 +182,6 @@ export class Environment {
         break;
       case EnvType.DEV:
         this.logger.info("Running in development environment", { prefix: ENV_PREFIX });
-        break;
-      case EnvType.DEBUG:
-        this.logger.info("Running in local debug environment", { prefix: ENV_PREFIX });
         break;
     }
 

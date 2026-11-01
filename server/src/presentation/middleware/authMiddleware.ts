@@ -28,7 +28,7 @@ const isPublicEndpoint = (env: Environment, requestUrl: string, method: string):
 
   const publicEndpoints = ["v1/api-docs", "v1/users", "v1/files"];
 
-  if (env.ENV === EnvType.DEV || env.ENV === EnvType.DEBUG) {
+  if (env.ENV === EnvType.DEV) {
     publicEndpoints.push("v1/dev");
   }
 
