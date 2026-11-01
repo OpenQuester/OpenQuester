@@ -88,7 +88,10 @@ Use the same application as "Log in with Discord" so `discord_id` matches.
    - `/media` → the S3/CDN host from `GET /v1/auth/settings` (`discordActivity.urlMappings`).
    - `/api` → the API host, only if the build sets an absolute `VITE_API_URL`.
 4. Activities → Art Assets: upload `assets/discord-activity/cover.png`
-   (and `icon.png` as the app icon if needed).
+   (1920×1080, shown in the Activity shelf), and `icon.png` (1024×1024) under
+   General Information → App Icon if needed. Both are rendered from
+   `assets/discord-activity/cover.html`; after editing it run
+   `node scripts/render-activity-assets.mjs` from `web/`.
 5. Activities → Settings: Enable Activities.
 6. Server: set `DISCORD_CLIENT_SECRET`, and `DISCORD_BOT_TOKEN` (Bot → Reset
    Token) so only people in the call get its lobby. Pages: set the
