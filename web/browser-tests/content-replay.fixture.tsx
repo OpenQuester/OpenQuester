@@ -9,6 +9,33 @@ import type { ContentPlan, PlayerRole } from "../src/game/protocol";
 import { timerElapsed } from "../src/game/contentPlan";
 
 export { sent };
+
+export const replaySteps: { step: number; text: string }[] = [];
+
+/** Retain short-lived DOM steps even when a remote assertion polls less often. */
+export function observeReplaySteps() {
+  replaySteps.length = 0;
+  const stage = document.querySelector('[data-testid="content-stage"]')!;
+  const capture = () => {
+    const current = stage.querySelector('[data-testid="content-step"]');
+    const step = Number(current?.getAttribute("data-step"));
+    if (!step || replaySteps.at(-1)?.step === step) return;
+    replaySteps.push({
+      step,
+      text: current?.querySelector('[data-testid="question-text"]')?.textContent ?? "",
+    });
+    if (step === 3) observer.disconnect();
+  };
+  const observer = new MutationObserver(capture);
+  observer.observe(stage, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["data-step"],
+  });
+  capture();
+}
+
 export function pause(paused: boolean) {
   const current = useGameStore.getState().session!;
   const clock = current.state.timer!;

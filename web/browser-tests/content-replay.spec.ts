@@ -155,13 +155,25 @@ for (const [mode, role] of [
       expect(drift).toBeLessThan(0.05);
       await page.evaluate(async () => {
         const path = "/browser-tests/content-replay.fixture.tsx";
-        ((await import(path)) as typeof Fixture).pause(false);
+        const fixture = (await import(path)) as typeof Fixture;
+        fixture.observeReplaySteps();
+        fixture.pause(false);
       });
       await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.paused)).toBe(false);
-      await expect(page.getByTestId("content-step")).toHaveAttribute("data-step", "2", {
-        timeout: 10000,
-      });
-      await expect(page.getByTestId("question-text")).toHaveText("Middle clue");
+      await expect
+        .poll(
+          () =>
+            page.evaluate(async () => {
+              const path = "/browser-tests/content-replay.fixture.tsx";
+              return ((await import(path)) as typeof Fixture).replaySteps;
+            }),
+          { timeout: 10000 },
+        )
+        .toEqual([
+          { step: 1, text: "" },
+          { step: 2, text: "Middle clue" },
+          { step: 3, text: "" },
+        ]);
       await expect(page.getByTestId("content-step")).toHaveAttribute("data-step", "3");
       expect(await video.evaluate((el: HTMLVideoElement) => el.currentTime)).toBeLessThan(1);
       await expect(replay).toBeEnabled();
