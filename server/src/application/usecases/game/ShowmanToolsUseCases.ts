@@ -3,6 +3,7 @@ import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
+import { GameSettingsLogic } from "domain/logic/game/GameSettingsLogic";
 import { ShowmanToolsLogic } from "domain/logic/game/ShowmanToolsLogic";
 import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
@@ -17,6 +18,8 @@ import {
   BuzzerOpenEventPayload,
   GameJoinModeChangeEventPayload,
   GameJoinModeChangeInputData,
+  GameSettingsChangeEventPayload,
+  GameSettingsChangeInputData,
   QuestionRemoveRestoreEventPayload,
   QuestionRemoveRestoreInputData
 } from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
@@ -123,6 +126,38 @@ export class GameJoinModeChangeUseCase implements GameActionHandler<
         DataMutationConverter.gameBroadcastMutation(
           game.id,
           SocketIOGameEvents.GAME_JOIN_MODE_CHANGE,
+          data
+        )
+      ],
+      broadcastGame: game
+    };
+  }
+}
+
+/**
+ * The showman changes the rules or timers mid-game. Running timers keep their
+ * deadline: a new value applies from the next timer or question onward.
+ */
+export class GameSettingsChangeUseCase implements GameActionHandler<
+  GameSettingsChangeInputData,
+  GameSettingsChangeEventPayload
+> {
+  public async execute(
+    ctx: ActionExecutionContext<GameSettingsChangeInputData>
+  ): Promise<ActionHandlerResult<GameSettingsChangeEventPayload>> {
+    const game = requireShowman(ctx);
+    game.settings = GameSettingsLogic.merge(game.settings, ctx.action.payload);
+
+    const data: GameSettingsChangeEventPayload = { settings: game.settings };
+
+    return {
+      success: true,
+      data,
+      mutations: [
+        DataMutationConverter.saveGameMutation(game),
+        DataMutationConverter.gameBroadcastMutation(
+          game.id,
+          SocketIOGameEvents.GAME_SETTINGS_CHANGE,
           data
         )
       ],

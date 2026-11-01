@@ -1,8 +1,13 @@
 import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 import {
   GameJoinModeChangeInputData,
+  GameSettingsChangeInputData,
   QuestionRemoveRestoreInputData
 } from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
+import {
+  gameSettingsScheme,
+  gameTimerSettingsScheme
+} from "domain/validators/schemas/GameSettingsSchema";
 import { ALL_PLAY_ANSWER_MAX_LENGTH } from "domain/constants/game";
 import {
   AllPlayAnswerInputData,
@@ -161,6 +166,17 @@ export class GameValidator {
       Joi.object<GameJoinModeChangeInputData>({
         joinMode: Joi.valid(...Object.values(GameJoinMode)).required()
       })
+    );
+  }
+
+  /** Same limits as on game creation; at least one rule or timer must be given */
+  public static validateGameSettingsChange(data: GameSettingsChangeInputData) {
+    return this._validate<GameSettingsChangeInputData>(
+      data,
+      gameSettingsScheme()
+        .keys({ timers: gameTimerSettingsScheme().min(1).optional() })
+        .min(1)
+        .required()
     );
   }
 

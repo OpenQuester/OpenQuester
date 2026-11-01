@@ -48,6 +48,7 @@ import {
   RevertLastAnswerRulingUseCase,
   BuzzerOpenUseCase,
   GameJoinModeChangeUseCase,
+  GameSettingsChangeUseCase,
   QuestionRemoveRestoreUseCase
 } from "application/usecases/game/ShowmanToolsUseCases";
 import { SelectSecretQuestionPriceUseCase } from "application/usecases/question/SelectSecretQuestionPriceUseCase";
@@ -195,6 +196,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     new RevertLastAnswerRulingUseCase(playerGameStatsService)
   );
   registry.register(GameActionType.GAME_JOIN_MODE_CHANGE, new GameJoinModeChangeUseCase());
+  registry.register(GameActionType.GAME_SETTINGS_CHANGE, new GameSettingsChangeUseCase());
   registry.register(GameActionType.BUZZER_OPEN, new BuzzerOpenUseCase());
 
   // =====================================

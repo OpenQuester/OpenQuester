@@ -1,5 +1,6 @@
 import {
   type GameJoinModeChangeInputData,
+  type GameSettingsChangeInputData,
   type QuestionRemoveRestoreInputData
 } from "domain/types/socket/events/game/ShowmanToolsEventPayloads";
 import {
@@ -175,6 +176,13 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
     gameIdStrategy: GameIdStrategy.FROM_SESSION,
     inputValidator: (data) =>
       GameValidator.validateGameJoinModeChange(data as GameJoinModeChangeInputData)
+  },
+  {
+    event: SocketIOGameEvents.GAME_SETTINGS_CHANGE,
+    actionType: GameActionType.GAME_SETTINGS_CHANGE,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) =>
+      GameValidator.validateGameSettingsChange(data as GameSettingsChangeInputData)
   },
   {
     event: SocketIOGameEvents.SCORE_CHANGED,

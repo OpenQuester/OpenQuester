@@ -69,6 +69,7 @@ export enum SocketIOGameEvents {
   QUESTION_REMOVE_RESTORE = "question-remove-restore",
   ANSWER_RESULT_UNDO = "answer-result-undo",
   GAME_JOIN_MODE_CHANGE = "game-join-mode-change",
+  GAME_SETTINGS_CHANGE = "game-settings-change",
   ALL_PLAY_STAKE = "all-play-stake",
   ALL_PLAY_ANSWER = "all-play-answer",
   ALL_PLAY_REVIEWING = "all-play-reviewing",
