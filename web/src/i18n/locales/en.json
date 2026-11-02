@@ -293,7 +293,9 @@
     "roundTimeUp": "Last question of the round",
     "takenOver": "Opened somewhere else",
     "takenOverHelp": "Your account joined this game in another tab or on another device, so this one stopped. Your seat and score are safe.",
-    "takeOver": "Play here"
+    "takeOver": "Play here",
+    "leaving": "Leaving…",
+    "leaveFailed": "Could not leave the game. Please try again."
   },
   "lobby": {
     "leave": "Leave lobby",
@@ -475,7 +477,12 @@
     "all_play_answering": "Everyone answers",
     "all_play_reviewing": "Everyone · review"
   },
+  "questionOpening": {
+    "opening": "Opening question",
+    "waiting": "Waiting for all players to download media..."
+  },
   "reasons": {
+    "question_opening": "Opening question — wait for the transition to finish",
     "wrong_role": "Only players can do this",
     "wrong_role_watch": "You're watching — spectators can't buzz",
     "wrong_phase": "Not available right now",
@@ -537,7 +544,7 @@
     "stepsLabel": "Question parts",
     "recap": "Question: {{text}}",
     "audioEnded": "Finished",
-    "replay": "Play again",
+    "replay": "Replay presentation",
     "optionNumber": "Option {{n}}",
     "mediaTab": "Media",
     "textTab": "Text",
@@ -683,7 +690,7 @@
       "showmanPicks": "The showman picks the next question",
       "showmanStatus": "<player>{{name}}</player> picks next",
       "youPick": "Pick the next question",
-      "showmanInfo": "Wait for {{name}}, or pick for them",
+      "showmanInfo": "Wait for the player to pick, or pick for them",
       "pickAny": "Pick any cell on the board",
       "randomQuestion": "Pick random question",
       "noQuestions": "No questions left",

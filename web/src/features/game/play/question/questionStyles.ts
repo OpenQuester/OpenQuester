@@ -1,7 +1,7 @@
 /** Shared question/reveal width and question typography, unchanged across stages. */
 
 export const questionContentLayout =
-  "question-content flex w-full max-w-[920px] flex-col items-center gap-5 oq-pop 3xl:max-w-[1280px] 4xl:max-w-[1600px]";
+  "question-content flex w-full max-w-[920px] flex-col items-center gap-5 3xl:max-w-[1280px] 4xl:max-w-[1600px]";
 export const questionText =
   "question-text m-0 text-center font-display text-[clamp(22px,3.4vw,38px)] font-semibold 3xl:text-[clamp(40px,2.4vw,64px)] leading-tight [overflow-wrap:anywhere]";
 
@@ -13,7 +13,7 @@ export const questionStyles = {
   content: "question-main flex min-w-0 flex-1 flex-col items-center gap-4",
   heading: "flex w-full flex-wrap items-center justify-center gap-2 text-muted 3xl:text-xl",
   waiting: "m-0 rounded-sm bg-surface-2 px-3 py-2 text-sm text-muted",
-  mediaStep: "question-step flex w-full flex-col items-center gap-4 oq-pop",
+  mediaStep: "question-step flex w-full flex-col items-center gap-4",
   picture: "relative inline-block w-fit max-w-full self-start rounded-lg",
   correctPoint: `${pointMarker} point-target aspect-square border-2 border-success bg-success/20`,
   chosenPoint: `${pointMarker} h-5 w-5 border-2 border-white shadow`,

@@ -8,17 +8,18 @@ import { i18n } from "@/i18n";
 import type * as GameQueries from "./useGames";
 import { HomePage } from "./HomePage";
 
-const { queries, hidden, navigate } = vi.hoisted(() => ({
+const { queries, hidden, navigate, search } = vi.hoisted(() => ({
   queries: new Map<
     string,
     { data?: GameListItem[]; isLoading?: boolean; isError?: boolean; isFetching?: boolean }
   >(),
   hidden: [] as string[],
   navigate: vi.fn(),
+  search: { notice: undefined as string | undefined },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  useSearch: () => ({}),
+  useSearch: () => search,
   useNavigate: () => navigate,
   Link: ({ children, ...props }: { children: ReactNode; "aria-label"?: string }) => (
     <a href="/games/test" aria-label={props["aria-label"]}>
@@ -65,6 +66,7 @@ beforeEach(() => {
   queries.clear();
   hidden.length = 0;
   navigate.mockReset();
+  search.notice = undefined;
   void i18n.changeLanguage("en");
 });
 
@@ -75,6 +77,23 @@ afterEach(() => {
 });
 
 describe("open game search", () => {
+  it("dismisses the home notice with replace and preserves other search fields", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("matchMedia", () => ({ matches: false }));
+    search.notice = "deleted";
+    render(<HomePage />);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    act(() => vi.advanceTimersByTime(300));
+    const navigation = navigate.mock.calls[0]![0];
+    expect(navigation.replace).toBe(true);
+    expect(navigation.hash).toBe(true);
+    expect(navigation.resetScroll).toBe(false);
+    expect(navigation.search({ notice: "deleted", other: "keep" })).toEqual({
+      notice: undefined,
+      other: "keep",
+    });
+    vi.unstubAllGlobals();
+  });
   it.each([
     ["en", "Search games", "Clear search"],
     ["uk", "Пошук ігор", "Очистити пошук"],

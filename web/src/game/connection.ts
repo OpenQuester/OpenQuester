@@ -15,6 +15,7 @@ import {
   type ServerEvent,
 } from "./protocol";
 import { forgetLeftGame, useGameStore } from "./store";
+import type { GameSession } from "./reducer";
 
 export interface JoinOptions {
   role: PlayerRole;
@@ -44,6 +45,7 @@ export class GameConnection {
   private joinOptions: JoinOptions;
   private closed = false;
   private pendingTimer: number | undefined;
+  private leaving = false;
   private mediaAbort: AbortController | null = null;
   /** Seat a spectator asked for: the server seats them first, then they move. */
   private wantedSlot: number | null = null;
@@ -65,6 +67,7 @@ export class GameConnection {
     // React StrictMode mounts, unmounts and remounts: a closed connection must
     // be able to start over.
     this.closed = false;
+    this.leaving = false;
     const store = useGameStore.getState();
     store.begin(this.gameId);
 
@@ -80,6 +83,10 @@ export class GameConnection {
     socket.on("disconnect", (reason) => {
       this.mediaAbort?.abort();
       if (this.closed) return;
+      if (this.leaving) {
+        this.finishLeaving();
+        return;
+      }
       // The server drops a socket on purpose when the same account connects
       // again (another tab or device). Reconnecting here would drop that one in
       // turn, and the two would take the seat from each other forever: wait
@@ -98,7 +105,7 @@ export class GameConnection {
     // The lobby-wide games feed tells us when the showman deletes or edits this game.
     socket.on("games", (payload: GameListEvent) => {
       if (payload?.event === "deleted" && payload.data?.id?.toUpperCase() === this.gameId) {
-        useGameStore.getState().markLeft("deleted");
+        useGameStore.getState().markLeft(this.leaving ? "left" : "deleted", true);
         this.close();
         return;
       }
@@ -121,7 +128,24 @@ export class GameConnection {
 
   /** Leave the game for good (explicit "Leave game"). */
   leave(): void {
+    if (this.leaving) return;
+    if (!this.connected) {
+      this.finishLeaving();
+      return;
+    }
+    this.leaving = true;
+    useGameStore.getState().setPending("user-leave", this.myId);
+    window.clearTimeout(this.pendingTimer);
+    this.pendingTimer = window.setTimeout(() => {
+      this.leaving = false;
+      const store = useGameStore.getState();
+      store.setPending(null);
+      store.toast("error", i18n.t("game.leaveFailed"));
+    }, PENDING_TIMEOUT_MS);
     this.socket?.emit("user-leave");
+  }
+
+  private finishLeaving(): void {
     useGameStore.getState().markLeft("left");
     this.close();
   }
@@ -129,6 +153,7 @@ export class GameConnection {
   /** Drop the connection without leaving (page unmount); the seat is kept. */
   close(): void {
     this.closed = true;
+    this.leaving = false;
     this.mediaAbort?.abort();
     this.mediaAbort = null;
     window.clearTimeout(this.pendingTimer);
@@ -156,6 +181,7 @@ export class GameConnection {
     name: K,
     ...args: ClientEvents[K] extends undefined ? [] : [ClientEvents[K]]
   ): void {
+    if (this.leaving) return;
     if (!this.socket?.connected) {
       useGameStore.getState().toast("error", "connection_lost");
       return;
@@ -209,6 +235,10 @@ export class GameConnection {
   }
 
   private onError(payload: unknown): void {
+    if (this.leaving) {
+      this.leaving = false;
+      window.clearTimeout(this.pendingTimer);
+    }
     const message =
       payload && typeof payload === "object" && "message" in payload
         ? String((payload as { message: unknown }).message)
@@ -232,11 +262,7 @@ export class GameConnection {
     const before = store.session;
     store.dispatch(event);
     const current = useGameStore.getState().session;
-    if (
-      current?.state.questionState !== "media_downloading" ||
-      current.players.find((p) => p.meta.id === this.myId)?.role !== "player"
-    )
-      this.mediaAbort?.abort();
+    if (!this.canReportMedia(current)) this.mediaAbort?.abort();
     this.announce(event, before);
 
     switch (event.type) {
@@ -336,14 +362,23 @@ export class GameConnection {
     }
   }
 
-  /** Players preload question media, then tell the server they are ready. */
+  private canReportMedia(session: GameSession | null): boolean {
+    if (session?.state.questionState !== "media_downloading") return false;
+    const role = session.players.find((p) => p.meta.id === this.myId)?.role;
+    return (
+      role === "player" ||
+      (role === "showman" &&
+        session.state.currentRound?.type === "simple" &&
+        !session.players.some((p) => p.role === "player" && p.status === "in-game"))
+    );
+  }
+
+  /** Players (or the solo showman) preload media before the standard readiness ACK. */
   private maybeReportMedia(): void {
     this.mediaAbort?.abort();
     this.mediaAbort = null;
     const session = useGameStore.getState().session;
-    if (!session || session.state.questionState !== "media_downloading") return;
-    const meNow = session.players.find((p) => p.meta.id === this.myId);
-    if (meNow?.role !== "player") return;
+    if (!session || !this.canReportMedia(session)) return;
     const preparation =
       session.state.currentRound?.type === "final"
         ? session.state.finalRoundData?.questionData?.mediaPreparationId
@@ -358,7 +393,7 @@ export class GameConnection {
       if (mediaDurations === null) return;
       if (controller.signal.aborted || this.closed) return;
       const latest = useGameStore.getState().session;
-      if (latest?.state.questionState !== "media_downloading") return;
+      if (!latest || !this.canReportMedia(latest)) return;
       if (
         preparation &&
         latest.state.finalRoundData?.questionData?.mediaPreparationId !== preparation

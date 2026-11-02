@@ -19,7 +19,8 @@ vi.mock("@/features/auth/useMe", () => ({
   useMe: () => ({ data: auth.userId === null ? null : { id: auth.userId } }),
 }));
 
-import { gamesKey, useGames } from "./useGames";
+import { gamesKey, refreshGames } from "./refreshGames";
+import { useGames } from "./useGames";
 import { useHomePage } from "./useHomePage";
 
 const clients: QueryClient[] = [];
@@ -52,6 +53,43 @@ afterEach(() => {
 });
 
 describe("game list queries", () => {
+  it("removes deleted games from all variants, aborts old GETs and invalidates fresh caches", async () => {
+    const { client } = setup();
+    const keys = [
+      [...gamesKey, "", "all"],
+      [...gamesKey, "quiz", "playing"],
+      [...gamesKey, "", "lobby"],
+    ];
+    const rows = [
+      { id: "ABCD", title: "Deleted" },
+      { id: "KEEP", title: "Still live" },
+    ];
+    for (const key of keys) client.setQueryData(key, rows);
+    let finish!: (value: typeof rows) => void;
+    let signal!: AbortSignal;
+    const pending = client
+      .fetchQuery({
+        queryKey: keys[0]!,
+        staleTime: 0,
+        queryFn: ({ signal: requestSignal }) => {
+          signal = requestSignal;
+          return new Promise<typeof rows>((resolve) => {
+            finish = resolve;
+          });
+        },
+      })
+      .catch(() => undefined);
+    await refreshGames(client, "abcd");
+    expect(signal.aborted).toBe(true);
+    finish(rows);
+    await pending;
+    for (const key of keys) {
+      expect(client.getQueryData(key)).toEqual([rows[1]]);
+      expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    }
+    await refreshGames(client);
+    for (const key of keys) expect(client.getQueryData(key)).toEqual([rows[1]]);
+  });
   it.each([false, true])(
     "combines server status and title filters before the page limit when authenticated=%s",
     async (authenticated) => {

@@ -29,6 +29,8 @@ let media: HTMLMediaElement[];
 
 beforeEach(() => {
   vi.useFakeTimers();
+  socket.connected = true;
+  socket.disconnect.mockClear();
   images = [];
   media = [];
   socket.emit.mockClear();
@@ -71,6 +73,58 @@ function receiveQuestion(files: QuestionFile[]) {
   );
 }
 
+describe("confirmed game exit", () => {
+  it("waits for this player's leave and ignores other leaves, phase changes and repeat clicks", () => {
+    listeners.get("game-data")?.(snapshot());
+    connection.leave();
+    connection.leave();
+    expect(socket.emit).toHaveBeenCalledExactlyOnceWith("user-leave");
+    expect(useGameStore.getState().left).toBeNull();
+    expect(socket.disconnect).not.toHaveBeenCalled();
+    listeners.get("user-leave")?.({ user: BOB });
+    listeners.get("game-pause")?.({ timer: null });
+    expect(useGameStore.getState().pending?.action).toBe("user-leave");
+    expect(useGameStore.getState().left).toBeNull();
+    listeners.get("user-leave")?.({ user: ALICE });
+    expect(useGameStore.getState().left).toEqual({ gameId: "ABCD", why: "left" });
+    expect(socket.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it.each(["error", "timeout"])(
+    "keeps the game open after %s and allows retry",
+    async (failure) => {
+      listeners.get("game-data")?.(snapshot());
+      connection.leave();
+      if (failure === "error") listeners.get("error")?.({ message: "Leave failed" });
+      else await vi.advanceTimersByTimeAsync(5000);
+      expect(useGameStore.getState().left).toBeNull();
+      expect(useGameStore.getState().pending).toBeNull();
+      expect(useGameStore.getState().toasts.at(-1)?.kind).toBe("error");
+      expect(socket.disconnect).not.toHaveBeenCalled();
+      connection.leave();
+      expect(socket.emit).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("treats deletion of the last lobby as a voluntary exit and records removal", () => {
+    listeners.get("game-data")?.(snapshot());
+    connection.leave();
+    listeners.get("games")?.({ event: "deleted", data: { id: "abcd" } });
+    expect(useGameStore.getState().left).toEqual({ gameId: "ABCD", why: "left", removed: true });
+    expect(socket.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it.each(["offline", "disconnect"])("completes local exit without rejoining after %s", (mode) => {
+    listeners.get("game-data")?.(snapshot());
+    if (mode === "offline") socket.connected = false;
+    connection.leave();
+    if (mode === "disconnect") listeners.get("disconnect")?.("transport close");
+    expect(useGameStore.getState().left?.why).toBe("left");
+    expect(useGameStore.getState().pending).toBeNull();
+    expect(socket.disconnect).toHaveBeenCalledOnce();
+  });
+});
+
 describe("answer submission retries", () => {
   it.each(["error", "timeout"])(
     "clears a pending answer after %s and permits retry",
@@ -99,6 +153,61 @@ describe("answer submission retries", () => {
 });
 
 describe("question media readiness", () => {
+  it("lets a solo showman finish real media preparation through the server", async () => {
+    listeners.get("game-data")?.(
+      snapshot(
+        {
+          currentRound: round(),
+          questionState: "choosing",
+        },
+        [player(ALICE, "showman")],
+      ),
+    );
+    listeners.get("question-data")?.({
+      data: question(100, { questionFiles: [file("image")] }),
+      timer: timer(30000),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(socket.emit).not.toHaveBeenCalled();
+    // Unrelated readiness updates must not abort the showman's pending preload.
+    listeners.get("media-download-status")?.({
+      playerId: ALICE,
+      mediaDownloaded: false,
+      allPlayersReady: false,
+      timer: null,
+    });
+    images[0]!.dispatchEvent(new Event("load"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(socket.emit).toHaveBeenCalledExactlyOnceWith("media-downloaded");
+    expect(useGameStore.getState().session?.state.questionState).toBe("media_downloading");
+    listeners.get("media-download-status")?.({
+      playerId: ALICE,
+      mediaDownloaded: true,
+      allPlayersReady: true,
+      timer: timer(),
+    });
+    expect(useGameStore.getState().session?.state.questionState).toBe("showing");
+  });
+  it.each(["other player", "spectator", "final"])(
+    "does not send a solo ACK for %s",
+    async (scenario) => {
+      listeners.get("game-data")?.(
+        snapshot(
+          {
+            currentRound: round(scenario === "final" ? "final" : "simple"),
+            questionState: "media_downloading",
+            currentQuestion: question(),
+          },
+          [
+            player(ALICE, scenario === "spectator" ? "spectator" : "showman"),
+            ...(scenario === "other player" ? [player(BOB, "player")] : []),
+          ],
+        ),
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      expect(socket.emit).not.toHaveBeenCalled();
+    },
+  );
   it.each(["regular", "final"])(
     "does not acknowledge %s media with a missing URL",
     async (kind) => {
@@ -264,6 +373,18 @@ describe("question media readiness", () => {
   it("immediately acknowledges a question with no media", async () => {
     receiveQuestion([]);
     await vi.advanceTimersByTimeAsync(0);
+    expect(socket.emit).toHaveBeenCalledExactlyOnceWith("media-downloaded");
+  });
+  it("does not delay readiness for a fresh live pick while its opening is pending", async () => {
+    listeners.get("game-data")?.(
+      snapshot({ currentRound: round(), questionState: "choosing", currentTurnPlayerId: ALICE }),
+    );
+    listeners.get("question-data")?.({
+      data: question(100, { textOrder: 0, questionFiles: [] }),
+      timer: timer(30_000),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useGameStore.getState().questionPresentation?.complete).toBe(false);
     expect(socket.emit).toHaveBeenCalledExactlyOnceWith("media-downloaded");
   });
 });

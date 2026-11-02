@@ -8,7 +8,7 @@ import { myRole, phaseOf } from "@/game/selectors";
 import { Button } from "@/ui/Button";
 import { Dialog } from "@/ui/Dialog";
 
-import { useLiveGame, useSession } from "../GameContext";
+import { useGameState, useLiveGame, useSession } from "../GameContext";
 
 export function GameMenu({
   open,
@@ -26,6 +26,7 @@ export function GameMenu({
   const settings = useSettings();
   const role = myRole(session, myId);
   const phase = phaseOf(session);
+  const leaving = useGameState((s) => s.pending?.action === "user-leave");
 
   return (
     <Dialog
@@ -63,8 +64,13 @@ export function GameMenu({
             </Button>
           )}
           <div className="flex-1" />
-          <Button variant="danger" onClick={() => connection.leave()} data-testid="leave-game">
-            {t("menu.leave")}
+          <Button
+            variant="danger"
+            onClick={() => connection.leave()}
+            disabled={leaving}
+            data-testid="leave-game"
+          >
+            {t(leaving ? "game.leaving" : "menu.leave")}
           </Button>
         </div>
       </div>

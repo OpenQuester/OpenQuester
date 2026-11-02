@@ -1,0 +1,106 @@
+.question-pick-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--oq-bg);
+  opacity: 0;
+}
+
+.question-pick-overlay[data-started] {
+  animation: oq-question-pick-in var(--question-pick-in) ease-out both;
+}
+
+.question-pick-overlay[data-exiting] {
+  animation: oq-question-pick-out var(--question-pick-out) ease-in both;
+}
+
+.question-pick-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  text-align: center;
+}
+
+.question-pick-title h2 {
+  margin: 0;
+  color: var(--oq-text);
+  font: 800 clamp(32px, 5vw, 60px) / 1.1 var(--oq-font-display);
+  letter-spacing: -1.2px;
+  overflow-wrap: anywhere;
+}
+
+.question-pick-title > span {
+  color: var(--oq-accent-strong);
+  font: 700 clamp(38px, 6vw, 70px) / 1 var(--oq-font-mono);
+  letter-spacing: -2px;
+}
+
+.question-pick-waiting {
+  position: absolute;
+  right: 24px;
+  bottom: clamp(32px, 7vh, 72px);
+  left: 24px;
+  margin: 0;
+  color: var(--oq-text-faint);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  animation:
+    oq-question-pick-in var(--question-pick-hint-in) ease-out both,
+    oq-question-pick-pulse var(--question-pick-pulse) ease-in-out var(--question-pick-hint-in)
+      infinite;
+}
+
+.question-pick-stage[data-opening] .oq-pop {
+  animation: none;
+}
+
+@keyframes oq-question-pick-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes oq-question-pick-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes oq-question-pick-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .question-pick-overlay[data-started],
+  .question-pick-overlay[data-exiting],
+  .question-pick-waiting {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+html[data-motion="reduced"] .question-pick-overlay[data-started],
+html[data-motion="reduced"] .question-pick-overlay[data-exiting],
+html[data-motion="reduced"] .question-pick-waiting {
+  animation: none;
+  opacity: 1;
+}

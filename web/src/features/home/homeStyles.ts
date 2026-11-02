@@ -11,7 +11,6 @@ export const homeStyles = {
   gameDetails: "flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted",
   joinLink:
     "mt-auto flex min-h-11 items-center justify-center rounded-[12px] border border-line-strong font-semibold text-text no-underline hover:bg-surface-2 hover:text-text",
-  notice: "rounded-md border border-line-strong bg-surface-2 px-5 py-4 text-soft",
   gameFilter: "min-h-10 rounded-full border px-4 text-[15px] font-medium",
   games: "m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))] gap-4 p-0",
   rejoinNotice:

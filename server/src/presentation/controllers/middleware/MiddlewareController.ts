@@ -14,6 +14,7 @@ import {
 import { EnvType } from "shared/config/Environment";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { verifySession } from "presentation/middleware/authMiddleware";
+import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { correlationMiddleware } from "presentation/middleware/correlationMiddleware";
 import { performanceLogMiddleware } from "presentation/middleware/log/performanceLogMiddleware";
 import { metricsMiddleware } from "presentation/middleware/metricsMiddleware";
@@ -159,7 +160,8 @@ export class MiddlewareController {
 
       next();
     });
-    this.ctx.app.use(verifySession(this.ctx.env, this.ctx.logger));
+    // Express 4 does not forward rejected middleware promises to the error handler.
+    this.ctx.app.use(asyncHandler(verifySession(this.ctx.env, this.ctx.logger)));
   }
 
   private _cookieDomainFor(hostname: string): string | undefined {

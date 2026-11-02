@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, unwrap } from "@/api/client";
 import type { GameListItem, GameStatusFilter } from "@/api/types";
 
-export const gamesKey = ["games"] as const;
+import { gamesKey } from "./refreshGames";
 
 interface GamesOptions {
   enabled?: boolean;

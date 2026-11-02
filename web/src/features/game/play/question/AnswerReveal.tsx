@@ -66,7 +66,7 @@ export function AnswerReveal() {
   const credits = revealCredits(data, t);
   if (data?.answerPoint && pointImage)
     return (
-      <div className={questionContentLayout} data-testid="answer-reveal">
+      <div className={`${questionContentLayout} oq-pop`} data-testid="answer-reveal">
         <PointResults
           src={pointImage}
           target={data.answerPoint}
@@ -76,7 +76,7 @@ export function AnswerReveal() {
       </div>
     );
   return (
-    <div className={questionContentLayout} data-testid="answer-reveal">
+    <div className={`${questionContentLayout} oq-pop`} data-testid="answer-reveal">
       <QuestionBody
         label={t("reveal.answer")}
         textLength={(answerText?.length ?? 0) + credits.length + (result?.answerText?.length ?? 0)}

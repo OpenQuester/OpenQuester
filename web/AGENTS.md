@@ -60,6 +60,9 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
 - Colours, radii and fonts come from CSS variables in `src/theme/themes.css`;
   never hard-code a colour in a component. A new theme is a `[data-theme]`
   block plus an entry in `themes.ts`.
+- Production CSS uses Lightning CSS with source maps. Preserve module execution
+  order when splitting Mediabunny: its class imports are cyclic. Verify package
+  publishing against a production build when changing this chunk configuration.
 - All user-facing text goes through i18next keys in `src/i18n/locales/*.json`.
   Server errors are already resolved to display text by the backend; show them
   as received instead of mapping server error codes or rewriting their messages.
@@ -229,8 +232,12 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   progress updates must preserve the file list's expanded state. Keep query
   and form mount boundaries stable when moving these views.
 - Question media: players ACK `media-downloaded` only once every file is
-  loaded (images decoded), so the question timer starts when everyone can see
-  it. Failed loads, decoding errors, and local preload timeouts never send a
+  loaded (images decoded), independently of the local question-pick transition.
+  The server timer can already run during that opening; see the
+  [game-state matrix](../docs/specs/game-state-matrix.md#question-picking-transition-react).
+  In a regular round with no connected players, the showman uses the same
+  preload/ACK flow so solo hosting does not wait for a nonexistent player.
+  Failed loads, decoding errors, and local preload timeouts never send a
   readiness ACK; the server's media timeout handles unavailable media.
   Replacing a question, leaving the media phase, disconnecting or closing the
   connection cancels preload resources. Deferred seek/autoplay callbacks must
@@ -243,8 +250,9 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   (`game/contentPlan.ts`, `session.content` in the reducer), frozen while
   someone answers. Players report real audio/video lengths with the ACK.
   `question-data` re-sent after a rejoin keeps the snapshot's clock: mid-answer
-  the timeline stays frozen instead of replaying from the answer timer. Audio
-  and video that played to the end offer "Play again", on that device only.
+  the timeline stays frozen instead of replaying from the answer timer.
+  Multi-step or audio/video content offers one local "Replay presentation" action
+  after the complete timeline and background tracks finish.
   `play/media/` separates `QuestionMediaItem` loading/failure presentation,
   `QuestionMediaPlayback` controls, `useQuestionMediaPlayback` element effects and `useContentPosition` timeline
   scheduling. Preserve media keys, the latest clock read on resume, autoplay

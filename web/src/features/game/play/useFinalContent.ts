@@ -9,18 +9,19 @@ const EMPTY_PLAN = { steps: [{ startMs: 0, durationMs: 0, items: [] }], totalMs:
 /** Final-round content shares the final timer, including pause and rejoin. */
 export function useFinalContent(session: GameSession, enabled = true) {
   const data = enabled ? session.state.finalRoundData?.questionData : null;
+  const legacy =
+    data?.contentPlan === null ||
+    (data?.contentPlan === undefined && data?.question.textItems == null);
   const plan = useMemo(() => {
     if (!data) return null;
-    if (data.contentPlan !== undefined) return data.contentPlan;
+    if (data.contentPlan) return data.contentPlan;
     const q = data.question;
-    return q.textItems == null
-      ? null
-      : buildContentPlan({
-          text: q.text,
-          textOrder: q.textOrder,
-          textItems: q.textItems,
-          files: q.questionFiles,
-        });
+    return buildContentPlan({
+      text: q.text,
+      textOrder: q.textOrder,
+      textItems: q.textItems,
+      files: q.questionFiles,
+    });
   }, [data]);
   const clock: ContentClock = {
     kind: "question",
@@ -31,5 +32,5 @@ export function useFinalContent(session: GameSession, enabled = true) {
     frozenAtMs: plan && !session.state.timer ? 0 : null,
   };
   const { position } = useContentPosition(clock, session.state.isPaused);
-  return { content: plan ? clock : null, playing: !!plan && !position.done };
+  return { content: plan ? clock : null, playing: !legacy && !!plan && !position.done, legacy };
 }

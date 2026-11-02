@@ -34,6 +34,7 @@ export function mountJudge(kind: "number" | "point" | "choice") {
   };
   const connection = { connected: true, emit };
   const game = {
+    store,
     get session() {
       return store.getState().session!;
     },

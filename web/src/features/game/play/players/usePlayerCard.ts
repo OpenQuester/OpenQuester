@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 /** Hover/focus and touch disclosure without moving the score bar. */
 export function usePlayerCard() {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState({ left: 8, top: 8 });
+  const [position, setPosition] = useState({ left: 8, top: 8, maxHeight: "calc(100dvh - 16px)" });
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDialogElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -17,6 +17,8 @@ export function usePlayerCard() {
     closeTimer.current = setTimeout(() => {
       if (document.querySelector("[data-avatar-dialog]")) return;
       if (
+        !panel.current?.matches(":hover") &&
+        !trigger.current?.matches(":hover") &&
         !panel.current?.contains(document.activeElement) &&
         document.activeElement !== trigger.current
       )
@@ -33,9 +35,11 @@ export function usePlayerCard() {
     if (!open || !trigger.current || !panel.current) return;
     const button = trigger.current.getBoundingClientRect();
     const popup = panel.current.getBoundingClientRect();
+    const top = button.bottom + 8;
     setPosition({
       left: Math.max(8, Math.min(button.left, window.innerWidth - popup.width - 8)),
-      top: Math.max(8, Math.min(button.top, window.innerHeight - popup.height - 8)),
+      top,
+      maxHeight: `${Math.max(0, window.innerHeight - top - 8)}px`,
     });
   }, [open]);
   useEffect(() => {

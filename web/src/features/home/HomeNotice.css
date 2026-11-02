@@ -1,0 +1,24 @@
+.home-notice {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin-bottom: 40px;
+  opacity: 1;
+  transition:
+    grid-template-rows var(--notice-exit) ease,
+    margin-bottom var(--notice-exit) ease,
+    opacity var(--notice-exit) ease;
+}
+.home-notice[data-closing] {
+  grid-template-rows: 0fr;
+  margin-bottom: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-notice {
+    transition: none;
+  }
+}
+html[data-motion="reduced"] .home-notice {
+  transition: none;
+}

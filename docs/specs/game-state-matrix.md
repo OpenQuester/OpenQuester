@@ -64,7 +64,43 @@ timeout. See [package validation](package-validation-spec.md) for duration rules
 
 ## Required frontend behavior
 
+### Question picking transition (React)
+
+A confirmed regular-round pick shows the theme and price over the previous board:
+200 ms fade in, 300 ms hold, 250 ms quiet wait, then a 300 ms fade out when ready.
+Slow media shows a waiting hint. All roles and editor playtests share the transition;
+secret transfers, later bids and final selections do not restart it.
+
+Readiness ACKs and server deadlines continue during the opening; gameplay inputs
+and playback wait for it to finish. Content starts locally at zero and keeps its
+offset through pause, answer freezes and same-question rejoin. A server phase
+change can cut playback short. Snapshots cancel unfinished openings; reduced
+motion removes animation but preserves their duration. Timing constants live in
+`web/src/game/questionPresentation.ts`.
+
+### Local content replay (React)
+
+After all content and background tracks finish, question/answer/final/playtest
+timelines offer “Replay presentation” beside volume for multiple steps or any
+audio/video. Reserve this row to avoid layout shifts. Replay restarts the whole
+timeline locally without ACKs or deadline changes. Pause freezes it; an answer
+freeze, new plan/snapshot, reconnect or scene change cancels it.
+
+### Leaving and home notices (React)
+
+Online leave waits for this user's leave or game deletion; errors or a five-second
+timeout allow retry. Offline/disconnected leave completes locally without rejoin.
+Leaving the last lobby is voluntary. Before returning home, cancel stale catalogue
+reads, remove confirmed deleted/closed games and invalidate all list variants.
+Warning notices are dismissible, expire after 30 seconds and remove only `notice`
+from the URL with history replacement. Reduced motion removes the closing animation.
+
 ### Lobby and question layout
+
+The React dock keeps a stable height through ordinary question phases, pause and
+reconnect; bids, secret transfers, final and all-play forms size to their content.
+Long names truncate with their full value accessible. Dock explanations and score
+lists use disclosure/scrolling as space narrows; enlarged text remains scrollable.
 
 `settings.autoStart` defaults to `true`: a ready command starts play when all
 connected players are ready. Manual mode requires the showman's `start`; the
@@ -73,9 +109,10 @@ clears readiness. The lobby package overview reads published metadata, which may
 differ from the game's snapshot after package edits.
 
 The React field fits between header and dock; overflow scrolls within content
-panels. All 15 players and the showman remain visible with full signed scores up
-to `SCORE_ABS_LIMIT` (`2_100_000_000`). Tabs preserve mounted media. Previewing an
-option image never selects it. Physical `KeyP` invokes Pass across keyboard
+panels. All 15 players and the showman remain accessible in the scrollable score
+list with full signed scores up to `SCORE_ABS_LIMIT` (`2_100_000_000`).
+Tabs preserve mounted media. Previewing an option image never selects it.
+Physical `KeyP` invokes Pass across keyboard
 languages, excluding typing, dialogs and repeats.
 
 Showman score shortcuts use authoritative `score-changed` with the current question
@@ -89,8 +126,9 @@ The normal regular-question wire flow is `QUESTION_PICK` → `QUESTION_DATA`
 (links/content and media timer) → client readiness ACKs → `MEDIA_DOWNLOAD_STATUS`
 completion and `SHOWING`. No-file questions use immediate client ACKs. The
 barrier waits for connected players who were present at the pick, including
-non-answerers in no-risk questions. Late joiners, showmen and spectators do not
-block it. Timeout forces completion; there is no second data/reveal event.
+non-answerers in no-risk questions. With no connected players, the React showman
+preloads and ACKs to open the regular question. Late joiners and spectators do not
+block readiness. Timeout forces completion; there is no second data/reveal event.
 
 Content hiding is a product requirement, not a claim about current Flutter.
 The [media coordination reference](../../server/docs/media-download-sync.md)
@@ -274,6 +312,7 @@ Use consistent categories in UI copy and server/client logic:
 - `already_done` — user already answered/bid/readied/skipped.
 - `not_eligible` — joined late, eliminated, insufficient score, muted/restricted, etc.
 - `waiting_for_media` — media readiness has not completed.
+- `question_opening` — the local question-pick transition has not finished.
 - `waiting_for_server` — local action submitted, server confirmation pending.
 - `rate_limited` — too many actions too quickly.
 - `connection_lost` — socket/session is reconnecting.

@@ -1,19 +1,9 @@
-import { useContext, useEffect, useRef, useState } from "react";
-import { useSettings } from "@/features/settings/settingsStore";
-import { GameContext, useGameState } from "../../GameContext";
+import { useEffect, useRef, useState } from "react";
+import { useMediaVolume } from "./useMediaVolume";
 
-/** Own one media element's game-controlled playback and local replay/sound state. */
+/** Own one media element's game-controlled playback and sound state. */
 export function useQuestionMediaPlayback(playing: boolean, positionMs?: () => number) {
-  const game = useContext(GameContext);
-  const liveVolume = useSettings((s) => s.volume);
-  const liveUpdate = useSettings((s) => s.update);
-  const localVolume = useGameState((s) => s.previewVolume);
-  const setLocalVolume = useGameState((s) => s.setPreviewVolume);
-  const volume = game?.store ? localVolume : liveVolume;
-  const update = ({ volume }: { volume: number }) => {
-    if (game?.store) setLocalVolume(volume);
-    else liveUpdate({ volume });
-  };
+  const { volume } = useMediaVolume();
   const ref = useRef<HTMLMediaElement | null>(null);
   // Latest sync position, read when playback (re)starts.
   const positionRef = useRef(positionMs);
@@ -23,7 +13,7 @@ export function useQuestionMediaPlayback(playing: boolean, positionMs?: () => nu
   // Browsers block sound until the page has been tapped once. Then we play
   // muted, in sync with everyone, and offer one tap to turn the sound on.
   const [blocked, setBlocked] = useState(false);
-  // Played to the end: offer to hear (or see) it again, on this device only.
+  // Native completion only changes the audio label; ContentStage owns replay.
   const [ended, setEnded] = useState(false);
 
   useEffect(() => {
@@ -72,14 +62,6 @@ export function useQuestionMediaPlayback(playing: boolean, positionMs?: () => nu
     };
   }, [playing, volume]);
 
-  function replay() {
-    const el = ref.current;
-    if (!el) return;
-    el.currentTime = 0;
-    setEnded(false);
-    void el.play().catch(() => undefined);
-  }
-
   function enableSound() {
     const el = ref.current;
     if (!el) return;
@@ -88,5 +70,5 @@ export function useQuestionMediaPlayback(playing: boolean, positionMs?: () => nu
     if (playing) void el.play().catch(() => undefined);
   }
 
-  return { volume, update, ref, blocked, ended, setEnded, replay, enableSound };
+  return { ref, blocked, ended, setEnded, enableSound };
 }

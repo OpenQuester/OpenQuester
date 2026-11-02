@@ -6,6 +6,7 @@ import { TranslateService as ts } from "domain/utils/TranslateService";
 import { UserService } from "application/services/user/UserService";
 import { USER_RELATIONS, USER_SELECT_FIELDS } from "domain/constants/user";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { ClientError } from "domain/errors/ClientError";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { Session } from "domain/types/auth/session";
@@ -67,14 +68,28 @@ export const verifySession =
       return unauthorizedError(req, res);
     }
 
-    const user = await container.resolve(UserService).getUserBySession(req.session.userId, {
-      select: USER_SELECT_FIELDS,
-      relations: USER_RELATIONS,
-      relationSelects: {
-        avatar: ["id", "filename"],
-        permissions: ["id", "name"]
-      }
-    });
+    const user = await container
+      .resolve(UserService)
+      .getUserBySession(req.session.userId, {
+        select: USER_SELECT_FIELDS,
+        relations: USER_RELATIONS,
+        relationSelects: {
+          avatar: ["id", "filename"],
+          permissions: ["id", "name"]
+        }
+      })
+      .catch((error: unknown) => {
+        if (error instanceof ClientError && error.message === ClientResponse.USER_NOT_FOUND) {
+          return null;
+        }
+        throw error;
+      });
+
+    if (!user) {
+      // A session can outlive its user, for example after a development database reset.
+      delete req.session.userId;
+      return unauthorizedError(req, res);
+    }
 
     // Validate session with user data
     let validatedSession: SessionDTO;

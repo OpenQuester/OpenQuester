@@ -1,5 +1,5 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { GameListItem } from "@/api/types";
 import { useMe } from "@/features/auth/useMe";
@@ -12,6 +12,16 @@ export function useHomePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { notice } = useSearch({ from: "/shell/" });
+  const dismissNotice = useCallback(() => {
+    void navigate({
+      to: "/",
+      search: (previous) => ({ ...previous, notice: undefined }),
+      replace: true,
+      hash: true,
+      resetScroll: false,
+      hashScrollIntoView: false,
+    });
+  }, [navigate]);
   const me = useMe();
   const [search, setSearch] = useState("");
   const [titlePrefix, setTitlePrefix] = useState("");
@@ -80,6 +90,7 @@ export function useHomePage() {
 
   return {
     notice,
+    dismissNotice,
     games,
     mine,
     visible,

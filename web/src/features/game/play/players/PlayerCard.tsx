@@ -72,7 +72,7 @@ export function PlayerCard({
         aria-haspopup="dialog"
         data-outcome={outcome}
         data-submitted={submitted || undefined}
-        onPointerMove={(e) => {
+        onPointerEnter={(e) => {
           if (e.pointerType !== "touch") keepOpen();
         }}
         onPointerLeave={leave}

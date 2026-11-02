@@ -1,4 +1,12 @@
-import { act, cleanup, render, renderHook, screen, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { buildContentPlan } from "@/game/contentPlan";
@@ -14,6 +22,49 @@ import { useFinalContent } from "./useFinalContent";
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+});
+
+it("replays every legacy final image in order while preserving its initial layout", () => {
+  vi.useFakeTimers();
+  const q = question(100, {
+    text: "Legacy caption",
+    textOrder: 0,
+    questionFiles: ["first", "second"].map((md5, order) => ({
+      order,
+      displayTime: 1000,
+      file: { type: "image", md5, link: "/" + md5 },
+    })),
+  });
+  const game = session({
+    currentRound: round("final"),
+    questionState: "answering",
+    timer: { ...timer(60000), elapsedMs: 4000 },
+    currentQuestion: q,
+    finalRoundData: {
+      phase: "answering",
+      bids: {},
+      answers: [],
+      turnOrder: [ALICE],
+      eliminatedThemes: [],
+      questionData: { themeId: 10, themeName: "Legacy", question: q, contentPlan: null },
+    },
+  });
+  useGameStore.setState({ session: game, connection: "connected", pending: null });
+  const connection = { emit: vi.fn(), connected: true } as unknown as GameConnection;
+  render(
+    <GameContext.Provider value={{ connection, myId: ALICE }}>
+      <FinalAnswerStage />
+    </GameContext.Provider>,
+  );
+  expect(screen.getAllByRole("img")).toHaveLength(2);
+  expect(screen.getByTestId("question-text")).toHaveTextContent("Legacy caption");
+  fireEvent.click(screen.getByTestId("content-replay"));
+  expect(screen.getAllByTestId("question-text")).toHaveLength(1);
+  act(() => vi.advanceTimersByTime(2030));
+  expect(screen.getByRole("img")).toHaveAttribute("src", "/first");
+  act(() => vi.advanceTimersByTime(1030));
+  expect(screen.getByRole("img")).toHaveAttribute("src", "/second");
+  expect(connection.emit).not.toHaveBeenCalled();
 });
 
 it("uses the paused snapshot timer on rejoin and resumes from the same step", () => {

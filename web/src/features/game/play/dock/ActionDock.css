@@ -1,0 +1,118 @@
+/* The ordinary flow reserves two control rows. Bids/transfers size to their content.
+   Use the dock width so pinned side panels receive the same compact layout. */
+.game-dock {
+  container: action-dock / inline-size;
+  --dock-height: 176px;
+}
+.game-dock[data-role="spectator"] {
+  --dock-height: 128px;
+}
+.game-dock-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  block-size: var(--dock-height);
+}
+.game-dock-action,
+.game-dock-status-copy,
+.game-dock-next {
+  min-block-size: 0;
+  max-block-size: 100%;
+  overscroll-behavior: contain;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.game-dock-action > fieldset,
+.game-dock-status {
+  flex-shrink: 0;
+}
+.game-dock-next {
+  display: none;
+}
+.game-dock-action form > button,
+.game-dock-action form > div > button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.game-dock-action [data-testid="judge-skip"] {
+  padding-inline: 8px;
+}
+.game-dock-status {
+  position: relative;
+  min-block-size: 0;
+  max-block-size: 100%;
+  padding-right: 30px;
+}
+.game-dock-status .game-dock-help {
+  top: 0;
+  right: 0;
+}
+.game-dock-status .player-name {
+  display: inline-block;
+  max-inline-size: min(100%, 18ch);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+@container action-dock (max-width: 767px) {
+  .game-dock-status {
+    gap: 8px;
+  }
+  .game-dock-status [data-testid="dock-status"] {
+    font-size: 13px;
+    line-height: 1.25;
+  }
+  .game-dock-status [data-testid="dock-phase"] {
+    font-size: 10px;
+  }
+  .game-dock-content button {
+    min-height: 40px;
+    font-size: 14px;
+  }
+  .game-dock-content [data-testid="dock-info"] {
+    min-height: 40px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+}
+@container action-dock (min-width: 768px) {
+  .game-dock-help p {
+    right: auto;
+    left: 0;
+  }
+  .game-dock-content {
+    --dock-height: 128px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.8fr);
+    align-items: center;
+    gap: 8px 20px;
+    padding-inline: 24px;
+  }
+}
+@container action-dock (min-width: 1280px) {
+  .game-dock-content {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr);
+  }
+  .game-dock-next {
+    display: flex;
+  }
+  .game-dock-help {
+    display: none;
+  }
+  .game-dock-status {
+    padding-right: 0;
+  }
+}
+.game-dock:is(
+    [data-phase^="final_"],
+    [data-phase^="all_play_"],
+    [data-phase="stake_bidding"],
+    [data-phase="secret_transfer"]
+  )
+  .game-dock-content {
+  block-size: auto;
+  min-block-size: var(--dock-height);
+}

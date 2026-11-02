@@ -20,12 +20,21 @@ function mediaPackageId(): number {
   return id;
 }
 
-/** Holds back every image the page loads, like a slow phone connection. */
-async function slowImages(page: Page, ms: number): Promise<void> {
+/** Keep the real image request pending until the readiness checks have finished. */
+async function holdImages(page: Page) {
+  let release!: () => void;
+  let requested = false;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   await page.route("**/*", async (route) => {
-    if (route.request().resourceType() === "image") await new Promise((r) => setTimeout(r, ms));
+    if (route.request().resourceType() === "image") {
+      requested = true;
+      await gate;
+    }
     await route.continue();
   });
+  return { release, requested: () => requested };
 }
 
 /** Seconds the media element has played, and whether it is playing now. */
@@ -44,37 +53,47 @@ test.describe("question media", () => {
     const code = await hostGame(host.page, "Media sync", { packageId: mediaPackageId() });
     await joinByLink(page, code, "Pat", "player");
     const slow = await person(browser, "Slow", laptop);
-    await slowImages(slow.page, 5000);
     await joinByLink(slow.page, code, "Slow", "player");
     await page.getByRole("button", { name: "I'm ready" }).click();
     await slow.page.getByRole("button", { name: "I'm ready" }).click();
     await expect(dockPhase(page)).toHaveText("Choosing");
 
-    await cell(host.page, "Media", 200).click();
-    const picked = Date.now();
-    // Pat has the picture, Slow doesn't: nobody's timer runs yet.
-    await expect(dockPhase(page)).toHaveText("Loading question");
-    await expect(page.getByTestId("dock-status")).toHaveText("1 of 2 players ready");
-    await expect(page.getByTestId("timer-ring")).toContainText("1/2");
-    await expect(page.getByTestId("question-text")).toHaveCount(0);
-    await page.waitForTimeout(2000);
-    await expect(dockPhase(page)).toHaveText("Loading question");
+    const images = await holdImages(slow.page);
+    try {
+      await cell(host.page, "Media", 200).click();
+      await expect.poll(images.requested).toBe(true);
+      // Preparation still owns the server phase; the local opening owns the dock copy.
+      await expect(dockPhase(page)).toHaveText("Loading question");
+      await expect(page.getByTestId("dock-status")).toHaveText("Opening question");
+      const patCard = page.locator('[data-testid="player-chip"][data-player="Pat"] .player-card');
+      const slowCard = page.locator('[data-testid="player-chip"][data-player="Slow"] .player-card');
+      await expect(patCard).not.toHaveAccessibleName(/loading/i);
+      await expect(slowCard).toHaveAccessibleName(/loading/i);
+      await expect(page.getByTestId("timer-ring")).toContainText("1/2");
+      await expect(page.getByTestId("question-text")).toHaveCount(0);
+      await expect(page.getByTestId("media-frame")).toHaveCount(0);
+      await expect(page.getByTestId("question-pick-waiting")).toBeVisible();
+      await expect(dockPhase(page)).toHaveText("Loading question");
 
-    await expect(dockPhase(page)).toHaveText("Ready to buzz", { timeout: 15_000 });
-    expect(Date.now() - picked, "the question opened only after the slow player").toBeGreaterThan(
-      4000,
-    );
-    for (const p of [page, slow.page]) {
-      const img = p.getByTestId("media-frame").locator("img");
-      await expect(img).toBeVisible();
-      expect(await img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)).toBe(
-        1600,
-      );
+      images.release();
+      for (const p of [page, slow.page]) {
+        await expect(dockPhase(p)).toHaveText("Ready to buzz", { timeout: 15_000 });
+        await expect(p.getByTestId("question-pick-transition")).toHaveCount(0);
+        const img = p.getByTestId("media-frame").locator("img");
+        await expect(img).toBeVisible();
+        expect(await img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth)).toBe(
+          1600,
+        );
+      }
+      await shot(page, `media-image-${test.info().project.name}`);
+      await expectNoHorizontalScroll(page);
+    } finally {
+      images.release();
+      await slow.page.unrouteAll({ behavior: "wait" });
+      await host.page.request.delete(`/v1/games/${code}`);
+      await host.context.close();
+      await slow.context.close();
     }
-    await shot(page, `media-image-${test.info().project.name}`);
-    await expectNoHorizontalScroll(page);
-    await host.context.close();
-    await slow.context.close();
   });
 
   test("video plays by itself, in a frame that doesn't jump", async ({ browser, page }) => {

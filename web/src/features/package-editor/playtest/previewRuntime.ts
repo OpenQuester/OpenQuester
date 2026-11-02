@@ -3,8 +3,9 @@ import { buildContentPlan, nextChangeAt, textDuration, timerElapsed } from "@/ga
 import type { ClientEventName, ClientEvents, Question, ServerEvent, Timer } from "@/game/protocol";
 import { reduce, type GameSession } from "@/game/reducer";
 import { canBuzz, phaseOf, questionValue, wrongCostsPoints } from "@/game/selectors";
-import { createGameStore, shouldClearPointSelections } from "@/game/store";
+import { createGameStore } from "@/game/store";
 import { serverNow } from "@/lib/clock";
+import { contentElapsed, presentedQuestionContent } from "@/game/questionPresentation";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
 import {
   ambiguousImagePlaceholder,
@@ -137,13 +138,11 @@ export class PreviewRuntime {
   }
   dispatch(event: ServerEvent) {
     if (this.disposed) return;
-    if (shouldClearPointSelections(this.state, event))
-      this.store.setState({ pointSelections: { scope: "", byPlayer: {} } });
     this.state = reduce(this.state, event);
-    this.publish();
+    this.publish(event);
   }
-  private publish() {
-    this.store.setState({ session: previewView(this.state, this.perspective) });
+  private publish(event?: ServerEvent) {
+    this.store.getState().setSession(previewView(this.state, this.perspective), event);
   }
   command(command: PreviewCommand, sender = this.perspective) {
     if (this.disposed) return;
@@ -442,10 +441,14 @@ export class PreviewRuntime {
     const timer = this.state.state.timer;
     if (!timer || this.state.state.isPaused) return false;
     const elapsed = timerElapsed(timer, false);
-    const nextStep =
-      this.state.content?.kind === "question"
-        ? nextChangeAt(this.state.content.plan, elapsed)
-        : null;
+    const content = presentedQuestionContent(
+      this.state,
+      this.store.getState().questionPresentation,
+    );
+    const localElapsed = content ? contentElapsed(content, false) : elapsed;
+    const localStep =
+      content?.kind === "question" ? nextChangeAt(content.plan, localElapsed) : null;
+    const nextStep = localStep == null ? null : elapsed + localStep - localElapsed;
     const opens = this.state.state.buzzerOpensAtMs ?? 0;
     const next =
       nextStep != null

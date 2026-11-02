@@ -6,7 +6,7 @@ import { api, unwrap } from "@/api/client";
 import type { AgeRestriction, GameSettings } from "@/api/types";
 import { displayName, useMe } from "@/features/auth/useMe";
 import { setJoinIntent } from "@/features/game/joinIntent";
-import { gamesKey } from "@/features/home/useGames";
+import { refreshGames } from "@/features/home/refreshGames";
 import { usePackage } from "@/features/packages/usePackages";
 import { DEFAULT_GAME_SETTINGS } from "./gameSettings";
 
@@ -60,7 +60,7 @@ export function useCreateGame() {
         }),
       );
       setJoinIntent(game.id, { role: "showman" });
-      void qc.invalidateQueries({ queryKey: gamesKey });
+      await refreshGames(qc);
       await navigate({ to: "/games/$gameId", params: { gameId: game.id } });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

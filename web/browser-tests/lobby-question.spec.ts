@@ -46,7 +46,7 @@ for (const viewport of [
       const main = page.getByRole("main");
       expect(await main.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
       await expect(page.getByText("The buzzer is open", { exact: true })).toHaveCount(0);
-      if (viewport.width >= 1024) expect(dock.height).toBeLessThanOrEqual(96);
+      expect(dock.height).toBeLessThanOrEqual(viewport.height * 0.4 + 2);
       if (mode === "long" || mode === "text") {
         if (await textTab.isVisible()) await textTab.click();
         expect(await textRegion.evaluate((el) => el.scrollHeight)).toBeGreaterThan(
@@ -192,7 +192,7 @@ for (const width of [1280, 375]) {
       const dock = (await page.getByTestId("dock").boundingBox())!;
       expect(bounds.height).toBeGreaterThan(80);
       expect(bounds.y + bounds.height).toBeLessThanOrEqual(dock.y);
-      if (width >= 1024) expect(dock.height).toBeLessThanOrEqual(96);
+      expect(dock.height).toBeLessThanOrEqual(812 * 0.4 + 2);
       expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(
         812,
       );

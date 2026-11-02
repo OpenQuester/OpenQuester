@@ -11,11 +11,13 @@ export function QuestionMediaItem({
   file,
   playing,
   positionMs,
+  completed = false,
 }: {
   file: QuestionFile;
   playing: boolean;
   /** Where playback should be now (ms into the file), to stay in sync. */
   positionMs?: () => number;
+  completed?: boolean;
 }) {
   const { t } = useTranslation();
   // Inside a Discord Activity the file comes through Discord's proxy. Setting
@@ -76,6 +78,7 @@ export function QuestionMediaItem({
       src={src}
       type={type === "video" ? "video" : "audio"}
       playing={playing}
+      completed={completed}
       positionMs={positionMs}
       loaded={loaded}
       onLoaded={() => setLoaded(true)}

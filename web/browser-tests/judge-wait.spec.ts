@@ -7,6 +7,8 @@ test("showman waits for structured answers and can only skip after submission", 
   page,
   context,
 }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1366, height: 884 });
   await context.route("**/v1/**", (route) => route.fulfill({ status: 401, body: "{}" }));
   await page.goto("/");
@@ -60,4 +62,5 @@ test("showman waits for structured answers and can only skip after submission", 
   expect(actions).toEqual([
     { name: "answer-result", payload: { answerType: "skip", scoreResult: 0 } },
   ]);
+  expect(errors).toEqual([]);
 });

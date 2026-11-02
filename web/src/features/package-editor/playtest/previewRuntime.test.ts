@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { newQuestion } from "../packageDraft";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
 import { initialPreview, PREVIEW_PLAYERS, PREVIEW_SHOWMAN, previewQuestion } from "./previewModel";
@@ -7,6 +7,7 @@ import { needsPlayerPerspective } from "./playtestGuidance";
 import { useGameStore } from "@/game/store";
 import { choosing } from "@/game/fixtures";
 import { positionAt } from "@/game/contentPlan";
+import { contentElapsed, presentedQuestionContent } from "@/game/questionPresentation";
 
 const names = {
   showman: "Host",
@@ -26,6 +27,32 @@ function setup(patch: Parameters<typeof newQuestion>[1] = {}, final = false) {
 }
 
 describe("local question playtest", () => {
+  it("advances the next visible content step after the opening offset", () => {
+    vi.useFakeTimers();
+    try {
+      const game = setup({
+        text: "First step",
+        textItems: [{ id: "second", order: 1, text: "Second step" }],
+      });
+      game.pick();
+      game.ready();
+      vi.advanceTimersByTime(900);
+      game.store.getState().finishQuestionOpening(game.store.getState().questionPresentation!.id);
+      const before = presentedQuestionContent(
+        game.session,
+        game.store.getState().questionPresentation,
+      )!;
+      expect(contentElapsed(before, false)).toBe(0);
+      expect(game.advanceWait()).toBe(true);
+      const after = presentedQuestionContent(
+        game.session,
+        game.store.getState().questionPresentation,
+      )!;
+      expect(contentElapsed(after, false)).toBe(after.plan.steps[1]!.startMs);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("shares authoritative rejected choices with the next player", () => {
     const game = setup({
       type: "choice",

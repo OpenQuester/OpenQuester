@@ -22,7 +22,31 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: { include: ["@jsquash/avif/encode", "mediabunny"] },
     server: { port: 5173, proxy },
     preview: { port: 4173, proxy },
-    build: { sourcemap: true, target: "es2022" },
+    // Both production CSS transforms must supply maps when preserving module order.
+    css: {
+      transformer: mode === "production" ? "lightningcss" : "postcss",
+      devSourcemap: true,
+    },
+    build: {
+      sourcemap: true,
+      target: "es2022",
+      rolldownOptions: {
+        output: {
+          // Preserve initialization order for the toolkit's cyclic class imports.
+          strictExecutionOrder: true,
+          codeSplitting: {
+            groups: [
+              {
+                name: "media-toolkit",
+                test: /node_modules[\\/]mediabunny[\\/]/,
+                maxSize: 1_000_000,
+                entriesAware: true,
+              },
+            ],
+          },
+        },
+      },
+    },
     test: {
       environment: "jsdom",
       globals: true,

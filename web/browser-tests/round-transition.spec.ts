@@ -110,7 +110,7 @@ for (const viewport of [
       const path = "/browser-tests/round-transition.fixture.tsx";
       ((await import(path)) as typeof Fixture).showQuestion();
     });
-    await expect(page.locator("[data-phase=showing]")).toHaveCount(1);
+    await expect(page.locator(".game-screen[data-phase=showing]")).toHaveCount(1);
     await page.keyboard.press("Space");
     await page.keyboard.press("Tab");
     const chatButton = page.getByTestId("open-chat");

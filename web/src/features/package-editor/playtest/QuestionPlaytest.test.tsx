@@ -11,6 +11,14 @@ afterEach(async () => {
   await i18n.changeLanguage("en");
 });
 
+async function waitForPreview() {
+  await screen.findByTestId("question-playtest");
+  await screen.findByTestId("question-pick-transition");
+  await waitFor(() => expect(screen.queryByTestId("question-pick-transition")).toBeNull(), {
+    timeout: 2000,
+  });
+}
+
 it("explains an unreadable final media duration and allows retry", async () => {
   vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(function (
     this: HTMLMediaElement,
@@ -79,7 +87,7 @@ it("keeps a running preview's image alive across language changes and releases i
       onFix={() => {}}
     />,
   );
-  await screen.findByTestId("question-playtest");
+  await waitForPreview();
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
@@ -120,7 +128,7 @@ it("runs and pauses the question and reveal clocks and clears them on close", as
       onFix={() => {}}
     />,
   );
-  await screen.findByTestId("question-playtest");
+  await waitForPreview();
   await waitFor(() => expect(screen.getByTestId("dock-phase")).toHaveTextContent("Ready to buzz"));
   vi.useFakeTimers({
     toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"],
@@ -168,7 +176,7 @@ it("shows delayed choices only after advancing their real content clock", async 
       onFix={() => {}}
     />,
   );
-  await screen.findByTestId("question-playtest");
+  await waitForPreview();
   vi.useFakeTimers({
     toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"],
   });
@@ -198,7 +206,7 @@ it("explains manual judging according to the selected perspective", async () => 
       onFix={() => {}}
     />,
   );
-  await screen.findByTestId("question-playtest");
+  await waitForPreview();
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
