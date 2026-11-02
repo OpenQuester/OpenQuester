@@ -10,6 +10,9 @@ import {
 } from "@jest/globals";
 
 import { UserService } from "application/services/user/UserService";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { HttpStatus } from "domain/enums/HttpStatus";
+import { ClientError } from "domain/errors/ClientError";
 import { User } from "infrastructure/database/models/User";
 import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
@@ -66,16 +69,34 @@ describe("Session authentication", () => {
     expect(me.body.id).toBe(user.id);
   });
 
-  it("returns 500 for unexpected lookup failures and preserves the valid session", async () => {
-    jest
-      .spyOn(UserService.prototype, "getUserBySession")
-      .mockRejectedValueOnce(new Error("Session lookup failed"));
+  it("bypasses session lookup for public routes and rejects unauthenticated protected requests", async () => {
+    const lookup = jest.spyOn(UserService.prototype, "getUserBySession");
 
-    const failed = await http.get("/v1/me").set("Cookie", cookie);
-    expect(failed.status).toBe(500);
-
-    const me = await http.get("/v1/me").set("Cookie", cookie);
-    expect(me.status).toBe(200);
-    expect(me.body.id).toBe(user.id);
+    const publicResponse = await http.get("/v1/auth/settings").set("Cookie", cookie);
+    expect(publicResponse.status).toBe(200);
+    const protectedResponse = await http.get("/v1/me");
+    expect(protectedResponse.status).toBe(401);
+    expect(lookup).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { error: new Error("Session lookup failed"), status: HttpStatus.INTERNAL },
+    {
+      error: new ClientError(ClientResponse.NO_PERMISSION, HttpStatus.FORBIDDEN),
+      status: HttpStatus.FORBIDDEN
+    }
+  ])(
+    "forwards lookup failures as $status and preserves the valid session",
+    async ({ error, status }) => {
+      jest.spyOn(UserService.prototype, "getUserBySession").mockRejectedValueOnce(error);
+
+      const failed = await http.get("/v1/me").set("Cookie", cookie);
+      expect(failed.status).toBe(status);
+      expect(failed.body.error).toEqual(expect.any(String));
+
+      const me = await http.get("/v1/me").set("Cookie", cookie);
+      expect(me.status).toBe(200);
+      expect(me.body.id).toBe(user.id);
+    }
+  );
 });

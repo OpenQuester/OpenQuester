@@ -19,7 +19,8 @@ vi.mock("@/features/auth/useMe", () => ({
   useMe: () => ({ data: auth.userId === null ? null : { id: auth.userId } }),
 }));
 
-import { gamesKey, refreshGamesAfterExit, useGames } from "./useGames";
+import { gamesKey, refreshGames } from "./refreshGames";
+import { useGames } from "./useGames";
 import { useHomePage } from "./useHomePage";
 
 const clients: QueryClient[] = [];
@@ -78,7 +79,7 @@ describe("game list queries", () => {
         },
       })
       .catch(() => undefined);
-    await refreshGamesAfterExit(client, "ABCD", true);
+    await refreshGames(client, "abcd");
     expect(signal.aborted).toBe(true);
     finish(rows);
     await pending;
@@ -86,8 +87,8 @@ describe("game list queries", () => {
       expect(client.getQueryData(key)).toEqual([rows[1]]);
       expect(client.getQueryState(key)?.isInvalidated).toBe(true);
     }
-    await refreshGamesAfterExit(client, "KEEP", false);
-    expect(client.getQueryData(keys[0]!)).toEqual([rows[1]]);
+    await refreshGames(client);
+    for (const key of keys) expect(client.getQueryData(key)).toEqual([rows[1]]);
   });
   it.each([false, true])(
     "combines server status and title filters before the page limit when authenticated=%s",

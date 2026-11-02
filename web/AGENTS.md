@@ -233,8 +233,8 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   and form mount boundaries stable when moving these views.
 - Question media: players ACK `media-downloaded` only once every file is
   loaded (images decoded), independently of the local question-pick transition.
-  The server timer can already run during that opening; its local content
-  offset and timing are described in `docs/specs/game-state-matrix.md`.
+  The server timer can already run during that opening; see the
+  [game-state matrix](../docs/specs/game-state-matrix.md#question-picking-transition-react).
   In a regular round with no connected players, the showman uses the same
   preload/ACK flow so solo hosting does not wait for a nonexistent player.
   Failed loads, decoding errors, and local preload timeouts never send a
@@ -250,8 +250,9 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   (`game/contentPlan.ts`, `session.content` in the reducer), frozen while
   someone answers. Players report real audio/video lengths with the ACK.
   `question-data` re-sent after a rejoin keeps the snapshot's clock: mid-answer
-  the timeline stays frozen instead of replaying from the answer timer. Audio
-  and video that played to the end offer "Play again", on that device only.
+  the timeline stays frozen instead of replaying from the answer timer.
+  Multi-step or audio/video content offers one local "Replay presentation" action
+  after the complete timeline and background tracks finish.
   `play/media/` separates `QuestionMediaItem` loading/failure presentation,
   `QuestionMediaPlayback` controls, `useQuestionMediaPlayback` element effects and `useContentPosition` timeline
   scheduling. Preserve media keys, the latest clock read on resume, autoplay

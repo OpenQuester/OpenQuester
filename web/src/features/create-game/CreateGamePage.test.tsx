@@ -51,6 +51,41 @@ function renderForm() {
 }
 
 describe("private game creation", () => {
+  it("cancels stale catalogue reads and invalidates every list before opening the new game", async () => {
+    const client = renderForm();
+    const keys = [
+      ["games", "", "all"],
+      ["games", "quiz", "lobby"],
+    ];
+    const rows = [{ id: "KEEP", title: "Existing game" }];
+    for (const key of keys) client.setQueryData(key, rows);
+    let finish!: (value: typeof rows) => void;
+    let signal!: AbortSignal;
+    const pending = client
+      .fetchQuery({
+        queryKey: keys[0]!,
+        staleTime: 0,
+        queryFn: ({ signal: requestSignal }) => {
+          signal = requestSignal;
+          return new Promise<typeof rows>((resolve) => {
+            finish = resolve;
+          });
+        },
+      })
+      .catch(() => undefined);
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Create & open lobby" }));
+    await waitFor(() => expect(navigate).toHaveBeenCalledOnce());
+    expect(signal.aborted).toBe(true);
+    finish([]);
+    await pending;
+    for (const key of keys) {
+      expect(client.getQueryData(key)).toEqual(rows);
+      expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    }
+    client.clear();
+  });
+
   it.each(["", "Pass_123-Xyz"])("submits private password %j correctly", async (password) => {
     renderForm();
     const user = userEvent.setup();
@@ -132,7 +167,7 @@ describe("private game creation", () => {
       isPrivate: true,
       settings: { timers: { answerMs: 15000, roundMs: 900000 } },
     });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["games"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["games"], refetchType: "none" });
     expect(takeJoinIntent("GAME")).toEqual({ role: "showman" });
     client.clear();
   });

@@ -160,6 +160,7 @@ export class MiddlewareController {
 
       next();
     });
+    // Express 4 does not forward rejected middleware promises to the error handler.
     this.ctx.app.use(asyncHandler(verifySession(this.ctx.env, this.ctx.logger)));
   }
 

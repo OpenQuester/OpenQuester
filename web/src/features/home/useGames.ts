@@ -1,20 +1,9 @@
-import { useQuery, type QueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { api, unwrap } from "@/api/client";
 import type { GameListItem, GameStatusFilter } from "@/api/types";
 
-export const gamesKey = ["games"] as const;
-
-/** Cancel stale responses before removing a game from every cached catalogue variant. */
-export async function refreshGamesAfterExit(client: QueryClient, gameId: string, removed: boolean) {
-  await client.cancelQueries({ queryKey: gamesKey });
-  if (removed) {
-    client.setQueriesData<GameListItem[]>({ queryKey: gamesKey }, (games) =>
-      games?.filter((game) => game.id.toUpperCase() !== gameId.toUpperCase()),
-    );
-  }
-  await client.invalidateQueries({ queryKey: gamesKey, refetchType: "none" });
-}
+import { gamesKey } from "./refreshGames";
 
 interface GamesOptions {
   enabled?: boolean;
