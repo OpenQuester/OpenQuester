@@ -1,6 +1,4 @@
 import { afterAll, beforeAll, afterEach, describe, expect, it } from "@jest/globals";
-import { container } from "tsyringe";
-import { GameService } from "application/services/game/GameService";
 import { type Express } from "express";
 import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
 
@@ -118,27 +116,32 @@ describe("Game REST update", () => {
     suite.scenario(async () => {
       const setup = await utils.setupGameTestEnvironment(suite.userRepo, app, 1, 0);
       const { cookie } = await utils.loginExistingUser(app, setup.showmanUser.id);
-      const gameService = container.resolve(GameService);
-      const game = await gameService.getGameEntity(setup.gameId);
-      const showman = game.getPlayer(setup.showmanUser.id, { fetchDisconnected: false })!;
+      const game = await utils.getGameFromGameService(setup.gameId);
+      const showman = game.getPlayer(setup.showmanUser.id, { fetchDisconnected: false });
+      if (!showman) {
+        throw new Error(`Expected an active showman in game ${setup.gameId}`);
+      }
+
       showman.isBanned = true;
-      await gameService.updateGame(game);
+      await utils.updateGame(game);
       await http
         .patch(`/v1/games/${setup.gameId}`)
         .set("Cookie", cookie)
         .send({ title: "Denied" })
         .expect(403);
+
       showman.isBanned = false;
       showman.isRestricted = true;
-      await gameService.updateGame(game);
+      await utils.updateGame(game);
       await http
         .patch(`/v1/games/${setup.gameId}`)
         .set("Cookie", cookie)
         .send({ title: "Denied" })
         .expect(403);
+
       showman.isRestricted = false;
       showman.isMuted = true;
-      await gameService.updateGame(game);
+      await utils.updateGame(game);
       await http
         .patch(`/v1/games/${setup.gameId}`)
         .set("Cookie", cookie)
@@ -147,20 +150,19 @@ describe("Game REST update", () => {
     }));
 
   it("rejects a former showman after leaving", () =>
-    suite.scenario(async (scenario) => {
+    suite.scenario(async () => {
       const setup = await utils.setupGameTestEnvironment(suite.userRepo, app, 1, 0);
       const { cookie } = await utils.loginExistingUser(app, setup.showmanUser.id);
-      const before = await container.resolve(GameService).getGameEntity(setup.gameId);
-      const left = scenario.waitForEvent(setup.playerSockets[0], SocketIOGameEvents.LEAVE);
+      const before = await utils.getGameFromGameService(setup.gameId);
       await utils.leaveGame(setup.showmanSocket);
-      await left;
+
       const response = await http
         .patch(`/v1/games/${setup.gameId}`)
         .set("Cookie", cookie)
         .send({ isPrivate: true, password: "Changed_123" })
         .expect(403);
       expect(response.body.error).toBe("You don't have permission to perform this action");
-      const after = await container.resolve(GameService).getGameEntity(setup.gameId);
+      const after = await utils.getGameFromGameService(setup.gameId);
       expect(after.isPrivate).toBe(before.isPrivate);
       expect(after.gameState.password).toBe(before.gameState.password);
     }));

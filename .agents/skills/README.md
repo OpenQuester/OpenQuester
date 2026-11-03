@@ -14,6 +14,7 @@ Each skill is a folder with a `SKILL.md` file. `SKILL.md` must start with frontm
 | `backend-redis-cache-change/` | Changing Redis/cache behavior, TTLs, queues, indexes, or cache-backed services. |
 | `backend-runtime-event/` | Changing backend timers, scheduled work, Redis expiration handlers, pub/sub, or lifecycle handlers. |
 | `backend-maintenance/` | Backend bug fixes, cleanup, extraction, or refactors that should preserve behavior. |
+| `code-quality-review/` | Reviewing readability/maintainability, finding recurring quality issues, or resolving review feedback within the requested scope. |
 | `frontend-game-ui-state/` | Changing gameplay UI, role-aware CTAs, buzzer UI, timers, media waiting, reconnect, final screens. |
 | `package-editor-change/` | Changing package editor, SIQ/OQ import/export, media refs, validation, package health. |
 | `openapi-sdk-change/` | Changing REST/Socket.IO public contract or generated Dart SDK. |

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Code Quality Review"
+  short_description: "Review and fix OpenQuester code quality issues"
