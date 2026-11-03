@@ -5102,10 +5102,10 @@ export interface components {
              */
             playerId: number;
             /**
-             * @description The bid amount
+             * @description Normalized final bid amount, sent privately to its owner.
              * @example 500
              */
-            bidAmount: number;
+            bidAmount?: number;
             /**
              * @description Whether the bid was automatically submitted (e.g., when player disconnects during bidding phase)
              * @default false
@@ -5207,6 +5207,15 @@ export interface components {
              */
             reviewedAt?: string | null;
         };
+        /**
+         * @example {
+         *       "123": 500,
+         *       "124": 300
+         *     }
+         */
+        FinalBidsByPlayerId: {
+            [key: string]: number;
+        };
         /** @description Final round game state data */
         FinalRoundGameData: {
             phase: components["schemas"]["FinalRoundPhase"];
@@ -5219,16 +5228,10 @@ export interface components {
              *     ]
              */
             turnOrder: number[];
-            /**
-             * @description Player bids mapped by player ID
-             * @example {
-             *       "123": 500,
-             *       "124": 300
-             *     }
-             */
-            bids: {
-                [key: string]: number;
-            };
+            /** @description Players whose final bids were accepted. */
+            submittedBidPlayerIds: number[];
+            /** @description Own final bid before review, all final bids from review onward. */
+            bids: components["schemas"]["FinalBidsByPlayerId"];
             /** @description All submitted answers */
             answers: components["schemas"]["FinalRoundAnswer"][];
             /**
@@ -5259,6 +5262,8 @@ export interface components {
         SocketIOFinalSubmitEndPayload: {
             phase: components["schemas"]["FinalRoundPhase"];
             nextPhase?: components["schemas"]["FinalRoundPhase"] | null;
+            /** @description Final bid amounts revealed at the start of review. */
+            bids: components["schemas"]["FinalBidsByPlayerId"];
             /** @description All answers revealed when transitioning to reviewing phase */
             allReviews?: components["schemas"]["AnswerReviewData"][] | null;
         };
@@ -5341,6 +5346,8 @@ export interface components {
              * @example Paris
              */
             answerText: string;
+            /** @description Authoritative score after settling an automatic loss. */
+            scoreAfter?: number;
             /**
              * @description Score change for the player
              * @example 500

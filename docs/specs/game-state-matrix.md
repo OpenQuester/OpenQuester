@@ -44,7 +44,7 @@ Names in code may differ. Use nearby enums/types as the implementation source of
 | Reviewing answer        | Correct/wrong/score result                            | Waiting for showman decision               | Watching review                                         | “Only showman can mark answer”                                                           | score delta, correct/wrong result, next phase                                            |
 | Between questions       | Pick next / next round                                | Waiting                                    | Watching                                                | “Round is not ready”, “Game paused”                                                      | phase label, next action visible                                                         |
 | Final theme elimination | Eliminate for current player / observe                | Eliminate if it is your turn               | Watching elimination                                    | “Not your turn”, “Theme already eliminated”                                              | eliminated theme animation, next player indicator                                        |
-| Final bidding           | Observe / proceed when bids complete                  | Submit bid if eligible                     | Watching bids                                           | “Bid already submitted”, “Insufficient score”, “Spectators cannot bid”                   | bid submitted state, timer, all-bids-ready state                                         |
+| Final bidding           | Observe / proceed when bids complete                  | Submit bid if eligible                     | Watching bids                                           | “Bid already submitted”, “Insufficient score”, “Spectators cannot bid”                   | bid submitted state, own amount only, timer, all-bids-ready state                                         |
 | Final answering         | Wait/review later                                     | Submit final answer                        | Watching answer phase                                   | “You did not bid”, “Answer already submitted”, “Timer expired”                           | submitted state, remaining time                                                          |
 | Final reviewing         | Review each answer                                    | Waiting for review                         | Watching review                                         | “Only showman can review”                                                                | per-answer correct/wrong, final score updates                                            |
 | Finished                | Start/rematch/share/admin actions                     | See results/rematch/share                  | See results                                             | “Game already finished”                                                                  | winner, podium, summary, score deltas                                                    |
@@ -302,6 +302,10 @@ When changing gameplay state, make sure:
 The public events `question-toggle` and `game-join-mode` were renamed to
 `question-remove-restore` and `game-join-mode-change`. Their payloads are unchanged.
 Update the backend and browser assets together; older browser tabs need a reload.
+
+## Final bid privacy
+
+The first accepted bid is immutable, including after reconnect. Until review starts, players, showmen, and spectators see submission readiness through `submittedBidPlayerIds`; only the owner sees the amount in `bids`. This also applies during media preparation and pauses. At review, `final-submit-end` reveals all bids and settles recorded automatic losses exactly once. A score change before review must not reveal a bid.
 
 ## Common disabled reason categories
 

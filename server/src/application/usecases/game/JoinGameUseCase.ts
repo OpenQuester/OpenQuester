@@ -6,7 +6,7 @@ import { GAME_CHAT_HISTORY_RETRIEVAL_LIMIT } from "domain/constants/game";
 import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { DataMutationType } from "domain/enums/DataMutationType";
-import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import { projectFinalRoundData } from "domain/mappers/projectFinalRoundData";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { HttpStatus } from "domain/enums/HttpStatus";
@@ -111,7 +111,7 @@ export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, Gam
     );
 
     // 7. Build output payload
-    const visibleGameState = this.buildJoinVisibleGameState(game, player.role);
+    const visibleGameState = this.buildJoinVisibleGameState(game, player.role, player.meta.id);
     const pausedTimer =
       game.gameState.isPaused && game.gameState.questionState
         ? await this.gameService.getTimer(game.id, game.gameState.questionState)
@@ -167,10 +167,10 @@ export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, Gam
     };
   }
 
-  private buildJoinVisibleGameState(game: Game, joinedRole: PlayerRole): GameStateDTO {
+  private buildJoinVisibleGameState(game: Game, joinedRole: PlayerRole, viewerId: number): GameStateDTO {
     const gameState = game.gameState;
     const currentRound = this.buildJoinVisibleCurrentRound(gameState, joinedRole);
-    const finalRoundData = this.buildJoinVisibleFinalRoundData(gameState);
+    const finalRoundData = projectFinalRoundData(gameState.finalRoundData, viewerId);
     // Others' stakes and answers stay hidden from players until the review
     const allPlay =
       gameState.allPlay && joinedRole !== PlayerRole.SHOWMAN
@@ -209,23 +209,6 @@ export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, Gam
       themes: currentRound.themes.map((theme) => ({
         ...theme,
         questions: []
-      }))
-    };
-  }
-
-  private buildJoinVisibleFinalRoundData(gameState: GameStateDTO): GameStateDTO["finalRoundData"] {
-    const finalRoundData = gameState.finalRoundData;
-
-    if (finalRoundData?.phase !== FinalRoundPhase.ANSWERING) {
-      return finalRoundData;
-    }
-
-    return {
-      ...finalRoundData,
-      // Submitted final answers stay private until review reveals all answers.
-      answers: finalRoundData.answers.map((answer) => ({
-        ...answer,
-        answer: ""
       }))
     };
   }

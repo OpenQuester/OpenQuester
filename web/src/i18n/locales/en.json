@@ -796,6 +796,7 @@
       "elimNext_other": "{{count}} themes left. Players take turns until one remains.",
       "bidRange": "Bid 1 – {{max}}",
       "placeBid": "Place bid",
+      "bidSubmitted": "Bid submitted",
       "bidLocked": "Your bid: {{amount}}",
       "waitOthers": "{{done}} of {{total}} done — waiting for the others",
       "bidsIn": "{{done}} of {{total}} bids in",

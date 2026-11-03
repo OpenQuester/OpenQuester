@@ -221,6 +221,7 @@ describe("question media readiness", () => {
             questionState: "media_downloading",
             finalRoundData: {
               phase: "answering",
+              submittedBidPlayerIds: [],
               bids: {},
               answers: [],
               turnOrder: [ALICE],
@@ -246,6 +247,7 @@ describe("question media readiness", () => {
         questionState: "bidding",
         finalRoundData: {
           phase: "bidding",
+          submittedBidPlayerIds: [],
           bids: {},
           answers: [],
           turnOrder: [ALICE],
@@ -282,6 +284,7 @@ describe("question media readiness", () => {
         currentQuestion: null,
         finalRoundData: {
           phase: "answering",
+          submittedBidPlayerIds: [],
           bids: {},
           answers: [],
           turnOrder: [ALICE],

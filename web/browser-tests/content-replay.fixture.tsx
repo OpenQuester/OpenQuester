@@ -206,6 +206,7 @@ export function mount(
     s.state.currentRound = round("final");
     s.state.finalRoundData = {
       phase: "answering",
+      submittedBidPlayerIds: [ALICE],
       bids: { [ALICE]: 100 },
       answers: [],
       turnOrder: [ALICE],

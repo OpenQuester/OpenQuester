@@ -5,7 +5,7 @@ import { GameActionLockService } from "application/services/lock/GameActionLockS
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason, FinalAnswerType } from "domain/enums/FinalRoundTypes";
 import { GameActionType } from "domain/enums/GameActionType";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { FinalAnswerReviewOutputData } from "domain/types/socket/events/FinalAnswerReviewData";
 import {
@@ -58,7 +58,7 @@ describe("Game Lock and Queue Mechanics", () => {
   });
 
   describe("Final Round Queue Drain", () => {
-    it("should drain final bids through the answering transition without duplicate bids", () =>
+    it.each([true, false])("locks queued bids (early completion: %s)", (earlyCompletion) =>
       suite.scenario(async (scenario) => {
         const setup = await testUtils.setupFinalRoundGame({
           playersCount: 2,
@@ -88,7 +88,7 @@ describe("Game Lock and Queue Mechanics", () => {
               };
             }
 
-            if (index === 1) {
+            if (index === (earlyCompletion ? 1 : QUEUE_BURST_SIZE - 1)) {
               return {
                 socket: playerSockets[1],
                 playerId: playerUsers[1].id,
@@ -96,9 +96,10 @@ describe("Game Lock and Queue Mechanics", () => {
               };
             }
 
+            const playerIndex = earlyCompletion ? index % playerSockets.length : 0;
             return {
-              socket: playerSockets[index % playerSockets.length],
-              playerId: playerUsers[index % playerUsers.length].id,
+              socket: playerSockets[playerIndex],
+              playerId: playerUsers[playerIndex].id,
               bid: 100 + index
             };
           });
@@ -134,6 +135,9 @@ describe("Game Lock and Queue Mechanics", () => {
             SocketIOGameEvents.FINAL_BID_SUBMIT,
             2
           );
+          const duplicateErrors = earlyCompletion ? null : scenario.collectEvents<{ message: string }>(
+            playerSockets[0], SocketIOEvents.ERROR, QUEUE_BURST_SIZE - 2
+          );
           const questionDataPromises = [
             scenario.waitForEvent<FinalQuestionEventData>(
               showmanSocket,
@@ -165,12 +169,17 @@ describe("Game Lock and Queue Mechanics", () => {
           );
           const durationMs = Date.now() - startedAt;
 
-          const expectedBidEvents = bidSequence.slice(0, 2).map((bidAction) => ({
-            playerId: bidAction.playerId,
-            bidAmount: bidAction.bid
+          const acceptedBids = [bidSequence[0], bidSequence[earlyCompletion ? 1 : bidSequence.length - 1]];
+          const expectedBidEvents = acceptedBids.map((bidAction) => ({
+            playerId: bidAction.playerId
           }));
           expect(showmanBids).toEqual(expectedBidEvents);
           expect(spectatorBids).toEqual(expectedBidEvents);
+          if (duplicateErrors) {
+            for (const error of await duplicateErrors.promise) {
+              expect(error.message).toMatch(/already locked/);
+            }
+          }
           expect(durationMs).toBeLessThanOrEqual(QUEUE_DRAIN_BUDGET_MS);
 
           const finalState = await testUtils.getGameState(gameId);
@@ -319,7 +328,6 @@ describe("Game Lock and Queue Mechanics", () => {
             .map((event) => event.data as FinalBidSubmitOutputData);
           const expectedTimeoutBids = playerUsers.map((playerUser) => ({
             playerId: playerUser.id,
-            bidAmount: 1,
             isAutomatic: true
           }));
           expect(timeoutBids).toEqual(expectedTimeoutBids);

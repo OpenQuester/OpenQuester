@@ -6872,7 +6872,7 @@
           },
           "bidAmount": {
             "type": "number",
-            "description": "The bid amount",
+            "description": "Normalized final bid amount, sent privately to its owner.",
             "examples": [500]
           },
           "isAutomatic": {
@@ -6882,7 +6882,7 @@
             "default": false
           }
         },
-        "required": ["bidAmount", "isAutomatic", "playerId"]
+        "required": ["playerId"]
       },
       "SocketIOFinalAnswerReviewInput": {
         "type": "object",
@@ -6989,6 +6989,11 @@
         },
         "required": ["answer", "id", "playerId", "submittedAt"]
       },
+      "FinalBidsByPlayerId": {
+        "type": "object",
+        "additionalProperties": { "type": "integer" },
+        "examples": [{ "123": 500, "124": 300 }]
+      },
       "FinalRoundGameData": {
         "type": "object",
         "description": "Final round game state data",
@@ -7004,18 +7009,14 @@
             "description": "Turn order for final round theme elimination",
             "examples": [[1, 2, 3]]
           },
+          "submittedBidPlayerIds": {
+            "type": "array",
+            "description": "Players whose final bids were accepted.",
+            "items": { "type": "integer" }
+          },
           "bids": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "description": "Player bids mapped by player ID",
-            "examples": [
-              {
-                "123": 500,
-                "124": 300
-              }
-            ]
+            "$ref": "#/components/schemas/FinalBidsByPlayerId",
+            "description": "Own final bid before review, all final bids from review onward."
           },
           "answers": {
             "type": "array",
@@ -7049,6 +7050,7 @@
           "bids",
           "eliminatedThemes",
           "phase",
+          "submittedBidPlayerIds",
           "turnOrder"
         ]
       },
@@ -7099,6 +7101,10 @@
               }
             ]
           },
+          "bids": {
+            "$ref": "#/components/schemas/FinalBidsByPlayerId",
+            "description": "Final bid amounts revealed at the start of review."
+          },
           "allReviews": {
             "oneOf": [
               {
@@ -7114,7 +7120,7 @@
             "description": "All answers revealed when transitioning to reviewing phase"
           }
         },
-        "required": ["phase"]
+        "required": ["bids", "phase"]
       },
       "SocketIOQuestionFinishEventPayload": {
         "type": "object",
@@ -7294,6 +7300,10 @@
             "type": "string",
             "description": "Player's answer text",
             "examples": ["Paris"]
+          },
+          "scoreAfter": {
+            "type": "integer",
+            "description": "Authoritative score after settling an automatic loss."
           },
           "scoreChange": {
             "type": "integer",

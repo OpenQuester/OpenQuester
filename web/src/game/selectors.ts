@@ -262,7 +262,7 @@ export function finalBid(session: GameSession, id: number): number | undefined {
 }
 
 export function hasFinalBid(session: GameSession, id: number): boolean {
-  return finalBid(session, id) != null;
+  return session.state.finalRoundData?.submittedBidPlayerIds.includes(id) ?? false;
 }
 
 /** Stake auction: who bids now and what the minimum next bid is. */

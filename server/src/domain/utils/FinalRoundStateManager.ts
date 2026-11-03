@@ -77,6 +77,12 @@ export class FinalRoundStateManager {
         break;
       case FinalRoundPhase.REVIEWING:
         game.setQuestionState(QuestionState.REVIEWING);
+        // Earlier score changes would reveal hidden bids. Settle each loss once at reveal.
+        for (const answer of data.answers) {
+          if (answer.autoLoss && !answer.reviewedAt) {
+            this.reviewAnswer(game, answer.id, false);
+          }
+        }
         break;
     }
 
@@ -92,6 +98,9 @@ export class FinalRoundStateManager {
       throw new ServerError("Final round data not initialized");
     }
 
+    if (data.bids[playerId] !== undefined) {
+      throw new ClientError(ClientResponse.FINAL_BID_ALREADY_SUBMITTED);
+    }
     data.bids[playerId] = bidAmount;
     this.updateFinalRoundData(game, data);
   }
@@ -208,7 +217,7 @@ export class FinalRoundStateManager {
     const scoreChange = ValueUtils.clampAbs(rawChange, MAX_SCORE_DELTA);
 
     // Update player score with saturation to absolute score limit (soft cap)
-    const player = game.players.find((p) => p.meta.id === answer.playerId);
+    const player = game.getPlayer(answer.playerId, { fetchDisconnected: true });
     if (player) {
       const tentative = player.score + scoreChange;
       player.score = ValueUtils.clampAbs(tentative, SCORE_ABS_LIMIT);
@@ -234,7 +243,7 @@ export class FinalRoundStateManager {
    * Get bid constraints for a player
    */
   public static getBidConstraints(game: Game, playerId: number): BidConstraints {
-    const player = game.players.find((p) => p.meta.id === playerId);
+    const player = game.getPlayer(playerId, { fetchDisconnected: true });
     if (!player) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }

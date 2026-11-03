@@ -88,6 +88,7 @@ it("shows each final point submission and correct target only to the showman", (
     questionState: "reviewing",
     finalRoundData: {
       phase: "reviewing",
+      submittedBidPlayerIds: [ALICE, SAM],
       bids: { [ALICE]: 100, [SAM]: 200 },
       turnOrder: [ALICE, SAM],
       eliminatedThemes: [],
@@ -151,6 +152,7 @@ describe("final answer stage", () => {
       timer: timer(),
       finalRoundData: {
         phase: "answering",
+        submittedBidPlayerIds: [ALICE],
         bids: { [ALICE]: 100 },
         answers: [],
         turnOrder: [ALICE],
@@ -234,6 +236,7 @@ describe("final answer stage", () => {
         finalRoundData: {
           phase: "answering",
           turnOrder: [ALICE],
+          submittedBidPlayerIds: [],
           bids: {},
           answers: [],
           eliminatedThemes: [],

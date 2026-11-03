@@ -122,6 +122,7 @@ describe("Dock", () => {
       questionState: "media_downloading",
       finalRoundData: {
         phase: "answering",
+        submittedBidPlayerIds: [],
         bids: {},
         answers: [],
         turnOrder: [ALICE],
@@ -148,6 +149,7 @@ describe("Dock", () => {
         timer: timer(60_000),
         finalRoundData: {
           phase,
+          submittedBidPlayerIds: phase === "answering" ? [ALICE] : [],
           bids: phase === "answering" ? { [ALICE]: 100 } : {},
           answers: [],
           turnOrder: [ALICE],
@@ -195,6 +197,7 @@ describe("Dock", () => {
             ? {
                 finalRoundData: {
                   phase: "answering" as const,
+                  submittedBidPlayerIds: [ALICE, BOB],
                   bids: { [ALICE]: 100, [BOB]: 100 },
                   answers: [],
                   turnOrder: [ALICE, BOB],
@@ -254,6 +257,7 @@ describe("Dock", () => {
         ? {
             finalRoundData: {
               phase: "bidding" as const,
+              submittedBidPlayerIds: [],
               bids: {},
               answers: [],
               turnOrder: [ALICE, BOB],
@@ -443,6 +447,7 @@ describe("Dock", () => {
       timer: timer(),
       finalRoundData: {
         phase: "answering",
+        submittedBidPlayerIds: [ALICE],
         bids: { [ALICE]: 100 },
         answers: [],
         turnOrder: [ALICE],
@@ -725,6 +730,7 @@ describe("Dock", () => {
               ...common,
               finalRoundData: {
                 phase: "bidding",
+                submittedBidPlayerIds: [],
                 bids: {},
                 answers: [],
                 turnOrder: [ALICE],

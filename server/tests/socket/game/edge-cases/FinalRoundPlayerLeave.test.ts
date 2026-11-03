@@ -182,7 +182,6 @@ describe("Final Round Player Leave", () => {
         expect(leaveData).toEqual({ user: leavePlayerId });
         expect(autoBidData).toEqual({
           playerId: leavePlayerId,
-          bidAmount: 1,
           isAutomatic: true
         });
 
@@ -211,7 +210,7 @@ describe("Final Round Player Leave", () => {
         // All 3 players have bids > 0 (800, 600, 1) so all need to answer
         expect(playersWhoShouldAnswer).toContain(leavePlayerId);
         expect(playersWhoShouldAnswer).toHaveLength(3);
-        expect(game.players.find((player) => player.meta.id === leavePlayerId)?.score).toBe(999);
+        expect(game.players.find((player) => player.meta.id === leavePlayerId)?.score).toBe(1000);
         expect(gameState.finalRoundData?.answers).toContainEqual(
           expect.objectContaining({ playerId: leavePlayerId, autoLoss: true, isCorrect: false })
         );
@@ -245,7 +244,6 @@ describe("Final Round Player Leave", () => {
         scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.LEAVE);
         expect(await autoBidPromise).toEqual({
           playerId: leavePlayerId,
-          bidAmount: 1,
           isAutomatic: true
         });
 
@@ -376,10 +374,12 @@ describe("Final Round Player Leave", () => {
         expect(leavingPlayerAnswer).toBeDefined();
         expect(leavingPlayerAnswer!.answer).toBe("");
         expect(leavingPlayerAnswer!.autoLoss).toBe(true);
+        expect(leavingPlayerAnswer!.reviewedAt).toBeUndefined();
 
         // Verify player was removed from game
         const game = await utils.getGameFromGameService(gameId);
         expect(game.hasPlayer(leavePlayerId)).toBe(false);
+        expect(game.getPlayer(leavePlayerId, { fetchDisconnected: true })?.score).toBe(1000);
 
         // Setup listener before expiring timer
         const phaseCompletePromise = scenario.waitForEvent<FinalSubmitEndEventData>(
@@ -397,6 +397,14 @@ describe("Final Round Player Leave", () => {
         const phaseData = await phaseCompletePromise;
         expect(phaseData.phase).toBe(FinalRoundPhase.ANSWERING);
         expect(phaseData.nextPhase).toBe(FinalRoundPhase.REVIEWING);
+        expect(phaseData.bids).toEqual({
+          [playerUsers[0].id]: 800,
+          [playerUsers[1].id]: 600,
+          [leavePlayerId]: 500
+        });
+        expect(phaseData.allReviews).toContainEqual(
+          expect.objectContaining({ playerId: leavePlayerId, scoreAfter: 500 })
+        );
 
         // Verify all players have answers (including timer-expired player 1)
         gameState = await utils.getGameState(gameId);
@@ -687,7 +695,6 @@ describe("Final Round Player Leave", () => {
         const autoBidData = await autoBidPromise;
         expect(autoBidData).toEqual({
           playerId: leavingPlayerId,
-          bidAmount: 1,
           isAutomatic: true
         });
 
@@ -715,7 +722,11 @@ describe("Final Round Player Leave", () => {
         // Should successfully join and receive game data
         const gameData = await joinPromise;
         expect(gameData).toBeDefined();
-        expect(gameData.gameState.finalRoundData?.phase).toBe(FinalRoundPhase.BIDDING);
+        expect(gameData.gameState.finalRoundData).toMatchObject({
+          phase: FinalRoundPhase.BIDDING,
+          submittedBidPlayerIds: [leavingPlayerId],
+          bids: { [leavingPlayerId]: 1 }
+        });
 
         // Verify player is back in the game
         const gameAfterRejoin = await utils.getGameFromGameService(gameId);

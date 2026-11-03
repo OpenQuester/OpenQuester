@@ -810,6 +810,7 @@
       "elimNext_other": "Осталось {{count}} темы. Игроки убирают по очереди, пока не останется одна.",
       "bidRange": "Ставка 1 – {{max}}",
       "placeBid": "Сделать ставку",
+      "bidSubmitted": "Ставка принята",
       "bidLocked": "Ваша ставка: {{amount}}",
       "waitOthers": "Готовы {{done}} из {{total}} — ждём остальных",
       "bidsIn": "Ставок: {{done}} из {{total}}",

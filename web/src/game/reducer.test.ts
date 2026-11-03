@@ -14,7 +14,7 @@ import {
 } from "./fixtures";
 import type { ServerEvent } from "./protocol";
 import { isStarted, reduce, sessionFromSnapshot, type GameSession } from "./reducer";
-import { phaseOf } from "./selectors";
+import { finalBid, hasFinalBid, phaseOf } from "./selectors";
 
 const run = (s: GameSession, ...events: ServerEvent[]) => events.reduce(reduce, s);
 
@@ -490,11 +490,60 @@ describe("reducer: final round", () => {
       finalRoundData: {
         phase: "theme_elimination",
         turnOrder: [ALICE, BOB],
+        submittedBidPlayerIds: [],
         bids: {},
         answers: [],
         eliminatedThemes: [],
       },
     });
+
+  it("restores readiness from a private snapshot and deduplicates public/private bid events", () => {
+    let s = final();
+    s = reduce(s, { type: "final-bid-submit", payload: { playerId: ALICE } });
+    expect(hasFinalBid(s, ALICE)).toBe(true);
+    expect(finalBid(s, ALICE)).toBeUndefined();
+    s = reduce(s, { type: "final-bid-submit", payload: { playerId: ALICE, bidAmount: 50 } });
+    s = reduce(s, { type: "final-bid-submit", payload: { playerId: ALICE } });
+    s = reduce(s, { type: "final-bid-submit", payload: { playerId: BOB } });
+    s = sessionFromSnapshot("game", snapshot(s.state, s.players));
+    expect(s.state.finalRoundData?.submittedBidPlayerIds).toEqual([ALICE, BOB]);
+    expect(s.state.finalRoundData?.bids).toEqual({ [ALICE]: 50 });
+    expect(hasFinalBid(s, BOB)).toBe(true);
+    expect(finalBid(s, BOB)).toBeUndefined();
+  });
+
+  it("settles auto-loss once across reveal replay and reconnect", () => {
+    let s = final();
+    s.state.finalRoundData!.phase = "answering";
+    s.state.questionState = "answering";
+    s.players = s.players.map((p) => ({ ...p, score: 100 }));
+    const reveal: ServerEvent = {
+      type: "final-submit-end",
+      payload: {
+        phase: "answering",
+        nextPhase: "reviewing",
+        bids: { [BOB]: 10 },
+        allReviews: [
+          {
+            playerId: BOB,
+            answerId: "loss",
+            answerText: "",
+            scoreChange: -10,
+            scoreAfter: 90,
+            answerType: "auto_loss",
+            isCorrect: false,
+          },
+        ],
+      },
+    };
+    s = reduce(s, reveal);
+    expect(s.players.find((p) => p.meta.id === BOB)?.score).toBe(90);
+    s = reduce(s, { type: "score-changed", payload: { playerId: BOB, newScore: 80 } });
+    expect(reduce(s, reveal).players.find((p) => p.meta.id === BOB)?.score).toBe(80);
+    const restored = sessionFromSnapshot("game", snapshot(s.state, s.players));
+    expect(reduce(restored, reveal).players.find((p) => p.meta.id === BOB)?.score).toBe(80);
+    expect(restored.state.finalRoundData?.bids).toEqual({ [BOB]: 10 });
+  });
 
   it("waits for final media and records a forced start before showing the question", () => {
     const q = question(110, { text: "Final" });
@@ -547,7 +596,10 @@ describe("reducer: final round", () => {
     });
     expect(phaseOf(s)).toBe("final_bidding");
     s = reduce(s, { type: "final-bid-submit", payload: { playerId: ALICE, bidAmount: 50 } });
-    expect(s.state.finalRoundData?.bids[String(ALICE)]).toBe(50);
+    s = reduce(s, { type: "final-bid-submit", payload: { playerId: ALICE } });
+    s = reduce(s, { type: "final-bid-submit", payload: { playerId: BOB } });
+    expect(s.state.finalRoundData?.submittedBidPlayerIds).toEqual([ALICE, BOB]);
+    expect(s.state.finalRoundData?.bids).toEqual({ [ALICE]: 50 });
 
     s = run(
       s,
@@ -573,6 +625,7 @@ describe("reducer: final round", () => {
       payload: {
         phase: "answering",
         nextPhase: "reviewing",
+        bids: { [ALICE]: 50, [BOB]: 10 },
         allReviews: [
           {
             playerId: ALICE,
@@ -587,6 +640,7 @@ describe("reducer: final round", () => {
             answerId: "b",
             answerText: "",
             scoreChange: -10,
+            scoreAfter: -10,
             answerType: "auto_loss",
             isCorrect: false,
           },
@@ -595,6 +649,8 @@ describe("reducer: final round", () => {
     });
     expect(phaseOf(s)).toBe("final_reviewing");
     expect(s.state.finalRoundData?.answers).toHaveLength(2);
+    expect(s.state.finalRoundData?.bids).toEqual({ [ALICE]: 50, [BOB]: 10 });
+    expect(s.players.find((p) => p.meta.id === BOB)?.score).toBe(-10);
 
     s = reduce(s, {
       type: "final-answer-review",
@@ -621,6 +677,7 @@ describe("reducer: snapshots and housekeeping", () => {
     const finalRoundData = {
       phase: "reviewing" as const,
       turnOrder: [ALICE],
+      submittedBidPlayerIds: [ALICE],
       bids: { [ALICE]: 100 },
       eliminatedThemes: [],
       answers: [{ id: "answer", playerId: ALICE, answer: "0.2,0.4", submittedAt: "2026-01-01" }],

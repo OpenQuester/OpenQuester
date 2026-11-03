@@ -122,34 +122,37 @@ function answer(
   value: string,
   reason: "empty_answer" | "timeout" = "empty_answer",
 ) {
-  if (game.session.finalSubmitted.includes(id)) return;
+  const final = game.session.state.finalRoundData;
+  if (!final || game.session.finalSubmitted.includes(id)) return;
   const text = value.trim();
   game.answers.set(id, text);
   game.dispatch({ type: "final-answer-submit", payload: { playerId: id } });
   if (!text) {
-    const bidValue = game.session.state.finalRoundData?.bids[String(id)] ?? 0;
-    const score = game.session.players.find((player) => player.meta.id === id)?.score ?? 0;
     game.dispatch({ type: "final-auto-loss", payload: { playerId: id, reason } });
-    game.dispatch({
-      type: "score-changed",
-      payload: { playerId: id, newScore: clampPreviewScore(score - bidValue) },
-    });
   }
   if (PREVIEW_PLAYERS.every((playerId) => game.session.finalSubmitted.includes(playerId))) {
     const reviews: AnswerReview[] = PREVIEW_PLAYERS.map((playerId) => {
       const text = game.answers.get(playerId) ?? "";
+      const score = game.session.players.find((p) => p.meta.id === playerId)?.score ?? 0;
+      const bidAmount = final.bids[playerId] ?? 0;
       return {
         playerId,
         answerId: `preview-${playerId}`,
         answerText: text,
-        scoreChange: 0,
+        scoreChange: text ? 0 : -bidAmount,
+        ...(text ? {} : { scoreAfter: clampPreviewScore(score - bidAmount) }),
         answerType: text ? "pending" : "auto_loss",
         isCorrect: text ? null : false,
       };
     });
     game.dispatch({
       type: "final-submit-end",
-      payload: { phase: "answering", nextPhase: "reviewing", allReviews: reviews },
+      payload: {
+        phase: "answering",
+        nextPhase: "reviewing",
+        allReviews: reviews,
+        bids: final.bids,
+      },
     });
     if (reviews.every((item) => item.isCorrect != null)) finishFinal(game);
   }

@@ -3,6 +3,7 @@ import { type ActionDockModel, type ActionDockContext } from "./actionDockModel"
 
 import {
   finalBid,
+  hasFinalBid,
   isEligible,
   me as findMe,
   myRole,
@@ -55,8 +56,9 @@ export function finalBidModel({
   const role = myRole(session, myId);
   const mePlayer = findMe(session, myId);
   const players = seatedPlayers(session).filter((p) => isEligible(session, p.meta.id));
-  const placed = players.filter((p) => finalBid(session, p.meta.id) != null).length;
+  const placed = players.filter((p) => hasFinalBid(session, p.meta.id)).length;
   const myBid = finalBid(session, myId);
+  const bidSubmitted = hasFinalBid(session, myId);
   const next = t("dock.final.bidNext");
   if (role !== "player") {
     return {
@@ -65,16 +67,19 @@ export function finalBidModel({
       next,
     };
   }
-  if (!isEligible(session, myId) || (mePlayer?.score ?? 0) <= 0) {
+  if (!isEligible(session, myId) || (!bidSubmitted && (mePlayer?.score ?? 0) <= 0)) {
     return {
       status: t("dock.final.sitOut"),
       action: { kind: "info", text: reason("not_eligible") },
       next,
     };
   }
-  if (myBid != null) {
+  if (bidSubmitted) {
     return {
-      status: t("dock.final.bidLocked", { amount: formatScore(myBid) }),
+      status:
+        myBid == null
+          ? t("dock.final.bidSubmitted")
+          : t("dock.final.bidLocked", { amount: formatScore(myBid) }),
       action: {
         kind: "info",
         text: t("dock.final.waitOthers", { done: placed, total: players.length }),
@@ -105,7 +110,7 @@ export function finalAnswerModel({
 }: ActionDockContext): ActionDockModel {
   const role = myRole(session, myId);
   const players = seatedPlayers(session).filter(
-    (p) => isEligible(session, p.meta.id) && finalBid(session, p.meta.id) != null,
+    (p) => isEligible(session, p.meta.id) && hasFinalBid(session, p.meta.id),
   );
   const submitted = new Set(session.finalSubmitted);
   const done = players.filter((p) => submitted.has(p.meta.id)).length;
@@ -126,7 +131,7 @@ export function finalAnswerModel({
       next,
     };
   }
-  if (finalBid(session, myId) == null || !isEligible(session, myId)) {
+  if (!hasFinalBid(session, myId) || !isEligible(session, myId)) {
     return {
       status: t("dock.final.sitOut"),
       action: { kind: "info", text: reason("not_eligible") },
@@ -147,9 +152,10 @@ export function finalAnswerModel({
       next,
     };
   }
+  const myBid = finalBid(session, myId);
   return {
     status: t(point ? "dock.final.pointAnswer" : "dock.final.typeAnswer", {
-      amount: formatScore(finalBid(session, myId) ?? 0),
+      amount: myBid == null ? "—" : formatScore(myBid),
     }),
     action: point ? { kind: "info", text: t("point.prompt") } : { kind: "timed-answer" },
     next,

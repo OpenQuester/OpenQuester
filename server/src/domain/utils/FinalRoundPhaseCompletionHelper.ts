@@ -1,3 +1,5 @@
+import { MAX_SCORE_DELTA } from "domain/constants/game";
+import { ValueUtils } from "domain/utils/ValueUtils";
 import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerType } from "domain/enums/FinalRoundTypes";
@@ -55,12 +57,14 @@ export class FinalRoundPhaseCompletionHelper {
 
       // If answer is already reviewed, use that result
       if (answer.isCorrect !== undefined) {
-        const scoreChange = answer.isCorrect ? bidAmount : -bidAmount;
-        return this.createAnswerReviewData(
-          answer,
-          scoreChange,
-          answer.isCorrect
+        const scoreChange = ValueUtils.clampAbs(
+          answer.isCorrect ? bidAmount : -bidAmount, MAX_SCORE_DELTA
         );
+        const review = this.createAnswerReviewData(answer, scoreChange, answer.isCorrect);
+        if (answer.autoLoss) {
+          review.scoreAfter = game.getPlayer(answer.playerId, { fetchDisconnected: true })?.score;
+        }
+        return review;
       }
 
       // For unreviewed answers, create review data

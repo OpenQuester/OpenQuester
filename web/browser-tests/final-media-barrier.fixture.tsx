@@ -53,6 +53,7 @@ export function mountFinal(role: "player" | "showman") {
       timer: timer(30_000),
       finalRoundData: {
         phase: "bidding",
+        submittedBidPlayerIds: [ALICE],
         bids: { [ALICE]: 100 },
         answers: [],
         turnOrder: [ALICE],

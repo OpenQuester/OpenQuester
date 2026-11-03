@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   finalBid,
+  hasFinalBid,
   findPlayer,
   isEligible,
   myRole,
@@ -142,7 +143,7 @@ export function FinalAnswerStage() {
     !contentPlaying &&
     myRole(session, myId) === "player" &&
     isEligible(session, myId) &&
-    finalBid(session, myId) != null;
+    hasFinalBid(session, myId);
   return (
     <section className={stageStyles.finalQuestion}>
       <ThemeLine />

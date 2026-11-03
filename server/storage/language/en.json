@@ -84,6 +84,7 @@
   "theme_already_eliminated": "Theme has already been eliminated",
   "cannot_eliminate_last_theme": "Cannot eliminate the last remaining theme",
   "answer_not_found": "Answer not found",
+  "final_bid_already_submitted": "Your final bid is already locked",
   "final_round_not_initialized": "Final round is not initialized",
   "invalid_round_type": "Invalid round type",
   "invalid_theme_id": "Invalid theme ID",

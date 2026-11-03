@@ -810,6 +810,7 @@
       "elimNext_other": "Лишилося {{count}} теми. Гравці прибирають по черзі, доки не лишиться одна.",
       "bidRange": "Ставка 1 – {{max}}",
       "placeBid": "Зробити ставку",
+      "bidSubmitted": "Ставку подано",
       "bidLocked": "Ваша ставка: {{amount}}",
       "waitOthers": "Готові {{done}} з {{total}} — чекаємо на інших",
       "bidsIn": "Ставок: {{done}} з {{total}}",

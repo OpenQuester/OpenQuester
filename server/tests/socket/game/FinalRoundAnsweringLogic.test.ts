@@ -484,7 +484,7 @@ describe("Final Round Answering Logic", () => {
       });
     });
 
-    it("should finish the game when all final answers time out as auto-loss", async () => {
+    it.each(["timeout", "empty answers"])("reveals bids before automatic finish (%s)", async (source) => {
       await suite.scenario(async (scenario) => {
         const setupResult = await utils.setupFinalRoundGame({
           playersCount: 2,
@@ -567,11 +567,30 @@ describe("Final Round Answering Logic", () => {
           scenario.waitForEvent<boolean>(playerSockets[0], SocketIOGameEvents.GAME_FINISHED),
           scenario.waitForEvent<boolean>(spectatorSocket, SocketIOGameEvents.GAME_FINISHED)
         ];
+        const finishOrder = scenario.collectSocketEvents(showmanSocket, [
+          SocketIOGameEvents.FINAL_SUBMIT_END,
+          SocketIOGameEvents.GAME_FINISHED
+        ], 2);
 
-        await utils.expireTimerAndWaitForAction(
-          gameId,
-          GameActionType.TIMER_FINAL_ANSWERING_EXPIRED
-        );
+        if (source === "timeout") {
+          await utils.expireTimerAndWaitForAction(
+            gameId,
+            GameActionType.TIMER_FINAL_ANSWERING_EXPIRED
+          );
+        } else {
+          const firstAnswer = scenario.waitForEvent(
+            showmanSocket, SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+          );
+          scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+            answerText: ""
+          });
+          await firstAnswer;
+          const beforeReview = await utils.getGameEntity(gameId);
+          expect(beforeReview.getPlayer(playerUsers[0].id, { fetchDisconnected: true })?.score).toBe(1500);
+          scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+            answerText: ""
+          });
+        }
 
         const [
           submitEndBroadcasts,
@@ -595,7 +614,9 @@ describe("Final Round Answering Logic", () => {
         const expectedTimeoutAnswers = timeoutPlayerIds.map((playerId) => ({ playerId }));
         const expectedAutoLosses = timeoutPlayerIds.map((playerId) => ({
           playerId,
-          reason: FinalAnswerLossReason.TIMEOUT
+          reason: source === "timeout"
+            ? FinalAnswerLossReason.TIMEOUT
+            : FinalAnswerLossReason.EMPTY_ANSWER
         }));
 
         expect(showmanTimeoutAnswers).toEqual(expectedTimeoutAnswers);
@@ -605,10 +626,19 @@ describe("Final Round Answering Logic", () => {
         expect(playerAutoLosses).toEqual(expectedAutoLosses);
         expect(spectatorAutoLosses).toEqual(expectedAutoLosses);
         expect(gameFinishedBroadcasts).toEqual([true, true, true]);
+        expect((await finishOrder.promise).map(({ event }) => event)).toEqual([
+          SocketIOGameEvents.FINAL_SUBMIT_END,
+          SocketIOGameEvents.GAME_FINISHED
+        ]);
 
         for (const submitEnd of submitEndBroadcasts) {
           expect(submitEnd.phase).toBe(FinalRoundPhase.ANSWERING);
           expect(submitEnd.nextPhase).toBe(FinalRoundPhase.REVIEWING);
+          expect(submitEnd.bids).toEqual({ [playerUsers[0].id]: 800, [playerUsers[1].id]: 600 });
+          expect(submitEnd.allReviews).toEqual(expect.arrayContaining([
+            expect.objectContaining({ playerId: playerUsers[0].id, scoreAfter: 700 }),
+            expect.objectContaining({ playerId: playerUsers[1].id, scoreAfter: 600 })
+          ]));
           expect(submitEnd.allReviews).toHaveLength(2);
           expect(submitEnd.allReviews?.every((review) => review.answerText === "")).toBe(true);
           expect(submitEnd.allReviews?.every((review) => review.isCorrect === false)).toBe(true);

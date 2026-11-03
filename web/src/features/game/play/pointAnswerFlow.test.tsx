@@ -182,6 +182,7 @@ it("keeps the final player's own point after submission", () => {
       finalRoundData: {
         phase: "answering",
         turnOrder: [ALICE, BOB],
+        submittedBidPlayerIds: [ALICE],
         bids: { [ALICE]: 100 },
         answers: [],
         eliminatedThemes: [],
@@ -368,6 +369,7 @@ it.each(["all-play-answer", "final-answer-submit"] as const)(
           ? {
               phase: "answering",
               turnOrder: [ALICE, BOB],
+              submittedBidPlayerIds: [ALICE],
               bids: { [ALICE]: 100 },
               answers: [],
               eliminatedThemes: [],

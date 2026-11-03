@@ -120,6 +120,7 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
         phase: FinalRoundPhase.ANSWERING,
         // If all answers already reviewed (all auto-loss), transition to finish will happen in service layer
         nextPhase: FinalRoundPhase.REVIEWING,
+        bids: { ...ctx.game.gameState.finalRoundData?.bids },
         allReviews
       } satisfies FinalSubmitEndEventData,
       room: ctx.game.id

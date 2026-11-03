@@ -180,6 +180,7 @@ for (const mode of ["final", "allplay"] as const) {
         state.currentRound = { ...state.currentRound!, type: "final" };
         state.finalRoundData = {
           phase: "answering",
+          submittedBidPlayerIds: [2, 3],
           bids: { 2: 100, 3: 100 },
           answers: [],
           turnOrder: [2, 3],
@@ -338,6 +339,7 @@ for (const scenario of [
         state.questionState = "answering";
         state.finalRoundData = {
           phase: "answering",
+          submittedBidPlayerIds: [2, 3],
           bids: { 2: 400, 3: 400 },
           answers: [],
           turnOrder: [2, 3],
@@ -411,6 +413,7 @@ for (const scenario of [
           payload: {
             phase: "answering",
             nextPhase: "reviewing",
+            bids: { 2: 400, 3: 400 },
             allReviews: [
               {
                 playerId: 2,
