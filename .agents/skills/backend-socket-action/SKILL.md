@@ -42,7 +42,7 @@ Minimum backend files:
 For public contract changes:
 
 - `openapi/schema.json`
-- generated Dart client/models in `client/packages/openapi/` after regeneration
+- browser socket contract in `web/src/game/protocol.ts` and affected listeners
 - affected client socket listeners/controllers
 
 ## Architecture invariant
@@ -69,7 +69,7 @@ For media work, read `server/docs/media-download-sync.md`: data delivery is not
 readiness completion or proof of visible playback. Do not add an inbound preload
 `QUESTION_PICK`, require showman readiness, or invent a no-file auto-skip without
 an explicitly approved contract change. Use `backend-e2e` for transport regression
-coverage and inspect Flutter too before claiming a user-visible media fix.
+coverage and inspect the browser app before claiming a user-visible media fix.
 
 ## Implementation steps
 
@@ -141,12 +141,12 @@ For behavior changes, add/run focused Jest tests. For full confidence with infra
 npm run test:pipeline
 ```
 
-If client contract changes, from `client/`:
+Update the separately maintained browser socket types when applicable. If the schema changes, run from `web/`:
 
 ```bash
-melos run gen_api
-melos run gen_files
-melos run analyze
+npm run gen:api
+npm run check:api
+npm run typecheck
 ```
 
 Report what was run and what was skipped.

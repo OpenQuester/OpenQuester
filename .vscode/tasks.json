@@ -1,81 +1,78 @@
 {
   "version": "2.0.0",
   "tasks": [
-    // Flutter Tasks
+    // Web Tasks
     {
-      "label": "Flutter: Get Dependencies",
+      "label": "Web: Install Dependencies",
       "type": "shell",
-      "command": "flutter pub get",
+      "command": "npm ci",
       "options": {
-        "cwd": "${workspaceFolder}/client"
+        "cwd": "${workspaceFolder}/web"
       },
-      "problemMatcher": [],
-      "group": "build"
+      "problemMatcher": []
     },
     {
-      "label": "Flutter: Build Runner",
+      "label": "Web: Dev",
       "type": "shell",
-      "command": "dart run build_runner build --delete-conflicting-outputs",
+      "command": "npm run dev",
       "options": {
-        "cwd": "${workspaceFolder}/client"
+        "cwd": "${workspaceFolder}/web"
       },
-      "problemMatcher": [],
-      "group": "build"
+      "problemMatcher": []
     },
     {
-      "label": "Flutter: Build Runner (Watch)",
+      "label": "Web: Build",
       "type": "shell",
-      "command": "dart run build_runner watch --delete-conflicting-outputs",
+      "command": "npm run build",
       "options": {
-        "cwd": "${workspaceFolder}/client"
+        "cwd": "${workspaceFolder}/web"
       },
-      "problemMatcher": [],
-      "isBackground": true,
-      "group": "build"
+      "problemMatcher": []
     },
     {
-      "label": "Flutter: Clean",
+      "label": "Web: Typecheck",
       "type": "shell",
-      "command": "flutter clean",
+      "command": "npm run typecheck",
       "options": {
-        "cwd": "${workspaceFolder}/client"
+        "cwd": "${workspaceFolder}/web"
       },
-      "problemMatcher": [],
-      "group": "build"
+      "problemMatcher": []
     },
     {
-      "label": "Flutter: Analyze",
+      "label": "Web: Lint",
       "type": "shell",
-      "command": "flutter analyze",
+      "command": "npm run lint",
       "options": {
-        "cwd": "${workspaceFolder}/client"
+        "cwd": "${workspaceFolder}/web"
       },
-      "problemMatcher": [
-        "$dart-analyze"
-      ],
-      "group": "test"
+      "problemMatcher": []
     },
     {
-      "label": "Flutter: Test",
+      "label": "Web: Test",
       "type": "shell",
-      "command": "flutter test",
+      "command": "npm test",
       "options": {
-        "cwd": "${workspaceFolder}/client"
+        "cwd": "${workspaceFolder}/web"
       },
-      "problemMatcher": [
-        "$dart-test"
-      ],
-      "group": "test"
+      "problemMatcher": []
     },
     {
-      "label": "Flutter: Format",
+      "label": "Web: Generate API",
       "type": "shell",
-      "command": "dart format .",
+      "command": "npm run gen:api",
       "options": {
-        "cwd": "${workspaceFolder}/client"
+        "cwd": "${workspaceFolder}/web"
       },
-      "problemMatcher": [],
-      "group": "none"
+      "problemMatcher": []
+    },
+    {
+      "label": "Web: Check API",
+      "type": "shell",
+      "command": "npm run check:api",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "problemMatcher": []
     },
     // Server Tasks
     {
@@ -193,7 +190,7 @@
     {
       "label": "Setup: All Dependencies",
       "dependsOn": [
-        "Flutter: Get Dependencies",
+        "Web: Install Dependencies",
         "Server: Install Dependencies"
       ],
       "problemMatcher": [],
@@ -202,7 +199,7 @@
     {
       "label": "Test: All",
       "dependsOn": [
-        "Flutter: Test",
+        "Web: Test",
         "Server: Test"
       ],
       "problemMatcher": [],
@@ -211,7 +208,8 @@
     {
       "label": "Lint: All",
       "dependsOn": [
-        "Flutter: Analyze",
+        "Web: Typecheck",
+        "Web: Lint",
         "Server: Lint"
       ],
       "problemMatcher": [],

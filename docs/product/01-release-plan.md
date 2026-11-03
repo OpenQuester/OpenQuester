@@ -4,6 +4,8 @@ This document gives agents product priority context. It is intentionally high-le
 
 ## Release strategy
 
+OpenQuester is delivered through the browser. Tagged releases publish Docker images that serve the browser app and API, plus GitHub release notes and source archives.
+
 Do not release OpenQuester as “almost works”. Release it when users feel that the game is clearer and more pleasant than SIGame for core flows.
 
 The first strong release should prove:

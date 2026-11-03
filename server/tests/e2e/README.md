@@ -13,7 +13,7 @@ This README remains the canonical reference for test APIs and lifecycle rules.
 | Queue/repository/database/logger internals and harness self-tests                          | Focused unit/integration helpers appropriate to the component; do not pretend these are client E2E scenarios |
 
 The migration covers backend transport E2Es. It does not turn pure domain tests or infrastructure
-self-tests into gameplay scenarios, and it does not add Flutter/browser E2E coverage.
+self-tests into gameplay scenarios, and it does not add browser E2E coverage.
 
 ## Shared lifecycle
 
@@ -237,12 +237,9 @@ same helper that accepts a correct flow. Those self-tests are not evidence of ba
 
 Media tests supply file metadata and simulate clients sending `MEDIA_DOWNLOADED`. They verify server
 coordination, event order, readiness gating, and timers. They do not download file bytes, execute
-Flutter media loading, or prove that the UI hides or plays media at the right time. Those claims
+browser media loading, or prove that the UI hides or plays media at the right time. Those claims
 require client-side coverage. Actual game-rule uncertainty must be resolved with the user.
 
-The media synchronization reference also records known Flutter gaps (early image
-ACKs and ungated question text). A green backend suite must not be reported as
-closing those client bugs; the follow-up is [frontend issue #445](https://github.com/OpenQuester/OpenQuester/issues/445).
 ACKs outside `MEDIA_DOWNLOADING`, including late ACKs
 after `SHOWING`, must neither mutate readiness nor broadcast status.
 

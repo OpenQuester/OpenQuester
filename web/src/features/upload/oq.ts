@@ -16,8 +16,7 @@ import type {
 } from "./types";
 
 /**
- * Reads an OpenQuester .oq archive, the format the Flutter editor exports
- * (client/packages/oq_editor/lib/utils/oq_package_archiver.dart):
+ * Reads an OpenQuester .oq archive:
  *   content.json  the package as the API returns it
  *   files/<md5>   every media file, named by its MD5
  * Server-side fields (ids, author, dates) are dropped so the upload validates.

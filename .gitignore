@@ -20,26 +20,14 @@ server/test-results/stress/
 stress/
 bearer_token
 
-# Windows signing
+# Keys and certificates
 *.crt
 *.csr
 *.key
 *.pfx
 
-# Generated files
-**/*_generated.dart
-**/*.freezed.dart
-**/*.g.dart
-**/*.gen.dart
-
-# Linux build artifacts
-*.AppImage
-*.flatpak
+# Archives
 *.tar.gz
-**/build-flatpak/
-**/repo/
-client/linux/.flatpak-builder/
-client/build/linux/appimage/
 
 # IntelliJ
 .idea/

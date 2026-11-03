@@ -17,8 +17,7 @@ import type {
 
 /**
  * Reads a SIGame .siq archive (content.xml formats 4 and 5) into an OpenQuester
- * package. Mirrors client/packages/siq_file (the Flutter reader) and keeps its
- * defaults, but reports problems as warnings instead of failing the whole file.
+ * package. Recoverable import problems are reported as warnings.
  */
 export async function parseSiq(
   entries: Unzipped,

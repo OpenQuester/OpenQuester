@@ -188,7 +188,7 @@ export function getUploadState(id: number): Promise<UploadState> {
 }
 
 /**
- * Same flow as the Flutter client (client/apps/client/lib/src/core/services/package_service.dart):
+ * Creates a package, uploads its media and checks completion.
  * POST /v1/packages with the content, then PUT each media file to the
  * presigned link the server returns for its MD5. Files still to send are
  * stashed in IndexedDB first so an interrupted upload can be resumed, and

@@ -46,7 +46,7 @@ export async function squareAvatar(file: Blob): Promise<{ bytes: Uint8Array; nam
 }
 
 /**
- * Same flow as the Flutter profile screen, but the profile only changes after
+ * The profile changes only after
  * the picture is really stored: POST /v1/files/{md5} for a link, PUT, PATCH /v1/me.
  */
 export function useChangeAvatar() {

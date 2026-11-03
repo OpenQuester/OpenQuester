@@ -9,31 +9,22 @@ Use this skill when changing package editor screens/controllers, `.oq` import/ex
 
 ## Read first
 
-1. `web/AGENTS.md` for React; `client/AGENTS.md` for Flutter
+1. `web/AGENTS.md`
 2. `docs/product/00-north-star.md`
 3. `docs/specs/package-validation-spec.md`
 4. `docs/specs/siq-compatibility-matrix.md`
 5. `openapi/AGENTS.md` if backend/API contract changes
 
-## Context7 requirement
+## Dependency guidance
 
-Before Flutter/editor code changes, use Context7 for current Flutter/Dart docs and every touched third-party package. For React, follow `web/AGENTS.md` and inspect installed APIs. If Context7 is unavailable, state that and follow existing project code patterns instead of inventing APIs from memory.
+Follow `web/AGENTS.md` and inspect installed package APIs.
 
 ## Files to inspect
 
-For React, use `web/src/features/package-editor/`, `web/src/features/upload/`,
-`web/AGENTS.md` and `docs/specs/media-editor.md`. The paths below are Flutter-specific.
+See `web/AGENTS.md` and `docs/specs/media-editor.md` for architecture and media behavior.
 
-- `client/packages/oq_editor/lib/controllers/oq_editor_controller.dart`
-- `client/packages/oq_editor/lib/utils/siq_import_helper.dart`
-- `client/packages/oq_editor/lib/utils/oq_package_archiver.dart`
-- `client/packages/oq_editor/lib/utils/media_file_encoder.dart`
-- `client/packages/oq_editor/lib/models/**`
-- `client/packages/oq_editor/lib/view/**`
-- `client/packages/siq_file/lib/**`
-- `client/packages/oq_compress/lib/**`
-- `client/apps/client/lib/src/features/package_editor/**`
-- `client/apps/client/lib/src/features/package_upload/**`
+- `web/src/features/package-editor/` owns drafts, validation and publishing.
+- `web/src/features/upload/` owns archive parsing, optimization and upload.
 - localization JSON
 
 ## Product invariant
@@ -52,7 +43,7 @@ Every validation/import/export change should answer:
 ## Implementation steps
 
 1. Identify whether change affects editor state, import/export, validation, media, or backend contract.
-2. Inspect the existing owning flow (`packageEditorStore` for React, `OqEditorController` for Flutter) before adding parallel state.
+2. Inspect the existing owning flow (`packageEditorStore`) before adding parallel state.
 3. Preserve media reference-by-hash behavior.
 4. Preserve compression/encoding progress behavior.
 5. For SIQ import, classify compatibility status in `docs/specs/siq-compatibility-matrix.md`.
@@ -80,29 +71,9 @@ feature/validation gaps rather than describing product targets as implemented.
 
 ## Verification
 
-For React, run the web checks in `docs/agent/03-verification-matrix.md`, including
-native browser media/storage tests for those boundaries and relevant backend-backed
-Playwright flows. The commands below apply to Flutter/backend changes only.
-
-From `client/`:
-
-```bash
-melos run analyze
-```
-
-When generated files/import models/localization change:
-
-```bash
-melos run gen_files
-melos run gen_locale
-melos run pre_build
-```
-
-When OpenAPI changes:
-
-```bash
-melos run gen_api
-```
+Run the web checks in `docs/agent/03-verification-matrix.md`, including
+browser media/storage tests and relevant backend-backed Playwright flows.
+If the schema changes, run `npm run gen:api` and `npm run check:api` from `web/`.
 
 From `server/` when backend contract or validation changes:
 
@@ -114,4 +85,4 @@ npm run build
 
 ## Handoff checklist
 
-Include Context7 docs fetched or why unavailable, editor/import/export area touched, validation severity changes, SIQ compatibility impact, media/compression impact, API/generated impact, checks/manual scenarios run, and known gaps.
+Include the editor/import/export area touched, validation severity changes, SIQ compatibility impact, media/compression impact, API/generated impact, checks/manual scenarios run, and known gaps.

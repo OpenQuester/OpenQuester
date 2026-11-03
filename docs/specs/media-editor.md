@@ -169,7 +169,7 @@ removes the old storage object. Shared originals used by other attachments,
 drafts, packages or active game snapshots remain legitimate referenced media;
 preserve existing server cleanup protections.
 
-No new endpoints, server transcoding, Flutter implementation, permanent edit
+No new endpoints, server transcoding, permanent edit
 history, archive format change, multitrack editing or middle-section removal
 are included. Rectangular cropping and arbitrary rotation were added following
 the creator's annotation feedback on 2026-10-19.

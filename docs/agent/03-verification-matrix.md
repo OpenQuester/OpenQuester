@@ -20,7 +20,7 @@ Run from `server/`.
 | Redis lock/queue/timer logic | `npm run lint`, `npm run build`, focused integration tests through `test:pipeline` | `npm run test:pipeline`, load/reconnect scenario when available |
 | DB model/repository/migration | `npm run lint`, `npm run build` | migration/integration test against PostgreSQL |
 | Logging/metrics/admin diagnostics | `npm run lint`, `npm run build` | focused endpoint/service tests |
-| OpenAPI/schema only | `npm run validate:schema` | client `melos run gen_api` |
+| OpenAPI/schema only | `npm run validate:schema` | web `npm run gen:api` and `npm run check:api` |
 | Backend E2E/helper/lifecycle/policy | changed infrastructure self-tests through `test:pipeline`, lint/build if TypeScript changed | relevant real transport cases; independent repeatability passes for broad reliability work |
 
 Backend test rules:
@@ -67,53 +67,16 @@ it needs `npx playwright install chromium`, but no backend or Docker. Storage
 race tests gate application continuation after a real transaction commits,
 so they exercise actual IndexedDB locking without sleeping or holding a DB lock.
 
-## Flutter checks
-
-Run from `client/`.
-
-Flutter CI (`build_client.yml` builds and the `test_client` analyze job) is paused on
-PRs and `main` pushes unless the `FLUTTER_CI_ENABLED` repository variable is `"true"`.
-Manual dispatches and releases still run it, so run the checks below locally for
-client changes.
-
-| Change type | Minimum checks | Stronger checks |
-|---|---|---|
-| Docs-only frontend docs | Markdown review, path sanity | none required unless commands changed |
-| Pure widget/layout change | `melos run analyze` | focused widget tests, `melos run test` |
-| Controller/state change | `melos run analyze`, focused tests when present | `melos run test` |
-| Gameplay UI/phase/buzzer change | `melos run analyze`, focused tests when present, check `docs/specs/game-state-matrix.md` | manual scenario notes, `melos run test` |
-| Localization keys | `melos run gen_locale`, `melos run analyze` | `melos run pre_build` |
-| Route changes | `melos run gen_files`, `melos run analyze` | `melos run pre_build` |
-| Freezed/JSON/generated model inputs | `melos run gen_files`, `melos run analyze` | `melos run pre_build`, `melos run test` |
-| OpenAPI generated client change | `melos run gen_api`, `melos run gen_files`, `melos run analyze` | `melos run pre_build`, `melos run test` |
-| Package editor/import/export | `melos run analyze`, focused package tests when present | `melos run test`, manual import/export notes |
-| Compression/workers | `melos run pre_build`, `melos run analyze` | focused package tests/manual browser notes |
-
-Frontend quality notes:
-
-- Do not manually edit generated files as a shortcut.
-- If user-facing strings were added and localization was not regenerated, call it out.
-- Game UI changes should mention phase/role/disabled-reason impact.
-- Frontend code changes should report Context7 docs fetched or why Context7 was unavailable.
-- Backend readiness tests simulate client ACKs. Claims about downloaded bytes,
-  hidden question text, or playback need client controller/widget or manual
-  evidence with delayed preparation; see `server/docs/media-download-sync.md`.
-- Check whether CI actually executed the claimed tests. At revision `8348d429`,
-  `.github/workflows/test.yml` disables the client `Run Tests` step with `if: false`;
-  a green client build/analyze is not Flutter test evidence. Recheck on later revisions.
-  The remaining reveal/image-readiness work is tracked in
-  [frontend issue #445](https://github.com/OpenQuester/OpenQuester/issues/445).
-
 ## OpenAPI contract checks
 
 | Change type | Backend check | Client check |
 |---|---|---|
-| REST request/response schema | `npm run validate:schema` | `melos run gen_api`, `melos run analyze` |
-| Socket event enum/payload | `npm run validate:schema` | `melos run gen_api`, affected socket listener compile/analyze |
+| REST request/response schema | `npm run validate:schema` | `npm run gen:api`, `npm run check:api`, `npm run typecheck` |
+| Socket event enum/payload | `npm run validate:schema` | update `web/src/game/protocol.ts` as needed and run `npm run typecheck` |
 | Public enum change | `npm run validate:schema` | generated client + affected UI compile/analyze |
 | Descriptions / `x-socket-io` metadata only | schema validation, inspect emitters/types, verify no runtime shape change | generation may change comments; report generation status explicitly |
 
-Generated Dart API files live in `client/packages/openapi/`; the schema source is `openapi/schema.json`.
+Run browser checks from `web/`. REST declarations in `web/src/api/schema.d.ts` are generated from `openapi/schema.json`. The socket protocol is maintained separately.
 
 Contract handoff summaries should state:
 
@@ -121,6 +84,12 @@ Contract handoff summaries should state:
 - backend files updated
 - frontend files updated or why not
 - generated files included or why not
+
+## Release script checks
+
+Run `node --test scripts/release.test.mjs` from the repository root.
+The test creates temporary repositories and uses a local bare remote.
+On Windows, set `BASH_PATH` to the Git for Windows Bash executable.
 
 ## Documentation checks
 
@@ -148,7 +117,6 @@ Use this format in handoff summaries:
 - [x] Reviewed docs paths for current repository structure.
 - [x] `npm run validate:schema` — passed.
 - [ ] `npm run test:pipeline` — not run; requires PostgreSQL/Redis and this change is docs-only.
-- [ ] `melos run analyze` — not run; no client code changed.
 ```
 
 Be honest. A precise “not run” is better than pretending validation happened.

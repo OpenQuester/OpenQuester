@@ -6,7 +6,7 @@ Use this file for changes under `openapi/` or any task that changes a public RES
 
 `openapi/schema.json` is the public contract source for REST endpoints and Socket.IO contract metadata.
 
-The generated Dart client package lives in `client/packages/openapi/`. It is generated from `openapi/schema.json` through `client/packages/openapi/swagger_parser.yaml` and the Melos `gen_api` script.
+The browser REST declarations in `web/src/api/schema.d.ts` are generated from this schema.
 
 Contract changes are cross-layer changes. Treat them as backend + schema + generated client + app usage work unless the task explicitly scopes otherwise.
 
@@ -27,8 +27,6 @@ Update the schema when any of these change:
 
 Do not update schema for purely internal server classes, private database models, or refactors that do not affect the public contract.
 
-Every schema name, and every inline object property (the Dart generator names it after the property, e.g. `user` becomes `User`), turns into a Dart class exported from `package:openapi`. Pick names that can't clash with classes in `client/` packages or their dependencies (`User`, `PackageUploadState` and similar broke `melos run analyze`): prefer specific names such as `LeaderboardUser`, and use `$ref` instead of inline objects.
-
 ## Generation workflow
 
 Backend validation from `server/`:
@@ -37,20 +35,16 @@ Backend validation from `server/`:
 npm run validate:schema
 ```
 
-Client generation from `client/`:
+REST generation from `web/`:
 
 ```bash
-melos run gen_api
-melos run gen_files
+npm run gen:api
+npm run check:api
+npm run typecheck
 ```
 
-Full client pre-build when unsure:
-
-```bash
-melos run pre_build
-```
-
-If generated files in `client/packages/openapi/` change, include them in the PR unless project maintainers explicitly prefer generation outside the PR.
+Include changed generated declarations with the schema. Maintain
+`web/src/game/protocol.ts` separately when socket events change.
 
 ## Agent workflow
 
@@ -73,7 +67,7 @@ Socket.IO contract metadata belongs in `x-socket-io` and related schemas. Keep e
 - `server/src/domain/enums/SocketIOEvents.ts`
 - `server/src/domain/enums/GameActionType.ts` where applicable
 - `server/src/presentation/controllers/io/SocketActionMap.ts`
-- generated Dart event/model usage in `client/packages/openapi/` and app code
+- browser socket types and event usage in `web/src/game/protocol.ts` and app code
 
 For media, use `server/docs/media-download-sync.md` as the implementation
 reference. Preserve the current `question-pick` → `question-data` → readiness
@@ -89,7 +83,7 @@ For game-changing socket events, also read:
 
 ## Generated files
 
-Generated Dart files in `client/packages/openapi/` should reflect schema/source changes. Do not patch generated Dart output manually as a shortcut. If a file is temporarily manual, preserve the existing comment and call out the exception in the PR.
+Regenerate `web/src/api/schema.d.ts` from the schema when it changes.
 
 ## Compatibility
 

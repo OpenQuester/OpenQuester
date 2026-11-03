@@ -1,8 +1,5 @@
 {
   "recommendations": [
-    // Flutter & Dart
-    "dart-code.dart-code",
-    "dart-code.flutter",
     // Backend Development (TypeScript/Node.js)
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",

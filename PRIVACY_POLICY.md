@@ -11,7 +11,7 @@ weight: 10
 
 OpenQuester ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our multiplayer quiz game application ("Application" or "Service").
 
-This policy applies to all users of OpenQuester, available on mobile platforms (Google Play Store, Apple App Store) and other supported platforms.
+This policy applies to all users of OpenQuester, available through a web browser.
 
 By using OpenQuester, you agree to the collection and use of information in accordance with this Privacy Policy.
 
@@ -223,8 +223,6 @@ This Privacy Policy is designed to comply with:
 
 - General Data Protection Regulation (GDPR)
 - California Consumer Privacy Act (CCPA)
-- Google Play Store Developer Program Policies
-- Apple App Store Review Guidelines
 
 ## Data Protection Officer
 

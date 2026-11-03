@@ -59,7 +59,7 @@ export function toParsed(pkg: DraftPackage, media: Map<string, MediaFile>): Pars
 }
 
 /**
- * An .oq archive the Flutter editor and this app's upload page both read:
+ * Writes an .oq archive readable by the package upload flow:
  * content.json plus files/<md5>. Media is stored, not recompressed. Files
  * opened from a published package live in storage, so they are downloaded
  * for the archive; if one can't be, the export fails instead of leaving

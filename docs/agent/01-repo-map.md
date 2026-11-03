@@ -7,9 +7,8 @@ This map helps agents pick the right files before editing. It is not a replaceme
 | Area | Purpose | First doc to read |
 |---|---|---|
 | `server/` | Backend API, realtime game server, Redis/PostgreSQL/S3, game state execution | `server/AGENTS.md` |
-| `client/` | Flutter app, editor packages, SIQ import, compression, generated API usage | `client/AGENTS.md` |
 | `web/` | React browser client: auth, packages, lobby, gameplay, results; Playwright E2E | `web/AGENTS.md` |
-| `openapi/` | REST + Socket.IO public contract schema. Generated Dart code lives in `client/packages/openapi/`. | `openapi/AGENTS.md` |
+| `openapi/` | REST + Socket.IO public contract schema. REST declarations live in `web/src/api/schema.d.ts`. | `openapi/AGENTS.md` |
 | `websites/` | Static docs/landing pages | nearby README/docs |
 | `.agents/skills/` | Repeatable agent workflows | relevant `SKILL.md` |
 | `docs/product/` | Product direction and release priorities | `docs/product/00-north-star.md` |
@@ -28,7 +27,7 @@ This map helps agents pick the right files before editing. It is not a replaceme
 | Change DI binding | `server/src/shared/di/tokens.ts`, `server/src/bootstrap/bootstrapContainer.ts` |
 | Change game rules | `server/src/domain/entities/game/Game.ts`, `server/src/domain/logic/**`, `server/src/domain/validators/**` |
 | Change final round | `server/docs/final-round-flow.md`, final round use cases/types, `docs/specs/game-state-matrix.md` |
-| Change media readiness | `server/docs/media-download-sync.md`, media download use case, client question/lobby controllers |
+| Change media readiness | `server/docs/media-download-sync.md`, media download use case, `web/src/game/media.ts`, browser connection and play views |
 | Write/review backend transport E2E | `.agents/skills/backend-e2e/SKILL.md`, `server/tests/e2e/README.md` |
 | Run/debug backend tests | `.agents/skills/backend-test-runner/SKILL.md`, `server/scripts/test/runPipelineTests.mjs` |
 | Change admin diagnostics | `server/src/application/services/admin/*`, `server/src/presentation/controllers/rest/AdminRestApiController.ts` |
@@ -46,19 +45,6 @@ and commands. Use `docs/agent/03-verification-matrix.md` for validation.
 | Import/upload | `web/src/features/upload/`, SIQ compatibility and upload-state specs |
 | Shared UI, theme and strings | `web/src/ui/`, `web/src/theme/`, `web/src/i18n/` |
 | Admin/storage/stats | corresponding `web/src/features/` folders and feature specs |
-
-## Flutter map
-
-| Need | Inspect first |
-|---|---|
-| Change gameplay screen | `client/apps/client/lib/src/features/game_*`, `.agents/skills/frontend-game-ui-state/SKILL.md`, `docs/specs/game-state-matrix.md` |
-| Change buzzer/answer UI | `client/apps/client/lib/src/features/game_question/`, `docs/specs/buzzer-state-machine.md` |
-| Change socket handling | `client/apps/client/lib/src/features/game_lobby/controllers/`, generated socket/event models in `client/packages/openapi/` |
-| Change package editor | `client/packages/oq_editor/`, `.agents/skills/package-editor-change/SKILL.md` |
-| Change SIQ import | `client/packages/siq_file/`, `client/packages/oq_editor/lib/utils/siq_import_helper.dart`, `docs/specs/siq-compatibility-matrix.md` |
-| Change package compression/export | `client/packages/oq_compress/`, `client/packages/oq_editor/lib/utils/oq_package_archiver.dart` |
-| Add user-facing string | localization JSON in `client/apps/client/assets/localization/`, generated locale keys |
-| Change generated API models | `openapi/schema.json`, `client/packages/openapi/`, `openapi/AGENTS.md`, `.agents/skills/openapi-sdk-change/SKILL.md` |
 
 ## Product/spec map
 

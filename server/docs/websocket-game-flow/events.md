@@ -198,7 +198,7 @@ Edge cases (server-handled):
   after `SHOWING`. During the media phase, repeated ACKs may repeat statuses.
 - This reports readiness, not verified file transfer. See the
   [media coordination reference](../media-download-sync.md) for the full contract
-  and known Flutter gaps.
+  and verification boundaries.
 
 ### `media-download-status`
 

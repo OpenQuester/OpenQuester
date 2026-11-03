@@ -80,8 +80,7 @@ Use the same application as "Log in with Discord" so `discord_id` matches.
 1. Installation → Installation Contexts: enable User Install and Guild Install.
 2. OAuth2 → Redirects: add `https://127.0.0.1` (placeholder; the SDK handles it).
    It must be the **first** redirect: the Activity's `authorize` uses the first
-   one, and a custom scheme there (the Flutter app's `openquester://`) fails with
-   `Redirect URI 'openquester://' is not supported by client`.
+   one. Use an HTTPS redirect.
 3. Activities → URL Mappings:
    - `/` → the web app host (Pages, or the API host when it serves `WEB_APP_DIR`).
      That host already forwards `/v1` and `/socket.io` to the API.

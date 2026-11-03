@@ -39,7 +39,7 @@ function encodable(f: MediaFile): boolean {
 }
 
 /**
- * Re-encodes every local media file the way the Flutter desktop encoder does
+ * Re-encodes local media in the browser
  * (AVIF pictures, VP9 + Opus WebM video, AAC or Opus MP4 sound) and points
  * the content at the new files. Anything this browser can't encode, or that
  * doesn't get smaller, is uploaded as it was.

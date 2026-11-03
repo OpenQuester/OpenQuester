@@ -73,16 +73,6 @@ button, and a lock countdown after a false start. The showman's dock has
 "Open buzzer now" while it is closed. Once the content has played, the stage
 shows a "The buzzer is open" card with the time left, so it is never empty.
 
-Flutter: reads `buzzerOpensAtMs` from question data and media status, shows the
-waiting state before the buzzer opens and a countdown while a false-start lock
-runs (`buzzer_timing.dart`, `game_question_screen.dart`), and blocks presses
-during the lock. `buzzer-open` replaces the opening deadline and clears both
-the snapshot's locks and the local false-start countdown without restarting
-content. Choice options use the server content deadline when positive and the
-content timeline plus package `showDelay` when false starts are off.
-Pausing freezes that delay; the answer timer does not hide
-already available options.
-
 ## Input methods
 
 Supported/expected input surfaces:
@@ -166,10 +156,10 @@ When implementing this behavior, test at least:
 
 Frontend:
 
-- `client/apps/client/lib/src/features/game_question/view/game_question_screen.dart`
-- `client/apps/client/lib/src/features/game_question/controllers/game_question_controller.dart`
-- `client/apps/client/lib/src/features/game_lobby/controllers/game_lobby_controller.dart`
-- localization JSON
+- `web/src/game/selectors.ts` for eligibility and disabled reasons
+- `web/src/game/reducer.ts` for server-driven buzzer state
+- `web/src/features/game/play/GameActionDock.tsx` for role-aware controls
+- `web/src/i18n/locales/` for UI strings
 
 Backend:
 

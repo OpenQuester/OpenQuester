@@ -10,7 +10,6 @@ Lists recommended extensions for this project. When you open the workspace, VSCo
 
 **Key Extensions:**
 
-- **Flutter & Dart**: Dart Code, Flutter
 - **Backend**: ESLint, TypeScript support
 - **Database**: PostgreSQL, Redis clients
 - **API**: REST Client, OpenAPI support
@@ -25,15 +24,16 @@ Predefined tasks for common development operations. Access via:
 
 **Available Tasks:**
 
-#### Flutter Tasks
+#### Web Tasks
 
-- `Flutter: Get Dependencies` - Install Flutter packages
-- `Flutter: Build Runner` - Generate code (one-time)
-- `Flutter: Build Runner (Watch)` - Generate code (watch mode)
-- `Flutter: Clean` - Clean Flutter build
-- `Flutter: Analyze` - Run static analysis
-- `Flutter: Test` - Run Flutter tests
-- `Flutter: Format` - Format Dart code
+- `Web: Install Dependencies` runs `npm ci`.
+- `Web: Dev` runs `npm run dev`.
+- `Web: Build` runs `npm run build`.
+- `Web: Typecheck` runs `npm run typecheck`.
+- `Web: Lint` runs `npm run lint`.
+- `Web: Test` runs `npm test`.
+- `Web: Generate API` runs `npm run gen:api`.
+- `Web: Check API` runs `npm run check:api`.
 
 #### Server Tasks
 
@@ -54,7 +54,7 @@ Predefined tasks for common development operations. Access via:
 #### Combined Tasks
 
 - `Setup: All Dependencies` - Install all project dependencies
-- `Test: All` - Run all tests (Flutter + Server)
+- `Test: All` - Run all tests (web and server)
 - `Lint: All` - Run all linters
 
 ### `settings.json`
@@ -63,9 +63,8 @@ Workspace-specific VSCode settings that override user settings.
 
 **Key Configurations:**
 
-- Auto-formatting on save for Dart, TypeScript, JSON
+- Auto-formatting on save for TypeScript, JSON
 - ESLint integration and auto-fix
-- Dart/Flutter optimizations
 - File exclusions for better performance
 - Custom file associations (`.oq` files)
 - Spell checker with project-specific words
@@ -89,7 +88,7 @@ Debug configurations for running and debugging the application.
    - Select `Setup: All Dependencies`
 
 3. **Start Development**
-   - For Flutter: Use debug configurations or run `Flutter: Build Runner (Watch)`
+   - For the browser app: Run `Web: Dev`
    - For Server: Press `Ctrl+Shift+B` (runs `Server: Start Dev` by default)
    - For Docker services: Run `Docker: Compose Up`
 
@@ -102,6 +101,5 @@ These settings are designed to work for most contributors. If you need different
 
 ## Notes
 
-- The `dart.flutterSdkPath` and `dart.sdkPath` settings are user-specific and may need adjustment
 - Some extensions provide additional features when installed (Error Lens, Todo Highlight, etc.)
 - Tasks can be chained together using `dependsOn` for complex workflows
