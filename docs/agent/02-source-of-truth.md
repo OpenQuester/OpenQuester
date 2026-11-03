@@ -49,6 +49,7 @@ Do not silently choose the convenient source. If the difference matters, update 
 | Flutter game UI workflow | `.agents/skills/frontend-game-ui-state/SKILL.md` |
 | Package editor workflow | `.agents/skills/package-editor-change/SKILL.md` |
 | Documentation upkeep | `.agents/skills/docs-upkeep/SKILL.md` |
+| Code quality criteria, review, and repair workflow | `.agents/skills/code-quality-review/SKILL.md` |
 
 ## What to do with stale docs
 

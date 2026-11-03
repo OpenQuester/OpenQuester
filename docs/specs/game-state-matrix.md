@@ -296,7 +296,8 @@ When changing gameplay state, make sure:
   question in play.
 - **Game info** (REST `PATCH /v1/games/{gameId}`, showman only): title, seat
   count (not below the players in the game) and a private game's password.
-  The room hears it through the `games` feed (`changed`).
+  The showman must be active, not banned or spectator-restricted. Muting alone
+  does not remove permission. The room hears it through the `games` feed (`changed`).
 
 The public events `question-toggle` and `game-join-mode` were renamed to
 `question-remove-restore` and `game-join-mode-change`. Their payloads are unchanged.

@@ -13,13 +13,16 @@ import { ValueUtils } from "domain/utils/ValueUtils";
 export class GameUpdateValidator {
   /**
    * Validates that the user has permission to update the game.
-   * User must be either the host or the showman.
+   * User must be an active, unrestricted showman.
    */
   public static validateUpdatePermission(game: Game, userId: number): void {
-    const currentPlayer = game.getPlayer(userId, { fetchDisconnected: true });
-    const isShowman = currentPlayer?.role === PlayerRole.SHOWMAN;
+    const activePlayer = game.getPlayer(userId, { fetchDisconnected: false });
+    const isAuthorizedShowman =
+      activePlayer?.role === PlayerRole.SHOWMAN &&
+      !activePlayer.isBanned &&
+      !activePlayer.isRestricted;
 
-    if (!isShowman) {
+    if (!isAuthorizedShowman) {
       throw new ClientError(ClientResponse.NO_PERMISSION, HttpStatus.FORBIDDEN);
     }
   }

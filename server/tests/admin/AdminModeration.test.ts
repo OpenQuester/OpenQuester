@@ -14,6 +14,7 @@ import { DI_TOKENS } from "shared/di/tokens";
 import { GameEvent, type GameEventDTO } from "domain/types/dto/game/GameEventDTO";
 import { GameActionType } from "domain/enums/GameActionType";
 import { HttpStatus } from "domain/enums/HttpStatus";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { Permissions } from "domain/enums/Permissions";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -163,6 +164,7 @@ describe("Admin panel moderation", () => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
         const mod = await moderator();
         const showmanId = setup.showmanUser.id;
+        const { cookie } = await utils.loginExistingUser(app, showmanId);
 
         const kicked = scenario.waitForEventMatching<PlayerKickBroadcastData>(
           setup.playerSockets[0],
@@ -175,6 +177,35 @@ describe("Admin panel moderation", () => {
           .set("Cookie", mod.cookie)
           .expect(HttpStatus.NO_CONTENT);
         await kicked;
+        await http
+          .patch(`/v1/games/${setup.gameId}`)
+          .set("Cookie", cookie)
+          .send({ title: "Vacant slot update" })
+          .expect(HttpStatus.FORBIDDEN);
+
+        const replacement = await utils.createGameClient(app, userRepo);
+        await utils.joinGame(replacement.socket, setup.gameId, PlayerRole.SHOWMAN);
+        const before = await utils.getGameFromGameService(setup.gameId);
+        const mark = scenario.mark();
+        await http
+          .patch(`/v1/games/${setup.gameId}`)
+          .set("Cookie", cookie)
+          .send({ title: "Unauthorized update" })
+          .expect(HttpStatus.FORBIDDEN);
+        await scenario.assert.noInbound({
+          actor: scenario.actor(setup.playerSockets[0]),
+          event: SocketIOEvents.GAMES,
+          afterSequence: mark,
+          durationMs: 100
+        });
+        const after = await utils.getGameFromGameService(setup.gameId);
+        expect(after.title).toBe(before.title);
+        expect(after.getPlayer(showmanId, { fetchDisconnected: false })).toBeNull();
+        await http
+          .patch(`/v1/games/${setup.gameId}`)
+          .set("Cookie", replacement.cookie)
+          .send({ title: "Replacement update" })
+          .expect(HttpStatus.OK);
       }));
 
     it("answers 404 when the player is not in the game", () =>

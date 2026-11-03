@@ -112,6 +112,61 @@ describe("Game REST update", () => {
       expect(playerCookie).toBeDefined();
     }));
 
+  it("rejects banned or restricted showmen but permits muted showmen", () =>
+    suite.scenario(async () => {
+      const setup = await utils.setupGameTestEnvironment(suite.userRepo, app, 1, 0);
+      const { cookie } = await utils.loginExistingUser(app, setup.showmanUser.id);
+      const game = await utils.getGameFromGameService(setup.gameId);
+      const showman = game.getPlayer(setup.showmanUser.id, { fetchDisconnected: false });
+      if (!showman) {
+        throw new Error(`Expected an active showman in game ${setup.gameId}`);
+      }
+
+      showman.isBanned = true;
+      await utils.updateGame(game);
+      await http
+        .patch(`/v1/games/${setup.gameId}`)
+        .set("Cookie", cookie)
+        .send({ title: "Denied" })
+        .expect(403);
+
+      showman.isBanned = false;
+      showman.isRestricted = true;
+      await utils.updateGame(game);
+      await http
+        .patch(`/v1/games/${setup.gameId}`)
+        .set("Cookie", cookie)
+        .send({ title: "Denied" })
+        .expect(403);
+
+      showman.isRestricted = false;
+      showman.isMuted = true;
+      await utils.updateGame(game);
+      await http
+        .patch(`/v1/games/${setup.gameId}`)
+        .set("Cookie", cookie)
+        .send({ title: "Allowed" })
+        .expect(200);
+    }));
+
+  it("rejects a former showman after leaving", () =>
+    suite.scenario(async () => {
+      const setup = await utils.setupGameTestEnvironment(suite.userRepo, app, 1, 0);
+      const { cookie } = await utils.loginExistingUser(app, setup.showmanUser.id);
+      const before = await utils.getGameFromGameService(setup.gameId);
+      await utils.leaveGame(setup.showmanSocket);
+
+      const response = await http
+        .patch(`/v1/games/${setup.gameId}`)
+        .set("Cookie", cookie)
+        .send({ isPrivate: true, password: "Changed_123" })
+        .expect(403);
+      expect(response.body.error).toBe("You don't have permission to perform this action");
+      const after = await utils.getGameFromGameService(setup.gameId);
+      expect(after.isPrivate).toBe(before.isPrivate);
+      expect(after.gameState.password).toBe(before.gameState.password);
+    }));
+
   it("should reject package change after game start", () =>
     suite.scenario(async (scenario) => {
       const userRepo = suite.userRepo;
