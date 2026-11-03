@@ -916,12 +916,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       if (!final) return session;
       const { playerId, bidAmount } = event.payload;
       return patchFinal(session, {
-        submittedBidPlayerIds: [
-          ...new Set([
-            ...final.submittedBidPlayerIds,
-            playerId,
-          ]),
-        ],
+        submittedBidPlayerIds: [...new Set([...final.submittedBidPlayerIds, playerId])],
         bids: bidAmount == null ? final.bids : { ...final.bids, [playerId]: bidAmount },
       });
     }

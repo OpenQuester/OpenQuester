@@ -547,20 +547,46 @@ describe("Player Join Game State Tests", () => {
             const departed = (await utils.getGameFromGameService(gameId)).players.find(
               (p) => p.meta.id === playerUsers[1].id
             )!;
-            expect(departed.score).toBe(600);
-            expect(after.finalRoundData?.answers).toContainEqual(
-              expect.objectContaining({
-                playerId: playerUsers[1].id,
-                autoLoss: true,
-                isCorrect: false
-              })
+            expect(departed.score).toBe(1200);
+            const autoLoss = after.finalRoundData?.answers.find(
+              (answer) => answer.playerId === playerUsers[1].id
             );
+            expect(autoLoss).toMatchObject({ autoLoss: true, isCorrect: false });
+            expect(autoLoss?.reviewedAt).toBeUndefined();
           }
           scenario
             .actor(mode === "rejoin" ? playerSockets[1] : playerSockets[0])
             .emit(SocketIOGameEvents.MEDIA_DOWNLOADED, { mediaPreparationId: preparationId });
           await scenario.assert.waitForActionsComplete({ gameId });
           expect((await utils.getGameState(gameId)).questionState).toBe(QuestionState.ANSWERING);
+
+          if (mode === "leave" || mode === "role") {
+            const game = await utils.getGameFromGameService(gameId);
+            game.gameState.timer!.elapsedMs =
+              game.gameState.finalRoundData!.questionData!.contentPlan!.totalMs;
+            game.gameState.timer!.resumedAt = new Date();
+            await utils.updateGame(game);
+
+            const review = scenario.waitForEvent<FinalSubmitEndEventData>(
+              showmanSocket,
+              SocketIOGameEvents.FINAL_SUBMIT_END
+            );
+            scenario
+              .actor(playerSockets[0])
+              .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "answer" });
+            const reveal = await review;
+            expect(reveal.nextPhase).toBe(FinalRoundPhase.REVIEWING);
+            expect(
+              reveal.allReviews?.filter((entry) => entry.playerId === playerUsers[1].id)
+            ).toEqual([expect.objectContaining({ scoreChange: -600, scoreAfter: 600 })]);
+
+            await scenario.assert.waitForActionsComplete({ gameId });
+            const reviewing = await utils.getGameFromGameService(gameId);
+            expect(reviewing.gameState.questionState).toBe(QuestionState.REVIEWING);
+            expect(
+              reviewing.getPlayer(playerUsers[1].id, { fetchDisconnected: true })?.score
+            ).toBe(600);
+          }
         });
       }
     );
