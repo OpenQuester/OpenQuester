@@ -1375,7 +1375,7 @@ export interface paths {
         head?: never;
         /**
          * Update game settings
-         * @description Update game settings. Only the showman can update the game. Package can only be changed before the game starts. When packageId changes, the server loads the new package snapshot, rebuilds round/question indexes and counts, resets game state, and preserves the current password. Emits GameEventDTO with event "changed" to both lobby and game room.
+         * @description Update game settings. Only the active showman can update the game. Banned or spectator-restricted users cannot update it. Muting does not prevent updates. Package can only be changed before the game starts. When packageId changes, the server loads the new package snapshot, rebuilds round/question indexes and counts, resets game state, and preserves the current password. Emits GameEventDTO with event "changed" to both lobby and game room.
          */
         patch: {
             parameters: {
@@ -1410,7 +1410,7 @@ export interface paths {
                         "application/json": components["schemas"]["GameUpdateErrorResponse"];
                     };
                 };
-                /** @description Permission denied - only showman or host can update */
+                /** @description Permission denied - only the active unrestricted showman can update */
                 403: {
                     headers: {
                         [name: string]: unknown;
