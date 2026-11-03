@@ -46,7 +46,10 @@ export class BiddingInitializationLogic {
 
     // Place automatic bids for players with low scores
     for (const player of eligiblePlayers) {
-      if (player.score <= 1) {
+      if (
+        player.score <= 1 &&
+        game.gameState.finalRoundData?.bids[player.meta.id] === undefined
+      ) {
         FinalRoundStateManager.addBid(game, player.meta.id, 1);
         automaticBids.push({
           playerId: player.meta.id,

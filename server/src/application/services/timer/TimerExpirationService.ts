@@ -698,11 +698,11 @@ export class TimerExpirationService {
     const broadcasts: BroadcastEvent[] = [];
 
     // Emit auto-loss events
-    for (const autoLossReview of result.autoLossReviews) {
+    for (const playerId of result.autoLossPlayerIds) {
       broadcasts.push({
         event: SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
         data: {
-          playerId: autoLossReview.playerId
+          playerId
         } satisfies FinalAnswerSubmitOutputData,
         room: game.id
       });
@@ -711,7 +711,7 @@ export class TimerExpirationService {
       broadcasts.push({
         event: SocketIOGameEvents.FINAL_AUTO_LOSS,
         data: {
-          playerId: autoLossReview.playerId,
+          playerId,
           reason: FinalAnswerLossReason.TIMEOUT
         } satisfies SocketIOFinalAutoLossEventPayload,
         room: game.id

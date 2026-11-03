@@ -221,10 +221,15 @@ export interface FinalQuestionData {
   mediaPreparationTimedOut?: boolean;
 }
 
+export interface FinalBidsByPlayerId {
+  [playerId: string]: number;
+}
+
 export interface FinalRoundData {
+  submittedBidPlayerIds: number[];
   phase: FinalPhase;
   turnOrder: number[];
-  bids: Record<string, number>;
+  bids: FinalBidsByPlayerId;
   answers: FinalAnswer[];
   eliminatedThemes: number[];
   questionData?: FinalQuestionData | null;
@@ -366,6 +371,7 @@ export interface AnswerReview {
   playerId: number;
   answerId: string;
   answerText: string;
+  scoreAfter?: number;
   scoreChange: number;
   answerType: FinalAnswerType;
   isCorrect: boolean | null;
@@ -483,13 +489,14 @@ export interface ServerEvents {
   "stake-question-winner": { winnerPlayerId: number; finalBid: number | null };
   "theme-eliminate": { themeId: number; eliminatedBy: number; nextPlayerId: number | null };
   "final-phase-complete": { phase: FinalPhase; nextPhase?: FinalPhase; timer?: Timer };
-  "final-bid-submit": { playerId: number; bidAmount: number; isAutomatic?: boolean };
+  "final-bid-submit": { playerId: number; bidAmount?: number; isAutomatic?: boolean };
   "final-question-data": { questionData: FinalQuestionData; timer?: Timer | null };
   "final-answer-submit": { playerId: number };
   "final-auto-loss": { playerId: number; reason: "empty_answer" | "timeout" };
   "final-submit-end": {
     phase: FinalPhase;
     nextPhase: FinalPhase | null;
+    bids: FinalBidsByPlayerId;
     allReviews?: AnswerReview[];
   };
   "final-answer-review": {

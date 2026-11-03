@@ -12,7 +12,8 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   FinalAnswerSubmitOutputData,
   FinalPhaseCompleteEventData,
-  FinalQuestionEventData
+  FinalQuestionEventData,
+  FinalSubmitEndEventData
 } from "domain/types/socket/events/FinalRoundEventData";
 import { GameJoinOutputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
@@ -546,20 +547,46 @@ describe("Player Join Game State Tests", () => {
             const departed = (await utils.getGameFromGameService(gameId)).players.find(
               (p) => p.meta.id === playerUsers[1].id
             )!;
-            expect(departed.score).toBe(600);
-            expect(after.finalRoundData?.answers).toContainEqual(
-              expect.objectContaining({
-                playerId: playerUsers[1].id,
-                autoLoss: true,
-                isCorrect: false
-              })
+            expect(departed.score).toBe(1200);
+            const autoLoss = after.finalRoundData?.answers.find(
+              (answer) => answer.playerId === playerUsers[1].id
             );
+            expect(autoLoss).toMatchObject({ autoLoss: true, isCorrect: false });
+            expect(autoLoss?.reviewedAt).toBeUndefined();
           }
           scenario
             .actor(mode === "rejoin" ? playerSockets[1] : playerSockets[0])
             .emit(SocketIOGameEvents.MEDIA_DOWNLOADED, { mediaPreparationId: preparationId });
           await scenario.assert.waitForActionsComplete({ gameId });
           expect((await utils.getGameState(gameId)).questionState).toBe(QuestionState.ANSWERING);
+
+          if (mode === "leave" || mode === "role") {
+            const game = await utils.getGameFromGameService(gameId);
+            game.gameState.timer!.elapsedMs =
+              game.gameState.finalRoundData!.questionData!.contentPlan!.totalMs;
+            game.gameState.timer!.resumedAt = new Date();
+            await utils.updateGame(game);
+
+            const review = scenario.waitForEvent<FinalSubmitEndEventData>(
+              showmanSocket,
+              SocketIOGameEvents.FINAL_SUBMIT_END
+            );
+            scenario
+              .actor(playerSockets[0])
+              .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "answer" });
+            const reveal = await review;
+            expect(reveal.nextPhase).toBe(FinalRoundPhase.REVIEWING);
+            expect(
+              reveal.allReviews?.filter((entry) => entry.playerId === playerUsers[1].id)
+            ).toEqual([expect.objectContaining({ scoreChange: -600, scoreAfter: 600 })]);
+
+            await scenario.assert.waitForActionsComplete({ gameId });
+            const reviewing = await utils.getGameFromGameService(gameId);
+            expect(reviewing.gameState.questionState).toBe(QuestionState.REVIEWING);
+            expect(
+              reviewing.getPlayer(playerUsers[1].id, { fetchDisconnected: true })?.score
+            ).toBe(600);
+          }
         });
       }
     );
@@ -678,7 +705,7 @@ describe("Player Join Game State Tests", () => {
         });
         const firstBid = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_BID_SUBMIT);
         scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
-        await firstBid;
+        expect(await firstBid).toEqual({ playerId: playerUsers[0].id });
         const publicQuestion = scenario.waitForEvent<FinalQuestionEventData>(
           playerSockets[0],
           SocketIOGameEvents.FINAL_QUESTION_DATA
@@ -731,6 +758,10 @@ describe("Player Join Game State Tests", () => {
           .emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
         const joined = await snapshot;
         expect(joined.gameState.isPaused).toBe(true);
+        expect(joined.gameState.finalRoundData?.submittedBidPlayerIds).toEqual(
+          expect.arrayContaining(playerUsers.map((player) => player.id))
+        );
+        expect(joined.gameState.finalRoundData?.bids).toEqual({});
         expect(joined.gameState.timer?.elapsedMs).toBeGreaterThanOrEqual(0);
         expect(joined.gameState.timer?.durationMs).toBe(30000);
         expect(joined.gameState.finalRoundData?.questionData?.mediaPreparationId).toBe(
@@ -774,11 +805,17 @@ describe("Player Join Game State Tests", () => {
           .actor(playerSockets[0])
           .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "0.2,0.4" });
         await answer;
-        const review = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_SUBMIT_END);
+        const review = scenario.waitForEvent<FinalSubmitEndEventData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_SUBMIT_END
+        );
         scenario
           .actor(playerSockets[1])
           .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "0.8,0.6" });
-        await review;
+        expect((await review).bids).toEqual({
+          [playerUsers[0].id]: 800,
+          [playerUsers[1].id]: 600
+        });
       });
     });
 
@@ -1293,6 +1330,13 @@ describe("Player Join Game State Tests", () => {
         expect(gameState.finalRoundData?.questionData).toBeUndefined();
 
         // Create a new player and have them join the game
+        const acceptedBid = scenario.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 700 });
+        await acceptedBid;
+
         const { socket: newPlayerSocket } = await utils.createGameClient();
 
         const joinGamePromise = scenario.waitForEvent<GameJoinOutputData>(
@@ -1306,6 +1350,10 @@ describe("Player Join Game State Tests", () => {
         });
 
         const joinedGameData = await joinGamePromise;
+        expect(joinedGameData.gameState.finalRoundData?.bids).toEqual({});
+        expect(joinedGameData.gameState.finalRoundData?.submittedBidPlayerIds).toEqual([
+          playerUsers[0].id
+        ]);
 
         // Verify the joined player does NOT receive questionData (it's not revealed yet)
         expect(joinedGameData.gameState.questionState).toBe(QuestionState.BIDDING);

@@ -366,6 +366,8 @@ function handleThemeClick(themeId: number) {
 
 ### Bidding Phase Overview
 
+The first accepted final bid is locked, including after reconnect. Before review, only its owner sees the amount; everyone else sees submission status. On entering review, all bids are revealed and automatic-loss penalties are applied once.
+
 Players submit bids for how many points they're willing to risk on the final question. Players with scores ≤ 1 receive automatic bids of 1 point.
 
 ### Bidding Phase Rules
@@ -410,12 +412,12 @@ socket.on("final-phase-complete", (data: FinalPhaseCompleteEventData) => {
 
 #### `FINAL_BID_SUBMIT` (Broadcast)
 
-Broadcast when a player submits a bid (manual or automatic).
+A public notification is sent when a bid is accepted (manual or automatic), followed by a private notification with the amount to its owner.
 
 ```typescript
 interface FinalBidSubmitOutputData {
   playerId: number;
-  bidAmount: number;
+  bidAmount?: number; // Sent privately to the bidder before review
   isAutomatic?: boolean;
 }
 ```
@@ -426,13 +428,12 @@ interface FinalBidSubmitOutputData {
 /** Code Example */
 
 socket.on("final-bid-submit", (data: FinalBidSubmitOutputData) => {
-  // Update UI to show player's bid
-  // Show bid animation
-  if (data.isAutomatic) {
-    // Display automatic bid indicator
-    // Show "Player X automatically bids 1 point"
+  // Public and private notifications refer to the same submission.
+  submittedBidPlayerIds.add(data.playerId);
+  if (data.bidAmount !== undefined) {
+    playerBids[data.playerId] = data.bidAmount;
   }
-  // Update bid summary/leaderboard
+  // Render another player's bid as submitted; lock the owner's bid form.
 });
 ```
 
@@ -484,9 +485,10 @@ const handleBidSubmit = (bidAmount: number) => {
 // Example bidding UI state
 interface BiddingState {
   timeRemaining: number;
-  playerBids: Record<number, number>; // playerId -> bidAmount
+  submittedBidPlayerIds: Set<number>;
+  playerBids: FinalBidsByPlayerId; // Own amount before review; all amounts after reveal
   myBid: number | null;
-  canBid: boolean; // false if score <= 1
+  canBid: boolean; // false after any accepted bid, including an automatic bid
   maxBid: number; // player's current score
 }
 
@@ -593,10 +595,15 @@ socket.on("final-auto-loss", (data: FinalAutoLossEventData) => {
 Broadcast when all players have submitted answers and phase transitions to reviewing.
 
 ```typescript
+interface FinalBidsByPlayerId {
+  [playerId: number]: number;
+}
+
 interface FinalSubmitEndEventData {
-  phase: "ANSWERING";
-  nextPhase: "REVIEWING";
-  allReviews: AnswerReviewData[];
+  phase: "answering";
+  nextPhase: "reviewing";
+  bids: FinalBidsByPlayerId; // All amounts
+  allReviews?: AnswerReviewData[];
 }
 
 interface AnswerReviewData {
@@ -604,8 +611,9 @@ interface AnswerReviewData {
   answerId: string;
   answerText: string;
   scoreChange: number;
-  answerType: "CORRECT" | "WRONG" | "AUTO_LOSS";
-  isCorrect: boolean;
+  scoreAfter?: number; // Absolute score after an automatic loss
+  answerType: "correct" | "wrong" | "auto_loss" | "pending";
+  isCorrect: boolean | null;
 }
 ```
 
@@ -619,7 +627,7 @@ socket.on("final-submit-end", (data: FinalSubmitEndEventData) => {
   // Display all player answers
   // Show review interface for showman
   // Transition to reviewing phase
-  data.allReviews.forEach((review) => {
+  data.allReviews?.forEach((review) => {
     displayAnswerForReview(review);
   });
 });
@@ -742,7 +750,7 @@ The answering phase includes robust timeout handling:
    - Auto-loss events are sent for these players
    - Phase transitions to reviewing automatically
 4. **Phase Completion**: When all players have submitted (manually or automatically):
-   - All answers are revealed via `FINAL_SUBMIT_END` event
+   - All answers and bids are revealed via `FINAL_SUBMIT_END`; deferred auto-loss penalties are now applied
    - Game transitions to reviewing phase
 
 ## Phase 4: Reviewing
@@ -757,11 +765,11 @@ After all players have submitted their answers (or the timer expires), the game 
 
 **Flow:**
 
-1. The `final-phase-complete` event for the `answering` phase is received, indicating the start of the review phase.
+1. The `final-submit-end` event for the `answering` phase reveals bids and answers and starts review, even if every answer is an automatic loss and the game immediately finishes.
 2. The showman's interface displays all the answers submitted by the players.
-3. Answers that were not submitted (i.e., are empty) are automatically considered incorrect. The showman does not need to review these.
+3. Empty answers are automatically incorrect. Their penalties are applied on entry to review; the showman does not review them.
 4. The showman can review the non-empty answers in any order they choose by sending a `FINAL_ANSWER_REVIEW` event for each one, specifying if the answer is correct or incorrect.
-5. After the showman has reviewed all non-empty answers, the backend automatically processes any empty answers, and then sends the `QUESTION_FINISH` event.
+5. After the showman has reviewed all non-empty answers, the backend sends the `QUESTION_FINISH` event. Automatic losses have already been settled.
 6. Immediately following `QUESTION_FINISH`, the `GAME_FINISHED` event is sent, which includes the final scores and the winner of the game.
 
 ```typescript
@@ -800,7 +808,8 @@ interface GameState {
     phase: "theme_elimination" | "bidding" | "answering" | "reviewing";
     turnOrder: number[];
     currentTurnPlayerId: number | null;
-    bids: Record<number, number>; // playerId -> bidAmount
+    submittedBidPlayerIds: number[];
+    bids: FinalBidsByPlayerId; // Own amount before review; all amounts after reveal
     answers: FinalRoundAnswer[];
     eliminatedThemes: number[];
   };
@@ -926,7 +935,7 @@ export interface FinalBidSubmitInputData {
 
 export interface FinalBidSubmitOutputData {
   playerId: number;
-  bidAmount: number;
+  bidAmount?: number; // Sent privately to the bidder before review
   isAutomatic?: boolean;
 }
 
@@ -951,29 +960,7 @@ export interface FinalQuestionEventData {
 
 ### OpenAPI Schema References
 
-The OpenAPI schema defines the following relevant types:
-
-```json
-{
-  "FinalRoundPhase": {
-    "type": "string",
-    "enum": ["theme_elimination", "bidding", "answering", "reviewing"]
-  },
-  "FinalRoundGameData": {
-    "type": "object",
-    "properties": {
-      "phase": { "$ref": "#/components/schemas/FinalRoundPhase" },
-      "turnOrder": { "type": "array", "items": { "type": "integer" } },
-      "currentTurnPlayerId": { "type": ["integer", "null"] },
-      "bids": {
-        "type": "object",
-        "additionalProperties": { "type": "integer" }
-      },
-      "eliminatedThemes": { "type": "array", "items": { "type": "integer" } }
-    }
-  }
-}
-```
+See the [OpenAPI schema](https://github.com/OpenQuester/OpenQuester/blob/main/openapi/schema.json) for `FinalRoundGameData`, `FinalBidsByPlayerId`, and `SocketIOFinalSubmitEndPayload`.
 
 ## Error Handling
 

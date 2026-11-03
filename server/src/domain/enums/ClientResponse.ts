@@ -135,6 +135,7 @@ export enum ClientResponse {
   NOT_YOUR_TURN = "not_your_turn",
   PLAYER_ALREADY_PASSED = "player_already_passed",
   ANSWER_NOT_FOUND = "answer_not_found",
+  FINAL_BID_ALREADY_SUBMITTED = "final_bid_already_submitted",
   FINAL_ROUND_NOT_INITIALIZED = "final_round_not_initialized",
   CANNOT_JOIN_FINAL_ROUND_AS_PLAYER = "cannot_join_final_round_as_player",
 

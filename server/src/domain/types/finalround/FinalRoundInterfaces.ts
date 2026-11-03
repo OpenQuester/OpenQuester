@@ -38,6 +38,10 @@ export interface FinalRoundAnswer {
   reviewedAt?: Date;
 }
 
+export interface FinalBidsByPlayerId {
+  [playerId: number]: number;
+}
+
 /**
  * Interface for final round game state data
  */
@@ -45,7 +49,9 @@ export interface FinalRoundGameData {
   phase: FinalRoundPhase;
   /** Turn order for final round theme elimination */
   turnOrder: number[];
-  bids: Record<number, number>; // playerId -> bidAmount
+  /** Derived when projecting a snapshot for clients. */
+  submittedBidPlayerIds?: number[];
+  bids: FinalBidsByPlayerId;
   answers: FinalRoundAnswer[];
   eliminatedThemes: number[];
   /** Question data - set when transitioning to answering phase */

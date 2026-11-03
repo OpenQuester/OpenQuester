@@ -3,6 +3,7 @@ import { inject, singleton } from "tsyringe";
 import { DI_TOKENS } from "shared/di/tokens";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { Game } from "domain/entities/game/Game";
+import { projectFinalRoundData } from "domain/mappers/projectFinalRoundData";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { type GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
@@ -110,33 +111,31 @@ export class SocketIOQuestionService {
     for (const socketId of socketsIds) {
       const userSession = userDataMap.get(socketId);
 
-      if (!userSession) {
-        continue;
-      }
+      const player = userSession?.gameId === game.id
+        ? game.getPlayer(userSession.id, { fetchDisconnected: false })
+        : null;
 
-      const player = game.getPlayer(userSession.id, {
-        fetchDisconnected: false,
-      });
-
+      const visibleState = {
+        ...gameState,
+        finalRoundData: projectFinalRoundData(gameState.finalRoundData, player?.meta.id)
+      };
       if (player?.role === PlayerRole.SHOWMAN) {
-        // Showman gets full data
-        resultMap.set(socketId, gameState);
+        // Showman gets full question data
+        resultMap.set(socketId, visibleState);
       } else {
         // Players and spectators get filtered data (no questions)
-        const playerGameState = { ...gameState };
-
         // Only modify the currentRound part if it exists
-        if (playerGameState.currentRound) {
-          playerGameState.currentRound = {
-            ...playerGameState.currentRound,
-            themes: playerGameState.currentRound.themes.map((theme) => ({
+        if (visibleState.currentRound) {
+          visibleState.currentRound = {
+            ...visibleState.currentRound,
+            themes: visibleState.currentRound.themes.map((theme) => ({
               ...theme,
               questions: [], // Players get empty questions array
             })),
           };
         }
 
-        resultMap.set(socketId, playerGameState);
+        resultMap.set(socketId, visibleState);
       }
     }
 

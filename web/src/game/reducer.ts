@@ -914,8 +914,10 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
     case "final-bid-submit": {
       const final = s.finalRoundData;
       if (!final) return session;
+      const { playerId, bidAmount } = event.payload;
       return patchFinal(session, {
-        bids: { ...final.bids, [String(event.payload.playerId)]: event.payload.bidAmount },
+        submittedBidPlayerIds: [...new Set([...final.submittedBidPlayerIds, playerId])],
+        bids: bidAmount == null ? final.bids : { ...final.bids, [playerId]: bidAmount },
       });
     }
 
@@ -954,7 +956,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       };
 
     case "final-submit-end": {
-      const { nextPhase, allReviews } = event.payload;
+      const { nextPhase, allReviews, bids } = event.payload;
       const final = s.finalRoundData;
       if (!final) return session;
       const answers = allReviews
@@ -972,8 +974,30 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
             };
           })
         : final.answers;
-      const next = patchFinal(session, { phase: nextPhase ?? final.phase, answers });
-      return patchState(next, { questionState: nextPhase ?? s.questionState, timer: null });
+      const next = patchFinal(session, {
+        phase: nextPhase ?? final.phase,
+        answers,
+        bids,
+      });
+      // Apply the authoritative auto-loss scores on entry to review.
+      const settledScores =
+        nextPhase === "reviewing" && final.phase !== "reviewing"
+          ? new Map(
+              allReviews
+                ?.filter((r) => r.answerType === "auto_loss")
+                .map((r) => [r.playerId, r.scoreAfter]),
+            )
+          : new Map<number, number>();
+      return patchState(
+        {
+          ...next,
+          players: next.players.map((p) => {
+            const scoreAfter = settledScores.get(p.meta.id);
+            return scoreAfter === undefined ? p : { ...p, score: scoreAfter };
+          }),
+        },
+        { questionState: nextPhase ?? s.questionState, timer: null },
+      );
     }
 
     case "final-answer-review": {

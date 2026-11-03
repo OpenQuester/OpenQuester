@@ -4,6 +4,9 @@ import { DI_TOKENS } from "shared/di/tokens";
 import { RealtimeEvents } from "application/ports/realtime/RealtimeEvent";
 import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
+import { projectFinalRoundData } from "domain/mappers/projectFinalRoundData";
+import type { FinalBidSubmitOutputData } from "domain/types/socket/events/FinalRoundEventData";
 import { Game } from "domain/entities/game/Game";
 import {
   SocketIOEvents,
@@ -35,6 +38,7 @@ export class GameActionBroadcastService {
   constructor(
     @inject(DI_TOKENS.RealtimeGateway) private readonly realtimeGateway: RealtimeGateway,
     private readonly questionService: SocketIOQuestionService,
+    private readonly socketUserDataService: SocketUserDataService,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -86,24 +90,7 @@ export class GameActionBroadcastService {
 
         case SocketBroadcastTarget.GAME:
           if (gameId) {
-            // Handle role-based broadcasts
-            if (broadcast.useRoleBasedBroadcast) {
-              if (broadcast.event === SocketIOGameEvents.QUESTION_DATA) {
-                await this.emitQuestionDataWithRoleBasedFiltering(gameId, broadcast.data, game);
-              } else if (broadcast.event === SocketIOGameEvents.FINAL_QUESTION_DATA) {
-                await this.emitFinalQuestionDataWithRoleBasedFiltering(
-                  gameId,
-                  broadcast.data as FinalQuestionEventData,
-                  game
-                );
-              } else {
-                await this.emitWithRoleBasedFiltering(broadcast.event, game);
-              }
-            } else {
-              this.realtimeGateway.publish(
-                RealtimeEvents.toRoom(gameId, broadcast.event, broadcast.data)
-              );
-            }
+            await this.handleRoleBasedBroadcasts(gameId, broadcast, game);
           }
 
           break;
@@ -116,52 +103,107 @@ export class GameActionBroadcastService {
     }
   }
 
+  private async handleRoleBasedBroadcasts(
+    gameId: string,
+    broadcast: SocketEventBroadcast,
+    game: Game
+  ): Promise<void> {
+    const { event, data, useRoleBasedBroadcast } = broadcast;
+    if (event === SocketIOGameEvents.FINAL_BID_SUBMIT) {
+      await this.emitFinalBid(gameId, data as FinalBidSubmitOutputData);
+      return;
+    }
+
+    if (!useRoleBasedBroadcast) {
+      this.realtimeGateway.publish(RealtimeEvents.toRoom(gameId, event, data));
+      return;
+    }
+
+    if (event === SocketIOGameEvents.QUESTION_DATA) {
+      await this.emitQuestionDataWithRoleBasedFiltering(gameId, data, game);
+      return;
+    }
+
+    if (event === SocketIOGameEvents.FINAL_QUESTION_DATA) {
+      await this.emitFinalQuestionDataWithRoleBasedFiltering(
+        gameId,
+        data as FinalQuestionEventData,
+        game
+      );
+      return;
+    }
+
+    await this.emitWithRoleBasedFiltering(event, game);
+  }
+
+  private async emitFinalBid(gameId: string, bid: FinalBidSubmitOutputData): Promise<void> {
+    const { playerId, isAutomatic, bidAmount } = bid;
+    if (bidAmount === undefined) {
+      this.logger.error("Missing amount in final bid broadcast", {
+        prefix: LogPrefix.BROADCAST,
+        gameId,
+        playerId
+      });
+      return;
+    }
+
+    const event = SocketIOGameEvents.FINAL_BID_SUBMIT;
+    const publicBidSubmission = { playerId, ...(isAutomatic === undefined ? {} : { isAutomatic }) };
+    this.realtimeGateway.publish(RealtimeEvents.toRoom(gameId, event, publicBidSubmission));
+
+    try {
+      const socketIds = await this.realtimeGateway.getRoomSocketIds(gameId);
+      if (socketIds.length === 0) {
+        return;
+      }
+
+      const sessions = await this.socketUserDataService.getSocketDataBatch(socketIds);
+      for (const [socketId, session] of sessions) {
+        if (session?.id === playerId && session.gameId === gameId) {
+          this.realtimeGateway.publish(
+            RealtimeEvents.toSocket(socketId, event, { ...publicBidSubmission, bidAmount })
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Could not deliver private final bid: ${error}`, {
+        prefix: LogPrefix.BROADCAST,
+        gameId
+      });
+    }
+  }
+
   /**
    * Role-based filtering emit for game state broadcasts.
    * Sends filtered game state to each player based on their role.
    */
   private async emitWithRoleBasedFiltering(event: IOEvent, game: Game): Promise<void> {
     try {
-      // Get all socket IDs in the game room
       const socketIds = await this.realtimeGateway.getRoomSocketIds(game.id);
-
-      // With the Redis adapter, fetchSockets() may return an empty array
-      // in single-instance environments (e.g. tests) because it queries
-      // remote instances via pub/sub instead of local in-memory rooms.
-      // Fall back to a plain room broadcast to guarantee delivery.
-      if (socketIds.length === 0) {
-        this.realtimeGateway.publish(
-          RealtimeEvents.toRoom(game.id, event, { gameState: game.gameState })
-        );
-
-        return;
-      }
-
-      // Use the question service to get the broadcast map
-      const broadcastMap = await this.questionService.getGameStateBroadcastMap(socketIds, game);
-
-      // If the map is empty (all sessions missing), fall back to room broadcast
-      if (broadcastMap.size === 0) {
-        this.realtimeGateway.publish(
-          RealtimeEvents.toRoom(game.id, event, { gameState: game.gameState })
-        );
-
-        return;
-      }
-
-      // Emit to each socket with the appropriate filtered data
-      for (const [socketId, gameState] of broadcastMap.entries()) {
-        this.realtimeGateway.publish(RealtimeEvents.toSocket(socketId, event, { gameState }));
+      if (socketIds.length > 0) {
+        const broadcastMap = await this.questionService.getGameStateBroadcastMap(socketIds, game);
+        for (const [socketId, gameState] of broadcastMap) {
+          this.realtimeGateway.publish(RealtimeEvents.toSocket(socketId, event, { gameState }));
+        }
+        if (broadcastMap.size > 0) {
+          return;
+        }
       }
     } catch (error: unknown) {
       this.logger.error(`Error in role-based filtering emit: ${JSON.stringify(error)}`, {
         prefix: LogPrefix.BROADCAST
       });
-      // Fallback to regular room emit if role-based filtering fails
-      this.realtimeGateway.publish(
-        RealtimeEvents.toRoom(game.id, event, { gameState: game.gameState })
-      );
     }
+
+    // Recipient lookup can fail; the room fallback must contain only public final data.
+    this.realtimeGateway.publish(
+      RealtimeEvents.toRoom(game.id, event, {
+        gameState: {
+          ...game.gameState,
+          finalRoundData: projectFinalRoundData(game.gameState.finalRoundData)
+        }
+      })
+    );
   }
 
   /**

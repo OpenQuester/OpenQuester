@@ -42,6 +42,7 @@ it("replays every legacy final image in order while preserving its initial layou
     currentQuestion: q,
     finalRoundData: {
       phase: "answering",
+      submittedBidPlayerIds: [],
       bids: {},
       answers: [],
       turnOrder: [ALICE],
@@ -82,6 +83,7 @@ it("uses the paused snapshot timer on rejoin and resumes from the same step", ()
     timer: { ...timer(75_000 + plan.totalMs), elapsedMs: 2_100 },
     finalRoundData: {
       phase: "answering",
+      submittedBidPlayerIds: [],
       bids: {},
       answers: [],
       turnOrder: [ALICE],
@@ -139,6 +141,7 @@ it("shows only the target image after a sequenced final, without replaying earli
     },
     finalRoundData: {
       phase: "answering",
+      submittedBidPlayerIds: [ALICE],
       bids: { [ALICE]: 100 },
       answers: [],
       turnOrder: [ALICE],
@@ -177,6 +180,7 @@ it.each([
     currentQuestion: q,
     finalRoundData: {
       phase: "answering",
+      submittedBidPlayerIds: [ALICE],
       bids: { [ALICE]: 100 },
       answers: [],
       turnOrder: [ALICE],
@@ -219,6 +223,7 @@ it("replaces only the first occurrence of duplicate legacy images", () => {
       currentQuestion: q,
       finalRoundData: {
         phase: "answering",
+        submittedBidPlayerIds: [ALICE],
         bids: { [ALICE]: 100 },
         answers: [],
         turnOrder: [ALICE],
@@ -251,6 +256,7 @@ it("explains when the final started after a media readiness timeout", () => {
     currentQuestion: q,
     finalRoundData: {
       phase: "answering",
+      submittedBidPlayerIds: [],
       bids: {},
       answers: [],
       turnOrder: [ALICE],
@@ -288,6 +294,7 @@ it("plays the final timeline before enabling answers", () => {
     timer: timer(75_000 + plan.totalMs),
     finalRoundData: {
       phase: "answering",
+      submittedBidPlayerIds: [ALICE],
       bids: { [ALICE]: 100 },
       answers: [],
       turnOrder: [ALICE],

@@ -1,7 +1,7 @@
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
+import { FinalBidsByPlayerId, FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
 import { AnswerReviewData } from "domain/types/socket/finalround/FinalRoundResults";
 
 /**
@@ -27,7 +27,7 @@ export interface FinalBidSubmitInputData {
 
 export interface FinalBidSubmitOutputData {
   playerId: number;
-  bidAmount: number;
+  bidAmount?: number;
   isAutomatic?: boolean;
 }
 
@@ -66,6 +66,7 @@ export interface FinalQuestionEventData {
 export interface FinalSubmitEndEventData {
   phase: FinalRoundPhase;
   nextPhase: FinalRoundPhase | null;
+  bids: FinalBidsByPlayerId;
   allReviews?: AnswerReviewData[]; // All answers revealed when transitioning to reviewing phase
 }
 

@@ -3,9 +3,8 @@ import { TransitionResult } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import {
+import type {
   AnswerData,
-  AnswerReviewData,
   AutoLossProcessResult
 } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
@@ -14,18 +13,10 @@ import { FinalRoundGameData } from "domain/types/finalround/FinalRoundInterfaces
 import { FinalAnsweringToReviewingMutationData } from "domain/types/socket/transition/final";
 
 /**
- * Data for a single auto-loss entry
- */
-export interface AutoLossEntry {
-  answerData: AnswerData;
-  scoreChange: number;
-}
-
-/**
  * Result of auto-loss processing
  */
 export interface AutoLossProcessMutationResult {
-  autoLossEntries: AutoLossEntry[];
+  autoLossPlayerIds: number[];
   isPhaseComplete: boolean;
 }
 
@@ -33,15 +24,15 @@ export interface AutoLossProcessMutationResult {
  * Logic class for processing auto-loss answers when answering timer expires.
  *
  * Finds players who haven't submitted answers and creates auto-loss entries
- * (empty answers marked incorrect with score penalty).
+ * (empty answers marked incorrect, with penalties deferred until review).
  */
 export class AutoLossProcessLogic {
   /**
    * Apply auto-loss for a single player (used when a player leaves during final answering).
    *
-   * Returns a single AutoLossEntry if applied, otherwise null.
+   * Returns the recorded answer if applied, otherwise null.
    */
-  public static processPlayerAutoLoss(game: Game, playerId: number): AutoLossEntry | null {
+  public static processPlayerAutoLoss(game: Game, playerId: number): AnswerData | null {
     const finalRoundData = FinalRoundStateManager.getFinalRoundData(game);
     if (
       !finalRoundData ||
@@ -73,21 +64,7 @@ export class AutoLossProcessLogic {
       return null;
     }
 
-    const answer = FinalRoundStateManager.addAnswer(game, playerId, "", true);
-
-    const answerData: AnswerData = {
-      id: answer.id,
-      playerId: answer.playerId,
-      answer: answer.answer,
-      autoLoss: answer.autoLoss
-    };
-
-    const { scoreChange } = FinalRoundStateManager.reviewAnswer(game, answer.id, false);
-
-    return {
-      answerData,
-      scoreChange
-    };
+    return FinalRoundStateManager.addAnswer(game, playerId, "", true);
   }
 
   /**
@@ -96,8 +73,8 @@ export class AutoLossProcessLogic {
    * Pure mutation function that:
    * 1. Finds unanswered positive bids, including disconnected players
    * 2. Adds empty answer (auto-marked as autoLoss)
-   * 3. Immediately reviews as incorrect (applies score penalty)
-   * 4. Returns entries and phase completion status
+   * 3. Records the loss for settlement when review begins
+   * 4. Returns affected player IDs and phase completion status
    */
   public static processAutoLoss(
     game: Game,
@@ -105,12 +82,12 @@ export class AutoLossProcessLogic {
   ): AutoLossProcessMutationResult {
     if (game.gameState.questionState !== QuestionState.ANSWERING) {
       return {
-        autoLossEntries: [],
+        autoLossPlayerIds: [],
         isPhaseComplete: false
       };
     }
 
-    const autoLossEntries: AutoLossEntry[] = [];
+    const autoLossPlayerIds: number[] = [];
 
     // Every positive bid must be settled, even if its player disconnected.
     const bidderIds = Object.entries(finalRoundData.bids)
@@ -121,24 +98,8 @@ export class AutoLossProcessLogic {
       const hasSubmitted = finalRoundData.answers.some((answer) => answer.playerId === playerId);
 
       if (!hasSubmitted) {
-        // Add empty answer as auto-loss (automatically marked by StateManager)
-        const answer = FinalRoundStateManager.addAnswer(game, playerId, "", true);
-
-        // Create answer data (answer.autoLoss is true for empty answers)
-        const answerData: AnswerData = {
-          id: answer.id,
-          playerId: answer.playerId,
-          answer: answer.answer,
-          autoLoss: answer.autoLoss
-        };
-
-        // Immediately mark as incorrect and update score
-        const { scoreChange } = FinalRoundStateManager.reviewAnswer(game, answer.id, false);
-
-        autoLossEntries.push({
-          answerData,
-          scoreChange
-        });
+        FinalRoundStateManager.addAnswer(game, playerId, "", true);
+        autoLossPlayerIds.push(playerId);
       }
     }
 
@@ -146,7 +107,7 @@ export class AutoLossProcessLogic {
     const isPhaseComplete = FinalRoundStateManager.areAllAnswersSubmitted(game);
 
     return {
-      autoLossEntries,
+      autoLossPlayerIds,
       isPhaseComplete
     };
   }
@@ -154,7 +115,7 @@ export class AutoLossProcessLogic {
   /**
    * Builds service-friendly result shape from auto-loss mutation + transition.
    *
-   * Keeps the result contract stable for TimerExpirationService.
+   * TimerExpirationService only needs IDs for submission and auto-loss notifications.
    */
   public static buildResult(input: {
     game: Game;
@@ -166,14 +127,6 @@ export class AutoLossProcessLogic {
       | FinalAnsweringToReviewingMutationData
       | undefined;
 
-    const autoLossReviews: AnswerReviewData[] = mutationResult.autoLossEntries.map((entry) =>
-      FinalRoundPhaseCompletionHelper.createAnswerReviewData(
-        entry.answerData,
-        entry.scoreChange,
-        false
-      )
-    );
-
     const isReadyForReview = mutationResult.isPhaseComplete;
 
     const allReviews = isReadyForReview
@@ -182,7 +135,7 @@ export class AutoLossProcessLogic {
 
     return {
       game,
-      autoLossReviews,
+      autoLossPlayerIds: mutationResult.autoLossPlayerIds,
       isReadyForReview,
       allReviews,
       transitionResult

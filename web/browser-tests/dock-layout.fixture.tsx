@@ -145,6 +145,7 @@ export function setScenario(name: Scenario, limits = true) {
     s.currentRound = round("final");
     s.finalRoundData = {
       phase: name === "final-bid" ? "bidding" : name === "final-answer" ? "answering" : "reviewing",
+      submittedBidPlayerIds: name === "final-bid" ? [] : [ALICE],
       bids: name === "final-bid" ? {} : { [ALICE]: 2_100_000_000 },
       answers: [],
       turnOrder: [ALICE, BOB],

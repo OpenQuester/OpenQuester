@@ -15,6 +15,8 @@ export interface AnswerReviewData {
   answerId: string;
   answerText: string;
   scoreChange: number;
+  /** Absolute score after deferred auto-loss settlement; absent on legacy servers. */
+  scoreAfter?: number;
   answerType: FinalAnswerType;
   /** Whether answer is correct. null for unreviewed valid answers (showman needs to review) */
   isCorrect: boolean | null;
@@ -92,7 +94,7 @@ export interface AnswerData {
  */
 export interface AutoLossProcessResult {
   game: Game;
-  autoLossReviews: AnswerReviewData[];
+  autoLossPlayerIds: number[];
   isReadyForReview: boolean;
   allReviews?: AnswerReviewData[]; // For showman when transitioning to review phase
   /** Transition result for direct broadcast pass-through */

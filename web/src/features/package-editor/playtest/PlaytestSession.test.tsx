@@ -55,6 +55,7 @@ function pointPreview(mode: "simple" | "everyone" | "final") {
     initial.state.questionState = "answering";
     initial.state.finalRoundData = {
       phase: "answering",
+      submittedBidPlayerIds: [2, 3, 4],
       bids: { 2: 100, 3: 100, 4: 100 },
       answers: [],
       turnOrder: [2, 3, 4],

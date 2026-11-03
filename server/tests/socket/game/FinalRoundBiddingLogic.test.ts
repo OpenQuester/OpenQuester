@@ -219,7 +219,7 @@ describe("Final Round Bidding Logic", () => {
         const automaticBidEvents = await automaticBidEventsPromise;
         // Verify automatic bids were placed for players with score <= 1
         expect(automaticBidEvents).toEqual(
-          automaticPlayerIds.map((playerId) => ({ playerId, bidAmount: 1, isAutomatic: true }))
+          automaticPlayerIds.map((playerId) => ({ playerId, isAutomatic: true }))
         );
 
         // Verify game state shows the automatic bids
@@ -295,16 +295,39 @@ describe("Final Round Bidding Logic", () => {
         await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
         await biddingPhasePromise;
 
+        const privateBid = scenario.waitForEventMatching<FinalBidSubmitOutputData>(
+          playerSockets[0],
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          (data) => data.bidAmount !== undefined
+        );
+        const peerBid = scenario.waitForEvent<FinalBidSubmitOutputData>(
+          playerSockets[1],
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
+        const spectatorBid = scenario.waitForEvent<FinalBidSubmitOutputData>(
+          spectatorSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
         const manualBidPromise = scenario.waitForEvent<FinalBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 700 });
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 2000 });
         const manualBid = await manualBidPromise;
+        expect(await privateBid).toEqual({ playerId: playerUsers[0].id, bidAmount: 1500 });
+        expect(await peerBid).toEqual({ playerId: playerUsers[0].id });
+        expect(await spectatorBid).toEqual({ playerId: playerUsers[0].id });
         expect(manualBid).toEqual({
-          playerId: playerUsers[0].id,
-          bidAmount: 700
+          playerId: playerUsers[0].id
         });
+
+        const duplicate = scenario.waitForEvent<{ message: string }>(
+          playerSockets[0],
+          SocketIOEvents.ERROR
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 500 });
+        expect((await duplicate).message).toMatch(/already locked/);
+        expect((await utils.getGameState(gameId)).finalRoundData?.bids[playerUsers[0].id]).toBe(1500);
 
         const timeoutPlayerIds = [playerUsers[1].id, playerUsers[2].id];
         const showmanAutoBidsPromise = waitForPlayerBroadcasts<FinalBidSubmitOutputData>(
@@ -353,8 +376,8 @@ describe("Final Round Bidding Logic", () => {
         ]);
 
         const expectedTimeoutBids = [
-          { playerId: playerUsers[1].id, bidAmount: 1, isAutomatic: true },
-          { playerId: playerUsers[2].id, bidAmount: 1, isAutomatic: true }
+          { playerId: playerUsers[1].id, isAutomatic: true },
+          { playerId: playerUsers[2].id, isAutomatic: true }
         ];
 
         expect(showmanAutoBids).toEqual(expectedTimeoutBids);
@@ -372,7 +395,7 @@ describe("Final Round Bidding Logic", () => {
 
         const gameState = await utils.getGameState(gameId);
         expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.ANSWERING);
-        expect(gameState.finalRoundData?.bids[playerUsers[0].id]).toBe(700);
+        expect(gameState.finalRoundData?.bids[playerUsers[0].id]).toBe(1500);
         expect(gameState.finalRoundData?.bids[playerUsers[1].id]).toBe(1);
         expect(gameState.finalRoundData?.bids[playerUsers[2].id]).toBe(1);
       });
@@ -429,7 +452,7 @@ describe("Final Round Bidding Logic", () => {
 
         // Verify all players auto-bid
         expect(automaticBidEvents).toEqual(
-          automaticPlayerIds.map((playerId) => ({ playerId, bidAmount: 1, isAutomatic: true }))
+          automaticPlayerIds.map((playerId) => ({ playerId, isAutomatic: true }))
         );
 
         // Verify both phase transitions occurred

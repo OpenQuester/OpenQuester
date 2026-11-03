@@ -1,14 +1,15 @@
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
+import { timerKey } from "domain/constants/redisKeys";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { FinalAnswerSubmitLogic } from "domain/logic/final-round/FinalAnswerSubmitLogic";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
-import { TransitionTrigger } from "domain/state-machine/types";
+import { TransitionTrigger, type TransitionResult } from "domain/state-machine/types";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
-import { DataMutation, DataMutationConverter } from "domain/types/action/DataMutation";
+import { type DataMutation, DataMutationConverter } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import {
@@ -62,30 +63,21 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
       action.payload.answerText
     );
 
+    // This helper enters FINAL_REVIEWING and settles auto-losses when all answers are in.
     const completionResult = FinalAnswerSubmitLogic.checkPhaseCompletion(game);
 
-    const transitionResult = await this.phaseTransitionRouter.tryTransition({
-      game,
-      trigger: TransitionTrigger.USER_ACTION,
-      triggeredBy: { playerId: player.meta.id, isSystem: false }
-    });
-
-    // If all answers are reviewed (all auto-loss), immediately transition to game finish
-    const finishTimerMutations: DataMutation[] = [];
-    if (transitionResult && FinalRoundStateManager.areAllAnswersReviewed(game)) {
-      const finishTransitionResult = await this.phaseTransitionRouter.tryTransition({
+    if (completionResult.isPhaseComplete) {
+      game.gameState.timer = null;
+    }
+    let finishTransition: TransitionResult | null = null;
+    if (completionResult.isPhaseComplete && FinalRoundStateManager.areAllAnswersReviewed(game)) {
+      // Transition from FINAL_REVIEWING to GAME_FINISHED when every answer is an auto-loss.
+      finishTransition = await this.phaseTransitionRouter.tryTransition({
         game,
         trigger: TransitionTrigger.USER_ACTION,
         triggeredBy: { playerId: player.meta.id, isSystem: false },
         resources: await this.transitionResourceService.getFinalReviewingToGameFinishResources(game)
       });
-
-      if (finishTransitionResult) {
-        transitionResult.broadcasts.push(...finishTransitionResult.broadcasts);
-        finishTimerMutations.push(
-          ...DataMutationConverter.mutationFromTimerMutations(finishTransitionResult.timerMutations)
-        );
-      }
     }
 
     const result = FinalAnswerSubmitLogic.buildResult({
@@ -93,7 +85,7 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
       player,
       mutationResult,
       completionResult,
-      transitionResult
+      transitionResult: finishTransition
     });
 
     const outputData: FinalAnswerSubmitOutputData = {
@@ -102,8 +94,7 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
 
     const mutations: DataMutation[] = [
       DataMutationConverter.saveGameMutation(game),
-      ...DataMutationConverter.mutationFromTimerMutations(transitionResult?.timerMutations),
-      ...finishTimerMutations,
+      ...DataMutationConverter.mutationFromTimerMutations(finishTransition?.timerMutations),
       DataMutationConverter.gameBroadcastMutation(
         game.id,
         SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
@@ -121,12 +112,23 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
     }
 
     if (result.isPhaseComplete) {
+      if (!finishTransition) {
+        mutations.push(DataMutationConverter.deleteTimerMutation(timerKey(game.id)));
+      }
       mutations.push(
         DataMutationConverter.gameBroadcastMutation(game.id, SocketIOGameEvents.FINAL_SUBMIT_END, {
           phase: FinalRoundPhase.ANSWERING,
           nextPhase: FinalRoundPhase.REVIEWING,
+          bids: { ...game.gameState.finalRoundData?.bids },
           allReviews: result.allReviews
         } satisfies FinalSubmitEndEventData)
+      );
+    }
+
+    if (finishTransition?.success) {
+      mutations.push(
+        DataMutationConverter.gameCompletionMutation(game.id),
+        ...DataMutationConverter.mutationFromServiceBroadcasts(finishTransition.broadcasts, game.id)
       );
     }
 

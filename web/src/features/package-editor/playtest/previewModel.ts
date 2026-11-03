@@ -160,6 +160,7 @@ export function initialPreview(
         ? {
             phase: "theme_elimination",
             turnOrder: [...PREVIEW_PLAYERS],
+            submittedBidPlayerIds: [],
             bids: {},
             answers: [],
             eliminatedThemes: [],
