@@ -11,7 +11,7 @@ Use this skill for changes to validation or confidence-building structure, espec
 
 1. `docs/agent/03-verification-matrix.md`
 2. `server/AGENTS.md` for backend behavior
-3. `web/AGENTS.md` for React or `client/AGENTS.md` for Flutter behavior
+3. `web/AGENTS.md` for browser behavior
 4. Relevant product/spec docs for the behavior under validation
 
 ## Planning rule
@@ -35,10 +35,10 @@ For broad validation work, do not start by moving files. First map:
 
 ## Frontend rules
 
-- Use widget/controller checks where they add real confidence.
+- Use React component and hook checks where they add real confidence.
 - Gameplay UI coverage should include phase, role, primary CTA, and disabled reason.
 - Generated models should be regenerated from source, not patched.
-- For Flutter/package API uncertainty, use Context7 before choosing new APIs or packages.
+- Inspect the installed APIs before choosing new browser dependencies.
 
 ## E2E/refactor workflow
 
@@ -59,7 +59,7 @@ For every critical claim, name the boundary exercised and the defect that would
 make the test fail. Changed infrastructure needs a correct-flow self-test and
 a controlled-defect regression, followed by real transport coverage where
 applicable. A helper self-test is not backend-health evidence; backend ACK tests
-are not file-download or Flutter reveal/playback evidence.
+are not file-download or browser reveal/playback evidence.
 
 Preserve case coverage through migrations, keep every transport category under
 policy checks, and retain real failure exit codes and commit-bound artifacts.

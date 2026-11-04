@@ -29,9 +29,9 @@ Do not silently choose the convenient source. If the difference matters, update 
 | Agent routing | `AGENTS.md` |
 | Backend architecture | `server/AGENTS.md` + `docs/architecture/adr/` |
 | React browser architecture | `web/AGENTS.md` |
-| Flutter architecture | `client/AGENTS.md` |
 | Public API/schema | `openapi/AGENTS.md` + `openapi/schema.json` |
-| Generated Dart API package | `client/packages/openapi/` + `client/packages/openapi/swagger_parser.yaml` |
+| Browser socket protocol | `web/src/game/protocol.ts` |
+| Generated REST declarations | `web/src/api/schema.d.ts` |
 | Product North Star | `docs/product/00-north-star.md` |
 | Release priority | `docs/product/01-release-plan.md` |
 | Game phase/role behavior | `docs/specs/game-state-matrix.md` |
@@ -44,9 +44,8 @@ Do not silently choose the convenient source. If the difference matters, update 
 | Backend test execution | `.agents/skills/backend-test-runner/SKILL.md` |
 | Backend transport E2E writing/lifecycle | `.agents/skills/backend-e2e/SKILL.md` + `server/tests/e2e/README.md` |
 | Backend smoke-test workflow | `.agents/skills/backend-smoke-tests/SKILL.md` |
-| Media coordination and client gaps | `server/docs/media-download-sync.md` |
+| Media coordination and verification boundaries | `server/docs/media-download-sync.md` |
 | React game UI workflow | `web/AGENTS.md` + `docs/specs/game-state-matrix.md` |
-| Flutter game UI workflow | `.agents/skills/frontend-game-ui-state/SKILL.md` |
 | Package editor workflow | `.agents/skills/package-editor-change/SKILL.md` |
 | Documentation upkeep | `.agents/skills/docs-upkeep/SKILL.md` |
 | Code quality criteria, review, and repair workflow | `.agents/skills/code-quality-review/SKILL.md` |

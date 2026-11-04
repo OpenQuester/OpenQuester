@@ -7,7 +7,7 @@ apply this handshake to them without inspecting their handlers.
 The server coordinates **reported readiness**, not file transfers. Receiving
 `QUESTION_DATA`, entering `MEDIA_DOWNLOADING`, downloading bytes, and revealing
 content are separate events. Backend coordination alone does not guarantee
-that Flutter waits for downloads or hides question content.
+that a browser waits for downloads or hides question content.
 
 ## Current Socket.IO contract
 
@@ -59,40 +59,16 @@ callback acknowledgement or proof that an action reached the Redis queue.
 - An ACK has no question identifier. The phase guard is not a general guarantee
   against a delayed client callback landing in a later question's media phase.
 
-## Client obligations and known gaps
+## Client obligations
 
-Intended behavior: prepare the current question's media, ACK after preparation
-(or immediately for no files), and keep content/playback gated until the
-server completes readiness. Timeout is a fallback, not download verification.
+Prepare the current question's media and send readiness after preparation, or
+immediately for a question without files. Gate visible content and playback
+on readiness completion. The server timeout can advance play even if a
+participant could not prepare the media.
 
-Static inspection at backend PR #441 revision `8348d429` found these unresolved
-client gaps; this documentation update does not fix them:
-
-Rechecked at `ef7d56d6`; tracked separately in
-[Fix premature question reveal and image readiness ACK (#445)](https://github.com/OpenQuester/OpenQuester/issues/445).
-The issue contains slow-media verification steps and required controller/widget coverage;
-source inspection is not a manual UI reproduction.
-
-- `GameLobbyController._onQuestionPick` handles `QUESTION_DATA` and immediately
-  calls `_showQuestion()`. `GameQuestionLayout` renders question text without a
-  readiness condition, even though media widgets have waiting UI.
-- `GameQuestionController._onQuestionChange` excludes images from the awaited
-  media preparation block but still sends the common readiness ACK afterward.
-  `onImageLoaded` sends another ACK later. Thus image readiness can be reported
-  before the image is loaded.
-- Consequently, neither a ready flag nor a green backend suite establishes
-  actual byte completion, hidden text, or synchronized visible playback.
-
-Before marking these gaps resolved, inspect and test the controller and widget
-paths together with delayed media preparation, question replacement, and
-reconnect. Distinguish source inspection from a reproduced Flutter scenario.
-
-Client source paths (repository-relative):
-
-- `client/apps/client/lib/src/features/game_lobby/controllers/game_lobby_controller.dart`
-- `client/apps/client/lib/src/features/game_question/controllers/game_question_controller.dart`
-- `client/apps/client/lib/src/features/game_question/view/game_question_layout.dart`
-- `client/apps/client/lib/src/features/game_question/view/game_question_file.dart`
+The browser implementation is described in `web/AGENTS.md`. Verify byte
+completion, image decoding, reveal and playback separately in the browser,
+including delayed preparation, question replacement and reconnect.
 
 ## Backend implementation and verification
 
@@ -115,7 +91,7 @@ A correct `QUESTION_DATA` with an already-`SHOWING` state must fail.
 
 Controlled helper self-tests prove assertions reject injected defects; they
 are not evidence of backend health. Backend transport tests prove coordination,
-not Flutter downloading, content hiding, or playback. Keep those evidence
+while download, reveal, and playback need browser evidence. Keep those evidence
 boundaries explicit in bug reports and release claims.
 
 ## Content timeline (question sequencing)
@@ -139,14 +115,3 @@ reconnects stay in step. The plan travels with the completion status
 (`contentPlan`), `question-data` for direct-answer paths, and the game state.
 Answer files get the same treatment as `answerContentPlan` in the reveal
 payload, timed with the show-answer defaults.
-
-Flutter's question timeline resolves background tracks independently of screen
-steps. Each active background audio file has a separate player, starts at its
-offset in the server timer, keeps playing across screen changes, and stops at
-its own end. Pausing or answering holds background playback; resuming seeks to
-the restored timer. Question replacement and clear dispose owned players and
-ignore stale loads. The question volume also controls background audio.
-
-Controller tests exercise those player calls with a fake video platform,
-including delayed initialization, seek, and disposal. They do not establish
-native-device playback or fix the readiness/reveal gaps described above.

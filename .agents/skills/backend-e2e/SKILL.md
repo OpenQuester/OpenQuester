@@ -1,6 +1,6 @@
 ---
 name: backend-e2e
-description: Use when writing, migrating, or reviewing OpenQuester backend HTTP, Socket.IO, hybrid, or dedicated media E2E tests and their scenario helpers. Not for pure domain unit tests, Flutter UI tests, or merely running existing tests.
+description: Use when writing, migrating, or reviewing OpenQuester backend HTTP, Socket.IO, hybrid, or dedicated media E2E tests and their scenario helpers. Not for pure domain unit tests, browser UI tests, or merely running existing tests.
 ---
 
 # Backend transport E2E
@@ -67,7 +67,7 @@ block; no-file questions use immediate simulated client ACKs.
 A valid payload with already-`SHOWING` state must fail the helper. When changing
 critical infrastructure, keep both a controlled correct-flow test and a
 controlled-defect regression using the same assertion path. Backend E2E does
-not prove file-byte downloading, truthful Flutter ACK timing, content hiding,
+not prove file-byte downloading, browser ACK timing, content hiding,
 or playback synchronization.
 
 ## Verify and report

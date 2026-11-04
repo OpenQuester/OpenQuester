@@ -54,7 +54,7 @@ blocks publishing instead of silently changing the mode to text.
 | Field | Publication rule |
 |---|---|
 | `pointImageOrder` | Must identify exactly one question image. Null/absent keeps the first ordered image. |
-| `answerPoint.imageAspectRatio` | Web publication measures the optimized target image; decode failure blocks publication and preserves the source for retry. Legacy packages keep their old checking until republished. Flutter does not yet preserve this field. |
+| `answerPoint.imageAspectRatio` | Web publication measures the optimized target image; decode failure blocks publication and preserves the source for retry. Legacy packages keep their old checking until republished. |
 | `textItems` | Nonblank text with distinct nonnegative integer orders, separate from main text and files. Null/absent preserves legacy ordering and ties. |
 | Final audio/video `displayTime` | With non-null `textItems`, each duration must be an integer from 1 to 120,000 ms. |
 | `correctChoiceOrder` | An explicit key must identify one choice, including image-only choices. Removing it or importing an invalid key blocks publication until repaired; null/absent retains legacy behavior. |

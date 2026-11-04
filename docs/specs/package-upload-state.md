@@ -28,7 +28,7 @@ be played, and its author can finish the upload later.
   saves the result. It runs on `GET /v1/packages/{id}/upload`, before a game
   is created with the package, and every 5 minutes for packages that started
   uploading in the last 2 days (`PackageUploadCheckJob`), so clients that
-  never report back (the Flutter app) still end up `ready`.
+  never report back can still reach `ready` once storage confirms every file.
 
 ## Rules
 

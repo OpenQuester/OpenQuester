@@ -11,7 +11,7 @@
 
 **OpenQuester** is a free, open-source multiplayer quiz game inspired by [SIGame](https://github.com/VladimirKhil/SI). Play engaging quiz sessions with friends, create custom question packages, and enjoy a modern, cross-platform experience.
 
-[🌐 Website](https://web.openquester.app) • [📚 Docs](https://docs.openquester.app) • [📥 Download](#-download) • [✨ Features](#-features) • [📸 Screenshots](#-screenshots) • [🛠️ Tech Stack](#️-tech-stack) • [🤝 Contributing](#-contributing)
+[🌐 Website](https://web.openquester.app) • [📚 Docs](https://docs.openquester.app) • [✨ Features](#-features) • [📸 Screenshots](#-screenshots) • [🛠️ Tech Stack](#️-tech-stack) • [🤝 Contributing](#-contributing)
 
 </div>
 
@@ -49,7 +49,7 @@ Join games in the role that suits you best:
 
 ### 🎨 Modern Experience
 
-- **Responsive UI** - Beautiful, intuitive interface built with Flutter
+- **Responsive UI** - Browser interface for phones, tablets, and desktops
 - **Real-time Sync** - Low-latency gameplay with Socket.IO
 - **Media Support** - Rich content with images, audio, and video
 - **Dark/Light Themes** - Customizable appearance
@@ -65,37 +65,25 @@ Join games in the role that suits you best:
 
 ### Main Menu
 
-<!-- ![Main Menu](assets/screenshots/main-menu.png) -->
-
 _Main menu screenshot coming soon_
 
 ### Game Lobby
-
-<!-- ![Game Lobby](assets/screenshots/game-lobby.png) -->
 
 _Game lobby screenshot coming soon_
 
 ### Active Gameplay
 
-<!-- ![Active Gameplay](assets/screenshots/gameplay.png) -->
-
 _Gameplay screenshot coming soon_
 
 ### Question Display
-
-<!-- ![Question Display](assets/screenshots/question.png) -->
 
 _Question display screenshot coming soon_
 
 ### Final Round
 
-<!-- ![Final Round](assets/screenshots/final-round.png) -->
-
 _Final round screenshot coming soon_
 
 ### Package Browser
-
-<!-- ![Package Browser](assets/screenshots/packages.png) -->
 
 _Package browser screenshot coming soon_
 
@@ -103,90 +91,11 @@ _Package browser screenshot coming soon_
 
 ---
 
-## 📥 Download
-
-### Latest Release
-
-Download the latest version for your platform from the [**Releases Page**](https://github.com/OpenQuester/OpenQuester/releases/latest).
-
-#### Available Platforms
-
-- **Web**: [Browser version](https://web.openquester.app)
-- **Windows**: `.exe` installer
-- **Linux**: `.AppImage`, `.flatpak`, or `.tar.gz`
-- **macOS**: macOS support _(Work in Progress)_
-- **Android**: `.apk` or Google Play Store _(Coming Soon)_
-- **iOS**: iOS support _(Coming Soon)_
-
-### Installation Instructions
-
-#### Windows
-
-1. Download the `.exe` installer from the [Releases Page](https://github.com/OpenQuester/OpenQuester/releases/latest)
-2. Double-click the installer and follow the installation wizard
-3. Launch OpenQuester from the Start Menu or Desktop shortcut
-4. **(Optional)** For package encoding features, install [FFmpeg](https://ffmpeg.org/download.html) and add it to your system PATH
-
-#### Linux
-
-**Option 1: AppImage (Recommended)**
-```bash
-# Download the AppImage
-wget https://github.com/OpenQuester/OpenQuester/releases/latest/download/OpenQuester-x86_64.AppImage
-
-# Make it executable
-chmod +x OpenQuester-x86_64.AppImage
-
-# Run the application
-./OpenQuester-x86_64.AppImage
-
-# (Optional) Install FFmpeg for package encoding
-sudo apt install ffmpeg  # Debian/Ubuntu
-sudo dnf install ffmpeg  # Fedora
-sudo pacman -S ffmpeg    # Arch Linux
-```
-
-**Option 2: Flatpak**
-```bash
-# Install from local flatpak bundle
-flatpak install openquester.flatpak
-
-# Run the application
-flatpak run com.asion.openquester
-
-# Note: FFmpeg is included in the Flatpak bundle
-```
-
-**Option 3: Extract tar.gz**
-```bash
-# Download and extract
-wget https://github.com/OpenQuester/OpenQuester/releases/latest/download/openquester-linux-x64.tar.gz
-tar -xzf openquester-linux-x64.tar.gz
-
-# Run the application
-cd bundle
-./openquester
-
-# (Optional) Install FFmpeg for package encoding
-sudo apt install ffmpeg  # Debian/Ubuntu
-sudo dnf install ffmpeg  # Fedora
-sudo pacman -S ffmpeg    # Arch Linux
-```
-
-### Development Builds
-
-For the latest features and updates, check our [GitHub Actions](https://github.com/OpenQuester/OpenQuester/actions) for development builds.
-
----
-
 ## 🛠️ Tech Stack
 
 ### Frontend
 
-- **[Flutter](https://flutter.dev/)** - Cross-platform UI framework
-- **[Dart](https://dart.dev/)** - Programming language optimized for UI
-- **[Auto Route](https://pub.dev/packages/auto_route)** - Navigation and routing
-- **[GetIt](https://pub.dev/packages/get_it)** - Dependency injection
+- React, TypeScript, and Vite
 
 ### Backend
 
@@ -213,56 +122,35 @@ For the latest features and updates, check our [GitHub Actions](https://github.c
 
 ### For Players
 
-See the [Installation Instructions](#installation-instructions) above for detailed steps on how to download, install, and run OpenQuester on your platform.
-
-Quick steps:
-1. **Download** the application from the [Releases Page](https://github.com/OpenQuester/OpenQuester/releases/latest)
-2. **Install** following the platform-specific instructions
-3. **Launch** OpenQuester
-4. **Join or Create** a game room
-5. **Play** and enjoy!
+[Play OpenQuester in your browser](https://openquester-web.pages.dev/). Join or create a game room.
 
 ### For Developers
 
 #### Prerequisites
 
-- **Node.js** 18+ and npm/yarn
-- **Flutter** 3.24+
-- **Docker** and Docker Compose (for backend development)
-- **PostgreSQL** 14+ (or use Docker)
-- **Redis** 7+ (or use Docker)
-- **FFmpeg** (for package encoding support)
-  - Windows: 
-    - `winget install Gyan.FFmpeg` (Windows Package Manager)
-    - `choco install ffmpeg` (Chocolatey)
-    - Or download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH
-  - Linux: `sudo apt install ffmpeg` (Debian/Ubuntu), `sudo dnf install ffmpeg` (Fedora)
-  - macOS: `brew install ffmpeg`
+- Node.js and npm. For the backend use `server/.node-version`. For the browser app use Node 22.22.2 or later in the Node 22 line.
+- Docker with Docker Compose for the local backend services.
 
-#### Quick Setup
+#### Quick setup
+
+See [backend environment examples](server/docs/env_examples/env.example.md) to create `server/.env`. Then run:
 
 ```bash
-# Clone the repository
-git clone https://github.com/OpenQuester/OpenQuester.git
-cd OpenQuester
-
-# Backend setup
 cd server
-npm install
-cp docs/env_examples/.env.example .env
-# Edit .env with your configuration
-docker compose up -d  # Start PostgreSQL, Redis, MinIO
-npm run dev
-
-# Frontend setup (in a new terminal)
-cd client
-flutter pub get
-flutter run
+npm ci
+docker compose up -d
+npm run start:dev
 ```
 
-For detailed setup instructions, see:
+In a separate terminal at the repository root:
 
-- [Frontend Setup Guide](client/README.md)
+```bash
+cd web
+npm ci
+npm run dev
+```
+
+See [web development guidance](web/AGENTS.md) for frontend checks and local proxy configuration.
 
 ---
 
@@ -273,7 +161,6 @@ For detailed setup instructions, see:
 - **[Game Flow](server/docs/game-action-executor.md)** - Understanding the game mechanics
 - **[Final Round](server/docs/final-round-flow.md)** - Final round implementation details
 - **[Media Sync](server/docs/media-download-sync.md)** - Media synchronization system
-- **[Package Format](docs/package-format.md)** - Creating custom packages _(Coming Soon)_
 
 ---
 
@@ -323,7 +210,6 @@ We welcome contributions from developers, designers, translators, and quiz enthu
 We take your privacy seriously. OpenQuester collects minimal data necessary for gameplay.
 
 - **[Privacy Policy](PRIVACY_POLICY.md)** - Full privacy policy
-- **[Security Policy](SECURITY.md)** - Report security vulnerabilities _(Coming Soon)_
 
 ---
 
@@ -331,17 +217,15 @@ We take your privacy seriously. OpenQuester collects minimal data necessary for 
 
 **Status:** 🚧 Active Development (Beta)
 
-| Component          | Status         | Notes                             |
-| ------------------ | -------------- | --------------------------------- |
-| Core Gameplay      | ✅ Complete    | Fully functional multiplayer quiz |
-| Frontend (Desktop) | ✅ Complete    | Windows, Linux                    |
-| Frontend (Mobile)  | 🚧 In Progress | Android beta, iOS planned         |
-| Frontend (Web)     | ✅ Complete    | Browser-based gameplay            |
-| Backend API        | ✅ Complete    | RESTful + WebSocket               |
-| Package System     | ✅ Complete    | Native `.oq` format               |
-| SIGame Import      | 🚧 In Progress | `.siq` compatibility              |
-| Matchmaking        | 📅 Planned     | Public game discovery             |
-| Achievements       | 📅 Planned     | Player progression system         |
+| Component      | Status         | Notes                             |
+| -------------- | -------------- | --------------------------------- |
+| Core Gameplay  | ✅ Complete    | Fully functional multiplayer quiz |
+| Frontend (Web) | ✅ Complete    | Browser-based gameplay            |
+| Backend API    | ✅ Complete    | RESTful + WebSocket               |
+| Package System | ✅ Complete    | Native `.oq` format               |
+| SIGame Import  | 🚧 In Progress | `.siq` compatibility              |
+| Matchmaking    | 📅 Planned     | Public game discovery             |
+| Achievements   | 📅 Planned     | Player progression system         |
 
 ---
 
@@ -356,7 +240,6 @@ This means you can freely use, modify, and distribute this software, even for co
 ## 🙏 Acknowledgments
 
 - **[SIGame](https://github.com/VladimirKhil/SI)** - Inspiration for gameplay mechanics
-- **Flutter Team** - Amazing cross-platform framework
 - **Open Source Community** - For all the incredible tools and libraries
 - **Contributors** - Everyone who has helped build OpenQuester
 

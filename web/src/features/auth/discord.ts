@@ -38,7 +38,7 @@ function base64url(bytes: Uint8Array): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** Starts the Discord authorization-code + PKCE flow (same as the Flutter app). */
+/** Starts the Discord authorization-code + PKCE flow. */
 export async function startDiscordLogin(clientId: string, returnTo: string): Promise<void> {
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
   const challenge = base64url(

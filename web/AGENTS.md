@@ -206,7 +206,7 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   VP9 + Opus in WebM (AV1 is smaller but most iPads can't decode it; Apple
   plays VP9 only in WebM), and sound to AAC (Opus fallback) in fast-start MP4
   because iPhone and iPad play audio-only WebM Opus as silence. WebCodecs and
-  mediabunny do the work, with the Flutter encoder's limits (1280×720, 20 fps).
+  mediabunny do the work, within the encoding limits (1280×720, 20 fps).
   The encoders are a lazy chunk, so only uploaders download them. A file the
   browser can't decode or encode, or that doesn't shrink by 5 %, is uploaded
   as it was. The server's CSP allows `'wasm-unsafe-eval'` for the encoder.

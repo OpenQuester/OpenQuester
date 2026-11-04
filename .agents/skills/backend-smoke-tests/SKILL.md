@@ -38,7 +38,7 @@ If an existing E2E case already exercises the path, add the smallest regression 
 - Reuse the nearest fixture or helper. Extract a new flow helper only after the pattern repeats.
 - Keep waits named, bounded, and deterministic. Never add sleeps or inflate timeouts to make the smoke test pass.
 - Keep exhaustive branches, validation matrices, and edge cases in focused unit/integration coverage rather than multiplying smoke scenarios.
-- A backend media smoke test simulates ACKs; it cannot prove that Flutter
+- A backend media smoke test simulates ACKs; it cannot prove that the browser
   downloaded bytes or hid content. State that boundary when reporting the fix.
 
 ## Run with minimum logs first

@@ -59,7 +59,7 @@ export class PackageService {
   ): Promise<PackageDTO> {
     const pack = await this.getPackageRaw(packId, select, relations ?? PACKAGE_DETAILED_RELATIONS);
     if (pack.upload_status === PackageUploadStatus.UPLOADING) {
-      // Uploaders that never report back (Flutter, scripts) would otherwise look
+      // Uploaders that never report back would otherwise look
       // unfinished until the background check; ask storage while someone looks.
       try {
         pack.upload_status = (await this.packageUploadService.refresh(pack.id)).status;

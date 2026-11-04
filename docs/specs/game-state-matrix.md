@@ -58,9 +58,8 @@ spectators do not block readiness. A disconnect during preparation does not
 forfeit an eligible player's answer while its answering window remains open.
 Every committed final bid is settled; an unanswered bid loses at the deadline
 even if its player remains disconnected.
-Null/absent `textItems` preserves legacy behavior. Flutter does not yet support
-the new sequence or preparation acknowledgement, so mixed games may reach the
-timeout. See [package validation](package-validation-spec.md) for duration rules.
+Null/absent `textItems` preserves legacy behavior. See
+[package validation](package-validation-spec.md) for duration rules.
 
 ## Required frontend behavior
 
@@ -130,10 +129,9 @@ non-answerers in no-risk questions. With no connected players, the React showman
 preloads and ACKs to open the regular question. Late joiners and spectators do not
 block readiness. Timeout forces completion; there is no second data/reveal event.
 
-Content hiding is a product requirement, not a claim about current Flutter.
-The [media coordination reference](../../server/docs/media-download-sync.md)
-records the known early image ACK and ungated text paths and owns detailed
-protocol semantics. Backend transport tests do not establish this UI target.
+Content hiding is a product requirement. The
+[media coordination reference](../../server/docs/media-download-sync.md) describes
+the protocol and verification boundaries.
 
 ### Per-phase checks
 

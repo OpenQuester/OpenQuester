@@ -20,14 +20,14 @@ OpenQuester is a multiplayer quiz game that supports:
 - Multiple game roles (Showman, Player, Spectator)
 - Various question types (Regular, Stake, Secret, No Risk)
 - Community-created content packages
-- Cross-platform support (Windows, Linux, Android, and more coming soon)
+- [Play in your browser](https://openquester-web.pages.dev/) on desktop, tablet, or phone
 - Real-time synchronization using WebSocket
 
 ## Getting Started
 
 ### For Players
 
-1. Download the game for your platform
+1. [Open the game in your browser](https://openquester-web.pages.dev/)
 2. Create an account or play as a guest
 3. Join or create a game room
 4. Have fun competing with friends!

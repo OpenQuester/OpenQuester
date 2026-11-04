@@ -1,17 +1,17 @@
 ---
 name: openapi-sdk-change
-description: Use when changing openapi/schema.json, REST contracts, Socket.IO contract metadata, generated Dart API models in client/packages/openapi, or frontend/server code that depends on public contracts.
+description: Use when changing openapi/schema.json, REST contracts, Socket.IO contract metadata, generated browser REST declarations, or frontend/server code that depends on public contracts.
 ---
 
 # OpenAPI and SDK change skill
 
-Use this skill when changing `openapi/schema.json`, REST contracts, Socket.IO contract metadata, generated Dart API models, or frontend/server code that depends on the public contract.
+Use this skill when changing `openapi/schema.json`, REST contracts, Socket.IO contract metadata, generated REST declarations, or frontend/server code that depends on the public contract.
 
 ## Read first
 
 1. `openapi/AGENTS.md`
 2. `server/AGENTS.md` for backend-owned contracts
-3. `client/AGENTS.md` for generated-client usage
+3. `web/AGENTS.md` for REST and socket usage
 4. `docs/agent/03-verification-matrix.md`
 
 ## Files to inspect
@@ -19,8 +19,8 @@ Use this skill when changing `openapi/schema.json`, REST contracts, Socket.IO co
 - backend REST/socket handler files involved in the contract
 - backend DTOs and validators involved in the contract
 - `openapi/schema.json`
-- `client/packages/openapi/swagger_parser.yaml`
-- generated models/client package in `client/packages/openapi/`
+- generated REST declarations in `web/src/api/schema.d.ts`
+- separately maintained socket types in `web/src/game/protocol.ts`
 - affected app controllers/services/listeners
 
 ## Contract invariant
@@ -38,7 +38,7 @@ an unmerged fix or a target spec is not the current protocol.
 2. Update backend code/types/validators first or inspect existing code if schema-only correction.
 3. Update `openapi/schema.json`.
 4. Run schema validation from `server/`.
-5. Regenerate Dart API/models from `client/` when in scope.
+5. Regenerate REST declarations from `web/` when the schema changes and update the socket protocol types separately as needed.
 6. Update frontend call sites/listeners for new generated shapes.
 7. Update docs/specs if product-visible behavior changed.
 8. Report compatibility impact.
@@ -48,7 +48,7 @@ preserve event names, DTO shapes, requiredness, and nullability unless a concret
 mismatch was verified. State whether generation changes runtime types or only
 comments/metadata, and report if generation was not run; never hand-edit generated
 comments to mimic a generator run. Schema validation checks schema structure,
-not compatibility with handlers, event order, or Flutter behavior.
+not compatibility with handlers, event order, or browser behavior.
 
 For media metadata, follow `server/docs/media-download-sync.md`: distinguish
 initial question data/media timer, partial status with a null timer, completion
@@ -58,7 +58,7 @@ no-ops and no-file client ACKs without introducing a new preload/reveal event.
 ## Common failure modes
 
 - Backend contract changed but OpenAPI unchanged.
-- OpenAPI updated but generated Dart files not regenerated.
+- OpenAPI updated but REST declarations not regenerated.
 - Generated files manually patched instead of generated.
 - Frontend still expects old enum values.
 - Required field added without compatibility decision.
@@ -73,12 +73,12 @@ npm run lint
 npm run build
 ```
 
-From `client/` when generated SDK/client is in scope:
+From `web/` when the schema changes:
 
 ```bash
-melos run gen_api
-melos run gen_files
-melos run analyze
+npm run gen:api
+npm run check:api
+npm run typecheck
 ```
 
 ## Handoff checklist

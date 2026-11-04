@@ -18,8 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       should_run_server: ${{ steps.found_paths.outputs.server == 'true' || steps.should_force.outputs.should_force == 'true' }}
-      # Flutter checks are paused; see the FLUTTER_CI_ENABLED note in build_client.yml.
-      should_run_client: ${{ (vars.FLUTTER_CI_ENABLED == 'true' && steps.found_paths.outputs.client == 'true') || steps.should_force.outputs.should_force == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,9 +28,12 @@ jobs:
           filters: |
             server:
               - 'server/**'
-            client:
-              - 'client/**'
               - 'openapi/**'
+              - '.github/workflows/test.yml'
+              - '.github/workflows/build_server.yml'
+              - '.github/workflows/release.yml'
+              - 'scripts/release.sh'
+              - 'scripts/release.test.mjs'
 
       - name: Check if we should force jobs to run
         id: should_force
@@ -93,6 +94,9 @@ jobs:
           mkdir -p test-results
           git rev-parse HEAD > test-results/commit.txt
       - run: npm run lint
+      - name: Release script regression
+        run: node --test ../scripts/release.test.mjs
+      - run: npm run validate:schema
       - run: npm run build
       - name: E2E infrastructure self-tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -130,43 +134,3 @@ jobs:
           name: backend-tests-${{ github.run_id }}-${{ github.run_attempt }}
           path: server/test-results/
           if-no-files-found: error
-
-  test_client:
-    runs-on: ubuntu-latest
-    needs: pre_job
-    if: ${{ !inputs.backend_reliability && needs.pre_job.outputs.should_run_client == 'true' }}
-    defaults:
-      run:
-        working-directory: ./client
-    environment: "${{ github.event_name == 'workflow_call' && 'openquester (Production)' || 'openquester (Preview)' }}"
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Flutter SDK
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          flutter-version-file: ./client/apps/client/pubspec.yaml
-          cache: true
-
-      - name: Install dependencies & Bootstrap
-        run: |
-          echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
-          flutter pub get
-          dart pub global activate melos 7.8.1
-          melos bootstrap
-
-      - name: Run code generation (pre_build)
-        run: melos run pre_build
-
-      - name: Check code formatting
-        run: |
-          melos run format_exception
-          melos run format_check
-
-      - name: Analyze Dart code
-        run: melos run analyze
-
-      - name: Run Tests
-        if: false # Skipped for now
-        run: melos run test

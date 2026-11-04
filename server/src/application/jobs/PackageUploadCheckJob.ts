@@ -9,9 +9,8 @@ const BATCH = 50;
 const RECENT_MS = 2 * 24 * 60 * 60 * 1000;
 
 /**
- * Clients that don't ask for the upload state after uploading (the Flutter
- * app) still see their packages turn ready: recent uploading packages are
- * checked against storage every few minutes.
+ * Clients that skip the upload status check still see their packages turn ready.
+ * The job checks recent uploads against storage every few minutes.
  */
 export class PackageUploadCheckJob extends BaseCronJob {
   public readonly name = "package-upload-check-job";

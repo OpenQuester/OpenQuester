@@ -128,7 +128,7 @@ export async function encodeAudioVideo(
                 fit: "contain",
                 ...(fps > MAX_FPS + 0.5 ? { frameRate: MAX_FPS } : {}),
                 // Chrome's VP9 encoder overshoots badly on a quality preset;
-                // a fixed bits-per-pixel budget lands near the Flutter AV1 size.
+                // a fixed bits-per-pixel budget bounds the target bitrate.
                 bitrate: Math.round(size.width * size.height * outFps * VP9_BITS_PER_PIXEL),
                 forceTranscode: true,
               };

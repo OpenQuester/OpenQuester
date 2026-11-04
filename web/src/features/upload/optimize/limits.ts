@@ -1,6 +1,5 @@
 /**
- * Targets shared by every encoder, matching the Flutter desktop encoder
- * (client/packages/oq_compress/lib/src/common/command_wrapper.dart):
+ * Targets shared by the browser encoders:
  * pictures and video fit in 1280×720, video runs at most 20 fps, sound is
  * Opus at 64 kbps (or AAC at 96 kbps, see av.ts).
  */

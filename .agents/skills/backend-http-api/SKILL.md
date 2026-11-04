@@ -48,7 +48,7 @@ Express Router -> asyncHandler -> RequestDataValidator/Joi -> application servic
 7. Use `HttpStatus` for status codes where practical.
 8. Keep request guards consistent with nearby code.
 9. Update `openapi/schema.json` for public contract changes.
-10. Regenerate generated Dart client when schema changes are in scope.
+10. Regenerate the browser REST declarations when the schema changes.
 11. Use `backend-smoke-tests` to decide focused regression coverage and `backend-e2e` for transport tests. Pure HTTP cases use the harness URL and bounded HTTP client; HTTP-triggered socket broadcasts use a hybrid scenario with waits armed before the request.
 
 Check normalization as well as validation: a Joi trim/default/coercion can change
@@ -74,12 +74,12 @@ npm run lint
 npm run build
 ```
 
-If generated client changes, from `client/`:
+For REST schema changes, from `web/`:
 
 ```bash
-melos run gen_api
-melos run gen_files
-melos run analyze
+npm run gen:api
+npm run check:api
+npm run typecheck
 ```
 
 ## Handoff checklist

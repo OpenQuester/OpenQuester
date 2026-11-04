@@ -5,68 +5,16 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "client",
-      "cwd": "client/apps/client",
-      "request": "launch",
-      "type": "dart",
-      "program": "lib/main.dart"
-    },
-    {
-      "name": "client (web)",
-      "cwd": "client/apps/client",
-      "request": "launch",
-      "type": "dart",
-      "flutterMode": "debug",
-      "program": "lib/main.dart",
-      "toolArgs": [
-        "-d",
-        "chrome",
-        "--web-port",
-        "10000"
-      ]
-    },
-    {
-      "name": "client (web wasm)",
-      "cwd": "client/apps/client",
-      "request": "launch",
-      "type": "dart",
-      "flutterMode": "debug",
-      "program": "lib/main.dart",
-      "toolArgs": [
-        "--wasm",
-        "-d",
-        "chrome",
-        "--web-port",
-        "10000"
-      ]
-    },
-    {
-      "name": "client (profile mode)",
-      "cwd": "client/apps/client",
-      "request": "launch",
-      "type": "dart",
-      "flutterMode": "profile",
-      "program": "lib/main.dart"
-    },
-    {
-      "name": "client (release mode)",
-      "cwd": "client/apps/client",
-      "request": "launch",
-      "type": "dart",
-      "flutterMode": "release",
-      "program": "lib/main.dart"
-    },
-    {
       "type": "node",
       "request": "launch",
       "name": "Server",
       "program": "${workspaceFolder}/server/dist/index.js",
-      "preLaunchTask": "npm: build - server",
+      "preLaunchTask": "Server: Build",
       "cwd": "${workspaceFolder}/server",
       "sourceMaps": true,
       "skipFiles": [
         "<node_internals>/**",
-        "node_moduled/**/*"
+        "node_modules/**/*"
       ],
       "envFile": "${workspaceFolder}/server/.env",
       "console": "integratedTerminal"

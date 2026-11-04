@@ -14,13 +14,6 @@ jobs:
   tests:
     uses: ./.github/workflows/test.yml
 
-  build_client:
-    needs: [tests]
-    uses: ./.github/workflows/build_client.yml
-    secrets: inherit
-    with:
-      DEPLOY_PROD: true
-
   build_docker:
     needs: [tests]
     uses: ./.github/workflows/docker.yml
@@ -31,61 +24,27 @@ jobs:
       packages: write
 
   publish_release:
-    name: Publish GitHub Release & Deploy Web
-    needs: [build_client, build_docker, tests]
+    name: Publish GitHub Release
+    needs: [build_docker, tests]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      deployments: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Android APKs
-        uses: actions/download-artifact@v4
-        with:
-          name: android-app
-          path: android/
-
-      - name: Download Windows binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-app
-          path: windows/
-
-      - name: Download Web binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: web-app
-          path: web/
-
-
-      - name: Download Linux tar.gz
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-tar-gz
-          path: linux/
-
-      - name: Download Linux AppImage
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-appimage
-          path: linux/
-
-      - name: Download Linux Flatpak
-        uses: actions/download-artifact@v4
-        with:
-          name: linux-flatpak
-          path: linux/
-      # ––––– Determine the tag we’re releasing –––––
       - name: Fetch all tags
         run: git fetch --tags
 
       - name: Set LATEST_TAG env var
         id: tag
         run: |
-          echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            echo "LATEST_TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+          else
+            echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> "$GITHUB_ENV"
+          fi
 
       # ––––– Generate release notes from CHANGELOG.md –––––
       - name: Generate changelog for ${{ env.LATEST_TAG }}
@@ -102,23 +61,3 @@ jobs:
           tag_name: ${{ env.LATEST_TAG }}
           prerelease: false
           body: ${{ steps.changelog.outputs.changelog }}
-          files: |
-            android/**/*.apk
-            windows/**
-            linux/**
-
-      # ––––– Deploy web to Cloudflare Pages –––––
-      - name: Publish to Cloudflare Pages (Production)
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          command: pages deploy web/ --project-name=openquester --branch=main
-
-      - name: Purge Cloudflare cache
-        run: |
-          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE }}/purge_cache" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            --data '{ "purge_everything": true }'

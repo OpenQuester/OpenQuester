@@ -9,9 +9,8 @@ OpenQuester is a multiplayer quiz platform inspired by SIGame, with a strong foc
 Top-level areas:
 
 - `server/` — TypeScript/Node.js backend: Express, Socket.IO, PostgreSQL, Redis, TypeORM, tsyringe.
-- `client/` — Flutter/Dart app and local packages managed through Melos.
 - `web/` — React + TypeScript + Vite browser client (phones, tablets, desktop). See `web/AGENTS.md`.
-- `openapi/` — OpenAPI schema and Socket.IO contract metadata. Generated Dart code lives in `client/packages/openapi/`.
+- `openapi/` — OpenAPI schema and Socket.IO contract metadata.
 - `websites/` — Hugo docs/landing pages.
 - `docs/` — product, architecture, agent workflows, and implementation specs.
 - `.agents/skills/` — repeatable Codex skills for high-risk workflows.
@@ -21,7 +20,6 @@ Top-level areas:
 1. Read this file.
 2. Read the nearest scoped `AGENTS.md` for the files you will touch:
    - `server/AGENTS.md`
-   - `client/AGENTS.md`
    - `openapi/AGENTS.md`
    - `web/AGENTS.md`
 3. Read the relevant workflow or spec:
@@ -54,9 +52,8 @@ For gameplay changes, do not treat UI text, disabled states, timers, role-specif
 - Product direction: `docs/product/00-north-star.md` and `docs/product/01-release-plan.md`.
 - Backend architecture: `server/AGENTS.md` and `docs/architecture/adr/`.
 - React architecture and UI patterns: `web/AGENTS.md`.
-- Flutter architecture and UI patterns: `client/AGENTS.md`.
+- Generated REST declarations: `web/src/api/schema.d.ts`. Regenerate them from the schema.
 - API schema and contract metadata: `openapi/AGENTS.md` and `openapi/schema.json`.
-- Generated Dart API package: `client/packages/openapi/`.
 - Game state/product behavior: `docs/specs/game-state-matrix.md` and feature-specific specs.
 - Existing deep implementation references: `server/docs/`.
 
@@ -73,7 +70,6 @@ Agents may add, collapse, or remove docs when it clearly improves source-of-trut
 - Do not bypass `GameActionExecutor` for game-changing socket actions.
 - Do not mutate game state directly from presentation/controller code.
 - Do not emit Socket.IO directly from application use cases; return declared mutations or use the realtime port.
-- Do not manually edit generated Dart OpenAPI files unless a scoped doc explicitly says the file is temporarily manual.
 - Do not introduce architecture-wide refactors while doing a feature task unless explicitly requested.
 - Do not bring back legacy backend patterns such as `BaseSocketEventHandler`, `application/Container.ts`, or `domain/orchestrators/GameOrchestrator.ts` unless those files are reintroduced intentionally in the same change.
 
@@ -93,12 +89,6 @@ npm run test:pipeline
 # run from web/
 npm run typecheck && npm run lint && npm test
 npm run e2e:full   # Docker: full games in Playwright against a local backend
-
-# run from client/
-melos run pre_build
-melos run analyze
-melos run test
-melos run format
 ```
 
 Only run the checks relevant to the changed area when local infrastructure or time makes full validation impractical. Always report what was and was not run.

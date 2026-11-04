@@ -36,7 +36,7 @@ self.onmessage = async ({ data }: MessageEvent<ImageJob>) => {
     let result: ImageResult;
     try {
       const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      // Quality 50 at 4:2:0 is close to the Flutter encoder's crf 40.
+      // The default uses quality 50 with 4:2:0 chroma subsampling.
       const quality = data.edits ? { small: 25, balanced: 50, high: 75 }[data.edits.quality] : 50;
       const avif = await encodeAvif(pixels, { quality, speed: 6, subsample: 1 });
       result = { id: data.id, ok: true, bytes: new Uint8Array(avif), ext: "avif" };

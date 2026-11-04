@@ -205,8 +205,8 @@ the origin socket.
 - Timer tests must use `TestUtils.expireTimer()`; do not use `setTimeout` as a test synchronization
   mechanism.
 - Do not increase test timeouts to hide missing events.
-- Backend media ACK tests do not prove actual downloads or Flutter content hiding.
-  See `server/docs/media-download-sync.md` for the current contract and client gaps.
+- Backend media ACK tests do not prove actual downloads or browser content hiding.
+  See `server/docs/media-download-sync.md` for the current contract and verification boundaries.
 - For socket/game changes, cover success, validation failure, permission/role failure, and
   queue-sensitive cases when applicable.
 

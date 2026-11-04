@@ -24,7 +24,7 @@ Use this skill when auditing release readiness, alpha/beta blockers, stability g
 2. `docs/product/00-north-star.md`
 3. `docs/agent/03-verification-matrix.md`
 4. `server/AGENTS.md` for backend stability work
-5. `client/AGENTS.md` for UX/reporting work
+5. `web/AGENTS.md` for UX/reporting work
 
 ## Audit areas
 

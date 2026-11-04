@@ -55,7 +55,7 @@ if one of the user's packages references it. The new avatar counts once even
 when it is already used in their packages.
 `POST /v1/files/{filename}` needs a session (guests included).
 
-Clients that send no `fileSizes` (older Flutter builds) are checked with the
+Clients that send no `fileSizes` are checked with the
 sizes already known at creation. Before new or replaced content becomes
 `ready`, every referenced file must have a storage-confirmed size and the
 file, package, author's total, and bucket limits are checked again. This
