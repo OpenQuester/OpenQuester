@@ -16,7 +16,11 @@ import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO
 export class QuestionTransitionLogic {
   public static start(game: Game): TimerMutation {
     const timer = new GameStateTimer(QUESTION_TRANSITION_MS).start();
-    game.gameState.questionTransition = { timer, mediaReady: !this.hasMedia(game) };
+    game.gameState.questionTransition = {
+      timer,
+      mediaReady: !this.hasMedia(game),
+      mediaEligiblePlayerIds: game.getMediaEligiblePlayerIds() ?? undefined
+    };
     if (game.gameState.questionTransition.mediaReady) QuestionContentPlanLogic.applyToGame(game);
     return this.timerMutation(game);
   }

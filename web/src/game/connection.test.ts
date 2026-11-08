@@ -188,6 +188,42 @@ describe("question media readiness", () => {
     });
     expect(useGameStore.getState().session?.state.questionState).toBe("showing");
   });
+  it.each([false, true])(
+    "keeps the solo loader after a late join (snapshot: %s)",
+    async (rejoin) => {
+      const state = {
+        currentRound: round(),
+        questionState: "media_downloading" as const,
+        currentQuestion: question(100, { questionFiles: [file("image")] }),
+        questionTransition: { timer: timer(1550), mediaReady: false, mediaEligiblePlayerIds: [] },
+      };
+      listeners.get("game-data")?.(snapshot(state, [player(ALICE, "showman")]));
+      await vi.advanceTimersByTimeAsync(0);
+      if (rejoin) {
+        listeners.get("game-data")?.(
+          snapshot(state, [player(ALICE, "showman"), player(BOB, "player")]),
+        );
+      } else listeners.get("join")?.(player(BOB, "player"));
+      images.at(-1)!.dispatchEvent(new Event("load"));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(socket.emit).toHaveBeenCalledExactlyOnceWith("media-downloaded");
+    },
+  );
+
+  it("does not preload or ACK for a player outside the captured media roster", async () => {
+    listeners.get("game-data")?.(
+      snapshot({
+        currentRound: round(),
+        questionState: "media_downloading",
+        currentQuestion: question(100, { questionFiles: [file("image")] }),
+        questionTransition: { timer: timer(1550), mediaReady: false, mediaEligiblePlayerIds: [] },
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(images).toHaveLength(0);
+    expect(socket.emit).not.toHaveBeenCalled();
+  });
+
   it.each(["other player", "spectator", "final"])(
     "does not send a solo ACK for %s",
     async (scenario) => {

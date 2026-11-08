@@ -11264,6 +11264,11 @@
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
           },
+          "mediaEligiblePlayerIds": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "description": "Media viewers captured at selection. An empty list means the showman remains the sole loader, including after a late player joins."
+          },
           "mediaReady": {
             "type": "boolean",
             "description": "Preparation is ready, but SHOWING still waits for the transition timer."

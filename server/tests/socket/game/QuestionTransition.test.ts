@@ -10,6 +10,7 @@ import { GamePauseBroadcastData } from "domain/types/socket/events/SocketEventIn
 import { RedisConfig } from "shared/config/RedisConfig";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 const entryWaitMs = QUESTION_TRANSITION_MS + TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS;
@@ -191,6 +192,44 @@ describe("Question transition Redis barrier", () => {
       );
       expect(unpause.questionTransition?.timer.resumedAt).toBeTruthy();
       await released;
+    });
+  });
+
+  it("keeps the solo showman as loader when a player joins during preparation", async () => {
+    await suite.scenario(async (scenario) => {
+      const game = await pick(scenario, true, 0);
+      expect(game.payload.questionTransition?.mediaEligiblePlayerIds).toEqual([]);
+      const late = await suite.utils.createGameClient(suite.app, suite.userRepo);
+      await suite.utils.joinGame(late.socket, game.gameId, PlayerRole.PLAYER);
+      const ignored = suite.utils.waitForSubmittedActions(
+        game.gameId,
+        1,
+        GameActionType.MEDIA_DOWNLOADED
+      );
+      scenario.actor(late.socket).emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+      await ignored;
+      await suite.utils.waitForActionsComplete(game.gameId);
+      expect((await suite.utils.getGameState(game.gameId))?.questionTransition?.mediaReady).toBe(
+        false
+      );
+      const ready = scenario.waitForEventMatching<MediaDownloadStatusBroadcastData>(
+        game.showmanSocket,
+        SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+        (s) => s.playerId === game.showmanUser.id
+      );
+      scenario.actor(game.showmanSocket).emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+      expect(await ready).toMatchObject({ allPlayersReady: true, timer: null });
+      await suite.utils.waitForActionsComplete(game.gameId);
+      const released = scenario.waitForEventMatching<MediaDownloadStatusBroadcastData>(
+        game.showmanSocket,
+        SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+        (s) => s.timer != null
+      );
+      await suite.testUtils.expireTimer(game.gameId, "question-transition");
+      await released;
+      expect((await suite.utils.getGameState(game.gameId))?.questionState).toBe(
+        QuestionState.SHOWING
+      );
     });
   });
 

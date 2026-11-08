@@ -33,6 +33,9 @@ Readiness waits for connected PLAYERs captured at selection, including no-risk
 viewers who cannot answer. Late arrivals and promoted spectators do not enter
 this roster. Eligible reconnecting viewers preload again. With an originally
 empty roster, the solo showman must prepare media; spectators cannot release it.
+`questionTransition.mediaEligiblePlayerIds` exposes that captured roster so a
+late join cannot cancel the showman's preload or introduce another accepted loader.
+The field is optional for compatibility with active preparations from older servers.
 Departure removes a participant from the waiting set. The media timeout forces
 readiness and keeps it forced through reconnect during the closing fade.
 

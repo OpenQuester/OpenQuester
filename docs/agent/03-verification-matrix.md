@@ -63,8 +63,10 @@ Run from `web/`. See `web/AGENTS.md`.
 `npm run e2e:full` needs Docker: it starts Postgres, Redis and S3, builds and starts `server/`, seeds a demo package and runs Playwright on desktop, tablet and phone.
 
 `npm run test:browser` starts its own Vite server and uses native Chromium APIs;
-it needs `npx playwright install chromium`, but no backend or Docker. Storage
-race tests gate application continuation after a real transaction commits,
+it needs `npx playwright install chromium`, but no backend or Docker.
+CI runs two Playwright shards (`--shard=1/2` and `--shard=2/2`) with separate
+reports and the same 10-minute global deadline per shard; local focused runs
+still use one worker. Storage race tests gate application continuation after a real transaction commits,
 so they exercise actual IndexedDB locking without sleeping or holding a DB lock.
 
 ## OpenAPI contract checks

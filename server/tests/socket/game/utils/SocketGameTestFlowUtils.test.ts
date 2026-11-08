@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
 import { createControlledPromise } from "tests/e2e/harness/TestPromiseUtils";
+import { TestUtils } from "tests/utils/TestUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 import { GAME_QUESTION_ANSWER_TIME, MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
@@ -26,6 +27,7 @@ import { type GameClientSocket } from "tests/socket/game/utils/SocketIOGameTestU
 import { type SocketGameTestUserUtils } from "tests/socket/game/utils/SocketGameTestUserUtils";
 
 afterEach(() => {
+  jest.restoreAllMocks();
   jest.useRealTimers();
 });
 
@@ -68,7 +70,6 @@ describe("SocketGameTestFlowUtils reliability", () => {
         timer: state.timer,
         questionTransition: opening
       });
-      if (!hasFiles) setTimeout(release, 1550);
     });
     players.forEach((player, index) => {
       (player.emit as jest.Mock).mockImplementation(() => {
@@ -77,13 +78,25 @@ describe("SocketGameTestFlowUtils reliability", () => {
           timer: null,
           questionTransition: { ...opening, mediaReady: index === players.length - 1 }
         });
-        if (index === players.length - 1) setTimeout(release, 1550);
       });
     });
-    const picked = flow.pickQuestion(showman, 42, players);
-    await jest.advanceTimersByTimeAsync(1550);
-    await picked;
+    const expire = jest.spyOn(TestUtils, "expireTimer").mockImplementation(async () => release());
+    await flow.pickQuestion(showman, 42, players);
+    expect(expire).toHaveBeenCalledWith("game-1", "question-transition");
+    expect(stateUtils.startQuestionPlayback).toHaveBeenCalledWith("game-1");
     players.forEach((player) => expect(player.emit).toHaveBeenCalledTimes(hasFiles ? 1 : 0));
+  });
+
+  it("bounds a playback clock that never settles", async () => {
+    jest.useFakeTimers();
+    const scenario = new GameScenario();
+    const { flow, stateUtils, showman, players } = createRegularMediaFixture(true, scenario);
+    stateUtils.startQuestionPlayback.mockReturnValue(createControlledPromise<void>().promise);
+    void flow.pickQuestion(showman, 42, players);
+    const finished = expect(scenario.finish()).rejects.toThrow("advance scheduled question playback");
+    await jest.advanceTimersByTimeAsync(TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
+    await finished;
+    expect(jest.getTimerCount()).toBe(0);
   });
 
   it("bounds a forgotten helper when its initial state dependency never returns", async () => {
@@ -519,6 +532,7 @@ describe("SocketGameTestFlowUtils reliability", () => {
 interface Fixture {
   readonly flow: SocketGameTestFlowUtils;
   readonly stateUtils: {
+    readonly startQuestionPlayback: jest.Mock<(gameId: string) => Promise<void>>;
     readonly getGameState: jest.Mock<(gameId: string) => Promise<unknown>>;
     readonly getGame: jest.Mock<(gameId: string) => Promise<unknown>>;
   };
@@ -540,6 +554,7 @@ interface Fixture {
 
 function createFixture(scenario?: GameScenario): Fixture {
   const stateUtils = {
+    startQuestionPlayback: jest.fn<(gameId: string) => Promise<void>>(async () => undefined),
     getGameState: jest.fn<(gameId: string) => Promise<unknown>>(),
     getGame: jest.fn<(gameId: string) => Promise<unknown>>()
   };

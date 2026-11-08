@@ -88,12 +88,8 @@ describe("Choice Question Flow Tests", () => {
         expect(downloadingGameState!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
         expect(downloadingGameState!.currentQuestion).toBeDefined();
 
-        const mediaStatusPromise = scenario.waitForEvent(
-          playerSocket,
-          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS
-        );
-        scenario.actor(playerSocket).emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
-        await mediaStatusPromise;
+        expect(questionData.timer).toBeNull();
+        await utils.waitForMediaDownload(showmanSocket, playerSockets);
 
         const showingGameState = await utils.getGameState(gameId);
         expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);

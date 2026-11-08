@@ -368,6 +368,13 @@ export class GameConnection {
   private canReportMedia(session: GameSession | null): boolean {
     if (session?.state.questionState !== "media_downloading") return false;
     const role = session.players.find((p) => p.meta.id === this.myId)?.role;
+    const mediaRoster = session.state.questionTransition?.mediaEligiblePlayerIds;
+    if (mediaRoster) {
+      return (
+        (role === "player" && mediaRoster.includes(this.myId)) ||
+        (role === "showman" && mediaRoster.length === 0)
+      );
+    }
     return (
       role === "player" ||
       (role === "showman" &&

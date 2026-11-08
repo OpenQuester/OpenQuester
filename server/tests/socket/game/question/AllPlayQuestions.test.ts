@@ -15,7 +15,6 @@ import {
   AllPlayReviewingEventPayload,
   AllPlayStartEventPayload
 } from "domain/types/socket/events/game/AllPlayEventPayloads";
-import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { User } from "infrastructure/database/models/User";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
@@ -371,15 +370,7 @@ describe("Everyone-answers questions", () => {
         QuestionState.MEDIA_DOWNLOADING
       );
 
-      const showing = scenario.waitForEventMatching<MediaDownloadStatusBroadcastData>(
-        showmanSocket,
-        SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-        (status) => status.allPlayersReady
-      );
-      for (const socket of playerSockets) {
-        scenario.actor(socket).emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
-      }
-      await showing;
+      await utils.waitForMediaDownload(showmanSocket, playerSockets);
 
       const reviewing = await answerAll(scenario, showmanSocket, playerSockets, ["A", "B"]);
       const stakes = Object.fromEntries(

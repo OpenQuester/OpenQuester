@@ -1,4 +1,3 @@
-import { setTimeout as wait } from "node:timers/promises";
 import { container } from "tsyringe";
 
 import {
@@ -26,6 +25,7 @@ import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/St
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { TestUtils } from "tests/utils/TestUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import {
   assertFreshTimer,
@@ -151,11 +151,13 @@ export class SocketGameTestFlowUtils {
             ? "finish media download"
             : "keep partial readiness in media download"
         );
-        // Gameplay helpers return when clients can act on the prepared question.
-        const startDelay = status.timer
-          ? new Date(status.timer.startedAt).getTime() - Date.now()
-          : 0;
-        if (startDelay > 0) await wait(startDelay);
+        if (status.timer) {
+          await withTimeout(
+            this.stateUtils.startQuestionPlayback(showmanSocket.gameId!),
+            TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+            "advance scheduled question playback"
+          );
+        }
       } catch (error) {
         const failure = toError(error);
         const detail = failure.cause instanceof Error ? failure.cause : failure;
@@ -228,6 +230,11 @@ export class SocketGameTestFlowUtils {
           );
         }
       }
+      await withTimeout(
+        TestUtils.expireTimer(showman.gameId!, "question-transition"),
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        "expire question transition"
+      );
       const status = await released;
       await this.eventUtils.waitForActionsComplete(showman.gameId!);
       const showing = await this._expectQuestionState(
@@ -241,8 +248,11 @@ export class SocketGameTestFlowUtils {
         true,
         questionTimerFor(status, showing.allPlay ? ALL_PLAY_ANSWER_TIME : GAME_QUESTION_ANSWER_TIME)
       );
-      const delay = new Date(status.timer!.startedAt).getTime() - Date.now();
-      if (delay > 0) await wait(delay);
+      await withTimeout(
+        this.stateUtils.startQuestionPlayback(showman.gameId!),
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        "advance scheduled question playback"
+      );
     } finally {
       controller.abort();
       await Promise.allSettled([released]);

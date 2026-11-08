@@ -6198,6 +6198,8 @@ export interface components {
         };
         QuestionTransition: {
             timer: components["schemas"]["GameStateTimer"];
+            /** @description Media viewers captured at selection. An empty list means the showman remains the sole loader, including after a late player joins. */
+            mediaEligiblePlayerIds?: number[];
             /** @description Preparation is ready, but SHOWING still waits for the transition timer. */
             mediaReady: boolean;
             /** @description The media timeout forced readiness; reconnect during the closing fade cannot restart preparation. */

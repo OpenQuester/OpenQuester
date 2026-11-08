@@ -318,6 +318,7 @@ export interface AllPlayData {
 export interface QuestionTransition {
   timer: Timer;
   mediaReady: boolean;
+  mediaEligiblePlayerIds?: number[];
   timedOut?: boolean;
 }
 

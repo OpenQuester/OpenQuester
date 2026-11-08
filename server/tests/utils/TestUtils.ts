@@ -224,10 +224,15 @@ export class TestUtils {
    * @param keyPattern - Optional pattern for specific timer types (e.g., "media-download")
    */
   public async expireTimer(gameId: string, keyPattern: string = ""): Promise<void> {
+    return TestUtils.expireTimer(gameId, keyPattern);
+  }
+
+  public static async expireTimer(gameId: string, keyPattern: string = ""): Promise<void> {
     const redisClient = RedisConfig.getClient();
     const timerKey = keyPattern ? `timer:${keyPattern}:${gameId}` : `timer:${gameId}`;
     if (keyPattern === "question-transition") {
-      const game = await this.gameService.getGameEntity(gameId);
+      const gameService = container.resolve(GameService);
+      const game = await gameService.getGameEntity(gameId);
       const opening = game.gameState.questionTransition;
       if (!opening || game.gameState.isPaused)
         throw new Error("No running question transition to expire");
@@ -235,7 +240,7 @@ export class TestUtils {
       // the production deadline guard. Delivery still uses real Redis expiry.
       opening.timer.elapsedMs = opening.timer.durationMs;
       opening.timer.resumedAt = new Date();
-      await this.gameService.updateGame(game);
+      await gameService.updateGame(game);
       await redisClient.set(timerKey, JSON.stringify(opening.timer), "PX", 50);
       return;
     }

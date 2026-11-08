@@ -231,6 +231,10 @@ when the captured player roster was originally empty. Text-only gated questions 
 Readiness can precede release: assert the ready-only status separately from the
 question-timer status. Explicit media-status entry waits may use the named
 question-entry budget; all ordinary event budgets remain unchanged.
+General gameplay helpers use `TestUtils.expireTimer()` for the opening and
+`SocketGameTestStateUtils.startQuestionPlayback()` to advance only the delivery
+lead in both the persisted clock and Redis TTL. Dedicated timing scenarios
+observe the real deadline instead. Neither path sleeps for a scheduled start.
 There is no inbound preload `QUESTION_PICK`, nor a second `QUESTION_DATA` on readiness completion.
 
 Dedicated scenarios preserve duplicate, concurrent, leave, disconnect, kick, restriction, stale
