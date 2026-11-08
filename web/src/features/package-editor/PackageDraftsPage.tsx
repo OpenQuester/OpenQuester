@@ -16,7 +16,7 @@ export function PackageDraftsPage() {
     useDraftLibrary();
   return (
     <PageContainer width={960}>
-      <HtmlRemovalDialog report={confirmation.report} settle={confirmation.settle} />
+      <HtmlRemovalDialog {...confirmation} />
       <div className="flex flex-col gap-6">
         <Link to="/packages" className={layoutStyles.backLink}>
           <BackIcon size={18} />

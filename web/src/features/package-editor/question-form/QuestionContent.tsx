@@ -3,7 +3,10 @@ import { Trans, useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { FieldError, inputClass, Label } from "@/ui/Field";
 import { LinesField } from "../LinesField";
-import { QUESTION_TYPES } from "../packageDraft";
+import { VISUAL_QUEUE_THRESHOLD } from "@/game/authoredContentGroups";
+import { questionGroupSizes } from "@/features/upload/contentLimits";
+import { Toggle } from "@/ui/Toggle";
+import { QUESTION_TYPES, toUploadQuestion } from "../packageDraft";
 import { MAX_PRICE } from "../validatePackage";
 import { NumberField, OptionalTextField } from "./QuestionFields";
 import { QuestionChoiceFields } from "./QuestionChoiceFields";
@@ -12,9 +15,17 @@ import { AnswerCheckFields, AnswerModeField, QuestionTypeSettings } from "./Ques
 import { changeQuestionType } from "./questionUpdates";
 import type { QuestionFieldsProps } from "./questionUpdates";
 import type { QuestionFormState } from "./useQuestionForm";
+import { questionSteps } from "./questionTimeline";
 export function QuestionContent({ form }: { form: QuestionFormState }) {
   const { t } = useTranslation();
   const { q, set, setQ, final, applyMedia } = form;
+  const question = toUploadQuestion(q, 0, final);
+  const questionQueues = questionGroupSizes(question, "question").filter(
+    (g) => g.visuals >= VISUAL_QUEUE_THRESHOLD,
+  ).length;
+  const answerQueues = questionGroupSizes(question, "answer").filter(
+    (g) => g.visuals >= VISUAL_QUEUE_THRESHOLD,
+  ).length;
   return (
     <>
       {!final && <QuestionTypePicker q={q} set={set} />}
@@ -45,6 +56,19 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
       </div>
       <QuestionTypeSettings q={q} set={set} final={final} />
       <QuestionPromptFields q={q} set={set} final={final} />
+      <div>
+        <Toggle
+          label={t("editor.form.playMediaSimultaneously")}
+          checked={q.playMediaSimultaneously ?? true}
+          onChange={(playMediaSimultaneously) => set({ playMediaSimultaneously })}
+        />
+        <p className="m-0 text-sm text-muted">{t("editor.form.playMediaSimultaneouslyHelp")}</p>
+        {(questionQueues > 0 || answerQueues > 0) && (
+          <p className="mt-1 mb-0 text-sm text-accent-strong">
+            {t("editor.form.sequentialGroups", { question: questionQueues, answer: answerQueues })}
+          </p>
+        )}
+      </div>
       <div data-testid="question-media-fields">
         <QuestionMediaList
           label={t("editor.form.questionMedia")}
@@ -121,6 +145,13 @@ function QuestionTypePicker({ q, set }: QuestionFieldsProps) {
 function QuestionPromptFields({ q, set, final }: QuestionFieldsProps & { final: boolean }) {
   const { t } = useTranslation();
   const hasAnswerMode = final || q.type !== "choice";
+  const mainIndex = questionSteps(q).findIndex((step) => step.kind === "main");
+  const mainHelp =
+    mainIndex < 0
+      ? t("editor.timeline.captionHelp")
+      : mainIndex === 0
+        ? t("editor.timeline.mainFirstHelp")
+        : t("editor.timeline.mainPositionHelp", { number: mainIndex + 1 });
   return (
     <>
       <div
@@ -138,7 +169,7 @@ function QuestionPromptFields({ q, set, final }: QuestionFieldsProps & { final: 
               placeholder={t("editor.form.textPlaceholder")}
               className={cn(inputClass, "min-h-24 resize-y py-3")}
             />
-            <span className="text-sm text-faint">{t("editor.timeline.mainFirstHelp")}</span>
+            <span className="text-sm text-faint">{mainHelp}</span>
           </div>
         </div>
         {hasAnswerMode && <AnswerModeField q={q} set={set} />}

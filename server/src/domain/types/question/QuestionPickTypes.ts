@@ -9,7 +9,7 @@ export enum QuestionPickType {
   SECRET = "secret",
   STAKE = "stake",
   /** Stake for everyone: hidden stakes first (broadcast by the transition) */
-  ALL_PLAY = "allPlay",
+  ALL_PLAY = "allPlay"
 }
 
 /**
@@ -21,7 +21,7 @@ export interface QuestionPickResult {
   type: QuestionPickType;
   gameId: string;
   /** Timer data for question display */
-  timer?: GameStateTimerDTO;
+  timer?: GameStateTimerDTO | null;
   /** Full question data (for normal questions - socket handler will filter per role) */
   question?: PackageQuestionDTO;
   /** Data for secret question broadcast */

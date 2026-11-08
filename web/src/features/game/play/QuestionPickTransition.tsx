@@ -2,6 +2,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -15,6 +16,8 @@ import {
 } from "@/game/questionPresentation";
 import { createGameStore } from "@/game/store";
 import { formatScore } from "@/lib/format";
+import { QuestionTypeBadge } from "./question/QuestionTypeBadge";
+import { timerElapsed } from "@/game/contentPlan";
 import { GameContext, useGame, useGameState, useGameStoreApi } from "../GameContext";
 import { GameBoard } from "./GameBoard";
 import "./QuestionPickTransition.css";
@@ -52,9 +55,72 @@ function QuestionOpening({ presentation: p }: { presentation: QuestionPresentati
   const { t } = useTranslation();
   const store = useGameStoreApi();
   const ready = useGameState((s) => s.session?.state.questionState !== "media_downloading");
+  const opening = useGameState((s) => s.session?.state.questionTransition);
+  const paused = useGameState((s) => !!s.session?.state.isPaused);
   const { id, startedAt, introDone, revealStartedAt } = p;
+  const overlay = useRef<HTMLElement>(null);
+  const exiting = revealStartedAt != null;
+  const [restored] = useState(p.previousSession == null);
 
   useLayoutEffect(() => {
+    if (!p.serverDriven || !opening || !overlay.current) return;
+    const reduced =
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      document.documentElement.dataset.motion === "reduced";
+    if (reduced) return;
+    const elapsed = timerElapsed(opening.timer, paused);
+    const duration = exiting ? QUESTION_PICK_TIMING.fadeOut : QUESTION_PICK_TIMING.fadeIn;
+    const animation = overlay.current.animate(
+      [{ opacity: exiting ? 1 : 0 }, { opacity: exiting ? 0 : 1 }],
+      { duration, easing: exiting ? "ease-in" : "ease-out", fill: "both" },
+    );
+    // A fresh pick starts visually at zero opacity. Its later boundaries still
+    // follow the server; restored and resumed openings seek their existing fade.
+    animation.currentTime =
+      !exiting && !restored && !paused && !opening.timer.resumedAt && elapsed < duration
+        ? 0
+        : exiting
+          ? Math.max(0, elapsed - opening.timer.durationMs + duration)
+          : elapsed;
+    if (paused) animation.pause();
+    return () => animation.cancel();
+  }, [opening, paused, p.serverDriven, exiting, restored]);
+
+  useEffect(() => {
+    if (!p.serverDriven) return;
+    if (!opening) {
+      store.getState().finishQuestionOpening(id);
+      return;
+    }
+    const fadeAt = opening.timer.durationMs - QUESTION_PICK_TIMING.fadeOut;
+    const sync = () => {
+      const elapsed = timerElapsed(opening.timer, paused);
+      const at = performance.now();
+      store.getState().syncQuestionOpening(id, {
+        startedAt: at - elapsed,
+        introDone: elapsed >= QUESTION_PICK_INTRO,
+        hintVisible: elapsed >= QUESTION_PICK_INTRO && !opening.mediaReady,
+        revealStartedAt: opening.mediaReady && elapsed >= fadeAt ? at - (elapsed - fadeAt) : null,
+        complete: !paused && opening.mediaReady && elapsed >= opening.timer.durationMs,
+        ...(elapsed >= QUESTION_PICK_TIMING.fadeIn ? { previousSession: null } : {}),
+      });
+    };
+    sync();
+    if (paused) return;
+    const elapsed = timerElapsed(opening.timer, false);
+    const boundaries = [
+      QUESTION_PICK_TIMING.fadeIn,
+      QUESTION_PICK_INTRO,
+      ...(opening.mediaReady ? [fadeAt, opening.timer.durationMs] : []),
+    ];
+    const timers = boundaries
+      .filter((at) => at > elapsed)
+      .map((at) => window.setTimeout(sync, at - elapsed));
+    return () => timers.forEach(window.clearTimeout);
+  }, [id, opening, paused, p.serverDriven, store]);
+
+  useLayoutEffect(() => {
+    if (p.serverDriven) return;
     if (startedAt != null) return;
     let second = 0;
     // Leave an actual paint opportunity at opacity zero, including batched re-picks.
@@ -67,9 +133,10 @@ function QuestionOpening({ presentation: p }: { presentation: QuestionPresentati
       cancelAnimationFrame(first);
       cancelAnimationFrame(second);
     };
-  }, [id, startedAt, store]);
+  }, [id, startedAt, p.serverDriven, store]);
 
   useEffect(() => {
+    if (p.serverDriven) return;
     if (startedAt == null) return;
     const cover = window.setTimeout(
       () => store.getState().coverQuestionBoard(id),
@@ -83,37 +150,43 @@ function QuestionOpening({ presentation: p }: { presentation: QuestionPresentati
       window.clearTimeout(cover);
       window.clearTimeout(intro);
     };
-  }, [id, startedAt, store]);
+  }, [id, startedAt, p.serverDriven, store]);
 
   useEffect(() => {
-    if (introDone && ready && revealStartedAt == null)
+    if (!p.serverDriven && introDone && ready && revealStartedAt == null)
       store.getState().revealQuestion(id, performance.now());
-  }, [id, introDone, ready, revealStartedAt, store]);
+  }, [id, introDone, ready, revealStartedAt, p.serverDriven, store]);
 
   useEffect(() => {
+    if (p.serverDriven) return;
     if (revealStartedAt == null) return;
     const timeout = window.setTimeout(
       () => store.getState().finishQuestionOpening(id),
       Math.max(0, revealStartedAt + QUESTION_PICK_TIMING.fadeOut - performance.now()),
     );
     return () => window.clearTimeout(timeout);
-  }, [id, revealStartedAt, store]);
+  }, [id, revealStartedAt, p.serverDriven, store]);
 
   return (
     <>
       {p.previousSession && <PreviousBoard presentation={p} />}
       <section
+        ref={overlay}
         className="question-pick-overlay"
         data-testid="question-pick-transition"
         data-attempt={id}
         data-started={startedAt != null || undefined}
         data-exiting={revealStartedAt != null || undefined}
+        style={p.serverDriven ? { animationName: "none" } : undefined}
         role="status"
         aria-label={t("questionOpening.opening")}
       >
         <div className="question-pick-title">
+          <QuestionTypeBadge type={p.type} />
           <h2>{p.theme}</h2>
-          <span>{p.price == null ? "?" : formatScore(p.price)}</span>
+          <span className="question-pick-price">
+            {p.price == null ? "?" : formatScore(p.price)}
+          </span>
         </div>
         {p.hintVisible && (
           <p className="question-pick-waiting" data-testid="question-pick-waiting">

@@ -1,3 +1,4 @@
+import type { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { AnswerPointDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
@@ -7,6 +8,8 @@ export interface QuestionFinishEventPayload {
   answerFiles: PackageAnswerFileDTO[] | null;
   answerText: string | null;
   nextTurnPlayerId: number | null;
+  /** Authoritative reveal timer when the answer has media. */
+  timer?: GameStateTimerDTO;
   /** Answer files timeline on the SHOWING_ANSWER timer */
   answerContentPlan?: QuestionContentPlanDTO | null;
   /** Other answers that also counted as right */
@@ -30,6 +33,7 @@ export interface QuestionFinishWithAnswerEventPayload extends Pick<
   | "answerText"
   | "nextTurnPlayerId"
   | "answerContentPlan"
+  | "timer"
   | "rightAnswers"
   | "authors"
   | "sources"

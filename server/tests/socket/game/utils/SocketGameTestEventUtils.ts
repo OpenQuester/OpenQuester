@@ -6,7 +6,7 @@ import { GameActionLockService } from "application/services/lock/GameActionLockS
 import { GameActionQueueService } from "application/services/queue/GameActionQueueService";
 import { GameActionType } from "domain/enums/GameActionType";
 import { type GameAction } from "domain/types/action/GameAction";
-import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
+import { socketEventWaitTimeout, TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import type { GameScenario } from "tests/e2e/scenario/GameScenario";
 import { createControlledPromise, withTimeout } from "tests/e2e/harness/TestPromiseUtils";
 
@@ -266,7 +266,7 @@ export class SocketGameTestEventUtils {
     if (this.scenario) {
       return this.scenario.waitForEventMatching(socket, event, predicate, timeout, signal);
     }
-    const effectiveTimeout = Math.min(timeout, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
+    const effectiveTimeout = socketEventWaitTimeout(event, timeout);
     const socketId = socket.id;
 
     if (socket.connected === false) {

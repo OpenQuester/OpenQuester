@@ -4,6 +4,7 @@ import { ChoosingToAllPlayBiddingHandler } from "domain/state-machine/handlers/a
 import { ShowingToAllPlayReviewingHandler } from "domain/state-machine/handlers/all-play/ShowingToAllPlayReviewingHandler";
 import { FinalAnsweringToReviewingHandler } from "domain/state-machine/handlers/final-round/FinalAnsweringToReviewingHandler";
 import { FinalBiddingToAnsweringHandler } from "domain/state-machine/handlers/final-round/FinalBiddingToAnsweringHandler";
+import { FinalReviewingToShowingAnswerHandler } from "domain/state-machine/handlers/final-round/FinalReviewingToShowingAnswerHandler";
 import { FinalReviewingToGameFinishHandler } from "domain/state-machine/handlers/final-round/FinalReviewingToGameFinishHandler";
 import { ThemeEliminationToBiddingHandler } from "domain/state-machine/handlers/final-round/ThemeEliminationToBiddingHandler";
 import { ChoosingToMediaDownloadingHandler } from "domain/state-machine/handlers/regular-round/ChoosingToMediaDownloadingHandler";
@@ -39,6 +40,7 @@ export function createPhaseTransitionRouter(logger: ILogger): PhaseTransitionRou
     new ThemeEliminationToBiddingHandler(),
     new FinalBiddingToAnsweringHandler(),
     new FinalAnsweringToReviewingHandler(),
+    new FinalReviewingToShowingAnswerHandler(),
     new FinalReviewingToGameFinishHandler(),
 
     // =========================================================================

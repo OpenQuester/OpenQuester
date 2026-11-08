@@ -205,6 +205,7 @@ it("keeps the final player's own point after submission", () => {
 });
 
 it("preview preserves only each player's point across perspective changes and clears on restart and replay", () => {
+  vi.useFakeTimers();
   const q = {
     ...pointQuestion,
     type: "noRisk" as const,
@@ -226,6 +227,9 @@ it("preview preserves only each player's point across perspective changes and cl
   );
   game.pick();
   game.ready();
+  vi.advanceTimersByTime(1550);
+  game.timeout();
+  vi.advanceTimersByTime(200);
   const stage = (id: number) => (
     <GameContext.Provider value={{ store: game.store, myId: id, connection: game.commands }}>
       <QuestionStage />

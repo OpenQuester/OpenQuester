@@ -53,7 +53,7 @@ not compatibility with handlers, event order, or browser behavior.
 For media metadata, follow `server/docs/media-download-sync.md`: distinguish
 initial question data/media timer, partial status with a null timer, completion
 with a question timer, and system timeout readiness. Document wrong-phase ACK
-no-ops and no-file client ACKs without introducing a new preload/reveal event.
+no-ops and the text-only transition timer without introducing a new preload/reveal event.
 
 ## Common failure modes
 

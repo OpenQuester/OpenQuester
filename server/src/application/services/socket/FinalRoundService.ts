@@ -36,7 +36,7 @@ export class FinalRoundService {
   }
 
   /**
-   * Handle theme elimination timeout - randomly eliminate a theme.
+   * Eliminate a random theme on timeout if a choice remains.
    *
    * Uses ThemeEliminateLogic for random selection and elimination,
    * then attempts phase transition via PhaseTransitionRouter.
@@ -51,11 +51,11 @@ export class FinalRoundService {
 
     const finalRoundHandler = this._getFinalRoundHandler(game);
 
-    // Select random theme via Logic class
-    const themeId = ThemeEliminateLogic.selectRandomTheme(game, finalRoundHandler);
-
-    // Eliminate theme via Logic class
-    const mutationResult = ThemeEliminateLogic.eliminateTheme(game, themeId, finalRoundHandler);
+    const themeId = finalRoundHandler.isThemeEliminationComplete(game)
+      ? null
+      : ThemeEliminateLogic.selectRandomTheme(game, finalRoundHandler);
+    const mutationResult =
+      themeId == null ? null : ThemeEliminateLogic.eliminateTheme(game, themeId, finalRoundHandler);
 
     // Try phase transition (THEME_ELIMINATION → BIDDING)
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
@@ -70,7 +70,6 @@ export class FinalRoundService {
 
     return ThemeEliminateLogic.buildTimeoutResult({
       game,
-      themeId: mutationResult.theme.id!,
       mutationResult,
       transitionResult
     });
@@ -156,6 +155,7 @@ export class FinalRoundService {
       // Merge broadcasts from both transitions
       if (finishTransitionResult) {
         transitionResult.broadcasts.push(...finishTransitionResult.broadcasts);
+        transitionResult.timerMutations.push(...finishTransitionResult.timerMutations);
       }
     }
 

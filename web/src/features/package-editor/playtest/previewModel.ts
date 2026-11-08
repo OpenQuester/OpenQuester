@@ -182,6 +182,7 @@ export function publicQuestion(q: Question): Question {
     text: q.text,
     textOrder: q.textOrder,
     textItems: q.textItems,
+    playMediaSimultaneously: q.playMediaSimultaneously,
     answerType: q.answerType,
     pointImageOrder: q.pointImageOrder,
     answerDelay: q.answerDelay,

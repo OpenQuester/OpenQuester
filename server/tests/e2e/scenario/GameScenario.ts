@@ -13,13 +13,12 @@ import {
   type AcceptedActionProbe
 } from "tests/socket/game/utils/SocketGameTestEventUtils";
 import { type SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
+import { socketEventWaitTimeout, TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 type ScenarioCompletionMode = "finish" | "abort";
 
 type ExpectationOutcome =
-  | { readonly status: "fulfilled" }
-  | { readonly status: "rejected"; readonly reason: unknown };
+  { readonly status: "fulfilled" } | { readonly status: "rejected"; readonly reason: unknown };
 
 interface TrackedExpectation {
   readonly description: string;
@@ -466,7 +465,7 @@ export class GameScenario {
         actor,
         direction: "inbound",
         event,
-        timeoutMs: Math.min(timeoutMs, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS),
+        timeoutMs: socketEventWaitTimeout(event, timeoutMs),
         afterSequence: this.mark(),
         signal,
         predicate: ({ args }) => predicate(args[0])

@@ -25,7 +25,7 @@ export class GameStateTimer {
    * Starts the timer. If already started, returns the current timer value.
    * @returns The timer DTO object
    */
-  public start(): GameStateTimerDTO {
+  public start(delayMs = 0): GameStateTimerDTO {
     if (this._started && this._timer) {
       return this._timer;
     }
@@ -33,7 +33,7 @@ export class GameStateTimer {
     this._timer = {
       durationMs: this.durationMs,
       elapsedMs: 0,
-      startedAt: new Date(),
+      startedAt: new Date(Date.now() + delayMs),
       resumedAt: null
     };
 

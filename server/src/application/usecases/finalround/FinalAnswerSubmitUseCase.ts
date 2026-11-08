@@ -126,8 +126,8 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
     }
 
     if (finishTransition?.success) {
+      if (game.finishedAt) mutations.push(DataMutationConverter.gameCompletionMutation(game.id));
       mutations.push(
-        DataMutationConverter.gameCompletionMutation(game.id),
         ...DataMutationConverter.mutationFromServiceBroadcasts(finishTransition.broadcasts, game.id)
       );
     }

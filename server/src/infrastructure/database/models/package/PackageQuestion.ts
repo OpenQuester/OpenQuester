@@ -26,6 +26,7 @@ export interface PackageQuestionImport {
   text?: string | null;
   textOrder?: number | null;
   textItems?: QuestionTextItemDTO[] | null;
+  playMediaSimultaneously?: boolean | null;
   answerHint?: string | null;
   answerText?: string | null;
   answerType?: AnswerType | null;
@@ -87,6 +88,9 @@ export class PackageQuestion {
 
   @Column({ name: "text_items", type: "jsonb", nullable: true })
   text_items?: QuestionTextItemDTO[] | null;
+
+  @Column({ type: "boolean", default: true })
+  play_media_simultaneously!: boolean;
 
   @Column({ type: "text", nullable: true })
   answer_hint?: string | null;
@@ -169,6 +173,7 @@ export class PackageQuestion {
     this.text = data.text;
     this.text_order = data.textOrder ?? null;
     this.text_items = data.textItems ?? null;
+    this.play_media_simultaneously = data.playMediaSimultaneously ?? true;
     this.answer_hint = data.answerHint;
     this.answer_text = data.answerText;
     this.answer_type =
@@ -217,6 +222,7 @@ export class PackageQuestion {
       text: this.text,
       textOrder: this.text_order ?? null,
       textItems: this.text_items ?? null,
+      playMediaSimultaneously: this.play_media_simultaneously ?? true,
       answerHint: this.answer_hint,
       answerText: this.answer_text,
       ...(this.type === PackageQuestionType.CHOICE && this.correctChoiceOrder != null

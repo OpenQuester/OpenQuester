@@ -35,7 +35,10 @@ export function PointAnswer({ src }: { src: string }) {
         : session.submittedAnswer != null;
   const disabled = session.state.isPaused || !online || pending?.action === event || submitted;
   return (
-    <div className="question-point-answer flex w-full flex-col items-center gap-3">
+    <div
+      className="question-point-answer flex w-full flex-col items-center gap-3"
+      data-regular={event === "answer-submitted" || undefined}
+    >
       <div className={cn(mediaFrame, "bg-surface [container-type:size]")} data-testid="media-frame">
         <PointPicker
           className="self-center"

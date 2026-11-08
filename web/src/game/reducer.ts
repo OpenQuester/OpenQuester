@@ -6,7 +6,7 @@ import {
   type QuestionFeedback,
 } from "./questionFeedback";
 
-import { buildContentPlan, timerElapsed } from "./contentPlan";
+import { buildAnswerContentPlan, buildContentPlan, timerElapsed } from "./contentPlan";
 import { questionValue } from "./selectors";
 import type {
   AnsweredPlayer,
@@ -23,6 +23,7 @@ import type {
   Round,
   ServerEvent,
   Timer,
+  QuestionTransition,
 } from "./protocol";
 
 /**
@@ -131,14 +132,21 @@ function questionPlan(question: Question | null, sent: ContentPlan | null | unde
     text: question.text,
     textOrder: question.textOrder,
     textItems: question.textItems,
+    playMediaSimultaneously: question.playMediaSimultaneously,
     files: question.questionFiles,
   });
 }
 
-function answerPlan(data: GameState["answerShowData"]): ContentPlan | null {
+function answerPlan(
+  data: GameState["answerShowData"],
+  question?: Question | null,
+): ContentPlan | null {
   if (!data) return null;
   if (data.answerContentPlan !== undefined) return data.answerContentPlan;
-  return buildContentPlan({ files: data.answerFiles });
+  return buildAnswerContentPlan({
+    files: data.answerFiles,
+    playMediaSimultaneously: question?.playMediaSimultaneously,
+  });
 }
 
 /** Stake/secret winners answer directly: the content runs on their timer. */
@@ -152,8 +160,14 @@ function isDirectAnswer(s: GameState): boolean {
 }
 
 function contentFromSnapshot(s: GameState): ContentClock | null {
+  if (
+    s.questionState === "media_downloading" &&
+    s.questionTransition?.mediaReady &&
+    s.questionContentPlan
+  )
+    return { kind: "question", plan: s.questionContentPlan, timer: null, frozenAtMs: 0 };
   if (s.questionState === "showing_answer") {
-    const plan = answerPlan(s.answerShowData);
+    const plan = answerPlan(s.answerShowData, s.currentQuestion);
     return plan ? { kind: "answer", plan, timer: s.timer, frozenAtMs: null } : null;
   }
   if (s.questionState === "showing" || s.questionState === "answering") {
@@ -195,7 +209,16 @@ export function isStarted(session: GameSession): boolean {
 }
 
 function patchState(session: GameSession, patch: Partial<GameState>): GameSession {
-  return { ...session, state: { ...session.state, ...patch } };
+  return {
+    ...session,
+    state: {
+      ...session.state,
+      ...(patch.questionState && patch.questionState !== "media_downloading"
+        ? { questionTransition: null }
+        : {}),
+      ...patch,
+    },
+  };
 }
 
 function patchPlayer(
@@ -269,10 +292,11 @@ function backToChoosing(session: GameSession): GameSession {
 function onQuestionData(
   session: GameSession,
   data: Question,
-  timer: Timer,
+  timer: Timer | null,
   eligible?: number[] | null,
   sentPlan?: ContentPlan | null,
   buzzerOpensAtMs?: number | null,
+  questionTransition?: QuestionTransition | null,
 ) {
   const s = session.state;
   const stake = s.stakeQuestionData;
@@ -312,6 +336,12 @@ function onQuestionData(
     ...patchState(session, {
       questionState,
       currentQuestion: data,
+      questionTransition:
+        questionTransition !== undefined
+          ? questionTransition
+          : newPick
+            ? null
+            : s.questionTransition,
       currentRound: markQuestionPlayed(s.currentRound, data.id),
       timer,
       answeringPlayer,
@@ -342,10 +372,13 @@ function questionContent(
   session: GameSession,
   questionState: GameState["questionState"],
   question: Question,
-  timer: Timer,
+  timer: Timer | null,
   sentPlan: ContentPlan | null | undefined,
   newPick: boolean,
 ): ContentClock | null {
+  // Preloading: a prepared plan may sit frozen under the final fade.
+  if (questionState === "media_downloading" && sentPlan)
+    return { kind: "question", plan: sentPlan, timer: null, frozenAtMs: 0 };
   // Preloading: the plan and its timer arrive with media-download-status.
   if (questionState === "media_downloading") return null;
   // Re-sent after a (re)join: the snapshot already placed the timeline (or
@@ -456,6 +489,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
     case "game-pause":
       return {
         ...patchState(session, {
+          questionTransition: event.payload.questionTransition ?? s.questionTransition,
           isPaused: true,
           timer: event.payload.timer ?? s.timer,
           pausedAt: serverNow(),
@@ -466,6 +500,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
     case "game-unpause":
       return {
         ...patchState(session, {
+          questionTransition: event.payload.questionTransition ?? s.questionTransition,
           isPaused: false,
           timer: event.payload.timer ?? null,
           roundPausedMs:
@@ -495,8 +530,17 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       } else {
         players = patchPlayer(players, playerId, (p) => ({ ...p, mediaDownloaded }));
       }
-      const next = { ...session, players };
-      if (allPlayersReady && s.questionState === "media_downloading") {
+      const next = {
+        ...patchState(session, {
+          questionTransition:
+            event.payload.questionTransition !== undefined
+              ? event.payload.questionTransition
+              : s.questionTransition,
+          questionContentPlan: contentPlan !== undefined ? contentPlan : s.questionContentPlan,
+        }),
+        players,
+      };
+      if (allPlayersReady && timer && s.questionState === "media_downloading") {
         if (
           s.currentRound?.type === "final" &&
           s.finalRoundData?.questionData?.mediaPreparationId
@@ -525,6 +569,13 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           content: plan ? { kind: "question", plan, timer: clock, frozenAtMs: null } : null,
         };
       }
+      if (next.state.questionTransition?.mediaReady) {
+        const plan = questionPlan(s.currentQuestion, contentPlan);
+        return {
+          ...next,
+          content: plan ? { kind: "question", plan, timer: null, frozenAtMs: 0 } : null,
+        };
+      }
       return next;
     }
 
@@ -536,6 +587,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         event.payload.questionEligiblePlayers,
         event.payload.contentPlan,
         event.payload.buzzerOpensAtMs,
+        event.payload.questionTransition,
       );
 
     case "buzzer-open":
@@ -611,11 +663,19 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
 
     case "question-finish": {
       const data = event.payload;
-      // Final round: this reveals the correct answer after the review.
       if (s.currentRound?.type === "final") {
-        return patchState(session, { answerShowData: data });
+        const plan = answerPlan(data, s.finalRoundData?.questionData?.question);
+        if (!data.timer || !plan) return patchState(session, { answerShowData: data });
+        return {
+          ...patchState(session, {
+            answerShowData: data,
+            questionState: "showing_answer",
+            timer: data.timer,
+          }),
+          content: { kind: "answer", plan, timer: data.timer, frozenAtMs: null },
+        };
       }
-      const revealPlan = answerPlan(data);
+      const revealPlan = answerPlan(data, s.currentQuestion);
       return {
         ...patchState(session, {
           questionState: "showing_answer",
@@ -626,14 +686,14 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           currentTurnPlayerId: data.nextTurnPlayerId ?? s.currentTurnPlayerId,
           currentRound: markQuestionPlayed(s.currentRound, s.currentQuestion?.id),
           skippedPlayers: null,
-          timer: null,
+          timer: data.timer ?? null,
         }),
         hasAnswerSubmission: false,
         content: revealPlan
           ? {
               kind: "answer",
               plan: revealPlan,
-              timer: localTimer(revealPlan.totalMs),
+              timer: data.timer ?? localTimer(revealPlan.totalMs),
               frozenAtMs: null,
             }
           : null,

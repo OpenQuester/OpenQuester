@@ -1,3 +1,9 @@
+import {
+  authoredContentGroups,
+  type AuthoredContentSource,
+  isVisual,
+  VISUAL_QUEUE_THRESHOLD,
+} from "./authoredContentGroups";
 import { serverNow } from "@/lib/clock";
 import type { TimerLike } from "@/lib/timer";
 
@@ -35,82 +41,63 @@ export function isMainTextItem(
   );
 }
 
-export function buildContentPlan(source: {
-  text?: string | null;
-  textOrder?: number | null;
-  textItems?: readonly { order: number; text: string }[] | null;
-  files?: QuestionFile[] | null;
-}): ContentPlan | null {
-  type Entry = { item: ContentPlanItem; wait: boolean; key: number; tie: number };
-  const entries: Entry[] = (source.files ?? []).map((f) => {
-    const background = f.file.type === "audio" && f.placement === "background";
-    const durationMs =
-      f.displayTime && f.displayTime > 0
-        ? Math.min(ITEM_MAX_MS, f.displayTime)
-        : f.file.type === "image"
-          ? IMAGE_MS
-          : MEDIA_UNKNOWN_MS;
-    return {
-      item: {
-        kind: "file",
-        order: f.order,
-        placement: background ? "background" : "screen",
-        durationMs,
-      },
-      wait: f.waitForFinish ?? true,
-      key: f.order,
-      tie: 1,
-    };
-  });
-  const text = source.text?.trim();
-  if (text && source.textOrder != null) {
-    entries.push({
-      item: {
-        kind: "text",
-        order: source.textOrder,
-        placement: "screen",
-        durationMs: textDuration(text),
-      },
-      wait: true,
-      key: source.textOrder,
-      tie: 0,
-    });
-  }
-  for (const item of source.textItems ?? []) {
-    const value = item.text.trim();
-    if (!value) continue;
-    entries.push({
-      item: {
-        kind: "text",
-        order: item.order,
-        placement: "screen",
-        durationMs: textDuration(value),
-      },
-      wait: true,
-      key: item.order,
-      tie: 0,
-    });
-  }
-  if (entries.length === 0) return null;
-  entries.sort((a, b) => a.key - b.key || a.tie - b.tie);
-
-  const steps: ContentStep[] = [];
-  let current: Entry[] = [];
+export function buildContentPlan(
+  source: AuthoredContentSource<QuestionFile> & { playMediaSimultaneously?: boolean | null },
+  defaults = { image: IMAGE_MS, audio: MEDIA_UNKNOWN_MS, video: MEDIA_UNKNOWN_MS },
+): ContentPlan | null {
+  const groups = authoredContentGroups(source);
+  if (groups.length === 0) return null;
   let cursor = 0;
-  const close = () => {
-    if (current.length === 0) return;
-    const blocking = current.filter((e) => e.wait || e.item.placement !== "background");
-    const durationMs = Math.max(0, ...blocking.map((e) => e.item.durationMs));
-    steps.push({ startMs: cursor, durationMs, items: current.map((e) => e.item) });
+  const steps: ContentStep[] = groups.map((group) => {
+    const forceQueue =
+      group.filter((entry) => "media" in entry && isVisual(entry.media)).length >=
+      VISUAL_QUEUE_THRESHOLD;
+    let offset = 0;
+    let durationMs = 0;
+    const items = group.map<ContentPlanItem>((entry) => {
+      const { order } = entry;
+      if ("text" in entry) {
+        const duration = textDuration(entry.text);
+        durationMs = Math.max(durationMs, duration);
+        return { kind: "text", order, placement: "screen", durationMs: duration };
+      }
+
+      const file = entry.media;
+      const type = file.file.type;
+      const background = type === "audio" && file.placement === "background";
+      const duration =
+        file.displayTime && file.displayTime > 0
+          ? Math.min(ITEM_MAX_MS, file.displayTime)
+          : defaults[type];
+      const queued =
+        !background &&
+        (forceQueue || (source.playMediaSimultaneously === false && type !== "image"));
+      const startOffsetMs = queued ? offset : 0;
+      if (queued) offset += duration;
+      if (!background || file.waitForFinish !== false) {
+        durationMs = Math.max(durationMs, startOffsetMs + duration);
+      }
+      return {
+        kind: "file",
+        order,
+        placement: background ? "background" : "screen",
+        durationMs: duration,
+        ...(startOffsetMs > 0 ? { startOffsetMs } : {}),
+      };
+    });
+    const step = { startMs: cursor, durationMs, items };
     cursor += durationMs;
-    current = [];
-  };
-  for (const e of entries) {
-    current.push(e);
-    if (e.wait) close();
-  }
-  close();
+    return step;
+  });
   return { steps, totalMs: cursor };
+}
+
+export function buildAnswerContentPlan(source: Parameters<typeof buildContentPlan>[0]) {
+  return buildContentPlan(source, { image: 5000, audio: 10000, video: 15000 });
+}
+
+export function itemStart(item: ContentPlanItem, stepStart: number) {
+  return stepStart + (item.startOffsetMs ?? 0);
 }
 
 /** Time already run on a server timer (frozen while paused). */
@@ -132,6 +119,7 @@ export interface ContentPosition {
   screen: ContentPlanItem[];
   /** Start of the step the screen items belong to. */
   screenStartMs: number;
+  screenIndex: number;
   /** Background sounds that are still playing, with their own start. */
   background: { item: ContentPlanItem; startMs: number }[];
   /** The whole timeline has played. */
@@ -146,11 +134,13 @@ export function positionAt(plan: ContentPlan, elapsedMs: number): ContentPositio
   }
   let screen: ContentPlanItem[] = [];
   let screenStartMs = 0;
+  let screenIndex = index;
   for (let i = index; i >= 0; i--) {
     const items = steps[i]!.items.filter((it) => it.placement === "screen");
     if (items.length > 0) {
       screen = items;
       screenStartMs = steps[i]!.startMs;
+      screenIndex = i;
       break;
     }
   }
@@ -159,11 +149,12 @@ export function positionAt(plan: ContentPlan, elapsedMs: number): ContentPositio
     const step = steps[i]!;
     for (const item of step.items) {
       if (item.placement !== "background") continue;
-      if (elapsedMs < step.startMs + item.durationMs)
-        background.push({ item, startMs: step.startMs });
+      const startMs = itemStart(item, step.startMs);
+      if (elapsedMs >= startMs && elapsedMs < startMs + item.durationMs)
+        background.push({ item, startMs });
     }
   }
-  return { index, screen, screenStartMs, background, done: elapsedMs >= plan.totalMs };
+  return { index, screen, screenIndex, screenStartMs, background, done: elapsedMs >= plan.totalMs };
 }
 
 /** When the stage next changes, from `elapsedMs` (null when nothing more happens). */
@@ -175,7 +166,9 @@ export function nextChangeAt(plan: ContentPlan, elapsedMs: number): number | nul
   for (const step of plan.steps) {
     consider(step.startMs);
     for (const item of step.items) {
-      if (item.placement === "background") consider(step.startMs + item.durationMs);
+      const startMs = itemStart(item, step.startMs);
+      consider(startMs);
+      consider(startMs + item.durationMs);
     }
   }
   consider(plan.totalMs);

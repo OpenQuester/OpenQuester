@@ -3,6 +3,7 @@ import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -40,6 +41,17 @@ export class FinalMediaToAnsweringHandler extends BaseTransitionHandler {
 
   protected async mutate(ctx: TransitionContext): Promise<MutationResult> {
     const data = ctx.game.gameState.finalRoundData!.questionData!;
+    const { question } = data;
+    data.contentPlan = QuestionContentPlanLogic.build(
+      {
+        text: question.text,
+        textOrder: question.textOrder,
+        textItems: question.textItems,
+        files: question.questionFiles,
+        playMediaSimultaneously: question.playMediaSimultaneously
+      },
+      ctx.game.gameState.mediaDurations ?? null
+    );
     const timedOut = ctx.trigger === TransitionTrigger.TIMER_EXPIRED;
     delete data.mediaPreparationId;
     if (timedOut) data.mediaPreparationTimedOut = true;

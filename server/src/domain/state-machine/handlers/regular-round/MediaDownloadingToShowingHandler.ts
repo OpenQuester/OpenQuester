@@ -1,4 +1,9 @@
-import { timerKey } from "domain/constants/redisKeys";
+import { QuestionTransitionLogic } from "domain/logic/question/QuestionTransitionLogic";
+import {
+  MEDIA_PLAYBACK_START_DELAY_MS,
+  QUESTION_CONTENT_START_LEAD_MS
+} from "domain/constants/game";
+import { questionTransitionTimerKey, timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
@@ -42,6 +47,8 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
       return false;
     }
 
+    if (game.gameState.questionTransition) return QuestionTransitionLogic.canShow(game);
+
     if (trigger === TransitionTrigger.TIMER_EXPIRED) {
       return true;
     }
@@ -60,15 +67,17 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
   protected async mutate(ctx: TransitionContext): Promise<MutationResult> {
     const { game, trigger } = ctx;
 
-    if (trigger === TransitionTrigger.TIMER_EXPIRED) {
+    if (trigger === TransitionTrigger.TIMER_EXPIRED && !game.gameState.questionTransition) {
       MediaDownloadLogic.forceAllPlayersReady(game);
     }
 
+    const gated = !!game.gameState.questionTransition;
     game.setQuestionState(QuestionState.SHOWING);
     QuestionContentPlanLogic.applyToGame(game);
 
     return {
       data: {
+        gated,
         allPlayersReady: MediaDownloadLogic.areAllPlayersReady(game)
       }
     };
@@ -76,24 +85,29 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
 
   protected async handleTimer(
     ctx: TransitionContext,
-    _mutationResult: MutationResult
+    mutationResult: MutationResult
   ): Promise<TimerResult> {
     const { game } = ctx;
 
     // The content timeline plays first, then the usual answer window.
     const durationMs = QuestionContentPlanLogic.questionTimerDuration(game);
+    const delayMs = (mutationResult.data as { gated: boolean }).gated
+      ? QUESTION_CONTENT_START_LEAD_MS
+      : MEDIA_PLAYBACK_START_DELAY_MS;
+    game.gameState.questionTransition = null;
     const timer = new GameStateTimer(durationMs);
-    game.gameState.timer = timer.start();
+    game.gameState.timer = timer.start(delayMs);
 
     return {
       timer: timer.value() ?? undefined,
       timerMutations: [
+        { op: "delete", key: questionTransitionTimerKey(game.id) },
         { op: "delete", key: timerKey(game.id) },
         {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: durationMs
+          pxTtl: delayMs + durationMs
         }
       ]
     };

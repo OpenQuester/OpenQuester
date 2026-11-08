@@ -226,6 +226,19 @@ export class TestUtils {
   public async expireTimer(gameId: string, keyPattern: string = ""): Promise<void> {
     const redisClient = RedisConfig.getClient();
     const timerKey = keyPattern ? `timer:${keyPattern}:${gameId}` : `timer:${gameId}`;
+    if (keyPattern === "question-transition") {
+      const game = await this.gameService.getGameEntity(gameId);
+      const opening = game.gameState.questionTransition;
+      if (!opening || game.gameState.isPaused)
+        throw new Error("No running question transition to expire");
+      // Advance the persisted clock too: expiration alone must never bypass
+      // the production deadline guard. Delivery still uses real Redis expiry.
+      opening.timer.elapsedMs = opening.timer.durationMs;
+      opening.timer.resumedAt = new Date();
+      await this.gameService.updateGame(game);
+      await redisClient.set(timerKey, JSON.stringify(opening.timer), "PX", 50);
+      return;
+    }
     await redisClient.pexpire(timerKey, 50);
   }
 

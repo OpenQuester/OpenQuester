@@ -1,284 +1,283 @@
-import { questionStyles, questionText } from "./question/questionStyles";
+import { useContext, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { QuestionFile } from "@/game/protocol";
 import type { ContentClock } from "@/game/reducer";
 import { isMainTextItem } from "@/game/contentPlan";
-import type { ContentPosition } from "@/game/contentPlan";
+import { isVisual, VISUAL_QUEUE_THRESHOLD } from "@/game/authoredContentGroups";
 import { cn } from "@/lib/cn";
-
-import { QuestionMediaItem } from "./media/QuestionMediaItem";
-import { useContentPosition } from "./media/useContentPosition";
-import { useContext, type ReactNode } from "react";
-import { GameContext, useGameState } from "../GameContext";
-import { QuestionBody } from "./question/QuestionBody";
 import { ReplayIcon } from "@/ui/icons";
-import { playbackStyles } from "./media/playbackStyles";
+import { GameContext, useGameState } from "../GameContext";
 import { ContentControls } from "./ContentControls";
-import { ContentControlsContext } from "./ContentControlsContext";
+import { ExpandableVisual } from "./media/ExpandableVisual";
+import { MediaHistory } from "./media/MediaHistory";
+import { QuestionMediaItem } from "./media/QuestionMediaItem";
+import { scheduledMedia, type ScheduledMedia } from "./media/mediaLayout";
+import { playbackStyles } from "./media/playbackStyles";
+import { useContentPosition } from "./media/useContentPosition";
+import { QuestionBody } from "./question/QuestionBody";
+import { questionStyles, questionText } from "./question/questionStyles";
 
-/**
- * The shared phase timer drives the initial presentation. Local replay shifts
- * that clock while preserving every step's authored order, duration and background tracks.
- */
 interface ContentStageProps {
   content: ContentClock;
   files: QuestionFile[];
-  /** Text shown by a text step (the question text). */
   text?: string | null;
   textOrder?: number | null;
   textItems?: readonly { order: number; text: string }[] | null;
   paused: boolean;
-  pointAnswer?: { order: number; view: ReactNode };
+  pointAnswer?: { file: QuestionFile; view: ReactNode };
   caption?: ReactNode;
   captionLength?: number;
   label?: string;
-  /** Preserve a legacy initial presentation while sharing the ordered local replay. */
-  initialView?: ReactNode;
+  footer?: ReactNode;
+  initialView?: (controls: ReactNode, history: ReactNode) => ReactNode;
+  wrapBody?: (body: ReactNode) => ReactNode;
 }
 
+/** The phase clock runs every authored step; replays are local to this presentation. */
 export function ContentStage(props: ContentStageProps) {
-  const { content, files, paused, initialView, pointAnswer } = props;
+  const { content, files, paused } = props;
+  const { t } = useTranslation();
   const game = useContext(GameContext);
   const online = useGameState((s) => s.connection === "connected");
-  const { position, running, now, attempt, restart, canRestart, finished } = useContentPosition(
-    content,
-    paused,
-    !game || online,
+  const clock = useContentPosition(content, paused, !game || online);
+  const { position, running, now, attempt, restart, canRestart, finished, fileReplay, select } =
+    clock;
+  const elapsed = now();
+  const media = useMemo(() => scheduledMedia(content.plan, files), [content.plan, files]);
+  const [captures, setCaptures] = useState<{
+    plan: ContentClock["plan"];
+    posters: Map<string, string>;
+  }>();
+  const posters = captures?.plan === content.plan ? captures.posters : new Map<string, string>();
+  function rememberPoster(id: string, src: string) {
+    setCaptures((previous) => {
+      const next = previous?.plan === content.plan ? previous.posters : new Map<string, string>();
+      if (next.has(id)) return previous;
+      return { plan: content.plan, posters: new Map(next).set(id, src) };
+    });
+  }
+
+  const stepMedia = media.filter(
+    ({ step, background }) => step === position.screenIndex && !background,
   );
-  const byOrder = new Map(files.filter((f) => f.file.link).map((f) => [f.order, f]));
-  const screenSteps = content.plan.steps.filter((s) =>
-    s.items.some((i) => i.placement === "screen"),
+  const allVisuals = media.filter(({ file }) => isVisual(file));
+  const stepVisuals = stepMedia.filter(({ file }) => isVisual(file));
+  const queue = stepVisuals.length >= VISUAL_QUEUE_THRESHOLD;
+  const thumbnailMedia = allVisuals.filter(({ step }) => step === position.index);
+  const showHistory = thumbnailMedia.length >= VISUAL_QUEUE_THRESHOLD;
+  const lastVisual = allVisuals.findLast(
+    ({ start, step }) => step <= position.screenIndex && start <= elapsed,
   );
-  const currentScreenStep = screenSteps.findIndex((s) => s.startMs === position.screenStartMs) + 1;
-  const point = attempt > 0 && !finished ? undefined : pointAnswer;
-  const showInitial = !!initialView && attempt === 0;
-  const hideCaption = attempt > 0 && props.textOrder != null;
+  const selected = fileReplay && thumbnailMedia.find(({ id }) => id === fileReplay.id);
+  const displayed = selected ? [selected] : queue ? (lastVisual ? [lastVisual] : []) : stepVisuals;
+  const point = attempt > 0 && !finished ? undefined : props.pointAnswer;
+  const audio = media.filter(
+    ({ file, background, start, step }) =>
+      file.file.type === "audio" && (background ? start <= elapsed : step === position.screenIndex),
+  );
+  const timer = content.timer;
+  const clockKey = timer
+    ? `${timer.startedAt}:${timer.resumedAt}:${timer.elapsedMs}`
+    : content.frozenAtMs;
   const hasVolume = files.some(({ file }) => file.type !== "image");
-  const controls =
-    hasVolume || content.plan.steps.length > 1 ? (
-      <ContentControls volume={hasVolume}>
-        <ContentReplayButton
-          plan={content.plan}
-          files={files}
-          finished={finished}
-          canRestart={canRestart}
-          restart={restart}
-        />
-      </ContentControls>
-    ) : null;
+  const canReplay = hasVolume || allVisuals.length > 1 || content.plan.steps.length > 1;
+  const controls = canReplay ? (
+    <ContentControls volume={hasVolume}>
+      {finished && (
+        <button
+          type="button"
+          className={cn(playbackStyles.replay, "shrink-0 text-sm disabled:opacity-50")}
+          onClick={restart}
+          disabled={!canRestart}
+          data-testid="content-replay"
+        >
+          <ReplayIcon size={18} />
+          {t("question.replay")}
+        </button>
+      )}
+    </ContentControls>
+  ) : null;
 
+  function renderMedia(item: ScheduledMedia, audioNumber?: number) {
+    const replayed = selected?.id === item.id && fileReplay;
+    const localElapsed = replayed ? replayed.elapsed : elapsed - item.start;
+    const completed = localElapsed >= item.duration;
+    const playing = running && localElapsed >= 0 && !completed && (!selected || !!replayed);
+    return (
+      <QuestionMediaItem
+        key={`${attempt}:${item.id}:${replayed ? replayed.generation : 0}`}
+        file={item.file}
+        playing={playing}
+        completed={completed}
+        started={
+          localElapsed >= 0 &&
+          (!item.background || !completed || item.step === position.screenIndex)
+        }
+        audioNumber={audioNumber}
+        clockKey={clockKey}
+        positionMs={() => Math.min(item.duration, replayed ? replayed.now() : now() - item.start)}
+        onPoster={
+          item.file.file.type === "video" && !replayed
+            ? (src) => rememberPoster(item.id, src)
+            : undefined
+        }
+      />
+    );
+  }
+
+  const history = showHistory && (
+    <MediaHistory
+      visuals={thumbnailMedia}
+      posters={posters}
+      current={selected?.id ?? (queue ? lastVisual?.id : undefined)}
+      revealed={finished}
+      enabled={finished && canRestart && !point}
+      onSelect={(item) => select(item.id, item.duration)}
+    />
+  );
+
+  const mediaView =
+    point && !displayed.some((item) => item.file === point.file)
+      ? point.view
+      : (displayed.length > 0 || showHistory) && (
+          <div className="question-visuals">
+            <div
+              className="question-visual-grid"
+              data-count={displayed.length}
+              data-testid="visual-grid"
+            >
+              {displayed.map((item) =>
+                point && item.file === point.file ? (
+                  <div className="question-visual-cell" key={item.id}>
+                    {point.view}
+                  </div>
+                ) : (
+                  <ExpandableVisual
+                    key={queue && !selected ? "queue" : item.id}
+                    suspended={paused || (!!game && !online)}
+                  >
+                    {renderMedia(item)}
+                  </ExpandableVisual>
+                ),
+              )}
+              {!displayed.length && (
+                <div className="question-visual-placeholder" data-testid="visual-placeholder" />
+              )}
+            </div>
+            {history}
+          </div>
+        );
+
+  const copy = stageText(props, position.screen, position.done, attempt, t);
+  const textRevision = `${attempt}:${copy.hasStepText ? position.screenIndex : copy.recapped ? "recap" : "caption"}`;
+  const screenSteps = content.plan.steps.flatMap((step, index) =>
+    step.items.some(({ placement }) => placement === "screen") ? [index] : [],
+  );
+  const current = Math.max(1, screenSteps.indexOf(position.screenIndex) + 1);
+  const initial = props.initialView && attempt === 0 && !selected;
+  const body = initial ? (
+    props.initialView?.(controls, history)
+  ) : (
+    <div className={questionStyles.mediaStep} data-testid="content-step" data-step={current}>
+      <QuestionBody
+        label={props.label}
+        footer={props.footer}
+        text={copy.text}
+        textLength={copy.length}
+        textRevision={textRevision}
+        media={mediaView || undefined}
+        controls={controls}
+        audio={
+          audio.length > 0
+            ? audio.map((item, index) => (
+                <div
+                  key={`${attempt}:${item.id}`}
+                  data-testid={item.background ? "background-sound" : undefined}
+                >
+                  {renderMedia(item, audio.length > 1 ? index + 1 : undefined)}
+                </div>
+              ))
+            : undefined
+        }
+      />
+    </div>
+  );
   return (
-    <ContentControlsContext value={controls}>
-      <div
-        className="question-timeline flex w-full flex-col items-center gap-4"
-        data-testid="content-stage"
-      >
-        {screenSteps.length > 1 && !showInitial && (
-          <ContentProgress steps={screenSteps} current={currentScreenStep} />
-        )}
-
-        {showInitial ? (
-          initialView
-        ) : (
-          <ContentStep
-            {...props}
-            key={`${attempt}:${position.screenStartMs}`}
-            position={position}
-            currentScreenStep={currentScreenStep}
-            byOrder={byOrder}
-            now={now}
-            playing={running && !position.done}
-            pointAnswer={point}
-            caption={hideCaption ? undefined : props.caption}
-            captionLength={hideCaption ? 0 : props.captionLength}
-          />
-        )}
-
-        {!showInitial &&
-          position.background.map(({ item, startMs }) => {
-            const file = byOrder.get(item.order);
-            if (!file) return null;
-            return (
-              <BackgroundSound
-                key={`bg-${attempt}-${item.order}`}
-                file={file}
-                playing={running}
-                positionMs={() => now() - startMs}
-              />
-            );
-          })}
-      </div>
-    </ContentControlsContext>
+    <div className="question-timeline" data-testid="content-stage">
+      {!initial && screenSteps.length > 1 && (
+        <ContentProgress total={screenSteps.length} current={current} />
+      )}
+      {props.wrapBody ? props.wrapBody(body) : body}
+    </div>
   );
 }
 
-function ContentReplayButton({
-  plan,
-  files,
-  finished,
-  canRestart,
-  restart,
-}: {
-  plan: ContentClock["plan"];
-  files: QuestionFile[];
-  finished: boolean;
-  canRestart: boolean;
-  restart: () => void;
-}) {
-  const { t } = useTranslation();
-  if (!finished) return null;
-  if (plan.steps.length < 2 && !files.some(({ file }) => file.type !== "image")) return null;
-  return (
-    <button
-      type="button"
-      className={cn(playbackStyles.replay, "shrink-0 text-sm disabled:opacity-50")}
-      onClick={restart}
-      disabled={!canRestart}
-      data-testid="content-replay"
-    >
-      <ReplayIcon size={18} />
-      {t("question.replay")}
-    </button>
-  );
-}
-
-function ContentProgress({
-  steps,
-  current,
-}: {
-  steps: ContentClock["plan"]["steps"];
-  current: number;
-}) {
+function ContentProgress({ total, current }: { total: number; current: number }) {
   const { t } = useTranslation();
   return (
     <div
-      className="question-steps flex items-center gap-2 text-sm text-muted"
+      className="question-steps"
       role="group"
       aria-label={t("question.stepsLabel")}
       data-testid="content-steps"
     >
-      {steps.map((step, index) => (
-        <span
-          key={step.startMs}
-          aria-hidden
-          className={cn(
-            "h-1.5 w-6 rounded-full transition-colors",
-            index < current ? "bg-accent" : "bg-surface-3",
-          )}
-        />
-      ))}
-      <span data-testid="content-step-label">
-        {t("question.step", { current, total: steps.length })}
-      </span>
+      <div className="question-step-segments" aria-hidden="true">
+        {Array.from({ length: total }, (_, index) => (
+          <span key={index} className={index < current ? "bg-accent" : "bg-surface-3"} />
+        ))}
+      </div>
+      <span data-testid="content-step-label">{t("question.step", { current, total })}</span>
     </div>
   );
 }
 
-/** The current step's body stays separate from playback and replay lifecycle. */
-function ContentStep({
-  content,
-  text,
-  textOrder,
-  textItems,
-  caption,
-  captionLength = 0,
-  label,
-  pointAnswer: point,
-  position,
-  currentScreenStep,
-  byOrder,
-  now,
-  playing,
-}: ContentStageProps & {
-  position: ContentPosition;
-  currentScreenStep: number;
-  byOrder: Map<number, QuestionFile>;
-  now: () => number;
-  playing: boolean;
-}) {
-  const { t } = useTranslation();
-  const isMainText = (item: { kind: string; order: number }) =>
+function stageText(
+  props: ContentStageProps,
+  items: ContentClock["plan"]["steps"][number]["items"],
+  done: boolean,
+  attempt: number,
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  const { text, textOrder, textItems, content } = props;
+  const isMain = (item: { kind: string; order: number }) =>
     isMainTextItem(item, textOrder, textItems);
-  const textShown = position.screen.some(isMainText);
-  const textSequenced = content.plan.steps.some((s) => s.items.some(isMainText));
-  const visibleText = position.screen
+  const shown = items
     .filter((item) => item.kind === "text")
     .flatMap((item) => {
       const value =
         textItems?.find((entry) => entry.order === item.order)?.text ??
-        (isMainText(item) ? text : null);
+        (isMain(item) ? text : null);
       return value ? [{ order: item.order, value }] : [];
     });
-  const recap = position.done && textSequenced && !textShown && text;
-  const textContent =
-    visibleText.length > 0 || recap || caption ? (
-      <>
-        {visibleText.map((item) => (
-          <p key={item.order} className={questionText} data-testid="question-text">
-            {item.value}
-          </p>
-        ))}
-        {recap && (
-          <p className={questionStyles.contentNote} data-testid="question-recap">
-            {t("question.recap", { text })}
-          </p>
-        )}
-        {caption}
-      </>
-    ) : null;
-  const mediaItems = position.screen.filter(
-    (item) => item.kind === "file" && byOrder.has(item.order),
-  );
-  const media =
-    point && !mediaItems.some((item) => item.order === point.order)
-      ? point.view
-      : mediaItems.map((item) => {
-          const file = byOrder.get(item.order)!;
-          if (point && item.order === point.order) return point.view;
-          return (
-            <QuestionMediaItem
-              key={`${item.order}-${file.file.md5}`}
-              file={file}
-              playing={playing}
-              completed={position.done}
-              positionMs={() => now() - position.screenStartMs}
-            />
-          );
-        });
-  return (
-    <div
-      className={questionStyles.mediaStep}
-      data-testid="content-step"
-      data-step={currentScreenStep}
-    >
-      <QuestionBody
-        label={label}
-        text={textContent}
-        textLength={
-          visibleText.reduce((sum, item) => sum + item.value.length, 0) +
-          (recap || "").length +
-          captionLength
-        }
-        media={point || mediaItems.length > 0 ? media : undefined}
-      />
-    </div>
-  );
-}
-
-/** A sound under the stage: the compact audio card, below the current step. */
-function BackgroundSound({
-  file,
-  playing,
-  positionMs,
-}: {
-  file: QuestionFile;
-  playing: boolean;
-  positionMs: () => number;
-}) {
-  return (
-    <div className="question-background-sound w-full max-w-[560px]" data-testid="background-sound">
-      <QuestionMediaItem file={file} playing={playing} positionMs={positionMs} />
-    </div>
-  );
+  const recap =
+    done && !items.some(isMain) && content.plan.steps.some((step) => step.items.some(isMain))
+      ? text
+      : null;
+  const hideCaption = attempt > 0 && textOrder != null;
+  const caption = hideCaption ? undefined : props.caption;
+  return {
+    hasStepText: shown.length > 0,
+    recapped: !!recap,
+    length:
+      shown.reduce((sum, item) => sum + item.value.length, 0) +
+      (recap?.length ?? 0) +
+      (hideCaption ? 0 : (props.captionLength ?? 0)),
+    text:
+      shown.length || recap || caption ? (
+        <>
+          {shown.map(({ order, value }) => (
+            <p key={order} className={questionText} data-testid="question-text">
+              {value}
+            </p>
+          ))}
+          {recap && (
+            <p className={questionStyles.contentNote} data-testid="question-recap">
+              {t("question.recap", { text: recap })}
+            </p>
+          )}
+          {caption}
+        </>
+      ) : undefined,
+  };
 }

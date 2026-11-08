@@ -5,20 +5,21 @@ async function mount(
   page: Page,
   mode: Parameters<typeof Fixture.mount>[0],
   role: Parameters<typeof Fixture.mount>[1] = "player",
+  audio?: Parameters<typeof Fixture.mount>[2],
 ) {
   await page.route("**/v1/**", (route) => route.fulfill({ status: 401, body: "{}" }));
   await page.goto("/");
   await page.evaluate(
-    async ({ mode, role }) => {
+    async ({ mode, role, audio }) => {
       const path = "/browser-tests/content-replay.fixture.tsx";
-      ((await import(path)) as typeof Fixture).mount(mode, role);
+      ((await import(path)) as typeof Fixture).mount(mode, role, audio);
     },
-    { mode, role },
+    { mode, role, audio },
   );
 }
 
 for (const width of [375, 820, 1440]) {
-  test(`replay stays right of volume without moving mixed content at ${width}`, async ({
+  test(`replay appears in the shared control row without moving its top edge at ${width}`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 884 });
@@ -43,17 +44,11 @@ for (const width of [375, 820, 1440]) {
     const slider = (await page.getByRole("slider").boundingBox())!;
     const button = (await replay.boundingBox())!;
     expect(after.y).toBeCloseTo(before.y, 0);
-    expect(after.height).toBeCloseTo(before.height, 0);
     expect((await controls.boundingBox())!.height).toBeCloseTo(beforeControls.height, 0);
     expect(button.x).toBeGreaterThan(slider.x + slider.width);
     expect(button.y + button.height / 2).toBeCloseTo(slider.y + slider.height / 2, 0);
     expect(button.x + button.width).toBeLessThanOrEqual(width);
     await page.screenshot({ path: test.info().outputPath("replay-beside-volume.png") });
-    const textTab = page.getByRole("tab", { name: "Текст", exact: true });
-    if (await textTab.isVisible()) {
-      await textTab.click();
-      await expect(replay).toBeVisible();
-    }
     await replay.click();
     await expect(replay).toHaveCount(0);
     await expect(page.getByTestId("media-video")).toHaveCount(1);
@@ -91,28 +86,76 @@ for (const width of [375, 1440]) {
       expect(box.x).toBeGreaterThanOrEqual(prompt.x);
       expect(box.x + box.width).toBeLessThanOrEqual(prompt.x + prompt.width + 1);
     }
-    const textTab = page.getByRole("tab", { name: "Text", exact: true });
-    if (await textTab.isVisible()) await textTab.click();
     await expect(page.getByTestId("question-text-scroll")).toBeVisible();
     await expect(replay).toBeVisible();
     await page.screenshot({ path: test.info().outputPath("choice-replay.png") });
   });
 }
 
-test("labels authored audio completion and restarts the full audio presentation", async ({
+test("pauses completed audio without a status caption and restarts the full presentation", async ({
   page,
 }) => {
   await mount(page, "audio");
   const audio = page.getByTestId("media-audio");
   const replay = page.getByTestId("content-replay");
   await expect(replay).toBeEnabled();
-  await expect(page.getByText("Finished", { exact: true })).toBeVisible();
+  await expect(page.getByText("Finished", { exact: true })).toHaveCount(0);
+  await expect.poll(() => audio.evaluate((el: HTMLAudioElement) => el.paused)).toBe(true);
   expect(await audio.evaluate((el: HTMLAudioElement) => el.ended)).toBe(false);
   await replay.click();
-  await expect(page.getByText("Listen", { exact: true })).toBeVisible();
+  await expect(page.getByText("Audio", { exact: true })).toBeVisible();
   expect(await audio.evaluate((el: HTMLAudioElement) => el.currentTime)).toBeLessThan(0.5);
   await expect.poll(() => audio.evaluate((el: HTMLAudioElement) => el.paused)).toBe(false);
 });
+
+for (const width of [375, 820, 1440]) {
+  for (const theme of ["daylight", "midnight"] as const) {
+    test(`audio card remains and shares one volume through completion and replay at ${width} (${theme})`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 884 });
+      await mount(page, "audio", "player", {
+        placement: theme === "daylight" ? "screen" : "background",
+        waitForFinish: false,
+        durationMs: 2000,
+      });
+      await page.evaluate(async (theme) => {
+        const path = "/src/features/settings/settingsStore.ts";
+        const { useSettings } = await import(path);
+        useSettings.getState().update({ theme });
+        await document.fonts.ready;
+      }, theme);
+
+      const audio = page.getByTestId("media-audio");
+      const card = page.getByTestId("media-frame");
+      const slider = page.getByRole("slider");
+      const replay = page.getByTestId("content-replay");
+      const before = (await card.boundingBox())!;
+      const volume = (await slider.boundingBox())!;
+      const stage = (await page.getByTestId("content-stage").boundingBox())!;
+      const player = await audio.elementHandle();
+      await expect(replay).toHaveCount(0);
+      expect(before.x + before.width / 2).toBeCloseTo(stage.x + stage.width / 2, 0);
+      expect(before.y).toBeGreaterThan(stage.y);
+      expect(volume.y).toBeGreaterThan(before.y + before.height);
+      await expect(replay).toBeEnabled();
+      expect(await audio.evaluate((el, first) => el === first, player)).toBe(true);
+      await expect(card.getByText("Audio", { exact: true })).toBeVisible();
+      await expect(card.getByRole("status")).toHaveCount(0);
+      await expect.poll(() => audio.evaluate((el: HTMLAudioElement) => el.paused)).toBe(true);
+      expect((await replay.boundingBox())!.x).toBeGreaterThan(
+        (await slider.boundingBox())!.x + volume.width,
+      );
+      expect(await card.boundingBox()).toEqual(before);
+      expect((await slider.boundingBox())!.width).toBe(volume.width);
+      await replay.click();
+      await expect(replay).toHaveCount(0);
+      expect(await audio.evaluate((el, first) => el === first, player)).toBe(false);
+      expect(await card.boundingBox()).toEqual(before);
+      expect((await slider.boundingBox())!.width).toBe(volume.width);
+    });
+  }
+}
 
 for (const [mode, role] of [
   ["question", "player"],

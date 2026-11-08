@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { timerElapsed } from "@/game/contentPlan";
 import type { ChoiceAnswer } from "@/game/protocol";
 import type { GameSession } from "@/game/reducer";
+import { timerStartDelay } from "@/lib/timer";
 import { myRole, phaseOf } from "@/game/selectors";
 import { useGame, useGameState, useSession } from "../../GameContext";
 import { optionAnswer } from "./optionAnswer";
@@ -26,7 +27,7 @@ function optionsShowIn(session: GameSession): number {
   if (phase !== "showing" && phase !== "media") return 0;
   if (phase === "media") return showAt;
 
-  return Math.max(0, showAt - timerElapsed(s.timer, s.isPaused));
+  return timerStartDelay(s.timer) + Math.max(0, showAt - timerElapsed(s.timer, s.isPaused));
 }
 
 /** Keep the reveal timer and selected answer in the keyed choice component. */

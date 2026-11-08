@@ -3,7 +3,8 @@ import { afterEach, expect, it, vi } from "vitest";
 import { useSettings } from "@/features/settings/settingsStore";
 import { createGameStore } from "@/game/store";
 import { GameContext } from "../../GameContext";
-import { QuestionMediaPlayback } from "./QuestionMediaPlayback";
+import { ContentControls } from "../ContentControls";
+import { QuestionMediaItem } from "./QuestionMediaItem";
 
 afterEach(() => {
   cleanup();
@@ -18,19 +19,20 @@ it("changes preview volume without changing or persisting live settings", () => 
   store.setState({ previewVolume: before });
   render(
     <GameContext.Provider value={{ myId: 2, store, connection: { connected: true, emit() {} } }}>
-      <QuestionMediaPlayback
-        src="preview.wav"
-        type="audio"
+      <ContentControls volume />
+      <QuestionMediaItem
+        file={{
+          order: 0,
+          displayTime: null,
+          file: { type: "audio", md5: "preview", link: "preview.wav" },
+        }}
         playing={false}
-        loaded
-        onLoaded={() => {}}
-        onFailed={() => {}}
-        loading={null}
       />
     </GameContext.Provider>,
   );
   fireEvent.change(screen.getByRole("slider"), { target: { value: "13" } });
   expect(store.getState().previewVolume).toBe(0.13);
+  expect((screen.getByTestId("media-audio") as HTMLAudioElement).volume).toBe(0.13);
   expect(useSettings.getState().volume).toBe(before);
   expect(write).not.toHaveBeenCalled();
 });

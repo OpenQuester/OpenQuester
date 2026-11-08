@@ -86,9 +86,11 @@ The upload optimizer uses the same animated-image detection as the editor
 (GIF, APNG, animated WebP and AVIF sequences). Source bytes remain unchanged.
 Attachment duration fields retain fractional/comma input while typing.
 
-- Main question text always comes first, outside the reorderable media/text row.
-  Save persists this ordering; Cancel preserves the old draft. Media-only legacy
-  questions keep their playback format until text steps are added.
+- Main question text comes first in new questions, outside the reorderable
+  media/text row. Opening or saving an existing question preserves the main
+  text's caption or authored timeline position. The simultaneous playback switch controls
+  audio and video in groups of up to four images or videos. Larger visual groups
+  always play in order.
 - Compact grips use the board's drag preview/insertion edge, support touch and
   arrow keys, and open no menu. Images cannot be dragged as files. Text cards
   resize vertically to 240 px, then scroll. Edit retains focus after replacement.

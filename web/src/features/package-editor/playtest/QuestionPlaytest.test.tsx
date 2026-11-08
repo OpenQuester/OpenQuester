@@ -150,6 +150,10 @@ it("runs and pauses the question and reveal clocks and clears them on close", as
   expect(screen.getByTestId("dock-phase")).toHaveTextContent("Game over");
   expect(screen.getByRole("button", { name: "Pause" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+  expect(screen.getByTestId("dock-phase")).toHaveTextContent("Loading question");
+  await act(async () => {
+    vi.advanceTimersByTime(1750);
+  });
   expect(screen.getByTestId("dock-phase")).toHaveTextContent("Ready to buzz");
   view.unmount();
   expect(vi.getTimerCount()).toBe(0);

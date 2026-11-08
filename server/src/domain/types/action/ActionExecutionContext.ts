@@ -23,6 +23,7 @@ export interface ActionExecutionContext<T> {
 
   /** Active timer value (from GET timer:{gameId} in IN pipeline) — null if no active timer */
   timer: GameStateTimerDTO | null;
+  questionTransitionTimer?: GameStateTimerDTO | null;
 
   /** Lock token for this execution (used in OUT pipeline for compare-and-delete) */
   lockToken: string;
@@ -35,8 +36,7 @@ export interface ActionExecutionContext<T> {
  * A narrowed context where both `currentPlayer` and `userData` are guaranteed
  * to be non-null.
  */
-export interface AuthenticatedActionContext<T>
-  extends ActionExecutionContext<T> {
+export interface AuthenticatedActionContext<T> extends ActionExecutionContext<T> {
   currentPlayer: Player;
   userData: SocketRedisUserData;
 }

@@ -1,5 +1,14 @@
+import { VISUAL_QUEUE_THRESHOLD } from "@/game/authoredContentGroups";
 import type { Unzipped } from "fflate";
 
+import {
+  assertImportContentLimits,
+  PackageContentLimitError,
+  timelineLimitIssues,
+  type ImportLimitIssue,
+  type TimelineGroupSize,
+  type TimelinePhase,
+} from "./contentLimits";
 import { scanSiq, requireRemoval, removalWarnings } from "./htmlRemoval";
 import { EntryIndex, md5Hex, yieldToBrowser } from "./archive";
 import type {
@@ -34,6 +43,7 @@ export async function parseSiq(
   if (!pkg || pkg.localName !== "package" || doc.getElementsByTagName("parsererror").length)
     throw new Error("badContentXml");
 
+  const sequentialWarnings = scanSiqContentLimits(pkg);
   const originalRounds = [...children(child(pkg, "rounds"), "round")];
   const nonLastFinals = new Set(
     originalRounds.slice(0, -1).filter((r) => r.getAttribute("type") === "final"),
@@ -44,9 +54,10 @@ export async function parseSiq(
   requireRemoval(report, allowHtmlRemoval);
   if (report.questions.length) scanSiq(pkg, names, true, nonEmptyNames);
   const reader = new SiqReader(index, nonLastFinals);
-  reader.warnings.push(...removalWarnings(report));
+  reader.warnings.push(...removalWarnings(report), ...sequentialWarnings);
   await yieldToBrowser();
   const content = reader.readPackage(pkg);
+  assertImportContentLimits(content);
   if (
     report.questions.length &&
     !content.rounds.some((r) => r.themes.some((t) => t.questions.length))
@@ -216,6 +227,8 @@ class SiqReader {
       price: roundType === "final" ? null : price,
       text: body.text,
       textOrder: body.textOrder,
+      ...(body.textItems.length ? { textItems: body.textItems } : {}),
+      playMediaSimultaneously: true,
       questionComment: body.comment,
       answerText,
       answerHint: null,
@@ -293,24 +306,31 @@ class SiqReader {
         if (!media) continue;
         if (item.getAttribute("isRef")?.toLowerCase() !== "true" && /^https?:/i.test(value)) {
           this.warnings.push({ code: "externalMedia", where, detail: value });
+          entries.push({ kind: "file", placement: "screen", waitForFinish, durationMs });
           continue;
         }
         const ref = this.media(media, value, where);
-        if (!ref) continue;
         // SIGame plays audio in the background unless the item says otherwise.
         const placement =
           media === "audio" && (item.getAttribute("placement") ?? "background") === "background"
             ? "background"
             : "screen";
-        entries.push({ kind: "file", file: ref, placement, waitForFinish, durationMs });
+        entries.push({
+          kind: "file",
+          file: ref ?? undefined,
+          placement,
+          waitForFinish,
+          durationMs,
+        });
       }
       return toSequence(entries);
     };
     const asked = read(question);
     const shown = read(answer);
     return {
-      text: joined(asked.texts) ?? joined(asked.said),
-      textOrder: asked.texts.length ? asked.textOrder : null,
+      text: asked.texts[0] ?? joined(asked.said),
+      textOrder: asked.textOrder,
+      textItems: asked.textItems,
       comment: asked.texts.length ? joined(asked.said) : null,
       questionFiles: asked.files,
       answerFiles: shown.files,
@@ -353,13 +373,13 @@ class SiqReader {
       if (!media) continue;
       if (!value.startsWith("@") && /^https?:/i.test(value)) {
         this.warnings.push({ code: "externalMedia", where, detail: value });
+        into.push({ kind: "file", placement: "screen", waitForFinish, durationMs });
         continue;
       }
       const ref = this.media(media, value, where);
-      if (!ref) continue;
       into.push({
         kind: "file",
-        file: ref,
+        file: ref ?? undefined,
         placement: kind === "voice" ? "background" : "screen",
         waitForFinish,
         durationMs,
@@ -368,8 +388,9 @@ class SiqReader {
     const q = toSequence(asked);
     const a = toSequence(shown);
     return {
-      text: joined(q.texts) ?? joined(q.said),
-      textOrder: q.texts.length ? q.textOrder : null,
+      text: q.texts[0] ?? joined(q.said),
+      textOrder: q.textOrder,
+      textItems: q.textItems,
       comment: q.texts.length ? joined(q.said) : null,
       questionFiles: q.files,
       answerFiles: a.files,
@@ -452,39 +473,134 @@ function mediaType(kind: string): MediaType | null {
   return null;
 }
 
-/**
- * Turns SIGame content items into OpenQuester's model: files keep their
- * order, placement, waitForFinish and duration; all screen texts become the
- * question text, placed where the first one was. A text shown together with
- * the next item (waitForFinish false) or with no media around stays a caption.
- */
+/** Preserve sequential screen text groups along with file order and wait flags. */
 function toSequence(entries: ContentEntry[]) {
   const texts: string[] = [];
   const said: string[] = [];
+  const textItems: { order: number; text: string }[] = [];
   const files: QuestionFile[] = [];
   let textOrder: number | null = null;
-  let textCaption = false;
   let order = 0;
-  for (const e of entries) {
-    if (e.kind === "said") {
-      said.push(e.value!);
-      continue;
-    }
-    if (e.kind === "text") {
-      if (texts.length === 0) {
-        textOrder = order++;
-        textCaption = !e.waitForFinish;
+  let group: ContentEntry[] = [];
+  const close = () => {
+    const groupText = group.filter((entry) => entry.kind === "text");
+    const groupFiles = group.filter((entry) => entry.kind === "file" && entry.file);
+    const firstCaption =
+      !texts.length && groupText[0]?.waitForFinish === false && groupFiles.length > 0;
+    if (firstCaption) order++;
+    groupFiles.forEach((entry, index) => {
+      const file: QuestionFile = {
+        file: entry.file!,
+        order: order++,
+        displayTime: entry.durationMs,
+      };
+      if (entry.placement === "background") file.placement = "background";
+      const groupWaits = group.at(-1)?.waitForFinish;
+      if (index < groupFiles.length - 1 || (groupText.length > 0 && !firstCaption) || !groupWaits) {
+        file.waitForFinish = false;
       }
-      texts.push(e.value!);
+      files.push(file);
+    });
+    if (groupText.length) {
+      const text = groupText.map((entry) => entry.value).join(" ");
+      if (texts.length) textItems.push({ order: order++, text });
+      else if (!firstCaption) textOrder = order++;
+      texts.push(text);
+    }
+    group = [];
+  };
+  for (const entry of entries) {
+    if (entry.kind === "said") {
+      said.push(entry.value!);
       continue;
     }
-    const f: QuestionFile = { file: e.file!, order: order++, displayTime: e.durationMs };
-    if (e.placement === "background") f.placement = "background";
-    if (!e.waitForFinish) f.waitForFinish = false;
-    files.push(f);
+    group.push(entry);
+    if (entry.waitForFinish) close();
   }
-  if (textCaption || files.length === 0) textOrder = null;
-  return { texts, said, files, textOrder };
+  if (group.length) close();
+  if (files.length === 0 && textItems.length === 0) textOrder = null;
+  return { texts, said, files, textOrder, textItems };
+}
+
+/** Inspect original entries before missing files, unsupported content or extra finals are removed. */
+export function scanSiqContentLimits(pkg: Element): ImportWarning[] {
+  const issues: ImportLimitIssue[] = [];
+  const warnings: ImportWarning[] = [];
+  for (const round of children(child(pkg, "rounds"), "round")) {
+    const roundName = round.getAttribute("name")?.trim() || "—";
+    for (const theme of children(child(round, "themes"), "theme")) {
+      const themeName = theme.getAttribute("name")?.trim() || "—";
+      const questions = [...children(child(theme, "questions"), "question")];
+      questions.forEach((question, index) => {
+        const groups = siqGroupSizes(question);
+        for (const phase of ["question", "answer"] as const) {
+          issues.push(
+            ...timelineLimitIssues(phase, groups[phase]).map((issue) => ({
+              ...issue,
+              round: roundName,
+              theme: themeName,
+              number: index + 1,
+            })),
+          );
+          groups[phase].forEach(({ visuals }, step) => {
+            if (visuals < VISUAL_QUEUE_THRESHOLD) return;
+            warnings.push({
+              code: "visualGroupSequential",
+              where: `${roundName} › ${themeName} › ${question.getAttribute("price") ?? index + 1}`,
+              phase,
+              detail: String(step + 1),
+            });
+          });
+        }
+      });
+    }
+  }
+  if (issues.length) throw new PackageContentLimitError(issues);
+  return warnings;
+}
+
+function siqGroupSizes(question: Element) {
+  const params = child(question, "params");
+  const groups: Record<TimelinePhase, TimelineGroupSize[]> = { question: [], answer: [] };
+  let phase: TimelinePhase = "question";
+  let group: TimelineGroupSize | null = null;
+  const close = () => {
+    if (group) groups[phase].push(group);
+    group = null;
+  };
+  const count = (item: Element, waits: boolean) => {
+    const type = item.getAttribute("type") ?? "text";
+    const media = mediaType(type);
+    if (!text(item) || (!media && (type !== "text" || item.getAttribute("placement") === "replic")))
+      return;
+    group ??= { files: 0, visuals: 0 };
+    if (media) group.files++;
+    if (media === "image" || media === "video") group.visuals++;
+    if (waits) close();
+  };
+  if (params) {
+    const parts = [...children(params, "param")];
+    for (const name of ["question", "answer"] as const) {
+      phase = name;
+      const part = parts.find((element) => element.getAttribute("name") === name);
+      const source = part ?? (name === "question" ? params : null);
+      for (const item of children(source, "item")) {
+        count(item, item.getAttribute("waitForFinish")?.toLowerCase() !== "false");
+      }
+      close();
+    }
+  } else {
+    for (const atom of children(child(question, "scenario"), "atom")) {
+      if (atom.getAttribute("type") === "marker") {
+        close();
+        phase = "answer";
+      } else {
+        count(atom, Number.parseFloat(atom.getAttribute("time") ?? "0") !== -1);
+      }
+    }
+    close();
+  }
+  return groups;
 }
 
 /** SIGame durations are .NET TimeSpans ("00:00:05" or "00:00:05.5"). */

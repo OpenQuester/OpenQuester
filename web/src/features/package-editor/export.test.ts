@@ -68,6 +68,7 @@ describe("exporting a draft opened from a published package", () => {
     const remoteId = md5Hex(remoteBytes);
     const localId = md5Hex(localBytes);
     const pkg = packageUsing(remoteId);
+    pkg.rounds[0]!.themes[0]!.questions[0]!.playMediaSimultaneously = false;
     pkg.rounds[0]!.themes[0]!.questions[0]!.answerFiles = [
       { md5: localId, type: "image", displayTime: 5000 },
     ];
@@ -82,6 +83,9 @@ describe("exporting a draft opened from a published package", () => {
     const blob = await exportOq(pkg, media);
     const parsed = await parseOq(unzipSync(new Uint8Array(await blob.arrayBuffer())));
     expect(parsed.warnings).toEqual([]);
+    expect(
+      fromUpload(parsed.content).rounds[0]!.themes[0]!.questions[0]!.playMediaSimultaneously,
+    ).toBe(false);
     expect([...parsed.files.keys()].sort()).toEqual([remoteId, localId].sort());
     expect(parsed.files.get(remoteId)?.bytes).toEqual(remoteBytes);
     expect(parsed.files.get(localId)?.bytes).toEqual(localBytes);

@@ -2,7 +2,7 @@ import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { ALICE, BOB, choosing, question, round, snapshot, timer } from "./fixtures";
 import { createGameStore } from "./store";
 import { contentElapsed, presentedQuestionContent, questionOpening } from "./questionPresentation";
-import type { ServerEvent } from "./protocol";
+import type { QuestionType, ServerEvent } from "./protocol";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -16,10 +16,10 @@ function game() {
   store.getState().setSession(choosing());
   return store;
 }
-function pick(store: ReturnType<typeof game>) {
+function pick(store: ReturnType<typeof game>, type: QuestionType = "simple") {
   store.getState().dispatch({
     type: "question-data",
-    payload: { data: question(100, { textOrder: 0 }), timer: timer(30000) },
+    payload: { data: question(100, { type, textOrder: 0 }), timer: timer(30000) },
   });
 }
 function ready(store: ReturnType<typeof game>) {
@@ -29,12 +29,30 @@ function ready(store: ReturnType<typeof game>) {
   });
 }
 
+it.each<QuestionType>(["simple", "hidden", "choice", "noRisk", "secret", "stake"])(
+  "uses the confirmed %s question type for its opening",
+  (type) => {
+    const store = game();
+    store.getState().dispatch({
+      type: "question-data",
+      payload: { data: question(100, { type }), timer: timer() },
+    });
+    expect(store.getState().questionPresentation?.type).toBe(type);
+  },
+);
+
 it("records confirmed live picks without changing the server session or its clock", () => {
   const store = game();
   const before = store.getState().session!;
   pick(store);
   const p = store.getState().questionPresentation!;
-  expect(p).toMatchObject({ id: 1, theme: "Capitals", price: 100, questionId: 100 });
+  expect(p).toMatchObject({
+    id: 1,
+    theme: "Capitals",
+    price: 100,
+    questionId: 100,
+    type: "simple",
+  });
   expect(p.previousSession).toBe(before);
   expect(before.state.currentRound?.themes[0]?.questions[0]?.isPlayed).toBe(false);
   const media = store.getState().session!;
@@ -79,6 +97,7 @@ it.each<ServerEvent>([
   store.getState().dispatch(event);
   const p = store.getState().questionPresentation!;
   expect(p.id).toBe(1);
+  expect(p.type).toBe(event.type === "secret-question-picked" ? "secret" : "stake");
   if (event.type === "secret-question-picked")
     store.getState().dispatch({
       type: "secret-question-transfer",
@@ -102,10 +121,11 @@ it("starts no-risk everyone once, on its actual question data", () => {
     },
   });
   expect(store.getState().questionPresentation).toBeNull();
-  pick(store);
+  pick(store, "noRisk");
+  expect(store.getState().questionPresentation?.type).toBe("noRisk");
   const id = store.getState().questionPresentation?.id;
   ready(store);
-  pick(store);
+  pick(store, "noRisk");
   expect(store.getState().questionPresentation?.id).toBe(id);
 });
 
@@ -151,7 +171,7 @@ it("starts no animation on snapshots, re-sent data or final questions", () => {
   expect(store.getState().questionPresentation).toBeNull();
 });
 
-it("shifts all content clocks, preserves pause/freeze/resume and keeps the server timer intact", () => {
+it("follows the server clock after the intro and through pause, freeze and resume", () => {
   const store = game();
   pick(store);
   ready(store);
@@ -160,10 +180,9 @@ it("shifts all content clocks, preserves pause/freeze/resume and keeps the serve
   store.getState().finishQuestionOpening(id);
   const p = store.getState().questionPresentation!;
   const session = store.getState().session!;
-  expect(p.contentOffsetMs).toBe(900);
-  expect(contentElapsed(presentedQuestionContent(session, p)!, false)).toBe(0);
+  expect(contentElapsed(presentedQuestionContent(session, p)!, false)).toBe(900);
   vi.advanceTimersByTime(500);
-  expect(contentElapsed(presentedQuestionContent(session, p)!, false)).toBe(500);
+  expect(contentElapsed(presentedQuestionContent(session, p)!, false)).toBe(1400);
   const localPosition = () => {
     const state = store.getState();
     return contentElapsed(
@@ -176,7 +195,7 @@ it("shifts all content clocks, preserves pause/freeze/resume and keeps the serve
     payload: { timer: { ...timer(), elapsedMs: 1400 } },
   });
   vi.advanceTimersByTime(1000);
-  expect(localPosition()).toBe(500);
+  expect(localPosition()).toBe(1400);
   store.getState().dispatch({
     type: "game-unpause",
     payload: { timer: { ...timer(), elapsedMs: 1400 } },
@@ -187,7 +206,7 @@ it("shifts all content clocks, preserves pause/freeze/resume and keeps the serve
     payload: { userId: BOB, timer: timer() },
   });
   vi.advanceTimersByTime(1000);
-  expect(localPosition()).toBe(700);
+  expect(localPosition()).toBe(1600);
   store.getState().dispatch({
     type: "answer-result",
     payload: {
@@ -196,13 +215,12 @@ it("shifts all content clocks, preserves pause/freeze/resume and keeps the serve
     },
   });
   vi.advanceTimersByTime(300);
-  expect(localPosition()).toBe(1000);
-  expect(store.getState().questionPresentation?.contentOffsetMs).toBe(900);
+  expect(localPosition()).toBe(1900);
   expect(session.state.timer?.elapsedMs).toBe(0);
   expect(session.content?.timer?.elapsedMs).toBe(0);
 });
 
-it("retains a completed same-question offset on rejoin, but cancels unfinished openings", () => {
+it("retains a completed same-question intro on rejoin and cancels unfinished openings", () => {
   const store = game();
   pick(store);
   const data = snapshot({
@@ -218,10 +236,10 @@ it("retains a completed same-question offset on rejoin, but cancels unfinished o
   ready(store);
   vi.advanceTimersByTime(900);
   store.getState().finishQuestionOpening(store.getState().questionPresentation!.id);
-  const offset = store.getState().questionPresentation!.contentOffsetMs;
+  const opening = store.getState().questionPresentation;
   store.getState().setConnection("reconnecting");
   store.getState().dispatch({ type: "game-data", payload: data });
-  expect(store.getState().questionPresentation?.contentOffsetMs).toBe(offset);
+  expect(store.getState().questionPresentation).toBe(opening);
   store.getState().setSession(choosing());
   expect(store.getState().questionPresentation).toBeNull();
 });
@@ -242,3 +260,35 @@ it.each(["reconnect", "round", "leave", "begin"] as const)(
     expect(store.getState().questionPresentation).toBeNull();
   },
 );
+
+it("restores only an active server opening from a reconnect snapshot", () => {
+  const store = game();
+  const opening = { timer: timer(1550), mediaReady: false };
+  store.getState().dispatch({
+    type: "game-data",
+    payload: snapshot({
+      currentRound: round(),
+      currentQuestion: question(100),
+      questionState: "media_downloading",
+      timer: timer(30_000),
+      questionTransition: opening,
+    }),
+  });
+  expect(store.getState().questionPresentation).toMatchObject({
+    serverDriven: true,
+    questionId: 100,
+    previousSession: null,
+    complete: false,
+  });
+  store.getState().dispatch({
+    type: "game-data",
+    payload: snapshot({
+      currentRound: round(),
+      currentQuestion: question(100),
+      questionState: "showing",
+      timer: timer(),
+      questionTransition: null,
+    }),
+  });
+  expect(store.getState().questionPresentation).toBeNull();
+});

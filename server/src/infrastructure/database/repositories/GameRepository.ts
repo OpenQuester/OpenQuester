@@ -8,7 +8,8 @@ import {
   GAME_ID_CHARACTERS,
   GAME_ID_CHARACTERS_LENGTH,
   GAME_NAMESPACE,
-  GAME_TTL_IN_SECONDS
+  GAME_TTL_IN_SECONDS,
+  QUESTION_TRANSITION_MS
 } from "domain/constants/game";
 import { PACKAGE_DETAILED_RELATIONS, PACKAGE_SELECT_FIELDS } from "domain/constants/package";
 import { TIMER_NSP } from "domain/constants/timer";
@@ -16,6 +17,7 @@ import { SECOND_MS } from "domain/constants/time";
 import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
+import { validatePackageContentLimits } from "domain/validators/validatePackageContentLimits";
 import { ClientError } from "domain/errors/ClientError";
 import { GameMapper } from "domain/mappers/GameMapper";
 import { GameListItemMapper } from "domain/mappers/GameListItemMapper";
@@ -243,6 +245,7 @@ export class GameRepository {
       fetchIds: true
     });
 
+    validatePackageContentLimits(packageDTO);
     const initialGameState = GameStateMapper.initGameState();
 
     // Handle password for private games
@@ -390,7 +393,10 @@ export class GameRepository {
       });
 
       // Handle timer recovery for games with active timers
-      if (game.gameState.timer && game.gameState.questionState) {
+      if (
+        (game.gameState.timer || game.gameState.questionTransition) &&
+        game.gameState.questionState
+      ) {
         await this._recoverGameTimer(game);
         timerRecoveryCounter++;
       }
@@ -424,32 +430,38 @@ export class GameRepository {
    * 4. Pauses the game
    */
   private async _recoverGameTimer(game: Game): Promise<void> {
-    const timer = game.gameState.timer!;
+    const timer = game.gameState.timer;
     const questionState = game.gameState.questionState!;
-
-    // Clear any existing timer keys
     await this.clearTimer(game.id);
     await this.clearTimer(game.id, questionState);
+    await this.clearTimer(game.id, "question-transition");
 
-    // Restart timer from 0 on server restart.
-    // Rationale: timers might have expired while server was down and the expiration
-    // event would be missed. We restore the game to a safe paused state and allow
-    // resuming from this restore point.
-    timer.elapsedMs = 0;
-    timer.startedAt = new Date();
-
-    // Save paused timer with question state suffix for later unpause
-    const pausedTimerTtl = Math.ceil(GAME_TTL_IN_SECONDS * 1000 * 1.25);
-    await this.saveTimer(timer, game.id, questionState, pausedTimerTtl);
-
-    // Pause game and clear active timer
+    // Recovery stays paused, following the existing single-instance policy.
+    if (timer) {
+      timer.elapsedMs = 0;
+      timer.startedAt = new Date();
+      timer.resumedAt = null;
+      await this.saveTimer(
+        timer,
+        game.id,
+        questionState,
+        Math.ceil(GAME_TTL_IN_SECONDS * 1000 * 1.25)
+      );
+    }
+    const opening = game.gameState.questionTransition;
+    if (opening) {
+      opening.timer.durationMs = QUESTION_TRANSITION_MS;
+      opening.timer.elapsedMs = 0;
+      opening.timer.startedAt = new Date();
+      opening.timer.resumedAt = null;
+      opening.mediaReady = !game.gameState.currentQuestion?.questionFiles?.length;
+      opening.timedOut = false;
+    }
     game.pause();
     game.setTimer(null);
-
-    this.logger.debug(
-      `Timer recovered for game ${game.id}: state=${questionState}, elapsed=${timer.elapsedMs}ms/${timer.durationMs}ms`,
-      { prefix: LogPrefix.GAME }
-    );
+    this.logger.debug(`Timer recovered for game ${game.id}: state=${questionState}`, {
+      prefix: LogPrefix.GAME
+    });
   }
 
   public async cleanOrphanedGames() {

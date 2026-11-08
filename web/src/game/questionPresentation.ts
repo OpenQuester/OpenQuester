@@ -1,11 +1,11 @@
 import { timerElapsed } from "./contentPlan";
 import type { ContentClock, GameSession } from "./reducer";
-import type { ServerEvent } from "./protocol";
+import type { QuestionType, ServerEvent } from "./protocol";
 import { phaseOf } from "./selectors";
 
 export const QUESTION_PICK_TIMING = {
   fadeIn: 200,
-  hold: 300,
+  hold: 800,
   quietWait: 250,
   fadeOut: 300,
   hintFadeIn: 200,
@@ -13,13 +13,19 @@ export const QUESTION_PICK_TIMING = {
 } as const;
 export const QUESTION_PICK_INTRO =
   QUESTION_PICK_TIMING.fadeIn + QUESTION_PICK_TIMING.hold + QUESTION_PICK_TIMING.quietWait;
+export const MEDIA_PLAYBACK_START_DELAY_MS =
+  QUESTION_PICK_INTRO + QUESTION_PICK_TIMING.fadeOut + 200;
+export const QUESTION_TRANSITION_MS = QUESTION_PICK_INTRO + QUESTION_PICK_TIMING.fadeOut;
+export const QUESTION_CONTENT_START_LEAD_MS = 200;
 
 /** Device-local presentation only; never changes the server's phase or timer. */
 export interface QuestionPresentation {
   id: number;
+  serverDriven?: boolean;
   roundKey: string;
   questionId: number;
   theme: string;
+  type: QuestionType;
   price: number | null;
   previousSession: GameSession | null;
   boardEdit: boolean;
@@ -28,7 +34,6 @@ export interface QuestionPresentation {
   hintVisible: boolean;
   revealStartedAt: number | null;
   complete: boolean;
-  contentOffsetMs: number | null;
 }
 
 function roundKey(session: GameSession) {
@@ -51,18 +56,24 @@ export function newQuestionPresentation(
   id: number,
   boardEdit: boolean,
 ): QuestionPresentation | null {
+  const restoring =
+    event?.type === "game-data" &&
+    !!after.state.questionTransition &&
+    after.state.questionState === "media_downloading";
+  if (restoring) before = after;
   if (
     !before ||
     !event ||
-    event.type === "game-data" ||
+    (!restoring && event.type === "game-data") ||
     before.state.currentRound?.type !== "simple" ||
     roundKey(before) !== roundKey(after) ||
-    phaseOf(before) !== "choosing" ||
+    (!restoring && phaseOf(before) !== "choosing") ||
     phaseOf(after) === "choosing"
   )
     return null;
-  const questionId =
-    event.type === "question-data"
+  const questionId = restoring
+    ? after.state.currentQuestion?.id
+    : event.type === "question-data"
       ? event.payload.data.id
       : event.type === "secret-question-picked" ||
           event.type === "stake-question-picked" ||
@@ -74,18 +85,29 @@ export function newQuestionPresentation(
     if (question)
       return {
         id,
+        serverDriven: !!after.state.questionTransition,
         roundKey: roundKey(after),
         questionId: question.id,
         theme: theme.name,
+        type: restoring
+          ? after.state.currentQuestion!.type
+          : event.type === "question-data"
+            ? event.payload.data.type
+            : event.type === "secret-question-picked"
+              ? "secret"
+              : event.type === "stake-question-picked"
+                ? "stake"
+                : after.state.allPlay?.mode === "stake"
+                  ? "stake"
+                  : "noRisk",
         price: question.price ?? null,
-        previousSession: before,
+        previousSession: restoring ? null : before,
         boardEdit,
         startedAt: null,
         introDone: false,
         hintVisible: false,
         revealStartedAt: null,
         complete: false,
-        contentOffsetMs: null,
       };
   }
   return null;
@@ -113,28 +135,14 @@ export function contentElapsed(content: ContentClock, paused: boolean) {
   );
 }
 
-export function captureContentOffset(p: QuestionPresentation, session: GameSession) {
-  return p.complete &&
-    p.contentOffsetMs == null &&
-    session.content?.kind === "question" &&
-    session.state.currentQuestion?.id === p.questionId
-    ? { ...p, contentOffsetMs: contentElapsed(session.content, session.state.isPaused) }
-    : p;
-}
-
-/** One shifted clock for screen steps, foreground media and background tracks. */
+/** Keep the covered stage still. Uncover onto the shared clock, even on a late client. */
 export function presentedQuestionContent(
   session: GameSession,
   p: QuestionPresentation | null | undefined,
 ): ContentClock | null {
   const content = session.content;
-  if (!p || !samePresentedQuestion(p, session) || content?.kind !== "question") return content;
-  if (!p.complete) return { ...content, timer: null, frozenAtMs: 0 };
-  const offset = p.contentOffsetMs ?? 0;
-  if (!offset) return content;
-  return {
-    ...content,
-    timer: content.timer ? { ...content.timer, elapsedMs: content.timer.elapsedMs - offset } : null,
-    frozenAtMs: content.frozenAtMs == null ? null : Math.max(0, content.frozenAtMs - offset),
-  };
+  if (!p || p.complete || !samePresentedQuestion(p, session) || content?.kind !== "question") {
+    return content;
+  }
+  return { ...content, timer: null, frozenAtMs: 0 };
 }

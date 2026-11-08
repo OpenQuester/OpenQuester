@@ -1,3 +1,6 @@
+import { QuestionTransitionLogic } from "domain/logic/question/QuestionTransitionLogic";
+import { SYSTEM_PLAYER_ID } from "domain/constants/game";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
@@ -66,7 +69,16 @@ export class PlayerRoleChangeUseCase implements GameActionHandler<
       wasProcessed: autoLoss,
       transitionResult: null
     }).broadcasts;
+    const previousRole = targetPlayer.role;
     const mutation = PlayerRoleChangeLogic.processRoleChange(game, targetPlayer, payload.newRole);
+    if (
+      game.gameState.questionTransition &&
+      previousRole !== payload.newRole &&
+      ((payload.newRole === PlayerRole.PLAYER && game.isPlayerEligibleForMedia(targetPlayerId)) ||
+        (payload.newRole === PlayerRole.SHOWMAN && game.getMediaEligiblePlayerIds()?.length === 0))
+    ) {
+      targetPlayer.mediaDownloaded = false;
+    }
 
     // Handle statistics based on role change
     if (payload.newRole === PlayerRole.PLAYER) {
@@ -77,9 +89,12 @@ export class PlayerRoleChangeUseCase implements GameActionHandler<
 
     const result = PlayerRoleChangeLogic.buildResult({ game, targetPlayer });
 
+    const gated = !!game.gameState.questionTransition;
+    const wasReady = game.gameState.questionTransition?.mediaReady;
+    const openingMutations = QuestionTransitionLogic.refresh(game);
     // Removing a waiting finalist can start MEDIA_DOWNLOADING -> FINAL_ANSWERING.
     const transition =
-      TransitionGuards.isFinalRoundMediaDownloading(game) && !game.gameState.isPaused
+      (gated || TransitionGuards.isFinalRoundMediaDownloading(game)) && !game.gameState.isPaused
         ? await this.phaseTransitionRouter.tryTransition({
             game,
             trigger: TransitionTrigger.CONDITION_MET,
@@ -100,6 +115,16 @@ export class PlayerRoleChangeUseCase implements GameActionHandler<
         DataMutationConverter.saveGameMutation(game),
         ...DataMutationConverter.mutationFromServiceBroadcasts(autoLossBroadcasts, game.id),
         ...DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts),
+        ...DataMutationConverter.mutationFromTimerMutations(transition ? [] : openingMutations),
+        ...(gated && (transition || wasReady !== game.gameState.questionTransition?.mediaReady)
+          ? [
+              DataMutationConverter.gameBroadcastMutation(
+                game.id,
+                SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+                QuestionTransitionLogic.status(game, SYSTEM_PLAYER_ID, transition?.timer ?? null)
+              )
+            ]
+          : []),
         ...DataMutationConverter.mutationFromTimerMutations(transition?.timerMutations),
         ...DataMutationConverter.mutationFromServiceBroadcasts(transition?.broadcasts, game.id)
       ]

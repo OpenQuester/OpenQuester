@@ -5,6 +5,7 @@ import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameService } from "application/services/game/GameService";
 import { GAME_TTL_IN_SECONDS, SYSTEM_PLAYER_ID, SYSTEM_SOCKET_ID } from "domain/constants/game";
 import { type Game } from "domain/entities/game/Game";
+import { questionTransitionTimerKey } from "domain/constants/redisKeys";
 import { TIMER_NSP } from "domain/constants/timer";
 import { GameActionType } from "domain/enums/GameActionType";
 import { GamePhase, getGamePhase } from "domain/state-machine/types";
@@ -47,7 +48,8 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     // gameId is always the last segment
     const parts = key.split(":");
 
-    if (parts.length !== 2 || parts[0] !== TIMER_NSP) {
+    const transitionTimer = parts.length === 3 && parts[1] === "question-transition";
+    if ((!transitionTimer && parts.length !== 2) || parts[0] !== TIMER_NSP) {
       // Only the bare active timer drives gameplay; suffixed timers are saved pause/resume state.
       this.logger.debug(`Skipping non-active timer expiration`, {
         prefix: LogPrefix.TIMER_EXPIRATION,
@@ -56,7 +58,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       return;
     }
 
-    const gameId = parts[1];
+    const gameId = parts[parts.length - 1];
 
     if (!gameId) {
       this.logger.warn(`Invalid timer key format: ${key}`, {
@@ -79,7 +81,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     }
 
     const questionState = game.gameState.questionState;
-    const skipReason = this.getExpirationSkipReason(game);
+    const skipReason = this.getExpirationSkipReason(game, key);
 
     if (skipReason) {
       this.logger.debug(`Skipping stale timer expiration`, {
@@ -122,11 +124,17 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     await this.actionExecutor.submitAction(action);
   }
 
-  private getExpirationSkipReason(game: Game): string | null {
+  private getExpirationSkipReason(game: Game, key: string): string | null {
     if (game.gameState.isPaused) {
       return "game-paused";
     }
 
+    if (key === questionTransitionTimerKey(game.id)) {
+      return game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING &&
+        game.gameState.questionTransition
+        ? null
+        : "no-question-transition";
+    }
     if (!game.gameState.timer) {
       return "no-active-timer";
     }

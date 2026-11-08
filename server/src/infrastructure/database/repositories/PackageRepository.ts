@@ -357,6 +357,7 @@ export class PackageRepository {
               text: questionData.text,
               textOrder: questionData.textOrder,
               textItems: questionData.textItems,
+              playMediaSimultaneously: questionData.playMediaSimultaneously,
               answerHint: questionData.answerHint,
               answerText: questionData.answerText,
               answerType: questionData.answerType,

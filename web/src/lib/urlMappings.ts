@@ -1,3 +1,5 @@
+import { DEV_STORAGE_ORIGIN, DEV_STORAGE_PATH, DEV_STORAGE_PREFIX } from "./devStorageMedia";
+
 /**
  * Inside a Discord Activity the page may only load from its own
  * `{clientId}.discordsays.com` host, which forwards path prefixes to the real
@@ -20,7 +22,11 @@ export function setUrlMappings(next: UrlMapping[]): void {
 
 /** The URL to load `url` from on this page: unchanged unless a mapping covers it. */
 export function mapUrl(url: string): string {
-  if (mappings.length === 0) return url;
+  const devStorage =
+    import.meta.env.DEV &&
+    import.meta.env.OQ_DEV_MEDIA_PROXY === "1" &&
+    ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+  if (!devStorage && mappings.length === 0) return url;
   let parsed: URL;
   try {
     parsed = new URL(url, window.location.href);
@@ -35,6 +41,16 @@ export function mapUrl(url: string): string {
     const rest = parsed.pathname.slice(base.length).replace(/^\//, "");
     const path = `${prefix.replace(/\/$/, "")}/${rest}`;
     return `${window.location.origin}${path}${parsed.search}${parsed.hash}`;
+  }
+  if (
+    devStorage &&
+    parsed.origin === DEV_STORAGE_ORIGIN &&
+    !parsed.username &&
+    !parsed.password &&
+    !parsed.search &&
+    DEV_STORAGE_PATH.test(parsed.pathname)
+  ) {
+    return `${window.location.origin}${DEV_STORAGE_PREFIX}${parsed.pathname}${parsed.hash}`;
   }
   return url;
 }

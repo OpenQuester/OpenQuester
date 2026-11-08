@@ -1,7 +1,7 @@
 import { singleton } from "tsyringe";
 
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
-import { timerKey } from "domain/constants/redisKeys";
+import { questionTransitionTimerKey, timerKey } from "domain/constants/redisKeys";
 import { SECOND_MS } from "domain/constants/time";
 import { Game } from "domain/entities/game/Game";
 import { GamePauseLogic, GamePauseResult } from "domain/logic/timer/GamePauseLogic";
@@ -61,6 +61,9 @@ export class SocketGameTimerService {
     game: Game,
     activeTimer: GameStateTimerDTO | null
   ): { result: GamePauseResult; timerMutations: TimerMutation[] } {
+    // A key may expire just before the pause action takes the game lock.
+    // Preserve that phase clock so unpause can rearm its pending expiration.
+    activeTimer ??= game.gameState.questionTransition ? game.gameState.timer : null;
     const questionState = game.gameState.questionState;
     const mutations: TimerMutation[] = [];
 
@@ -78,6 +81,12 @@ export class SocketGameTimerService {
         op: "delete",
         key: timerKey(game.id)
       });
+    }
+
+    const opening = game.gameState.questionTransition;
+    if (opening && !game.gameState.isPaused) {
+      GamePauseLogic.updateTimerForPause(opening.timer);
+      mutations.push({ op: "delete", key: questionTransitionTimerKey(game.id) });
     }
 
     game.pause();
@@ -127,14 +136,26 @@ export class SocketGameTimerService {
         key: timerKey(game.id, questionState!)
       });
       // Update timer with resumedAt timestamp
-      GamePauseLogic.updateTimerForResume(savedTimer);
+      const now = Date.now();
+      GamePauseLogic.updateTimerForResume(savedTimer, game.gameState.pausedAt, now);
       // Set active timer with remaining time
-      const remainingMs = GamePauseLogic.calculateRemainingTime(savedTimer);
+      const remainingMs = GamePauseLogic.calculateRemainingTime(savedTimer, now);
       mutations.push({
         op: "set",
         key: timerKey(game.id),
         value: JSON.stringify(savedTimer),
         pxTtl: remainingMs
+      });
+    }
+
+    const opening = game.gameState.questionTransition;
+    if (opening) {
+      GamePauseLogic.updateTimerForResume(opening.timer, game.gameState.pausedAt);
+      mutations.push({
+        op: "set",
+        key: questionTransitionTimerKey(game.id),
+        value: JSON.stringify(opening.timer),
+        pxTtl: GamePauseLogic.calculateRemainingTime(opening.timer)
       });
     }
 

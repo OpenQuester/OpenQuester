@@ -40,6 +40,85 @@ function clock(): ContentClock {
   };
 }
 
+it.each([1, 2, 3, 4, 5, 10])(
+  "shows a thumbnail strip only for a current queue of %i visuals",
+  (count) => {
+    const images: QuestionFile[] = Array.from({ length: count }, (_, order) => ({
+      order,
+      displayTime: 100,
+      waitForFinish: order === count - 1,
+      file: { md5: `image-${order}`, type: "image", link: `/image-${order}.png` },
+    }));
+    const content: ContentClock = {
+      kind: "question",
+      plan: buildContentPlan({ files: images })!,
+      timer: timer(20000),
+      frozenAtMs: null,
+    };
+    render(<ContentStage content={content} files={images} paused={false} />);
+    expect(screen.queryByTestId("media-history")?.querySelectorAll("button").length ?? 0).toBe(
+      count >= 5 ? count : 0,
+    );
+    act(() => vi.advanceTimersByTime(content.plan.totalMs + 30));
+    expect(screen.queryByTestId("media-history")?.querySelectorAll("button").length ?? 0).toBe(
+      count >= 5 ? count : 0,
+    );
+  },
+);
+
+it.each(["text", "audio"])(
+  "replaces queue thumbnails and removes them on the following %s step",
+  (last) => {
+    const images: QuestionFile[] = Array.from({ length: 10 }, (_, order) => ({
+      order,
+      displayTime: 100,
+      waitForFinish: order === 4 || order === 9,
+      file: { md5: `image-${order}`, type: "image", link: `/image-${order}.png` },
+    }));
+    const files =
+      last === "audio"
+        ? [
+            ...images,
+            {
+              order: 10,
+              displayTime: 100,
+              file: { md5: "audio", type: "audio" as const, link: "/audio.wav" },
+            },
+          ]
+        : images;
+    const textItems = last === "text" ? [{ order: 10, text: "Last clue" }] : [];
+    const content: ContentClock = {
+      kind: "question",
+      plan: buildContentPlan({ files, textItems })!,
+      timer: timer(20000),
+      frozenAtMs: null,
+    };
+    render(<ContentStage content={content} files={files} textItems={textItems} paused={false} />);
+    expect(screen.getByTestId("media-history").querySelector("img")).toHaveAttribute(
+      "src",
+      "/image-0.png",
+    );
+    act(() => vi.advanceTimersByTime(content.plan.steps[1]!.startMs + 1));
+    expect(screen.getByTestId("media-history").querySelectorAll("button")).toHaveLength(5);
+    expect(screen.getByTestId("media-history").querySelector("img")).toHaveAttribute(
+      "src",
+      "/image-5.png",
+    );
+    act(() =>
+      vi.advanceTimersByTime(content.plan.steps[2]!.startMs - content.plan.steps[1]!.startMs),
+    );
+    expect(screen.queryByTestId("media-history")).toBeNull();
+    act(() => vi.advanceTimersByTime(content.plan.totalMs + 30));
+    expect(screen.queryByTestId("media-history")).toBeNull();
+    fireEvent.click(screen.getByTestId("content-replay"));
+    expect(screen.getByTestId("media-history").querySelector("img")).toHaveAttribute(
+      "src",
+      "/image-0.png",
+    );
+    expect(screen.getByRole("button", { name: "Image 1" })).toBeDisabled();
+  },
+);
+
 it("replays text, video, image and background audio from the first step, only after the whole plan", () => {
   const content = clock();
   render(
@@ -144,12 +223,16 @@ it("waits for nonblocking background sound even when the screen plan has already
   expect(HTMLMediaElement.prototype.play).toHaveBeenCalled();
   expect(screen.queryByTestId("content-replay")).toBeNull();
   act(() => vi.advanceTimersByTime(4030));
+  expect(screen.getByTestId("media-audio")).toBe(first);
+  expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+  expect(screen.queryByText("Finished")).toBeNull();
+  expect(screen.getByText("Audio")).toBeVisible();
   fireEvent.click(screen.getByTestId("content-replay"));
   expect(screen.getByTestId("media-audio")).not.toBe(first);
   expect(screen.queryByTestId("content-replay")).toBeNull();
 });
 
-it("labels a planned audio ending as finished without confusing a pause with completion", () => {
+it("offers audio replay after completion, without showing routine status labels", () => {
   const sound: QuestionFile = {
     order: 0,
     displayTime: 1000,
@@ -162,15 +245,35 @@ it("labels a planned audio ending as finished without confusing a pause with com
     plan: buildContentPlan({ files: [sound] })!,
   };
   const view = render(<ContentStage content={content} files={[sound]} paused={false} />);
-  expect(screen.getByText("Listen")).toBeVisible();
+  expect(screen.getByText("Audio")).toBeVisible();
   const paused = { ...content, timer: { ...content.timer!, elapsedMs: 500 } };
   view.rerender(<ContentStage content={paused} files={[sound]} paused />);
   expect(screen.queryByText("Finished")).toBeNull();
   view.rerender(<ContentStage content={paused} files={[sound]} paused={false} />);
   act(() => vi.advanceTimersByTime(530));
-  expect(screen.getByText("Finished")).toBeVisible();
+  expect(screen.queryByText("Finished")).toBeNull();
+  expect(screen.getByTestId("content-replay")).toBeEnabled();
   fireEvent.click(screen.getByTestId("content-replay"));
-  expect(screen.getByText("Listen")).toBeVisible();
+  expect(screen.getByText("Audio")).toBeVisible();
+});
+
+it("lays out text, audio and the shared volume in canvas order", () => {
+  const sound = { ...files[1]!, placement: "screen" as const };
+  const content: ContentClock = {
+    kind: "question",
+    timer: timer(20000),
+    frozenAtMs: null,
+    plan: buildContentPlan({ files: [sound] })!,
+  };
+  render(<ContentStage content={content} files={[sound]} paused={false} caption={<p>Clue</p>} />);
+  const text = screen.getByTestId("question-text-scroll");
+  const audio = screen.getByTestId("question-audio-region");
+  const controls = screen.getByTestId("content-controls");
+  expect(text.compareDocumentPosition(audio) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(audio.compareDocumentPosition(controls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(controls).toContainElement(screen.getByRole("slider"));
+  expect(screen.getByTestId("media-audio")).toBeInTheDocument();
+  expect(screen.getByText("Clue")).toBeVisible();
 });
 
 it("pauses replay, cancels on answer freeze, snapshot or disconnect, and cleans up its timer", () => {

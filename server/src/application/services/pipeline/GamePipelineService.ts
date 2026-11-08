@@ -14,7 +14,8 @@ import {
   lockKey,
   packageKey,
   queueKey,
-  timerKey
+  timerKey,
+  questionTransitionTimerKey
 } from "domain/constants/redisKeys";
 import { SOCKET_SESSION_PREFIX } from "domain/constants/socket";
 import { SECOND_MS } from "domain/constants/time";
@@ -124,6 +125,7 @@ export interface PipelineInSuccess {
   lockToken: string;
   game: Game;
   timer: GameStateTimerDTO | null;
+  questionTransitionTimer?: GameStateTimerDTO | null;
   userData: SocketRedisUserData | null;
 }
 
@@ -202,10 +204,12 @@ export class GamePipelineService {
     pipeline.get(timerKey(gameId));
     // [4] Socket session data
     pipeline.hgetall(sessionKey);
+    // [5] Independent question opening timer
+    pipeline.get(questionTransitionTimerKey(gameId));
 
     const results = await pipeline.exec();
 
-    if (!results || results.length < 5) {
+    if (!results || results.length < 6) {
       throw new ServerError("IN pipeline returned unexpected number of results");
     }
 
@@ -230,6 +234,7 @@ export class GamePipelineService {
       game,
       // [3] Active timer
       timer: GamePipelineService.parseTimer(results[3][1] as string | null),
+      questionTransitionTimer: GamePipelineService.parseTimer(results[5][1] as string | null),
       // [4] Socket session data
       userData: GamePipelineService.parseUserData(results[4][1] as Record<string, string> | null)
     };
@@ -339,6 +344,7 @@ export class GamePipelineService {
     const gKey = gameKey(gameId);
     const pKey = packageKey(gameId);
     const wKey = expirationWarningKey(gameId);
+    if (!game.gameState.questionTransition) pipeline.del(questionTransitionTimerKey(gameId));
 
     pipeline.hset(gKey, GameMapper.serializeGameToHash(game));
     pipeline.expire(gKey, GAME_TTL_IN_SECONDS);
@@ -359,7 +365,7 @@ export class GamePipelineService {
     const tKey = timerKey(gameId);
     const qKey = queueKey(gameId);
 
-    pipeline.del(gKey, pKey, wKey, tKey, qKey);
+    pipeline.del(gKey, pKey, wKey, tKey, qKey, questionTransitionTimerKey(gameId));
   }
 
   // ════════════════════════════════════════════════════════════════════════

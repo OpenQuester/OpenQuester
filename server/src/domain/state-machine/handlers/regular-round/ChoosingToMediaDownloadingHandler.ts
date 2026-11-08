@@ -1,3 +1,4 @@
+import { QuestionTransitionLogic } from "domain/logic/question/QuestionTransitionLogic";
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
@@ -102,12 +103,18 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
+    const opening = QuestionTransitionLogic.start(game);
+    if (!QuestionTransitionLogic.hasMedia(game)) {
+      game.setTimer(null);
+      return { timerMutations: [{ op: "delete", key: timerKey(game.id) }, opening] };
+    }
     const timer = new GameStateTimer(MEDIA_DOWNLOAD_TIMEOUT);
     game.gameState.timer = timer.start();
 
     return {
       timer: timer.value() ?? undefined,
       timerMutations: [
+        opening,
         { op: "delete", key: timerKey(game.id) },
         {
           op: "set",

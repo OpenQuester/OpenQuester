@@ -44,10 +44,9 @@ async function seed(
   remote = false,
   size = { width: 400, height: 240 },
   final = false,
-  legacyCaption = false,
 ) {
   const result = await page.evaluate(
-    async ({ shared, remote, size, final, legacyCaption }) => {
+    async ({ shared, remote, size, final }) => {
       const d = "/src/features/package-editor/draftStorage.ts",
         m = "/src/features/package-editor/packageDraft.ts",
         a = "/src/features/upload/archive.ts";
@@ -79,9 +78,6 @@ async function seed(
             text: "Name this artwork",
             answerText: "Quiz",
             questionFiles: [media],
-            ...(legacyCaption
-              ? { mainTextFirst: undefined, textItems: undefined, textPosition: null }
-              : {}),
           }),
           ...(shared
             ? [
@@ -108,7 +104,7 @@ async function seed(
       ]);
       return { id, md5, bytes: [...bytes] };
     },
-    { shared, remote, size, final, legacyCaption },
+    { shared, remote, size, final },
   );
   await page.goto(`/packages/editor/${result.id}`);
   await page.getByTestId("question-card").first().press("Control+Enter");
@@ -764,8 +760,7 @@ test("closing nested preview restores focus without scrolling the question form"
 test("local playtest uses unsaved content, separates roles, and leaves the form mounted", async ({
   page,
 }) => {
-  // A legacy caption is now shown as the first step in the editor preview.
-  const source = await seed(page, false, false, { width: 1200, height: 900 }, false, true);
+  const source = await seed(page, false, false, { width: 1200, height: 900 });
   const calls: string[] = [];
   const form = page.getByTestId("question-dialog");
   const unsaved = "Unsaved interactive question";

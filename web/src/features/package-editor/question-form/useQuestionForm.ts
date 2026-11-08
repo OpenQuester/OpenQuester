@@ -13,7 +13,6 @@ export function useQuestionForm(at: ops.QuestionPath, onClose: () => void) {
   const [draft, setDraft] = useState<{
     q: DraftQuestion;
     baseline: DraftQuestion;
-    needsMainFirst: boolean;
     undo: MediaUndo | null;
   }>(() => {
     const identify = (files: DraftMedia[]) => {
@@ -33,20 +32,14 @@ export function useQuestionForm(at: ops.QuestionPath, onClose: () => void) {
         ? { pointImageId: questionFiles.find((file) => file.type === "image")?.occurrenceId ?? "" }
         : {}),
     };
-    const normalize = identified.mainTextFirst !== true || identified.textPosition !== 0;
-    const needsMainFirst = !!identified.text.trim() && (normalize || identified.textItems == null);
     const q =
-      normalize || needsMainFirst
-        ? withQuestionSteps(
-            {
-              ...identified,
-              mainTextFirst: true,
-              textItems: identified.textItems ?? (identified.text.trim() ? [] : undefined),
-            },
-            [{ kind: "main" }, ...questionSteps(identified).filter((step) => step.kind !== "main")],
-          )
+      !identified.text.trim() && identified.textPosition == null
+        ? withQuestionSteps({ ...identified, mainTextFirst: true }, [
+            { kind: "main" },
+            ...questionSteps(identified),
+          ])
         : identified;
-    return { q, baseline: q, undo: null, needsMainFirst };
+    return { q, baseline: q, undo: null };
   });
   const { q } = draft;
   const setQ: Dispatch<SetStateAction<DraftQuestion>> = (update) =>
@@ -93,7 +86,10 @@ export function useQuestionForm(at: ops.QuestionPath, onClose: () => void) {
       const next = {
         ...prev,
         ...patch,
-        ...(patch.text !== undefined && at.question.textItems == null && !prev.textItems?.length
+        ...(patch.text !== undefined &&
+        prev.mainTextFirst &&
+        at.question.textItems == null &&
+        !prev.textItems?.length
           ? { textItems: patch.text.trim() ? [] : undefined }
           : {}),
       };
@@ -128,7 +124,7 @@ export function useQuestionForm(at: ops.QuestionPath, onClose: () => void) {
 
   const save = () => {
     if (media.active || !canSave) return;
-    if (dirty || draft.needsMainFirst)
+    if (dirty)
       apply(
         (p) => ops.updateQuestion(p, q.id, q),
         { key: "questionSaved" },

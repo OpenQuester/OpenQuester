@@ -6,7 +6,7 @@ import { GameActionDock } from "@/features/game/play/GameActionDock";
 import { GameStage } from "@/features/game/play/GameStage";
 import { PlayerChips } from "@/features/game/play/PlayerChips";
 import { useSettings } from "@/features/settings/settingsStore";
-import { timerElapsed } from "@/game/contentPlan";
+import { remainingMs, timerStartDelay } from "@/lib/timer";
 import type { Question } from "@/game/protocol";
 import type { GameSession } from "@/game/reducer";
 import { canManuallyJudge, phaseOf } from "@/game/selectors";
@@ -17,6 +17,7 @@ import { onPlaytestKey } from "./playtestKeyboard";
 import { needsPlayerPerspective } from "./playtestGuidance";
 import { usePlaytestWait } from "./usePlaytestWait";
 import { questionOpening } from "@/game/questionPresentation";
+import { resumeAudioContext } from "@/lib/audioContext";
 
 export function PlaytestSession({
   initial,
@@ -65,7 +66,7 @@ export function PlaytestSession({
   useEffect(() => {
     const timer = game.activeTimer;
     if (!timer || session.state.isPaused) return;
-    const left = Math.max(0, timer.durationMs - timerElapsed(timer, false));
+    const left = (remainingMs(timer) ?? 0) + timerStartDelay(timer);
     const version = session.version;
     const id = window.setTimeout(() => {
       if (game.session.version === version) game.timeout();
@@ -89,6 +90,8 @@ export function PlaytestSession({
         className="flex min-h-full flex-col gap-4 p-4 sm:p-5"
         data-testid="question-playtest"
         tabIndex={-1}
+        onClickCapture={resumeAudioContext}
+        onKeyDownCapture={resumeAudioContext}
         onKeyDown={(event) => onPlaytestKey(event, game, perspective)}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -129,7 +132,7 @@ export function PlaytestSession({
           <p className="m-0 text-sm text-muted">{t("editor.playtest.switchToPlayer")}</p>
         )}
         {finished && <p className="m-0 text-sm text-muted">{t("editor.playtest.finished")}</p>}
-        <div className="order-2 flex min-h-52 shrink-0 flex-col rounded-md border border-line bg-surface-2 p-3 sm:order-1 sm:grow sm:p-5">
+        <div className="question-playtest-field order-2 flex h-[clamp(220px,56dvh,620px)] shrink-0 flex-col rounded-md border border-line bg-surface-2 p-3 sm:order-1 sm:grow sm:p-5">
           <GameStage />
         </div>
         <div className="order-1 shrink-0 sm:order-2">

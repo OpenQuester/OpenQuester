@@ -67,6 +67,7 @@ const baseQuestionSchema = Joi.object<PackageQuestionInput>({
       })
     )
     .allow(null),
+  playMediaSimultaneously: Joi.boolean().allow(null).default(true),
   answerHint: Joi.string().allow(null, ""),
   answerText: Joi.string().allow(null, ""),
   answerType: Joi.string()

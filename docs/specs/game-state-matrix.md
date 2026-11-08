@@ -37,14 +37,14 @@ Names in code may differ. Use nearby enums/types as the implementation source of
 | ----------------------- | ----------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Lobby                   | Configure/start game                                  | Ready/unready, choose slot/role if allowed | Join/watch                                              | “Waiting for players”, “Waiting for the showman” in manual mode, “Package missing”       | selected start mode, ready state, showman slot, package rounds/themes, copied link toast |
 | Choosing                | Choose a cell or random question                      | Choose if it is your turn; otherwise wait  | Watching choice                                         | “Only showman/current player can choose”, “Question already played”, “No questions left” | chosen cell highlight, phase transition                                                  |
-| Media downloading       | Observe preparation; showman readiness does not block | Prepare media, then report readiness       | Observe preparation; spectator readiness does not block | “Waiting for media”, “Waiting for active players”                                        | media timer, per-player readiness; content should remain gated                           |
+| Media downloading       | Observe preparation; prepare files when hosting solo | Prepare media, then report readiness       | Observe preparation; spectator readiness does not block | “Waiting for media”, “Waiting for active players”                                        | media/transition timers, per-player readiness; content stays frozen until release                           |
 | Showing question        | Continue/watch question                               | Wait until buzzer ready                    | Watching question                                       | “Button locked until question is ready”, “You joined after question started”             | question timer, role-aware controls                                                      |
 | Ready to buzz           | Observe/prepare to judge                              | Press buzzer                               | Watching who buzzes                                     | “You already answered”, “You are skipped”, “Spectators cannot answer”                    | Ready state, keyboard hint, pulse/sound when active                                      |
 | Answering               | Mark correct/wrong/skip                               | Answer if selected, otherwise wait         | Watching active answerer                                | “Another player is answering”                                                            | active player highlight, answer prompt                                                   |
 | Reviewing answer        | Correct/wrong/score result                            | Waiting for showman decision               | Watching review                                         | “Only showman can mark answer”                                                           | score delta, correct/wrong result, next phase                                            |
 | Between questions       | Pick next / next round                                | Waiting                                    | Watching                                                | “Round is not ready”, “Game paused”                                                      | phase label, next action visible                                                         |
 | Final theme elimination | Eliminate for current player / observe                | Eliminate if it is your turn               | Watching elimination                                    | “Not your turn”, “Theme already eliminated”                                              | eliminated theme animation, next player indicator                                        |
-| Final bidding           | Observe / proceed when bids complete                  | Submit bid if eligible                     | Watching bids                                           | “Bid already submitted”, “Insufficient score”, “Spectators cannot bid”                   | bid submitted state, own amount only, timer, all-bids-ready state                                         |
+| Final bidding           | Observe / proceed when bids complete                  | Submit bid if eligible                     | Watching bids                                           | “Bid already submitted”, “Insufficient score”, “Spectators cannot bid”                   | bid submitted state, own amount only, timer, all-bids-ready state                        |
 | Final answering         | Wait/review later                                     | Submit final answer                        | Watching answer phase                                   | “You did not bid”, “Answer already submitted”, “Timer expired”                           | submitted state, remaining time                                                          |
 | Final reviewing         | Review each answer                                    | Waiting for review                         | Watching review                                         | “Only showman can review”                                                                | per-answer correct/wrong, final score updates                                            |
 | Finished                | Start/rematch/share/admin actions                     | See results/rematch/share                  | See results                                             | “Game already finished”                                                                  | winner, podium, summary, score deltas                                                    |
@@ -61,29 +61,82 @@ even if its player remains disconnected.
 Null/absent `textItems` preserves legacy behavior. See
 [package validation](package-validation-spec.md) for duration rules.
 
+If a final starts with a single theme, the elimination deadline advances
+straight to bidding and keeps the theme available.
+
 ## Required frontend behavior
 
 ### Question picking transition (React)
 
-A confirmed regular-round pick shows the theme and price over the previous board:
-200 ms fade in, 300 ms hold, 250 ms quiet wait, then a 300 ms fade out when ready.
+A confirmed regular-round pick shows the localized special question-type Badge above
+the theme and price; simple questions have no Badge. Over the previous board:
+200 ms fade in, 800 ms hold, 250 ms quiet
+wait, then a 300 ms fade out when ready (1550 ms for immediately ready clients).
 Slow media shows a waiting hint. All roles and editor playtests share the transition;
 secret transfers, later bids and final selections do not restart it.
 
-Readiness ACKs and server deadlines continue during the opening; gameplay inputs
-and playback wait for it to finish. Content starts locally at zero and keeps its
-offset through pause, answer freezes and same-question rejoin. A server phase
-change can cut playback short. Snapshots cancel unfinished openings; reduced
-motion removes animation but preserves their duration. Timing constants live in
-`web/src/game/questionPresentation.ts`.
+The direct `CHOOSING -> MEDIA_DOWNLOADING` entry has a server opening timer,
+parallel to media preparation. Its deadline is `max(pick + 1550 ms, ready + 300 ms)`.
+Opening expiry never forces readiness. Text questions use only this timer and
+send no media ACK. A readiness status without a question timer keeps preparation
+active; release uses the existing media status with the shared question timer,
+scheduled 200 ms ahead. A warm first file therefore starts at pick + 1750 ms.
 
-### Local content replay (React)
+Pause preserves both clocks. ACKs while paused cannot release the question.
+Reconnect during preparation restores the remaining opening; snapshots after
+release do not replay it. A prepared first frame can mount frozen during fade.
+Playback and buzzing wait for the shared start, including under reduced motion.
+Separate secret/stake/final entries and legacy active questions keep their
+existing paths. See [media synchronization](../../server/docs/media-download-sync.md).
 
-After all content and background tracks finish, question/answer/final/playtest
-timelines offer “Replay presentation” beside volume for multiple steps or any
-audio/video. Reserve this row to avoid layout shifts. Replay restarts the whole
-timeline locally without ACKs or deadline changes. Pause freezes it; an answer
-freeze, new plan/snapshot, reconnect or scene change cancels it.
+### Question and answer media (React)
+
+Special question-type Badges sit to the right of the price in the same heading row;
+simple questions have no Badge. Type explanations appear in a styled native popover
+after 300 ms of hovering, or immediately on keyboard focus, rather than a
+separate help line. It prefers the space above the Badge with a 6 px gap, falling
+back below when needed. Leaving before the delay cancels opening. Escape and
+outside clicks dismiss it with a 180 ms fade/scale transition; reduced motion
+disables the animation. Descriptions do not repeat the type name. The label has
+the default cursor and no click/tap action; it remains keyboard-focusable.
+Compact question, answer and audio cards center vertically in
+the remaining space under the heading and progress; dense media and long text
+use the bounded canvas with scrolling. These rules also apply to final content
+and editor previews. Routine audio ready/playing/paused/finished captions are
+hidden; keep names, spectrum, loading/errors and sound activation.
+Multi-step progress stays in a
+separate row directly below the heading. The shared canvas puts text above the
+visuals, audio beside or below the visuals, and shared volume and replay controls
+last. Text and audio have separate scroll regions. Long text with a long audio
+list uses a 60/40 split. One to four images or videos use a grid, with a single
+column on phones. Expanding a visual keeps the media element in place.
+
+Authored steps advance on the server phase clock. Within a step with up to four
+images or videos, the question's `playMediaSimultaneously` setting controls
+whether screen audio and video play together or in order. Missing and null use
+the default, true. A step with five or more images or videos always plays its
+screen files in order. An audio slot holds the last visible frame or a placeholder.
+Explicit background sound follows its own timing across steps.
+
+Only a current authored group with five or more visual files has a thumbnail
+strip. Initial playback keeps every thumbnail locked and blurred. Each next
+group replaces it, including removing it for text/audio-only groups. Once the
+whole timeline and background sounds finish, only that last group remains
+(10 thumbnails for 30 groups of 10), available for local file browsing.
+A video thumbnail replays only that video from the beginning.
+“Replay presentation” restarts the authored steps on a local clock. Both leave the
+server deadline and other clients alone. Pausing freezes replay. Answer freeze,
+reconnect, a new plan, and a phase change cancel it.
+
+The final keeps the authored answer private during rulings. After the last
+ruling, a final answer with files gets a public reveal on the server timer.
+Answer media presentations include a five-second browsing window. The final
+podium follows that window.
+A final answer without files retains the immediate finish.
+
+Audio cards show readiness, buffering, playback, pause, completion or failure.
+Their spectrum responds to the audible track. Native playback remains available
+when a browser or origin prevents analysis.
 
 ### Leaving and home notices (React)
 

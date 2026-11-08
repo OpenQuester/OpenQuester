@@ -31,11 +31,15 @@ export class ShowAnswerLogic {
       return null;
     }
 
-    return QuestionContentPlanLogic.build({ files: question.answerFiles }, null, {
-      imageMs: SHOW_ANSWER_DURATION_TEXT,
-      audioMs: SHOW_ANSWER_DURATION_AUDIO,
-      videoMs: SHOW_ANSWER_DURATION_VIDEO
-    });
+    return QuestionContentPlanLogic.build(
+      { files: question.answerFiles, playMediaSimultaneously: question.playMediaSimultaneously },
+      null,
+      {
+        imageMs: SHOW_ANSWER_DURATION_TEXT,
+        audioMs: SHOW_ANSWER_DURATION_AUDIO,
+        videoMs: SHOW_ANSWER_DURATION_VIDEO
+      }
+    );
   }
 
   /**
@@ -50,7 +54,7 @@ export class ShowAnswerLogic {
     const plan = this.buildAnswerPlan(question);
 
     if (plan) {
-      return plan.totalMs > 0 ? plan.totalMs : SHOW_ANSWER_DURATION_TEXT;
+      return plan.totalMs + SHOW_ANSWER_DURATION_TEXT;
     }
 
     return question.showAnswerDuration > 0

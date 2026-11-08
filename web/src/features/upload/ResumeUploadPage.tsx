@@ -31,7 +31,7 @@ export function ResumeUploadPage() {
       backLabel={t("myPackages.title")}
       description={title && <p className="m-0 text-soft [overflow-wrap:anywhere]">{title}</p>}
     >
-      <HtmlRemovalDialog report={confirmation.report} settle={confirmation.settle} />
+      <HtmlRemovalDialog {...confirmation} />
       {state.isLoading || me.isLoading ? (
         <Spinner label={t("common.loading")} />
       ) : err ? (

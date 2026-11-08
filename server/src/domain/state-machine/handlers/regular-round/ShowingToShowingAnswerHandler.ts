@@ -11,7 +11,7 @@ import {
   MutationResult,
   TimerResult,
   TransitionContext,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
@@ -50,9 +50,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
       return false;
     }
 
-    if (
-      !TransitionGuards.canTransitionInRegularRound(game, QuestionState.SHOWING)
-    ) {
+    if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.SHOWING)) {
       return false;
     }
 
@@ -80,11 +78,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
 
     if (currentQuestion && questionData) {
       question = questionData.question;
-      GameQuestionMapper.setQuestionPlayed(
-        game,
-        question.id!,
-        questionData.theme.id!
-      );
+      GameQuestionMapper.setQuestionPlayed(game, question.id!, questionData.theme.id!);
     }
 
     game.setQuestionState(QuestionState.SHOWING_ANSWER);
@@ -104,13 +98,13 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
       answerText: question?.answerText ?? null,
       nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
       answerContentPlan: ShowAnswerLogic.buildAnswerPlan(question),
-      ...ShowAnswerLogic.revealDetails(question),
+      ...ShowAnswerLogic.revealDetails(question)
     };
 
     return {
       data: {
-        question,
-      } satisfies ShowingToShowingAnswerMutationData,
+        question
+      } satisfies ShowingToShowingAnswerMutationData
     };
   }
 
@@ -119,8 +113,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
     mutationResult: MutationResult
   ): Promise<TimerResult> {
     const { game } = ctx;
-    const mutationData =
-      mutationResult.data as ShowingToShowingAnswerMutationData;
+    const mutationData = mutationResult.data as ShowingToShowingAnswerMutationData;
     const question = mutationData.question;
 
     // Calculate duration based on answer files (media stacking) or fallback default
@@ -137,33 +130,32 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: duration,
-        },
-      ],
+          pxTtl: duration
+        }
+      ]
     };
   }
 
   protected collectBroadcasts(
     ctx: TransitionContext,
     _mutationResult: MutationResult,
-    _timerResult: TimerResult
+    { timer }: TimerResult
   ): BroadcastEvent[] {
     const { game } = ctx;
 
     const broadcasts: BroadcastEvent[] = [];
-    const answerShowData =
-      game.gameState.answerShowData as QuestionFinishEventPayload;
+    const answerShowData = game.gameState.answerShowData as QuestionFinishEventPayload;
 
     broadcasts.push({
       event: SocketIOGameEvents.QUESTION_FINISH,
-      data: answerShowData,
-      room: game.id,
+      data: answerShowData.answerContentPlan ? { ...answerShowData, timer } : answerShowData,
+      room: game.id
     });
 
     broadcasts.push({
       event: SocketIOGameEvents.ANSWER_SHOW_START,
       data: {} satisfies AnswerShowStartEventPayload,
-      room: game.id,
+      room: game.id
     });
 
     return broadcasts;

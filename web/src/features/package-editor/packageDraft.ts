@@ -62,6 +62,7 @@ export interface DraftQuestion {
   mainTextFirst?: boolean;
   /** Absent for legacy questions; an empty array marks the new sequence format. */
   textItems?: DraftTextItem[];
+  playMediaSimultaneously?: boolean | null;
   questionFiles: DraftMedia[];
   answerText: string;
   answerFiles: DraftMedia[];
@@ -145,6 +146,7 @@ export function newQuestion(
     textPosition: 0,
     mainTextFirst: true,
     textItems: [],
+    playMediaSimultaneously: true,
     questionFiles: [],
     answerText: "",
     answerFiles: [],
@@ -320,6 +322,7 @@ function questionFromUpload(q: UploadQuestion): DraftQuestion {
     textPosition: mainTextFirst ? 0 : textPosition(q),
     mainTextFirst: mainTextFirst || undefined,
     textItems,
+    playMediaSimultaneously: q.playMediaSimultaneously ?? true,
     questionFiles,
     ...(pointImageId === undefined ? {} : { pointImageId }),
     answerText: q.answerText ?? "",
@@ -456,6 +459,7 @@ export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean
     price: final ? null : q.price,
     text: orNull(q.text),
     textOrder: textStep,
+    playMediaSimultaneously: q.playMediaSimultaneously ?? true,
     ...(textItems === undefined ? {} : { textItems }),
     questionComment: orNull(q.questionComment),
     answerText: orNull(q.answerText),

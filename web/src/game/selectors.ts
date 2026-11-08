@@ -1,5 +1,6 @@
 import { pointImage } from "@/lib/pointImage";
 import { serverNow } from "@/lib/clock";
+import { timerStartDelay } from "@/lib/timer";
 
 import { timerElapsed } from "./contentPlan";
 import type { GameSession } from "./reducer";
@@ -52,6 +53,7 @@ export function phaseOf(session: GameSession): Phase {
   if (session.finished) return "finished";
   if (!s.currentRound) return "lobby";
   if (s.currentRound.type === "final" && s.questionState === "media_downloading") return "media";
+  if (s.questionState === "showing_answer") return "reveal";
   if (s.currentRound.type === "final" && s.finalRoundData) {
     switch (s.finalRoundData.phase) {
       case "theme_elimination":
@@ -76,8 +78,6 @@ export function phaseOf(session: GameSession): Phase {
       return "showing";
     case "answering":
       return "answering";
-    case "showing_answer":
-      return "reveal";
     case "secret_transfer":
       return "secret_transfer";
     case "bidding":
@@ -176,6 +176,7 @@ export function canBuzz(session: GameSession, myId: number, connected = true): A
     return session.state.answeringPlayer === myId ? no("already_done") : no("not_your_turn");
   }
   if (phase !== "showing") return no("wrong_phase");
+  if (timerStartDelay(session.state.timer) > 0) return no("question_opening");
   if (!isEligible(session, myId)) {
     return no(session.state.currentQuestion?.type === "noRisk" ? "not_your_turn" : "not_eligible");
   }

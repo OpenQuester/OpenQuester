@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { nextChangeAt, timerElapsed } from "@/game/contentPlan";
 import type { GameSession } from "@/game/reducer";
 import { phaseOf } from "@/game/selectors";
+import { timerStartDelay } from "@/lib/timer";
 import {
   contentElapsed,
   presentedQuestionContent,
@@ -32,7 +33,7 @@ export function usePlaytestWait(
     if (!timer || paused || next == null) return;
     const id = window.setTimeout(
       () => setTick((tick) => tick + 1),
-      Math.max(0, next - timerElapsed(timer, false)) + 30,
+      timerStartDelay(timer) + Math.max(0, next - timerElapsed(timer, false)) + 30,
     );
     return () => window.clearTimeout(id);
   }, [timer, paused, next]);

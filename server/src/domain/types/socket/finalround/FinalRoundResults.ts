@@ -64,7 +64,7 @@ export interface FinalAnswerReviewResult {
 
 export interface ThemeEliminationTimeoutResult {
   game: Game;
-  themeId: number;
+  themeId: number | null;
   nextPlayerId: number | null;
   isPhaseComplete: boolean;
   /** Transition result for direct broadcast pass-through */

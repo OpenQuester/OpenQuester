@@ -31,6 +31,7 @@ export interface UploadQuestion {
   textOrder?: number | null;
   /** Additional text steps in the same order space as question files. */
   textItems?: { order: number; text: string }[] | null;
+  playMediaSimultaneously?: boolean | null;
   questionComment?: string | null;
   answerText?: string | null;
   answerHint?: string | null;
@@ -120,10 +121,12 @@ export interface ImportWarning {
     | "unknownType"
     | "finalAsSimple"
     | "extraFinalQuestions"
-    | "hashMismatch";
+    | "hashMismatch"
+    | "visualGroupSequential";
   /** Round › theme › price, or empty for package-level warnings. */
   where: string;
   detail?: string;
+  phase?: "question" | "answer";
 }
 
 export interface ParsedPackage {

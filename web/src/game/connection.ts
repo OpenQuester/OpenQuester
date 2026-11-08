@@ -294,7 +294,10 @@ export class GameConnection {
         this.maybeReportMedia();
         break;
       case "player-role-change":
-        if (event.payload.playerId === this.myId) this.moveToWantedSlot();
+        if (event.payload.playerId === this.myId) {
+          this.moveToWantedSlot();
+          this.maybeReportMedia();
+        }
         break;
       default:
         break;
@@ -384,6 +387,8 @@ export class GameConnection {
         ? session.state.finalRoundData?.questionData?.mediaPreparationId
         : undefined;
     if (session.state.currentRound?.type === "final" && !preparation) return;
+    if (session.state.questionTransition && !session.state.currentQuestion?.questionFiles?.length)
+      return;
     const controller = new AbortController();
     this.mediaAbort = controller;
     const question = preparation

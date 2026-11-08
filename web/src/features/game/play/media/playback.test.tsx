@@ -5,6 +5,7 @@ import { useSettings } from "@/features/settings/settingsStore";
 import { timer } from "@/game/fixtures";
 import type { QuestionFile } from "@/game/protocol";
 import type { ContentClock } from "@/game/reducer";
+import { ContentControls } from "../ContentControls";
 import { QuestionMediaItem } from "./QuestionMediaItem";
 import { useContentPosition } from "./useContentPosition";
 
@@ -76,7 +77,12 @@ it("recovers blocked autoplay and restores sound without offering per-file repla
   vi.mocked(HTMLMediaElement.prototype.play).mockRejectedValueOnce(
     new DOMException("Tap first", "NotAllowedError"),
   );
-  render(<QuestionMediaItem file={file} playing />);
+  render(
+    <>
+      <QuestionMediaItem file={file} playing />
+      <ContentControls volume />
+    </>,
+  );
   const video = screen.getByTestId("media-video") as HTMLVideoElement;
   const enableSound = await screen.findByTestId("enable-sound");
   expect(video.muted).toBe(true);
@@ -91,6 +97,27 @@ it("recovers blocked autoplay and restores sound without offering per-file repla
   fireEvent.ended(video);
   expect(video.currentTime).toBe(6);
   expect(screen.queryByTestId("media-replay")).toBeNull();
+});
+
+it("shows only buffering feedback and keeps the audio card and player mounted", () => {
+  const audio = { ...file, file: { ...file.file, type: "audio" as const, link: "/sound.wav" } };
+  const view = render(<QuestionMediaItem file={audio} playing={false} />);
+  const el = screen.getByTestId("media-audio");
+  fireEvent.loadedData(el);
+  expect(screen.queryByRole("status")).toBeNull();
+  view.rerender(<QuestionMediaItem file={audio} playing />);
+  fireEvent.playing(el);
+  expect(screen.queryByRole("status")).toBeNull();
+  fireEvent.waiting(el);
+  expect(screen.getByRole("status")).toHaveTextContent("Buffering audio");
+  fireEvent.playing(el);
+  view.rerender(<QuestionMediaItem file={audio} playing={false} />);
+  expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+  expect(screen.queryByRole("status")).toBeNull();
+  fireEvent.ended(el);
+  expect(screen.queryByRole("status")).toBeNull();
+  expect(screen.getByText("Audio")).toBeVisible();
+  expect(screen.getByTestId("media-audio")).toBe(el);
 });
 
 it("freezes the timeline, resumes at the next step and disposes its transition timer", () => {

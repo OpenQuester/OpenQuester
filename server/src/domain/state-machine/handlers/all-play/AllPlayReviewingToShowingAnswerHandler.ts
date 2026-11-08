@@ -84,11 +84,16 @@ export class AllPlayReviewingToShowingAnswerHandler extends BaseTransitionHandle
     };
   }
 
-  protected collectBroadcasts(ctx: TransitionContext): BroadcastEvent[] {
+  protected collectBroadcasts(
+    ctx: TransitionContext,
+    _result: MutationResult,
+    { timer }: TimerResult
+  ): BroadcastEvent[] {
+    const data = ctx.game.gameState.answerShowData as QuestionFinishEventPayload;
     return [
       {
         event: SocketIOGameEvents.QUESTION_FINISH,
-        data: ctx.game.gameState.answerShowData as QuestionFinishEventPayload,
+        data: data.answerContentPlan ? { ...data, timer } : data,
         room: ctx.game.id
       },
       {

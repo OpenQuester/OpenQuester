@@ -224,9 +224,13 @@ timer. A correct data payload with an already `SHOWING` state must fail; data ar
 proof of the readiness barrier.
 
 Partial player ACKs produce `MEDIA_DOWNLOAD_STATUS` with `allPlayersReady: false` and `timer: null`;
-the active media timer remains. The final active player's ACK (or media timeout) completes readiness,
-produces the question timer in the status, and enters `SHOWING`. Showman and spectators do not block
-readiness. No-file questions use the same backend handshake, with immediate simulated client ACKs.
+the active media timer remains. The final active player's ACK (or media timeout)
+completes readiness, while SHOWING and its question timer wait for the independent
+opening deadline. Spectators do not block readiness; the showman loads media only
+when the captured player roster was originally empty. Text-only gated questions send no ACK and wait for the transition timer.
+Readiness can precede release: assert the ready-only status separately from the
+question-timer status. Explicit media-status entry waits may use the named
+question-entry budget; all ordinary event budgets remain unchanged.
 There is no inbound preload `QUESTION_PICK`, nor a second `QUESTION_DATA` on readiness completion.
 
 Dedicated scenarios preserve duplicate, concurrent, leave, disconnect, kick, restriction, stale

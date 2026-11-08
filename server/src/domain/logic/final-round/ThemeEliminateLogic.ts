@@ -42,8 +42,7 @@ interface ThemeEliminateMutationResult {
 
 interface ThemeEliminateTimeoutInput {
   game: Game;
-  themeId: number;
-  mutationResult: ThemeEliminateMutationResult;
+  mutationResult: ThemeEliminateMutationResult | null;
   transitionResult: TransitionResult | null;
 }
 
@@ -258,12 +257,12 @@ export class ThemeEliminateLogic {
   public static buildTimeoutResult(
     input: ThemeEliminateTimeoutInput
   ): ThemeEliminationTimeoutResult {
-    const { game, themeId, mutationResult, transitionResult } = input;
+    const { game, mutationResult, transitionResult } = input;
 
     return {
       game,
-      themeId,
-      nextPlayerId: mutationResult.nextPlayerId,
+      themeId: mutationResult?.theme.id ?? null,
+      nextPlayerId: mutationResult?.nextPlayerId ?? null,
       isPhaseComplete: transitionResult !== null,
       transitionResult,
     } satisfies ThemeEliminationTimeoutResult;

@@ -94,20 +94,19 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     }
 
     const question = originalQuestionData.question;
-    const questionData =
-      question.textItems == null
-        ? originalQuestionData
-        : {
-            ...originalQuestionData,
-            contentPlan: QuestionContentPlanLogic.build({
-              text: question.text,
-              textOrder: question.textOrder,
-              textItems: question.textItems,
-              files: question.questionFiles
-            })
-          };
+    const questionData = {
+      ...originalQuestionData,
+      contentPlan: QuestionContentPlanLogic.build({
+        text: question.text,
+        textOrder: question.textOrder,
+        textItems: question.textItems,
+        files: question.questionFiles,
+        playMediaSimultaneously: question.playMediaSimultaneously
+      })
+    };
 
-    if (question.textItems != null && (question.questionFiles?.length ?? 0) > 0) {
+    if (question.questionFiles?.length) {
+      game.gameState.mediaDurations = null;
       questionData.mediaPreparationId = randomUUID();
       MediaDownloadLogic.resetAllPlayerStatus(game);
       game.setQuestionState(QuestionState.MEDIA_DOWNLOADING);

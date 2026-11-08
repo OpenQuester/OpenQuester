@@ -6,7 +6,6 @@ import { safeStorage } from "@/lib/storage";
 import { reduce, sessionFromSnapshot, type GameSession } from "./reducer";
 import type { ServerEvent } from "./protocol";
 import {
-  captureContentOffset,
   newQuestionPresentation,
   samePresentedQuestion,
   type QuestionPresentation,
@@ -48,6 +47,7 @@ export interface GameStore {
   previewVolume: number;
   setPreviewVolume: (volume: number) => void;
   questionPresentation: QuestionPresentation | null;
+  syncQuestionOpening: (id: number, progress: Partial<QuestionPresentation>) => void;
   startQuestionOpening: (id: number, at: number) => void;
   coverQuestionBoard: (id: number) => void;
   finishQuestionIntro: (id: number) => void;
@@ -105,6 +105,7 @@ const gameStore = (live: boolean): StateCreator<GameStore> => {
     previewVolume: 0.7,
     setPreviewVolume: (previewVolume) => set({ previewVolume }),
     questionPresentation: null,
+    syncQuestionOpening: (id, progress) => updateOpening(set, id, (p) => ({ ...p, ...progress })),
     startQuestionOpening: (id, at) =>
       updateOpening(set, id, (p) => (p.startedAt == null ? { ...p, startedAt: at } : p)),
     coverQuestionBoard: (id) => updateOpening(set, id, (p) => ({ ...p, previousSession: null })),
@@ -119,11 +120,7 @@ const gameStore = (live: boolean): StateCreator<GameStore> => {
         p.revealStartedAt == null ? { ...p, revealStartedAt: at } : p,
       ),
     finishQuestionOpening: (id) =>
-      updateOpening(set, id, (p) => {
-        const next = { ...p, complete: true, previousSession: null };
-        const session = get().session;
-        return session ? captureContentOffset(next, session) : next;
-      }),
+      updateOpening(set, id, (p) => ({ ...p, complete: true, previousSession: null })),
 
     begin: (gameId) =>
       set({
@@ -157,7 +154,7 @@ const gameStore = (live: boolean): StateCreator<GameStore> => {
         previous &&
         samePresentedQuestion(previous, next) &&
         (event?.type !== "game-data" || previous.complete)
-          ? captureContentOffset(previous, next)
+          ? previous
           : null;
       set({
         ...(event && shouldClearPointSelections(session, event)

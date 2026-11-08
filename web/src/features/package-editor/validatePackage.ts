@@ -1,4 +1,5 @@
-import { draftPointImage } from "./packageDraft";
+import { questionLimitIssues } from "@/features/upload/contentLimits";
+import { draftPointImage, toUploadQuestion } from "./packageDraft";
 import { questionMedia, type DraftPackage, type DraftQuestion } from "./packageDraft";
 
 /**
@@ -34,6 +35,8 @@ export type PackageIssueCode =
   | "roundNoThemes"
   | "themeNoName"
   | "themeNoQuestions"
+  | "contentStepLimit"
+  | "contentFileLimit"
   | "questionEmpty"
   | "noPrice"
   | "priceRange"
@@ -82,7 +85,8 @@ export function validatePackage(
     args?: PackageValidationIssue["args"],
   ) => {
     const node = target.kind === "package" ? "package" : target.id;
-    issues.push({ id: `${code}:${node}`, severity, code, target, where, args });
+    const scope = args?.context ? `:${args.context}:${args.step ?? ""}` : "";
+    issues.push({ id: `${code}:${node}${scope}`, severity, code, target, where, args });
   };
   const pk = { kind: "package" } as const;
 
@@ -184,6 +188,14 @@ export function checkQuestion(
     if (q.price == null) add("critical", "noPrice");
     else if (q.price < 0 || q.price > MAX_PRICE) add("critical", "priceRange", { max: MAX_PRICE });
   } else if (q.type !== "simple") add("warning", "finalTypeIgnored");
+  for (const { phase, actual, max, step } of questionLimitIssues(toUploadQuestion(q, 0, final))) {
+    add("critical", step === undefined ? "contentStepLimit" : "contentFileLimit", {
+      context: phase,
+      actual,
+      max,
+      ...(step === undefined ? {} : { step }),
+    });
+  }
   const missing = questionMedia(q).filter((m) => !hasMedia(m.md5)).length;
   if (missing) add("critical", "missingMedia", { count: missing });
 

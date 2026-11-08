@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { isMainTextItem } from "@/game/contentPlan";
+import { isMainTextItem, itemStart } from "@/game/contentPlan";
 import { pointImage } from "@/lib/pointImage";
+import { timerStartDelay } from "@/lib/timer";
 import type { GameSession } from "@/game/reducer";
 import { canAnswerNow, pointPicture, boardQuestionMeta, myRole, phaseOf } from "@/game/selectors";
 import { useGame, useGameState, useSession } from "../../GameContext";
@@ -23,7 +24,7 @@ export function useQuestionStage() {
     q?.id ?? s.stakeQuestionData?.questionId ?? s.secretQuestionData?.questionId,
   );
   const reveal = phase === "reveal";
-  const gated = phase === "media" && role !== "showman";
+  const gated = phase === "media" && role !== "showman" && !s.questionTransition?.mediaReady;
   const { content, playing } = useQuestionContent(session);
   const showmanPreview = phase === "media" && role === "showman";
   // A sequenced text appears in its own step instead of under the media.
@@ -77,7 +78,11 @@ export function usePointImageReady(session: GameSession): boolean {
       : undefined;
   const running = content?.kind === "question" && content.timer && content.frozenAtMs == null;
   const elapsed = content ? contentElapsed(content, isPaused) : 0;
-  const wait = step ? Math.max(0, step.startMs - elapsed) : 0;
+  const item = step?.items.find((part) => part.kind === "file" && part.order === image?.order);
+  const wait =
+    item && step
+      ? timerStartDelay(content?.timer) + Math.max(0, itemStart(item, step.startMs) - elapsed)
+      : 0;
   useEffect(() => {
     if (!wait || isPaused || !running) return;
     const id = window.setTimeout(() => tick((value) => value + 1), wait + 30);

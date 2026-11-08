@@ -6,6 +6,10 @@ const LOCK_KEY_PREFIX = "game:action:lock";
 const QUEUE_KEY_PREFIX = "game:action:queue";
 const PACKAGE_KEY_PREFIX = `${GAME_NAMESPACE}:package`;
 
+export function questionTransitionTimerKey(gameId: string): string {
+  return timerKey(gameId, "question-transition");
+}
+
 export function gameKey(gameId: string): string {
   return `${GAME_NAMESPACE}:${gameId}`;
 }

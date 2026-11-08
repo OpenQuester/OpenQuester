@@ -331,3 +331,61 @@ describe("parseOq", () => {
     expect(parsed.warnings.map((w) => w.code)).toEqual(["choiceAsSimple"]);
   });
 });
+
+it("rejects original SIQ groups before omitting missing media and preserves the 5-visual warning", async () => {
+  const pack = (items: string) =>
+    `<package><rounds><round name="R"><themes><theme name="T"><questions><question price="100">
+      <params><param name="question" type="content">${items}</param></params>
+      <right><answer>Blue</answer></right>
+    </question></questions></theme></themes></round></rounds></package>`;
+  const image = '<item type="image" isRef="true" waitForFinish="false">same.png</item>';
+  await expect(siq(pack(image.repeat(11)))).rejects.toMatchObject({
+    issues: [
+      { round: "R", theme: "T", number: 1, phase: "question", step: 1, actual: 11, max: 10 },
+    ],
+  });
+  await expect(siq(pack("<item>Text step</item>".repeat(31)))).rejects.toMatchObject({
+    issues: [{ round: "R", theme: "T", number: 1, phase: "question", actual: 31, max: 30 }],
+  });
+  const imported = await siq(pack(image.repeat(5)), { "Images/same.png": png });
+  expect(imported.warnings).toContainEqual({
+    code: "visualGroupSequential",
+    where: "R › T › 100",
+    detail: "1",
+    phase: "question",
+  });
+  expect(imported.content.rounds[0]?.themes[0]?.questions[0]).toMatchObject({
+    playMediaSimultaneously: true,
+    questionFiles: expect.arrayContaining([expect.objectContaining({ order: 4 })]),
+  });
+});
+
+it("allows 300 OQ occurrences across 30 groups and rejects the answer separately", async () => {
+  const md5 = md5Hex(png);
+  const question = {
+    text: "Clue",
+    type: "simple",
+    questionFiles: Array.from({ length: 300 }, (_, order) => ({
+      order,
+      waitForFinish: order % 10 === 9,
+      file: { md5, type: "image" },
+    })),
+    answerFiles: [] as unknown[],
+  };
+  const read = () =>
+    parseOq({
+      "content.json": strToU8(
+        JSON.stringify({ rounds: [{ name: "R", themes: [{ name: "T", questions: [question] }] }] }),
+      ),
+      [`files/${md5}`]: png,
+    });
+  expect((await read()).content.rounds[0]?.themes[0]?.questions[0]?.questionFiles).toHaveLength(
+    300,
+  );
+  question.answerFiles = question.questionFiles
+    .slice(0, 11)
+    .map((item) => ({ ...item, waitForFinish: false }));
+  await expect(read()).rejects.toMatchObject({
+    issues: [{ phase: "answer", step: 1, actual: 11, max: 10 }],
+  });
+});

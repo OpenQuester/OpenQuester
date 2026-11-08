@@ -166,6 +166,148 @@ test.describe("question media", () => {
     await host.context.close();
   });
 
+  test("two players follow the server queue and can replay independently", async ({
+    browser,
+    page,
+  }) => {
+    const host = await person(browser, "Host", laptop);
+    const second = await person(browser, "Alex", laptop);
+    let code: string | undefined;
+    try {
+      await signInAsGuest(host.page, "Host");
+      code = await hostGame(host.page, "Queued media", { packageId: mediaPackageId() });
+      await joinByLink(page, code, "Pat", "player");
+      await joinByLink(second.page, code, "Alex", "player");
+      const players = [page, second.page];
+      await Promise.all(
+        players.map((client) => client.getByRole("button", { name: "I'm ready" }).click()),
+      );
+      await expect(dockPhase(page)).toHaveText("Choosing");
+      await cell(host.page, "Media", 500).click();
+
+      const videos = players.map((client) => client.getByTestId("media-video"));
+      const histories = players.map((client) =>
+        client.getByTestId("media-history").getByRole("button"),
+      );
+      await Promise.all(
+        players.map(async (client, index) => {
+          await expect(videos[index]!).toBeVisible();
+          await videos[index]!.evaluate((node: HTMLVideoElement) => {
+            node.muted = true;
+          });
+          await expect(histories[index]!).toHaveCount(5);
+          await expect(histories[index]!.first()).toBeDisabled();
+          await expect(client.getByTestId("buzz")).toHaveAttribute("data-early", /.*/);
+        }),
+      );
+      const times = await Promise.all(
+        videos.map((video) => video.evaluate((node: HTMLVideoElement) => node.currentTime)),
+      );
+      expect(Math.abs(times[0]! - times[1]!)).toBeLessThan(0.6);
+
+      await Promise.all(
+        players.map(async (client, index) => {
+          await expect(histories[index]!.first()).toBeEnabled();
+          await expect(videos[index]!).toHaveCount(0);
+          await expect(client.getByTestId("buzz")).not.toHaveAttribute("data-early", /.*/);
+        }),
+      );
+      await histories[0]!.first().click();
+      await expect(videos[0]!).toBeVisible();
+      expect(await videos[0]!.evaluate((node: HTMLVideoElement) => node.currentTime)).toBeLessThan(
+        1,
+      );
+      await expect(videos[1]!).toHaveCount(0);
+      await expect(page.getByTestId("buzz")).not.toHaveAttribute("data-early", /.*/);
+    } finally {
+      if (code) await host.page.request.delete(`/v1/games/${code}`);
+      await Promise.all([host.context.close(), second.context.close()]);
+    }
+  });
+
+  test("both players see the first short clip with warm media and rejoin the running queue", async ({
+    browser,
+    page,
+  }) => {
+    test.skip(test.info().project.name !== "desktop", "one real two-client run is enough");
+    const host = await person(browser, "Host", laptop);
+    const second = await person(browser, "Alex", laptop);
+    let code: string | undefined;
+    try {
+      await signInAsGuest(host.page, "Host");
+      code = await hostGame(host.page, "Short opening clip", { packageId: mediaPackageId() });
+      await Promise.all([
+        joinByLink(page, code, "Pat", "player"),
+        joinByLink(second.page, code, "Alex", "player"),
+      ]);
+      const players = [page, second.page];
+      await Promise.all(
+        players.map((client) => client.getByRole("button", { name: "I'm ready" }).click()),
+      );
+      await expect(dockPhase(page)).toHaveText("Choosing");
+      await cell(host.page, "Media", 100).click();
+      // Play the same asset in both browser contexts before selecting the queue.
+      await Promise.all(
+        players.map((client) =>
+          expect
+            .poll(async () => (await playback(client, "[data-testid=media-video]")).paused)
+            .toBe(false),
+        ),
+      );
+      await host.page.getByRole("button", { name: "Nobody knows — reveal the answer" }).click();
+      await host.page.getByTestId("continue").click();
+      await expect(dockPhase(page)).toHaveText("Choosing");
+
+      const firstPlays = players.map((client) =>
+        client.evaluate(
+          () =>
+            new Promise<{ epoch: number; position: number; opening: boolean } | null>((resolve) => {
+              const capture = (event: Event) => {
+                const video = event.target;
+                if (!(video instanceof HTMLVideoElement) || video.dataset.testid !== "media-video")
+                  return;
+                document.removeEventListener("playing", capture, true);
+                resolve({
+                  epoch: Date.now(),
+                  position: video.currentTime,
+                  opening: !!document.querySelector('[data-testid="question-pick-transition"]'),
+                });
+              };
+              document.addEventListener("playing", capture, true);
+              setTimeout(() => {
+                document.removeEventListener("playing", capture, true);
+                resolve(null);
+              }, 5000);
+            }),
+        ),
+      );
+      await cell(host.page, "Media", 600).click();
+      const starts = await Promise.all(firstPlays);
+      for (const start of starts) {
+        expect(start).not.toBeNull();
+        expect(start!.position).toBeLessThan(0.2);
+        expect(start!.opening).toBe(false);
+      }
+      expect(Math.abs(starts[0]!.epoch - starts[1]!.epoch)).toBeLessThan(250);
+
+      const activeImage = (client: Page) =>
+        client.getByTestId("media-history").getByRole("button").nth(1);
+      await Promise.all(
+        players.map((client) =>
+          expect(activeImage(client)).toHaveAttribute("aria-pressed", "true"),
+        ),
+      );
+      await second.page.reload();
+      await expect(activeImage(second.page)).toHaveAttribute("aria-pressed", "true");
+      await expect(activeImage(page)).toHaveAttribute("aria-pressed", "true");
+      await expect(second.page.getByTestId("question-pick-transition")).toHaveCount(0);
+      await expect(second.page.getByTestId("media-video")).toHaveCount(0);
+    } finally {
+      if (code) await host.page.request.delete(`/v1/games/${code}`);
+      await Promise.all([host.context.close(), second.context.close()]);
+    }
+  });
+
   test("on a 2K monitor the question uses the space", async ({ browser }) => {
     test.skip(test.info().project.name !== "desktop", "one 2K run is enough");
     const host = await person(browser, "Host", laptop);

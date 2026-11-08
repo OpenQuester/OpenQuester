@@ -39,6 +39,53 @@ describe("SocketGameTestFlowUtils reliability", () => {
     players.forEach((player) => expect(player.emit).not.toHaveBeenCalled());
   });
 
+  it.each([true, false])("waits for independent gated release (files: %s)", async (hasFiles) => {
+    jest.useFakeTimers({ now: new Date("2026-11-08T12:00:00Z") });
+    const { flow, stateUtils, showman, players, events, question } =
+      createRegularMediaFixture(hasFiles);
+    const opening = { timer: { ...timer(1550), startedAt: new Date() }, mediaReady: !hasFiles };
+    const state = {
+      ...mediaDownloadingState(question),
+      questionTransition: opening,
+      timer: hasFiles ? timer(MEDIA_DOWNLOAD_TIMEOUT) : null
+    };
+    stateUtils.getGameState.mockResolvedValue(state);
+    const release = () => {
+      const showingTimer = { ...timer(GAME_QUESTION_ANSWER_TIME), startedAt: new Date() };
+      stateUtils.getGameState.mockResolvedValue({
+        questionState: QuestionState.SHOWING,
+        timer: showingTimer
+      });
+      events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, {
+        ...mediaStatus(-1, true, true),
+        timer: showingTimer,
+        questionTransition: null
+      });
+    };
+    (showman.emit as jest.Mock).mockImplementation(() => {
+      events.emit(SocketIOGameEvents.QUESTION_DATA, {
+        ...questionData(42, question.questionFiles ?? []),
+        timer: state.timer,
+        questionTransition: opening
+      });
+      if (!hasFiles) setTimeout(release, 1550);
+    });
+    players.forEach((player, index) => {
+      (player.emit as jest.Mock).mockImplementation(() => {
+        events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, {
+          ...mediaStatus(index + 11, true, index === players.length - 1),
+          timer: null,
+          questionTransition: { ...opening, mediaReady: index === players.length - 1 }
+        });
+        if (index === players.length - 1) setTimeout(release, 1550);
+      });
+    });
+    const picked = flow.pickQuestion(showman, 42, players);
+    await jest.advanceTimersByTimeAsync(1550);
+    await picked;
+    players.forEach((player) => expect(player.emit).toHaveBeenCalledTimes(hasFiles ? 1 : 0));
+  });
+
   it("bounds a forgotten helper when its initial state dependency never returns", async () => {
     jest.useFakeTimers();
     const scenario = new GameScenario();

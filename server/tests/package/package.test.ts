@@ -1,3 +1,6 @@
+import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { PackageQuestion } from "infrastructure/database/models/package/PackageQuestion";
+import { AddMediaPlaybackSetting_0_33_0_1793300000000 } from "infrastructure/database/migrations/0.33.0_AddMediaPlaybackSetting_1793300000000";
 import { DataSource, Repository } from "typeorm";
 
 import { Permissions } from "domain/enums/Permissions";
@@ -309,6 +312,108 @@ describe("PackageRestApiController", () => {
         .status
     ).toBe(400);
     expect((await getQuestion()).textItems).toEqual(saved.textItems);
+  });
+
+  it("enforces authored media limits at create, replace and legacy game creation", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser("media_limits");
+    const content = packageUtils.createTestPackageData(user, false);
+    const question = content.rounds[0].themes[0].questions[0];
+    const files = Array.from({ length: 11 }, (_, order) => ({
+      file: { md5: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", type: PackageFileType.IMAGE },
+      order,
+      displayTime: 1000,
+      waitForFinish: order === 10
+    }));
+    question.questionFiles = files;
+    const rejected = await http
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content })
+      .expect(400);
+    expect(rejected.body.error).toContain("step 1: 11 files, maximum 10");
+
+    question.questionFiles = null;
+    question.textItems = Array.from({ length: 30 }, (_, order) => ({ order, text: "Clue" }));
+    const created = await http
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content })
+      .expect(200);
+    const id = created.body.id as number;
+    question.textItems.push({ order: 30, text: "Over limit" });
+    const tooMany = await http
+      .put(`/v1/packages/${id}`)
+      .set("Cookie", cookie)
+      .send({ content })
+      .expect(400);
+    expect(tooMany.body.error).toContain("31 steps, maximum 30");
+    const overLimitSteps = question.textItems;
+    question.textItems = overLimitSteps.slice(0, 30);
+    question.answerFiles = files.map((item) => ({
+      ...item,
+      file: { ...item.file, type: PackageFileType.AUDIO },
+      placement: ContentPlacement.BACKGROUND
+    }));
+    const answerLimit = await http
+      .put(`/v1/packages/${id}`)
+      .set("Cookie", cookie)
+      .send({ content })
+      .expect(400);
+    expect(answerLimit.body.error).toContain("(answer), step 1: 11 files, maximum 10");
+
+    const stored = await http.get(`/v1/packages/${id}`).set("Cookie", cookie).expect(200);
+    const original = (stored.body as PackageDTO).rounds[0].themes[0].questions.find(
+      (item) => item.order === question.order
+    )!;
+    expect(original.textItems).toHaveLength(30);
+    expect(original.playMediaSimultaneously).toBe(true);
+
+    await dataSource
+      .getRepository(PackageQuestion)
+      .update(original.id!, { text_items: overLimitSteps });
+    const game = await http
+      .post("/v1/games")
+      .set("Cookie", cookie)
+      .send({
+        title: "Over-limit legacy package",
+        packageId: id,
+        isPrivate: false,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 4
+      })
+      .expect(400);
+    expect(game.body.error).toContain("31 steps, maximum 30");
+  });
+
+  it("backfills the playback switch on migration and round-trips false through replacement", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser("media_playback");
+    const content = packageUtils.createTestPackageData(user, false);
+    const question = content.rounds[0].themes[0].questions[0];
+    question.playMediaSimultaneously = null;
+    const created = await http
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content })
+      .expect(200);
+    const url = `/v1/packages/${created.body.id}`;
+    const runner = dataSource.createQueryRunner();
+    const migration = new AddMediaPlaybackSetting_0_33_0_1793300000000();
+    try {
+      await migration.down(runner);
+      await migration.up(runner);
+    } finally {
+      await runner.release();
+    }
+    const setting = async () => {
+      const result = await http.get(url).set("Cookie", cookie).expect(200);
+      return (result.body as PackageDTO).rounds[0].themes[0].questions.find(
+        (item) => item.order === question.order
+      )?.playMediaSimultaneously;
+    };
+    expect(await setting()).toBe(true);
+    question.playMediaSimultaneously = false;
+    await http.put(url).set("Cookie", cookie).send({ content }).expect(200);
+    expect(await setting()).toBe(false);
   });
 
   it("preserves background and nonblocking answer media through package storage and retrieval", async () => {

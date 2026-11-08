@@ -250,7 +250,7 @@ export class SocketActionHooks {
     question: PackageQuestionDTO | null,
     timer: GameStateTimerDTO | null
   ): void {
-    if (!question || !timer) {
+    if (!question) {
       return;
     }
 
@@ -263,6 +263,7 @@ export class SocketActionHooks {
     this.realtimeGateway.publish(
       RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.QUESTION_DATA, {
         data: questionData,
+        questionTransition: game.gameState.questionTransition ?? null,
         timer,
         questionEligiblePlayers: game.getQuestionEligiblePlayers(),
         contentPlan: game.gameState.questionContentPlan ?? null,
@@ -320,11 +321,11 @@ export class SocketActionHooks {
     const data = result.data as QuestionPickResult;
     const { type, question, timer } = data;
 
-    if (type !== QuestionPickType.NORMAL || !question || !timer) {
+    if (type !== QuestionPickType.NORMAL || !question) {
       return;
     }
 
-    await this.emitPersonalizedQuestionData(game, data.gameId, question, timer);
+    await this.emitPersonalizedQuestionData(game, data.gameId, question, timer ?? null);
   }
 
   private async afterSecretQuestionTransfer({
@@ -388,7 +389,7 @@ export class SocketActionHooks {
     game: Game,
     gameId: string,
     question: PackageQuestionDTO,
-    timer: GameStateTimerDTO
+    timer: GameStateTimerDTO | null
   ): Promise<void> {
     const socketIds = await this.realtimeGateway.getRoomSocketIds(gameId);
 
@@ -402,6 +403,7 @@ export class SocketActionHooks {
       this.realtimeGateway.publish(
         RealtimeEvents.toSocket(sid, SocketIOGameEvents.QUESTION_DATA, {
           data: questionData,
+          questionTransition: game.gameState.questionTransition ?? null,
           timer,
           questionEligiblePlayers: game.getQuestionEligiblePlayers(),
           contentPlan: game.gameState.questionContentPlan ?? null,

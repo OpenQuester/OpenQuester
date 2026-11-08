@@ -825,7 +825,7 @@ describe("Stake Question Flow Tests", () => {
 
           // Verify answer timer is included in question data event
           expect(showmanQuestionData.timer).toBeDefined();
-          expect(showmanQuestionData.timer.durationMs).toBeGreaterThan(0);
+          expect(showmanQuestionData.timer!.durationMs).toBeGreaterThan(0);
           expect(playerQuestionData.timer).toEqual(showmanQuestionData.timer);
 
           // Verify game state updated
@@ -899,7 +899,7 @@ describe("Stake Question Flow Tests", () => {
           ]);
           expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe("Stake answer");
           expect("answerText" in playerQuestionData.data).toBe(false);
-          expect(showmanQuestionData.timer.durationMs).toBeGreaterThan(0);
+          expect(showmanQuestionData.timer!.durationMs).toBeGreaterThan(0);
           expect(playerQuestionData.timer).toEqual(showmanQuestionData.timer);
 
           const answeringState = await utils.getGameState(gameId);

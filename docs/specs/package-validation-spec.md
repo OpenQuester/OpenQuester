@@ -42,6 +42,10 @@ A package should be considered broken when any of these are true:
 - package contains unsupported SIQ feature without safe fallback
 - final round lacks enough valid themes/questions for current gameplay rules
 - package exceeds hard storage/upload limits
+- question or answer exceeds 30 authored steps or 10 file occurrences in one
+  authored step. This includes text-only steps and newly started background audio.
+  Repeated hashes count once per occurrence. Logos, choice images, and background
+  audio carried from earlier steps add nothing to the current step's file count.
 - question order/round order is invalid in a way the app cannot safely normalize
 - number-answer target is missing or non-finite
 - point-answer target is missing, non-finite, outside the `[0, 1]` coordinate
@@ -186,3 +190,11 @@ When changing package/editor validation:
 ## Done when
 
 A package validation change is done when creators can understand what is wrong, where it is, whether it blocks publish/play, and what to do next.
+
+
+Media limits apply before playback scheduling. Archive import reports the round,
+theme, question, phase, counts, and affected step when applicable. Repair the
+original archive before retrying. The editor keeps invalid drafts editable and
+blocks publish and playtest. The API checks create, replacement, and package
+selection for a new game, including older published packages. Existing games keep
+their saved package data.

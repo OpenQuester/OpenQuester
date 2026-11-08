@@ -7,10 +7,12 @@ import {
   SYSTEM_PLAYER_ID
 } from "domain/constants/game";
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
+import { timerKey } from "domain/constants/redisKeys";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionContentItemKind } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { User } from "infrastructure/database/models/User";
+import { RedisConfig } from "shared/config/RedisConfig";
 import {
   type CreateMediaDownloadFlowOptions,
   type ExpectedMediaDownloadStatus,
@@ -52,7 +54,7 @@ describe("Media Download client-contract golden scenarios", () => {
       const statusRecord = flow.waitForMediaDownloadStatus(
         flow.showman,
         afterDownload,
-        expectedStatus(player.userId!, true, IMAGE_QUESTION_TIMER_MS)
+        expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
       );
 
       flow.emitPlayerDownloaded(player, {
@@ -90,6 +92,47 @@ describe("Media Download client-contract golden scenarios", () => {
     });
   });
 
+  it("shares the scheduled media start and preserves the lead across a pause", async () => {
+    await withMediaDownloadFlow(createFlowOptions({ playerCount: 2 }), async (flow) => {
+      await flow.pickMediaQuestion();
+      const first = flow.player(0);
+      const last = flow.player(1);
+      const partial = flow.waitForMediaDownloadStatus(
+        first,
+        flow.mark(),
+        expectedStatus(first.userId!, false, null)
+      );
+      flow.emitPlayerDownloaded(first);
+      await partial;
+      const ready = [first, last].map((player) =>
+        flow.waitForMediaDownloadStatus(
+          player,
+          flow.mark(),
+          expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
+        )
+      );
+      flow.emitPlayerDownloaded(last);
+      const [firstStatus, lastStatus] = await Promise.all(ready);
+      const timer = firstStatus.args[0].timer!;
+      expect(lastStatus.args[0].timer).toEqual(timer);
+      expect(new Date(timer.startedAt).getTime()).toBeGreaterThan(Date.now());
+      expect(timer.elapsedMs).toBe(0);
+
+      expect((await flow.setPaused(true)).timer?.elapsedMs).toBe(0);
+      const state = await flow.getGameState();
+      const remainingLead = new Date(timer.startedAt).getTime() - state!.pausedAt!;
+      expect(remainingLead).toBeGreaterThan(0);
+
+      const beforeResume = Date.now();
+      const resumedTimer = (await flow.setPaused(false)).timer!;
+      expect(resumedTimer.elapsedMs).toBe(0);
+      expect(new Date(resumedTimer.resumedAt!).getTime()).toBeGreaterThanOrEqual(
+        beforeResume + remainingLead
+      );
+      await flow.expectActiveTimerDuration(IMAGE_QUESTION_TIMER_MS);
+    });
+  });
+
   it("transitions when every player is ready even though the showman is not", async () => {
     await withMediaDownloadFlow(createFlowOptions({ playerCount: 1 }), async (flow) => {
       const afterQuestionPick = await flow.pickMediaQuestion();
@@ -98,7 +141,7 @@ describe("Media Download client-contract golden scenarios", () => {
       const player = flow.player(0);
       const afterDownload = flow.mark();
       const probe = flow.createAcceptedMediaDownloadProbe(player);
-      const status = expectedStatus(player.userId!, true, IMAGE_QUESTION_TIMER_MS);
+      const status = expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS);
       const statusBroadcasts = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterDownload,
@@ -117,7 +160,7 @@ describe("Media Download client-contract golden scenarios", () => {
       });
       flow.assertAcceptedMediaDownloadCount(probe, 1, player);
       flow.allRecipients.forEach((recipient) =>
-        flow.assertExactMediaStatusCount(recipient, afterDownload, 1)
+        flow.assertExactMediaStatusCount(recipient, afterDownload, 2)
       );
       flow.assertNoAdditionalQuestionData(flow.allRecipients, afterDownload);
       await flow.expectMediaReadiness([
@@ -229,9 +272,9 @@ describe("Media Download client-contract golden scenarios", () => {
         const records = flow.mediaStatusHistory(recipient, afterDownloadBurst);
         const statuses = records.map((record) => record.args[0]);
 
-        expect(statuses).toHaveLength(2);
+        expect(statuses).toHaveLength(3);
         expect(statuses.map((status) => status.playerId).sort()).toEqual(
-          [firstPlayer.userId, secondPlayer.userId].sort()
+          [firstPlayer.userId, secondPlayer.userId, SYSTEM_PLAYER_ID].sort()
         );
         expect(statuses[0]).toMatchObject({
           mediaDownloaded: true,
@@ -240,7 +283,8 @@ describe("Media Download client-contract golden scenarios", () => {
         });
         expect(statuses[1].mediaDownloaded).toBe(true);
         expect(statuses[1].allPlayersReady).toBe(true);
-        expect(statuses[1].timer?.durationMs).toBe(IMAGE_QUESTION_TIMER_MS);
+        expect(statuses[1].timer).toBeNull();
+        expect(statuses[2].timer?.durationMs).toBe(IMAGE_QUESTION_TIMER_MS);
       }
       flow.assertNoAdditionalQuestionData(flow.allRecipients, afterDownloadBurst);
 
@@ -319,7 +363,7 @@ describe("Media Download client-contract golden scenarios", () => {
       duplicateStatusesReceived.stop();
       const afterRemainingDownload = flow.mark();
       const remainingProbe = flow.createAcceptedMediaDownloadProbe(remainingPlayer);
-      const finalStatus = expectedStatus(remainingPlayer.userId!, true, IMAGE_QUESTION_TIMER_MS);
+      const finalStatus = expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS);
       const finalBroadcasts = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterRemainingDownload,
@@ -338,7 +382,7 @@ describe("Media Download client-contract golden scenarios", () => {
       });
       flow.assertAcceptedMediaDownloadCount(remainingProbe, 1, remainingPlayer);
       flow.allRecipients.forEach((recipient) =>
-        flow.assertExactMediaStatusCount(recipient, afterRemainingDownload, 1)
+        flow.assertExactMediaStatusCount(recipient, afterRemainingDownload, 2)
       );
       flow.assertNoAdditionalQuestionData(flow.allRecipients, afterRemainingDownload);
       await flow.expectMediaReadiness([
@@ -401,7 +445,7 @@ describe("Media Download client-contract golden scenarios", () => {
       await flow.waitForActionsComplete();
 
       flow.allRecipients.forEach((recipient) =>
-        flow.assertExactMediaStatusCount(recipient, afterTimerExpiry, 1)
+        flow.assertExactMediaStatusCount(recipient, afterTimerExpiry, 2)
       );
       flow.assertNoAdditionalQuestionData(flow.allRecipients, afterTimerExpiry);
       await flow.expectMediaReadiness([
@@ -430,7 +474,7 @@ describe("Media Download client-contract golden scenarios", () => {
       await flow.waitForActionsComplete();
 
       flow.allRecipients.forEach((recipient) =>
-        flow.assertExactMediaStatusCount(recipient, afterTimerExpiry, 1)
+        flow.assertExactMediaStatusCount(recipient, afterTimerExpiry, 2)
       );
       flow.assertNoAdditionalQuestionData(flow.allRecipients, afterTimerExpiry);
       await flow.expectMediaReadiness([
@@ -455,7 +499,7 @@ describe("Media Download client-contract golden scenarios", () => {
       const finalBroadcasts = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterDownload,
-        expectedStatus(player.userId!, true, IMAGE_QUESTION_TIMER_MS)
+        expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
       );
 
       flow.emitPlayerDownloaded(player);
@@ -509,33 +553,43 @@ describe("Media Download client-contract golden scenarios", () => {
     });
   });
 
-  it("acknowledges a no-file question immediately using the same backend handshake", async () => {
+  it("releases a no-file question after the opening without client acknowledgements", async () => {
     await withMediaDownloadFlow(
       createFlowOptions({ playerCount: 1, includeMediaQuestionFiles: false }),
       async (flow) => {
         const afterQuestionPick = await flow.pickMediaQuestion();
-        const player = flow.player(0);
-        const afterAck = flow.mark();
-        const probe = flow.createAcceptedMediaDownloadProbe(player);
-        const accepted = probe.waitForCount(1);
-        const status = flow.waitForMediaDownloadBroadcast(
+        const before = await flow.getGameState();
+        const probe = flow.createAcceptedMediaDownloadProbe(flow.player(0));
+        const records = await flow.waitForMediaDownloadBroadcast(
           flow.allRecipients,
-          afterAck,
-          expectedStatus(player.userId!, true, GAME_QUESTION_ANSWER_TIME)
+          afterQuestionPick,
+          expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
         );
-        flow.emitPlayerDownloaded(player);
-        await Promise.all([accepted, status]);
+        const timer = records[0].args[0].timer!;
+        expect(new Date(timer.startedAt).getTime()).toBeGreaterThanOrEqual(
+          new Date(before!.questionTransition!.timer.startedAt).getTime() + 1750
+        );
+        expect(records.every((record) => record.args[0].timer?.startedAt === timer.startedAt)).toBe(
+          true
+        );
         await flow.waitForActionsComplete();
-        flow.assertAcceptedMediaDownloadCount(probe, 1, player);
+        const beforeTtl = Date.now();
+        const ttl = await RedisConfig.getClient().pttl(timerKey(flow.gameId));
+        const expiresAt = new Date(timer.startedAt).getTime() + timer.durationMs;
+        expect(ttl).toBeGreaterThanOrEqual(expiresAt - Date.now() - 50);
+        expect(ttl).toBeLessThanOrEqual(expiresAt - beforeTtl + 50);
+        flow.assertAcceptedMediaDownloadCount(probe, 0, flow.player(0));
         flow.assertExactQuestionDataCount(flow.allRecipients, afterQuestionPick, 1);
         flow.assertOutboundMediaDownloadCommands({
           afterSequence: afterQuestionPick,
-          expectedCount: 1
+          expectedCount: 0
         });
-        flow.allRecipients.forEach((actor) => flow.assertExactMediaStatusCount(actor, afterAck, 1));
+        flow.allRecipients.forEach((actor) =>
+          flow.assertExactMediaStatusCount(actor, afterQuestionPick, 1)
+        );
         await flow.expectQuestionState(QuestionState.SHOWING);
         await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
-        flow.assertCriticalEventOrder(player, afterQuestionPick);
+        flow.assertCriticalEventOrder(flow.player(0), afterQuestionPick);
         await flow.expectNoSocketErrors(flow.allRecipients, afterQuestionPick);
       }
     );

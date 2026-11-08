@@ -11,7 +11,6 @@ import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO"
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import type { ResolvedFinalRoundQuestion } from "domain/types/finalround/FinalRoundInterfaces";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { QuestionAnswerData } from "domain/types/socket/finalround/QuestionAnswerData";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 
 /**
@@ -100,9 +99,18 @@ export class TransitionResourceService {
       ? await this.packageStore.getRound(game.id, nextRoundEntry.order)
       : null;
 
+    const resolved = await this.resolveFinalRoundQuestionData(game);
     return {
       nextRound,
-      finalQuestionAnswerData: await this.resolveFinalQuestionAnswerData(game)
+      finalRoundFullQuestion: resolved?.fullQuestion,
+      finalQuestionAnswerData: resolved
+        ? {
+            themeId: resolved.questionData.themeId,
+            themeName: resolved.questionData.themeName,
+            questionText: resolved.fullQuestion.text || undefined,
+            answerText: resolved.fullQuestion.answerText || undefined
+          }
+        : null
     };
   }
 
@@ -144,32 +152,6 @@ export class TransitionResourceService {
         question: GameQuestionMapper.mapToSimpleQuestion(questionWithTheme.question)
       },
       fullQuestion: questionWithTheme.question
-    };
-  }
-
-  private async resolveFinalQuestionAnswerData(game: Game): Promise<QuestionAnswerData | null> {
-    const handler = RoundHandlerFactory.create(PackageRoundType.FINAL) as FinalRoundHandler;
-    const remainingTheme = handler.getRemainingTheme(game);
-
-    if (!remainingTheme?.id || !remainingTheme?.name) {
-      return null;
-    }
-
-    const questionId = remainingTheme.questions?.[0]?.id;
-    if (!questionId) {
-      return null;
-    }
-
-    const question = await this.packageStore.getQuestion(game.id, questionId);
-    if (!question) {
-      return null;
-    }
-
-    return {
-      themeId: remainingTheme.id,
-      themeName: remainingTheme.name,
-      questionText: question.text || undefined,
-      answerText: question.answerText || undefined
     };
   }
 

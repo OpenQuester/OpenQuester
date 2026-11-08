@@ -27,6 +27,13 @@ OQ_WEB_URL=https://<deploy>.pages.dev OQ_LIVE_PACKAGE_ID=3 npx playwright test -
                      # smoke: a full game on a deployed site against its real server
 ```
 
+When `OQ_API_PROXY=https://dev-api.openquester.app`, Vite also serves unsigned
+development-storage objects through `/__oq-dev-media` on localhost. Both media
+preloading and playback use this mapping so Web Audio can analyse the same
+files without the storage host's localhost CORS restriction. The proxy accepts
+only GET/HEAD for fixed object paths, strips credentials, and is disabled in
+preview and production builds.
+
 ## Layout
 
 ```text
@@ -181,8 +188,9 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   Board drag and drop is native HTML5, with a Move dialog for touch and keyboard.
   Question media and additional text share one card list; its grips support native
   mouse dragging, touch pointers and arrow keys, without click menus. Main question
-  text stays first and outside that list. Saving an edited legacy question stores
-  this normalized sequence; closing without saving preserves its original order.
+  text stays first and outside that list for new questions. Imported captions
+  (`textOrder: null`) and authored text steps retain their timing when saved;
+  do not turn a caption into a sequential step during an unrelated edit.
   Opening an old question preserves its point target; changing the image set/order
   selects the last image and clears coordinates only if the target changes.
   `/packages/$id/preview` opens a published package in the same editor with
@@ -233,7 +241,11 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   and form mount boundaries stable when moving these views.
 - Question media: players ACK `media-downloaded` only once every file is
   loaded (images decoded), independently of the local question-pick transition.
-  The server timer can already run during that opening; see the
+  Direct regular picks use the server's parallel opening timer: readiness alone
+  does not enter SHOWING. Text-only gated questions do not preload or ACK.
+  The opening ends at max(pick + 1550 ms, ready + 300 ms); the content timer
+  starts 200 ms later. Restore the remaining opening on a preparation snapshot,
+  without replaying it after release. Editor playtests share this behavior. See the
   [game-state matrix](../docs/specs/game-state-matrix.md#question-picking-transition-react).
   In a regular round with no connected players, the showman uses the same
   preload/ACK flow so solo hosting does not wait for a nonexistent player.
@@ -253,14 +265,27 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   the timeline stays frozen instead of replaying from the answer timer.
   Multi-step or audio/video content offers one local "Replay presentation" action
   after the complete timeline and background tracks finish.
-  `play/media/` separates `QuestionMediaItem` loading/failure presentation,
-  `QuestionMediaPlayback` controls, `useQuestionMediaPlayback` element effects and `useContentPosition` timeline
-  scheduling. Preserve media keys, the latest clock read on resume, autoplay
-  fallback and the timeline timer's cleanup. `QuestionMedia` only orders files;
-  `ContentStage` composes screen steps, background sound and the final recap.
-  `question/QuestionBody` lays out only the content already revealed by that timeline:
-  short captions below media, long text beside it, Media/Text tabs on narrow stages.
-  Keep media mounted when changing tabs and bound scrolling to the text panel.
+  The canvas puts text first, then visuals and audio, with a shared volume and
+  replay row. The authored step indicator sits outside it. The display rules and
+  local replay behavior live in the [game-state matrix](../docs/specs/game-state-matrix.md).
+  The spectrum observes the existing audio element and native playback state.
+  A rejected anonymous HTTP load retries once with native audio, including a
+  same-origin link that redirects to a host without CORS.
+  `play/media/` separates `QuestionMediaItem` loading and failure presentation,
+  `QuestionMediaPlayback` native media, and `useContentPosition` timeline scheduling.
+  Preserve media identity through expansion, read the latest clock when playback
+  resumes, and clean up autoplay callbacks and timeline timers. Show thumbnails
+  only for the current authored group with 5+ visuals, never prior groups at
+  completion. Keep the strip locked until the whole presentation ends. It uses
+  images/captured frames without playable media elements. Compact cards center
+  below the heading and progress; long content remains scrollable.
+  Simple questions have no type Badge. Special types sit above the theme only
+  during the opening, then inline after the price. `QuestionTypeBadge` keeps
+  explanations in a native popover: 300 ms hover delay, immediate keyboard focus,
+  above the Badge when space permits, a 6 px hoverable gap and a 180 ms exit.
+  The label uses the default cursor and has no click/tap action.
+  Cancel pending hover on leave/unmount and respect reduced motion.
+  Hide routine audio statuses; retain loading/error and enable-sound feedback.
 - Showman actions (rulings, score fixes, kicks, pauses, skips, early buzzer...)
   are logged to the game chat by the server (`ShowmanActionLogLogic`, run from
   `SocketActionHooks`): a chat line with `system: { action, params }` that the

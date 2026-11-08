@@ -1,11 +1,4 @@
-let ctx: AudioContext | null = null;
-
-function audio(): AudioContext | null {
-  if (typeof window === "undefined" || !("AudioContext" in window)) return null;
-  ctx ??= new AudioContext();
-  if (ctx.state === "suspended") void ctx.resume();
-  return ctx;
-}
+import { resumeAudioContext } from "./audioContext";
 
 export type Cue = "open" | "turn" | "correct" | "wrong" | "buzz";
 
@@ -32,8 +25,9 @@ const CUES: Record<Cue, [number, number][]> = {
 
 /** Short synthesized cues; no audio files to download. */
 export function playCue(cue: Cue, volume: number): void {
-  const ac = audio();
-  if (!ac || volume <= 0) return;
+  if (volume <= 0) return;
+  const ac = resumeAudioContext();
+  if (!ac || ac.state === "closed") return;
   let at = ac.currentTime;
   for (const [freq, dur] of CUES[cue]) {
     const osc = ac.createOscillator();

@@ -4,6 +4,7 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { AnswerCheckLogic } from "domain/logic/question/AnswerCheckLogic";
+import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import {
   AllPlayDataDTO,
   AllPlayEntryDTO,
@@ -128,6 +129,10 @@ export class AllPlayLogic {
   public static submitAnswer(game: Game, playerId: number, answer: string): AllPlayEntryDTO {
     const data = this._require(game, QuestionState.SHOWING);
     const entry = this._entry(data, playerId);
+    const timer = game.gameState.timer;
+    if (timer && GamePauseLogic.startDelayMs(timer) > 0) {
+      throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
+    }
 
     if (entry.submitted) {
       throw new ClientError(ClientResponse.ALL_PLAY_ALREADY_SUBMITTED);

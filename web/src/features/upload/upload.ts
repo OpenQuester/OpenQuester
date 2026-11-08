@@ -9,8 +9,8 @@ import {
   type HtmlRemovalReport,
 } from "./htmlRemoval";
 import { EntryIndex, md5Base64, md5Hex, mimeFor, readZip } from "./archive";
-import { parseOq } from "./oq";
-import { parseSiq } from "./siq";
+import { assertOqContentLimits, parseOq } from "./oq";
+import { parseSiq, scanSiqContentLimits } from "./siq";
 import type { OptimizeProgress } from "./optimize/index";
 import { clearStash, loadStash, stashFiles, unstashFile } from "./stash";
 import type { MediaFile, ParsedPackage } from "./types";
@@ -67,6 +67,7 @@ export async function readPackageFile(
       doc.getElementsByTagName("parsererror").length
     )
       throw new Error("badContentXml");
+    scanSiqContentLimits(doc.documentElement);
     report = scanSiq(doc.documentElement, names, false, nonEmptyNames);
   } else {
     const raw = manifest["content.json"];
@@ -84,6 +85,7 @@ export async function readPackageFile(
       !Array.isArray((json as Record<string, unknown>).rounds)
     )
       throw new Error("badContentJson");
+    assertOqContentLimits(json as Record<string, unknown>);
     report = scanOq(json as Record<string, unknown>, false);
   }
   let approved = false;

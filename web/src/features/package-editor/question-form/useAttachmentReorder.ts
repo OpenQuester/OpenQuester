@@ -33,7 +33,7 @@ function touchTarget(handle: HTMLElement, x: number, y: number): HTMLElement | n
 export function useAttachmentReorder(
   steps: readonly MovableStep[],
   move: (id: string, destination: number) => void,
-  firstPosition: number,
+  positionNumber: (index: number) => number,
 ) {
   const { t } = useTranslation();
   const helpId = useId();
@@ -80,7 +80,7 @@ export function useAttachmentReorder(
       const destination = index + offset;
       if (destination < 0 || destination >= steps.length) return;
       move(id, destination);
-      setAnnouncement(t("editor.timeline.moveStatus", { number: destination + firstPosition }));
+      setAnnouncement(t("editor.timeline.moveStatus", { number: positionNumber(destination) }));
     },
     onPointerDown: (event: PointerEvent<HTMLButtonElement>) => {
       if (event.pointerType !== "touch") return;

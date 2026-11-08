@@ -1,3 +1,6 @@
+import { QuestionTransitionLogic } from "domain/logic/question/QuestionTransitionLogic";
+import { SYSTEM_PLAYER_ID } from "domain/constants/game";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { singleton } from "tsyringe";
 
 import { MediaDownloadPlayerLeaveLogic } from "domain/logic/player-leave/MediaDownloadPlayerLeaveLogic";
@@ -21,6 +24,8 @@ export class MediaDownloadLeaveStrategy implements IPlayerLeaveStrategy {
 
   public async execute(input: PlayerLeaveStrategyInput): Promise<PlayerLeaveStrategyResult> {
     const { game, userId } = input;
+    const wasReady = game.gameState.questionTransition?.mediaReady;
+    const openingMutations = QuestionTransitionLogic.refresh(game);
     // Try to transition to showing if this was last player who hasn't downloaded yet
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
@@ -32,6 +37,16 @@ export class MediaDownloadLeaveStrategy implements IPlayerLeaveStrategy {
       mutations: [],
       broadcasts: []
     };
+
+    if (!transitionResult) {
+      result.mutations.push(...DataMutationConverter.mutationFromTimerMutations(openingMutations));
+      if (wasReady !== game.gameState.questionTransition?.mediaReady)
+        result.broadcasts.push({
+          event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          room: game.id,
+          data: QuestionTransitionLogic.status(game, SYSTEM_PLAYER_ID, null)
+        });
+    }
 
     if (transitionResult) {
       if (transitionResult.toPhase === GamePhase.FINAL_ANSWERING) {

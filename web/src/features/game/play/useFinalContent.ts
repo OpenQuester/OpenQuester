@@ -20,6 +20,7 @@ export function useFinalContent(session: GameSession, enabled = true) {
       text: q.text,
       textOrder: q.textOrder,
       textItems: q.textItems,
+      playMediaSimultaneously: q.playMediaSimultaneously,
       files: q.questionFiles,
     });
   }, [data]);
