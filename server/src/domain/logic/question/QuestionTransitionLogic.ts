@@ -21,7 +21,9 @@ export class QuestionTransitionLogic {
       mediaReady: !this.hasMedia(game),
       mediaEligiblePlayerIds: game.getMediaEligiblePlayerIds() ?? undefined
     };
-    if (game.gameState.questionTransition.mediaReady) QuestionContentPlanLogic.applyToGame(game);
+    if (game.gameState.questionTransition.mediaReady) {
+      QuestionContentPlanLogic.applyToGame(game);
+    }
     return this.timerMutation(game);
   }
 
@@ -30,7 +32,9 @@ export class QuestionTransitionLogic {
   }
 
   public static mediaReady(game: Game): boolean {
-    if (!this.hasMedia(game) || game.gameState.questionTransition?.timedOut) return true;
+    if (!this.hasMedia(game) || game.gameState.questionTransition?.timedOut) {
+      return true;
+    }
     // In a solo rehearsal the showman is the viewer. An empty player roster
     // must not start a short clip before that viewer finishes preloading it.
     if (game.getMediaEligiblePlayerIds()?.length === 0) {
@@ -65,15 +69,21 @@ export class QuestionTransitionLogic {
   /** Only a new readiness edge may extend the final fade; duplicate ACKs cannot. */
   public static refresh(game: Game, forceReady = false): TimerMutation[] {
     const opening = game.gameState.questionTransition;
-    if (!opening || game.gameState.questionState !== QuestionState.MEDIA_DOWNLOADING) return [];
+    if (!opening || game.gameState.questionState !== QuestionState.MEDIA_DOWNLOADING) {
+      return [];
+    }
     if (forceReady) {
       opening.timedOut = true;
       MediaDownloadLogic.forceAllPlayersReady(game);
     }
     const ready = this.mediaReady(game);
-    if (ready === opening.mediaReady) return [];
+    if (ready === opening.mediaReady) {
+      return [];
+    }
     opening.mediaReady = ready;
-    if (!ready) return [];
+    if (!ready) {
+      return [];
+    }
     QuestionContentPlanLogic.applyToGame(game);
     opening.timer.durationMs = Math.max(
       opening.timer.durationMs,

@@ -59,8 +59,9 @@ export class MediaDownloadedUseCase implements GameActionHandler<
       return { success: true, mutations: [] };
     }
 
-    if (game.gameState.questionTransition && !QuestionTransitionLogic.hasMedia(game))
+    if (game.gameState.questionTransition && !QuestionTransitionLogic.hasMedia(game)) {
       return { success: true, mutations: [] };
+    }
 
     currentPlayer.mediaDownloaded = true;
     QuestionContentPlanLogic.mergeMediaDurations(
@@ -80,7 +81,8 @@ export class MediaDownloadedUseCase implements GameActionHandler<
     const transitionMutations: DataMutation[] = [];
 
     if (allPlayersReady && !game.gameState.isPaused) {
-      // Transition to showing question if all players are ready
+      // MEDIA_DOWNLOADING -> SHOWING after the regular opening barrier,
+      // or MEDIA_DOWNLOADING -> FINAL_ANSWERING when final media is ready.
       const transitionResult = await this.phaseTransitionRouter.tryTransition({
         game,
         trigger: TransitionTrigger.USER_ACTION,

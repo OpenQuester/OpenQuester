@@ -511,7 +511,9 @@ export class Game {
     }
 
     this.gameState.questionState = questionState;
-    if (questionState !== QuestionState.MEDIA_DOWNLOADING) this.gameState.questionTransition = null;
+    if (questionState !== QuestionState.MEDIA_DOWNLOADING) {
+      this.gameState.questionTransition = null;
+    }
 
     // A buzzer race only lives inside SHOWING
     if (questionState !== QuestionState.SHOWING) {

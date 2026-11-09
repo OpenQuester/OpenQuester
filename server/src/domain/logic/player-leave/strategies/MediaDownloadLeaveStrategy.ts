@@ -26,7 +26,8 @@ export class MediaDownloadLeaveStrategy implements IPlayerLeaveStrategy {
     const { game, userId } = input;
     const wasReady = game.gameState.questionTransition?.mediaReady;
     const openingMutations = QuestionTransitionLogic.refresh(game);
-    // Try to transition to showing if this was last player who hasn't downloaded yet
+    // MEDIA_DOWNLOADING -> SHOWING after the regular opening barrier,
+    // or MEDIA_DOWNLOADING -> FINAL_ANSWERING when no waiting finalist remains.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.PLAYER_LEFT,
@@ -40,12 +41,13 @@ export class MediaDownloadLeaveStrategy implements IPlayerLeaveStrategy {
 
     if (!transitionResult) {
       result.mutations.push(...DataMutationConverter.mutationFromTimerMutations(openingMutations));
-      if (wasReady !== game.gameState.questionTransition?.mediaReady)
+      if (wasReady !== game.gameState.questionTransition?.mediaReady) {
         result.broadcasts.push({
           event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
           room: game.id,
           data: QuestionTransitionLogic.status(game, SYSTEM_PLAYER_ID, null)
         });
+      }
     }
 
     if (transitionResult) {

@@ -344,7 +344,9 @@ export class GamePipelineService {
     const gKey = gameKey(gameId);
     const pKey = packageKey(gameId);
     const wKey = expirationWarningKey(gameId);
-    if (!game.gameState.questionTransition) pipeline.del(questionTransitionTimerKey(gameId));
+    if (!game.gameState.questionTransition) {
+      pipeline.del(questionTransitionTimerKey(gameId));
+    }
 
     pipeline.hset(gKey, GameMapper.serializeGameToHash(game));
     pipeline.expire(gKey, GAME_TTL_IN_SECONDS);

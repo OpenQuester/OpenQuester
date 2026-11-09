@@ -45,8 +45,9 @@ export class UnpauseGameUseCase implements GameActionHandler<
 
     GameStateValidator.validateGameNotFinished(game);
     GameStateValidator.validateGameStarted(game);
-    if (game.gameState.questionTransition && !game.gameState.isPaused)
+    if (game.gameState.questionTransition && !game.gameState.isPaused) {
       return { success: true, mutations: [] };
+    }
 
     // Load the saved timer stored under the questionState suffix
     const questionState = game.gameState.questionState;
@@ -69,7 +70,8 @@ export class UnpauseGameUseCase implements GameActionHandler<
     const wasReady = game.gameState.questionTransition?.mediaReady;
     const openingMutations = QuestionTransitionLogic.refresh(game);
 
-    // ACKs received while paused can now start MEDIA_DOWNLOADING -> FINAL_ANSWERING.
+    // Readiness received while paused can now release MEDIA_DOWNLOADING -> SHOWING
+    // after the regular opening barrier, or MEDIA_DOWNLOADING -> FINAL_ANSWERING.
     const transition =
       regularMedia || TransitionGuards.isFinalRoundMediaDownloading(game)
         ? await this.phaseTransitionRouter.tryTransition({

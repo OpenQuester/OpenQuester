@@ -47,7 +47,8 @@ export class FinalAnswerReviewUseCase implements GameActionHandler<
 
     const mutationResult = FinalAnswerReviewLogic.reviewAnswer(game, action.payload);
 
-    // Transition from FINAL_REVIEWING to GAME_FINISHED if all answers reviewed
+    // FINAL_REVIEWING -> SHOWING_ANSWER with answer media, otherwise -> GAME_FINISHED,
+    // once every answer has been reviewed.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.USER_ACTION,
@@ -55,7 +56,7 @@ export class FinalAnswerReviewUseCase implements GameActionHandler<
         playerId: currentPlayer?.meta.id,
         isSystem: false
       },
-      resources: await this.transitionResourceService.getFinalReviewingToGameFinishResources(game)
+      resources: await this.transitionResourceService.getFinalReviewCompletionResources(game)
     });
 
     const result = FinalAnswerReviewLogic.buildResult({

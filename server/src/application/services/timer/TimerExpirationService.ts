@@ -91,7 +91,8 @@ export class TimerExpirationService {
 
     const openingMutations = QuestionTransitionLogic.refresh(game, mediaTimeout);
 
-    // Transition from MEDIA_DOWNLOADING to SHOWING.
+    // MEDIA_DOWNLOADING -> SHOWING after the regular opening barrier,
+    // or MEDIA_DOWNLOADING -> FINAL_ANSWERING for final media preparation.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
@@ -99,7 +100,9 @@ export class TimerExpirationService {
     });
 
     if (!transitionResult) {
-      if (!game.gameState.questionTransition) return { success: false, broadcasts: [] };
+      if (!game.gameState.questionTransition) {
+        return { success: false, broadcasts: [] };
+      }
       await this.gameService.updateGame(game);
       return {
         success: true,
@@ -225,7 +228,8 @@ export class TimerExpirationService {
       return { success: false, broadcasts: [] };
     }
 
-    // Transition from SHOWING_ANSWER to CHOOSING, advancing the round when needed.
+    // SHOWING_ANSWER -> CHOOSING, FINAL_THEME_ELIMINATION, or GAME_FINISHED,
+    // depending on the remaining regular rounds and final answer reveal.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,

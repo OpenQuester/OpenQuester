@@ -31,8 +31,9 @@ export class PauseGameUseCase implements GameActionHandler<EmptyInputData, GameP
     const { game, timer } = ctx;
 
     GameStateValidator.validateGameInProgress(game);
-    if (game.gameState.questionTransition && game.gameState.isPaused)
+    if (game.gameState.questionTransition && game.gameState.isPaused) {
       return { success: true, mutations: [] };
+    }
 
     const { result, timerMutations } = this.socketGameTimerService.buildPauseTimerMutations(
       game,

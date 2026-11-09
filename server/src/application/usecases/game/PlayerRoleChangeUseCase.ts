@@ -92,7 +92,8 @@ export class PlayerRoleChangeUseCase implements GameActionHandler<
     const gated = !!game.gameState.questionTransition;
     const wasReady = game.gameState.questionTransition?.mediaReady;
     const openingMutations = QuestionTransitionLogic.refresh(game);
-    // Removing a waiting finalist can start MEDIA_DOWNLOADING -> FINAL_ANSWERING.
+    // MEDIA_DOWNLOADING -> SHOWING after the regular opening barrier,
+    // or MEDIA_DOWNLOADING -> FINAL_ANSWERING when no waiting finalist remains.
     const transition =
       (gated || TransitionGuards.isFinalRoundMediaDownloading(game)) && !game.gameState.isPaused
         ? await this.phaseTransitionRouter.tryTransition({

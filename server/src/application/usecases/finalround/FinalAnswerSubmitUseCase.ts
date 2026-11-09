@@ -69,14 +69,15 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
     if (completionResult.isPhaseComplete) {
       game.gameState.timer = null;
     }
-    let finishTransition: TransitionResult | null = null;
+    let reviewCompletionTransition: TransitionResult | null = null;
     if (completionResult.isPhaseComplete && FinalRoundStateManager.areAllAnswersReviewed(game)) {
-      // Transition from FINAL_REVIEWING to GAME_FINISHED when every answer is an auto-loss.
-      finishTransition = await this.phaseTransitionRouter.tryTransition({
+      // All auto-losses: FINAL_REVIEWING -> SHOWING_ANSWER with answer media,
+      // otherwise FINAL_REVIEWING -> GAME_FINISHED.
+      reviewCompletionTransition = await this.phaseTransitionRouter.tryTransition({
         game,
         trigger: TransitionTrigger.USER_ACTION,
         triggeredBy: { playerId: player.meta.id, isSystem: false },
-        resources: await this.transitionResourceService.getFinalReviewingToGameFinishResources(game)
+        resources: await this.transitionResourceService.getFinalReviewCompletionResources(game)
       });
     }
 
@@ -85,7 +86,7 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
       player,
       mutationResult,
       completionResult,
-      transitionResult: finishTransition
+      transitionResult: reviewCompletionTransition
     });
 
     const outputData: FinalAnswerSubmitOutputData = {
@@ -94,7 +95,9 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
 
     const mutations: DataMutation[] = [
       DataMutationConverter.saveGameMutation(game),
-      ...DataMutationConverter.mutationFromTimerMutations(finishTransition?.timerMutations),
+      ...DataMutationConverter.mutationFromTimerMutations(
+        reviewCompletionTransition?.timerMutations
+      ),
       DataMutationConverter.gameBroadcastMutation(
         game.id,
         SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
@@ -112,7 +115,7 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
     }
 
     if (result.isPhaseComplete) {
-      if (!finishTransition) {
+      if (!reviewCompletionTransition) {
         mutations.push(DataMutationConverter.deleteTimerMutation(timerKey(game.id)));
       }
       mutations.push(
@@ -125,10 +128,15 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
       );
     }
 
-    if (finishTransition?.success) {
-      if (game.finishedAt) mutations.push(DataMutationConverter.gameCompletionMutation(game.id));
+    if (reviewCompletionTransition?.success) {
+      if (game.finishedAt) {
+        mutations.push(DataMutationConverter.gameCompletionMutation(game.id));
+      }
       mutations.push(
-        ...DataMutationConverter.mutationFromServiceBroadcasts(finishTransition.broadcasts, game.id)
+        ...DataMutationConverter.mutationFromServiceBroadcasts(
+          reviewCompletionTransition.broadcasts,
+          game.id
+        )
       );
     }
 

@@ -75,7 +75,7 @@ export function createPhaseTransitionRouter(logger: ILogger): PhaseTransitionRou
     // Correct answer or all players exhausted: ANSWERING → SHOWING_ANSWER
     new AnsweringToShowingAnswerHandler(),
 
-    // Answer display complete: SHOWING_ANSWER → GAME_FINISHED (last question, no final round)
+    // SHOWING_ANSWER -> GAME_FINISHED after the last regular answer or final answer media.
     new ShowingAnswerToGameFinishHandler(),
 
     // Answer display complete: SHOWING_ANSWER → FINAL_THEME_ELIMINATION (next round is final)

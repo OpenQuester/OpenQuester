@@ -93,7 +93,7 @@ export class TransitionResourceService {
     };
   }
 
-  public async getFinalReviewingToGameFinishResources(game: Game): Promise<TransitionResources> {
+  public async getFinalReviewCompletionResources(game: Game): Promise<TransitionResources> {
     const nextRoundEntry = game.getNextRound();
     const nextRound = nextRoundEntry
       ? await this.packageStore.getRound(game.id, nextRoundEntry.order)

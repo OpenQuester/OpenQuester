@@ -24,8 +24,8 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 /**
  * Handles transition from MEDIA_DOWNLOADING to SHOWING.
  *
- * This transition occurs when all active players have downloaded media
- * or when the media download timer expires (forces readiness).
+ * Direct picks wait for both media readiness and the opening deadline.
+ * Legacy/special entries require readiness or the media timeout.
  */
 export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.MEDIA_DOWNLOADING;
@@ -34,7 +34,8 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
   /**
    * Eligible when:
    * - Current phase is MEDIA_DOWNLOADING in a regular round
-   * - Trigger is USER_ACTION and all players ready, or TIMER_EXPIRED
+   * - Direct picks: media is ready, the opening deadline passed, and the game is unpaused
+   * - Legacy/special entries: USER_ACTION/PLAYER_LEFT with readiness, or TIMER_EXPIRED
    */
   public canTransition(ctx: TransitionContext): boolean {
     const { game, trigger } = ctx;
@@ -47,7 +48,9 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
       return false;
     }
 
-    if (game.gameState.questionTransition) return QuestionTransitionLogic.canShow(game);
+    if (game.gameState.questionTransition) {
+      return QuestionTransitionLogic.canShow(game);
+    }
 
     if (trigger === TransitionTrigger.TIMER_EXPIRED) {
       return true;

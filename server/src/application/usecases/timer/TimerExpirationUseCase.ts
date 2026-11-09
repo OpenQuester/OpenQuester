@@ -142,12 +142,18 @@ export class TimerExpirationUseCase implements GameActionHandler<TimerActionPayl
         !opening ||
         payload.questionState !== QuestionState.MEDIA_DOWNLOADING ||
         game.gameState.questionState !== QuestionState.MEDIA_DOWNLOADING
-      )
+      ) {
         return "no-question-transition";
-      if (game.gameState.isPaused) return "game-paused";
-      if (ctx.questionTransitionTimer) return "transition-timer-key-still-present";
-      if (this.didActiveTimerStartAfterExpiration(opening.timer, payload.expirationTime))
+      }
+      if (game.gameState.isPaused) {
+        return "game-paused";
+      }
+      if (ctx.questionTransitionTimer) {
+        return "transition-timer-key-still-present";
+      }
+      if (this.didActiveTimerStartAfterExpiration(opening.timer, payload.expirationTime)) {
         return "newer-transition-timer";
+      }
       return null;
     }
     if (payload.timerKey !== timerKey(action.gameId)) {
