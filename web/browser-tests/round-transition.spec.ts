@@ -15,6 +15,13 @@ async function mount(page: Page, order: number | null = 0, reducedMotion = false
   else await expect(page.getByTestId("round-name")).toBeVisible();
 }
 
+async function pauseClock(page: Page) {
+  const now = new Date();
+  await page.clock.install({ time: now });
+  // Pause ahead of the installed browser clock, independent of host/RPC drift.
+  await page.clock.pauseAt(new Date(now.getTime() + 60_000));
+}
+
 async function advance(page: Page) {
   await page.evaluate(async () => {
     const path = "/browser-tests/round-transition.fixture.tsx";
@@ -37,8 +44,7 @@ for (const viewport of [
     await page.goto("/");
     await mount(page, null);
     await expect(page.getByTestId("round-transition")).toHaveCount(0);
-    await page.clock.install();
-    await page.clock.pauseAt(new Date());
+    await pauseClock(page);
     await page.evaluate(async () => {
       const path = "/browser-tests/round-transition.fixture.tsx";
       ((await import(path)) as typeof Fixture).startGame();
@@ -63,8 +69,7 @@ for (const viewport of [
     await context.route("**/v1/**", (route) => route.fulfill({ status: 401, body: "{}" }));
     await page.goto("/");
     await mount(page);
-    await page.clock.install();
-    await page.clock.pauseAt(new Date());
+    await pauseClock(page);
     const overlay = page.getByTestId("round-transition");
     await expect(overlay).toHaveCount(0);
     await advance(page);
@@ -163,8 +168,7 @@ for (const mode of ["system", "setting"] as const) {
     if (mode === "system") await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
     await mount(page, 0, mode === "setting");
-    await page.clock.install();
-    await page.clock.pauseAt(new Date());
+    await pauseClock(page);
     await advance(page);
     const overlay = page.getByTestId("round-transition");
     for (const pseudo of [null, "::backdrop"]) {
@@ -191,8 +195,7 @@ test("interlude stays accessible above an already open mobile chat sheet", async
   await mount(page);
   await page.getByTestId("open-chat").click();
   await expect(page.getByRole("dialog", { name: "Chat" })).toBeVisible();
-  await page.clock.install();
-  await page.clock.pauseAt(new Date());
+  await pauseClock(page);
   await advance(page);
   const overlay = page.getByRole("dialog", { name: "Next round" });
   await expect(overlay).toBeVisible();

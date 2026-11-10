@@ -1,4 +1,5 @@
 import { layoutStyles } from "@/ui/layoutStyles";
+import { QuestionTypeBadge } from "./question/QuestionTypeBadge";
 import type { FinalAnswer, Question } from "@/game/protocol";
 import { parsePointAnswer } from "@/game/pointAnswer";
 import { pointImage } from "@/lib/pointImage";
@@ -21,10 +22,11 @@ import { AnswerReviewActions, ReviewedCorrectAnswer } from "./stages/AnswerRevie
 import { stageStyles } from "./stages/stageStyles";
 import { StagePages } from "./stages/StagePages";
 import { PlayerName } from "./PlayerName";
-import { QuestionMedia } from "./QuestionMedia";
 import { ShowmanInstruction } from "./question/ShowmanInstruction";
 import { PointAnswer } from "./question/PointAnswer";
 import { PointPicker } from "./PointPicker";
+import { isVisual, VISUAL_QUEUE_THRESHOLD } from "@/game/authoredContentGroups";
+import { QuestionMedia } from "./QuestionMedia";
 import { ContentStage } from "./ContentStage";
 import { QuestionBody } from "./question/QuestionBody";
 import { useFinalContent } from "./useFinalContent";
@@ -111,9 +113,14 @@ function ThemeLine() {
   const s = session.state;
   const theme = s.finalRoundData?.questionData?.themeName ?? remainingFinalThemes(session)[0]?.name;
   return (
-    <span className="text-sm font-semibold text-muted">
-      {t("final.theme", { name: theme ?? "" })}
-    </span>
+    <div className="question-heading flex flex-wrap items-center justify-center gap-2">
+      <span className="text-sm font-semibold text-muted">
+        {t("final.theme", { name: theme ?? "" })}
+      </span>
+      {s.finalRoundData?.questionData?.question && (
+        <QuestionTypeBadge type={s.finalRoundData.questionData.question.type} />
+      )}
+    </div>
   );
 }
 
@@ -147,12 +154,6 @@ export function FinalAnswerStage() {
   return (
     <section className={stageStyles.finalQuestion}>
       <ThemeLine />
-      {session.state.finalRoundData?.questionData?.mediaPreparationTimedOut && (
-        <p role="alert" className="m-0 text-center text-sm text-accent-strong">
-          {t("final.mediaTimedOut")}
-        </p>
-      )}
-      {myRole(session, myId) === "showman" && <ShowmanInstruction comment={q?.questionComment} />}
       <FinalQuestionContent
         question={q}
         content={content}
@@ -161,11 +162,16 @@ export function FinalAnswerStage() {
         myId={myId}
         legacy={legacy}
       />
+      {session.state.finalRoundData?.questionData?.mediaPreparationTimedOut && (
+        <p role="alert" className="m-0 text-center text-sm text-accent-strong">
+          {t("final.mediaTimedOut")}
+        </p>
+      )}
+      {myRole(session, myId) === "showman" && <ShowmanInstruction comment={q?.questionComment} />}
     </section>
   );
 }
 
-/** The final shows a timeline when present, or all legacy media together. */
 function FinalQuestionContent({
   question: q,
   content,
@@ -184,7 +190,11 @@ function FinalQuestionContent({
   const { t } = useTranslation();
   if (!q) return <QuestionBody text={<p>{t("question.noContent")}</p>} />;
   const files = q.questionFiles ?? [];
-  const showCaption = hasFinalCaption(q, !!picture, !!content && !legacy);
+  const legacyView =
+    legacy &&
+    q.playMediaSimultaneously !== false &&
+    files.filter(isVisual).length < VISUAL_QUEUE_THRESHOLD;
+  const showCaption = hasFinalCaption(q, !!picture, !!content && !legacyView);
   const caption = showCaption ? (
     <p className={stageStyles.finalQuestionText} data-testid="question-text">
       {q.text || t("question.noContent")}
@@ -192,10 +202,19 @@ function FinalQuestionContent({
   ) : undefined;
   const point = picture ? <PointAnswer key={myId} src={picture} /> : null;
   const target = pointImage(files, q.pointImageOrder);
-  const initialView = (
-    <LegacyFinalView question={q} point={point} paused={paused} caption={caption} />
+  const initialView = (controls?: React.ReactNode, history?: React.ReactNode) => (
+    <QuestionMedia
+      files={files}
+      playing={!paused}
+      suspended={paused}
+      text={caption}
+      textLength={q.text?.length}
+      replacePointImage={point && target ? { file: target, view: point } : undefined}
+      controls={controls}
+      history={history}
+    />
   );
-  if (!content) return initialView;
+  if (!content) return initialView();
   return (
     <ContentStage
       content={content}
@@ -205,35 +224,11 @@ function FinalQuestionContent({
       textItems={q.textItems}
       paused={paused}
       caption={caption}
+      initialView={legacyView ? initialView : undefined}
       captionLength={showCaption ? q.text?.length : 0}
-      pointAnswer={point && target ? { order: target.order, view: point } : undefined}
-      initialView={legacy ? initialView : undefined}
+      pointAnswer={point && target ? { file: target, view: point } : undefined}
     />
   );
-}
-
-function LegacyFinalView({
-  question,
-  point,
-  paused,
-  caption,
-}: {
-  question: Question;
-  point: React.ReactNode;
-  paused: boolean;
-  caption: React.ReactNode;
-}) {
-  const files = question.questionFiles ?? [];
-  const target = pointImage(files, question.pointImageOrder);
-  const media =
-    files.length > 0 ? (
-      <QuestionMedia
-        files={files}
-        playing={!paused}
-        replacePointImage={point && target ? { file: target, view: point } : undefined}
-      />
-    ) : null;
-  return <QuestionBody media={media} text={caption} textLength={question.text?.length} />;
 }
 
 function hasFinalCaption(q: Question, picking: boolean, timeline: boolean) {
@@ -250,8 +245,14 @@ export function FinalReviewStage() {
   const isShowman = myRole(session, myId) === "showman";
   const q = final?.questionData?.question ?? s.currentQuestion;
   const reveal = s.answerShowData?.answerText;
-  if (s.answerShowData?.answerPoint && (s.answerShowData.answerPointImage || pointPicture(q)))
-    return <AnswerReveal />;
+  if (s.questionState === "showing_answer") {
+    return (
+      <section className={stageStyles.finalQuestion}>
+        <ThemeLine />
+        <AnswerReveal />
+      </section>
+    );
+  }
   return (
     <section className={stageStyles.reviewLayout}>
       <div className={stageStyles.questionColumn}>

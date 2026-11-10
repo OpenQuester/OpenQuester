@@ -1,3 +1,9 @@
+import {
+  QUESTION_TRANSITION_MS,
+  QUESTION_TRANSITION_FADE_OUT_MS,
+  QUESTION_CONTENT_START_LEAD_MS
+} from "domain/constants/game";
+
 export const TEST_TIMEOUTS = {
   // Connection and handshake timeouts
   SOCKET_CONNECT_MS: 250,
@@ -5,6 +11,11 @@ export const TEST_TIMEOUTS = {
 
   // Event waiting defaults
   SOCKET_EVENT_WAIT_MS: 1500,
+  QUESTION_ENTRY_WAIT_MS:
+    QUESTION_TRANSITION_MS +
+    QUESTION_TRANSITION_FADE_OUT_MS +
+    QUESTION_CONTENT_START_LEAD_MS +
+    1500,
   SOCKET_TIMER_EVENT_WAIT_MS: 2500,
   SOCKET_NO_EVENT_WAIT_MS: 100,
   SOCKET_ACTION_TIMEOUT_MS: 500,
@@ -59,3 +70,13 @@ export const getTestRedisDb = (): number => {
   const redisDbRange = 14;
   return (Math.abs(workerOffset - 1) % redisDbRange) + TEST_TIMEOUTS.TEST_REDIS_DB_BASE;
 };
+
+/** Only explicitly requested question-entry waits may exceed the usual event budget. */
+export function socketEventWaitTimeout(event: string, requestedMs: number): number {
+  return Math.min(
+    requestedMs,
+    event === "media-download-status"
+      ? TEST_TIMEOUTS.QUESTION_ENTRY_WAIT_MS
+      : TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
+  );
+}

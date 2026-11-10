@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import { StrictMode } from "react";
 import { mountGame, sent } from "./round-transition.fixture";
 import { ALICE, choosing, question, round, timer } from "../src/game/fixtures";
 import { useGameStore } from "../src/game/store";
@@ -6,7 +7,10 @@ import { useSettings } from "../src/features/settings/settingsStore";
 import { PlaytestSession } from "../src/features/package-editor/playtest/PlaytestSession";
 import { initialPreview } from "../src/features/package-editor/playtest/previewModel";
 import type { ContentPlan, PlayerRole } from "../src/game/protocol";
-import { timerElapsed } from "../src/game/contentPlan";
+import { buildContentPlan, timerElapsed } from "../src/game/contentPlan";
+import { resumeAudioContext } from "../src/lib/audioContext";
+import { ContentControls } from "../src/features/game/play/ContentControls";
+import { QuestionMediaItem } from "../src/features/game/play/media/QuestionMediaItem";
 
 export { sent };
 
@@ -48,6 +52,12 @@ export function pause(paused: boolean) {
 export function mount(
   mode: "question" | "answer" | "final" | "playtest" | "audio" | "mixed" | "text" | "choice",
   role: PlayerRole = "player",
+  audio: {
+    placement?: "screen" | "background";
+    waitForFinish?: boolean;
+    durationMs?: number;
+    src?: string;
+  } = {},
 ) {
   const q = question(100, {
     text: "Middle clue",
@@ -58,6 +68,20 @@ export function mount(
       file: { type: "video" as const, md5: "same-clip", link: "/e2e/fixtures/clip.webm" },
     })),
   });
+  const audioOnly = mode === "audio" || !!audio.src;
+  if (audioOnly) {
+    q.text = null;
+    q.textOrder = null;
+    q.questionFiles = [
+      {
+        order: 0,
+        displayTime: audio.durationMs ?? 1000,
+        placement: audio.placement ?? "screen",
+        waitForFinish: audio.waitForFinish,
+        file: { type: "audio", md5: "clip", link: audio.src ?? "/e2e/fixtures/clip.webm" },
+      },
+    ];
+  }
   if (mode === "playtest") {
     document.getElementById("root")!.hidden = true;
     useSettings.getState().update({ language: "en", sound: false, volume: 0 });
@@ -142,25 +166,7 @@ export function mount(
       items: [{ kind: "text", order, durationMs: 1000, placement: "screen" }],
     }));
   }
-  if (mode === "audio") {
-    q.text = "Audio";
-    q.textOrder = null;
-    q.questionFiles = [
-      {
-        order: 0,
-        displayTime: 1000,
-        file: { type: "audio", md5: "clip", link: "/e2e/fixtures/clip.webm" },
-      },
-    ];
-    plan.totalMs = 1000;
-    plan.steps = [
-      {
-        startMs: 0,
-        durationMs: 1000,
-        items: [{ kind: "file", order: 0, durationMs: 1000, placement: "screen" }],
-      },
-    ];
-  }
+  if (audioOnly) Object.assign(plan, buildContentPlan({ files: q.questionFiles }));
   s.state = {
     ...s.state,
     currentQuestion: q,
@@ -177,29 +183,33 @@ export function mount(
   };
   if (mode === "answer") {
     // Answer timelines contain media; use a still image for the middle step.
-    s.content.plan = {
-      ...plan,
-      steps: plan.steps.map((step, i) =>
-        i === 1
-          ? { ...step, items: [{ kind: "file", order: 1, durationMs: 400, placement: "screen" }] }
-          : step,
-      ),
-    };
+    if (!audioOnly) {
+      s.content.plan = {
+        ...plan,
+        steps: plan.steps.map((step, i) =>
+          i === 1
+            ? { ...step, items: [{ kind: "file", order: 1, durationMs: 400, placement: "screen" }] }
+            : step,
+        ),
+      };
+    }
     s.state.answerShowData = {
       answerText: "Answer",
       nextTurnPlayerId: null,
-      answerFiles: [
-        ...q.questionFiles!,
-        {
-          order: 1,
-          displayTime: 400,
-          file: {
-            type: "image",
-            md5: "image",
-            link: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Crect width='20' height='20' fill='gold'/%3E%3C/svg%3E",
-          },
-        },
-      ],
+      answerFiles: audioOnly
+        ? (q.questionFiles ?? null)
+        : [
+            ...q.questionFiles!,
+            {
+              order: 1,
+              displayTime: 400,
+              file: {
+                type: "image",
+                md5: "image",
+                link: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Crect width='20' height='20' fill='gold'/%3E%3C/svg%3E",
+              },
+            },
+          ],
     };
   }
   if (mode === "final") {
@@ -215,4 +225,31 @@ export function mount(
     };
   }
   useGameStore.getState().setSession(s);
+}
+
+/** Mount one real media item in StrictMode to exercise source changes and cleanup. */
+export function mountAudio(src: string, positionMs?: number) {
+  document.getElementById("root")!.hidden = true;
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  useSettings.getState().update({ language: "en", sound: false, volume: 0.7, reduceMotion: false });
+
+  function render(link = src, playing = true) {
+    root.render(
+      <StrictMode>
+        <button type="button" onClick={resumeAudioContext}>
+          Unlock Web Audio
+        </button>
+        <ContentControls volume />
+        <QuestionMediaItem
+          file={{ order: 0, displayTime: null, file: { type: "audio", md5: "tone", link } }}
+          playing={playing}
+          positionMs={positionMs == null ? undefined : () => positionMs}
+        />
+      </StrictMode>,
+    );
+  }
+  render();
+  return { render, unmount: () => root.unmount() };
 }

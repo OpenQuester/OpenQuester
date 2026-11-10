@@ -32,7 +32,7 @@ export function ImportWarnings({
           {shown.map((w, i) => (
             <li key={i} className="text-sm [overflow-wrap:anywhere]">
               {w.where && <span className="text-muted">{w.where} · </span>}
-              {t(`upload.warnings.${w.code}`, { detail: w.detail ?? "" })}
+              {t(`upload.warnings.${w.code}`, { detail: w.detail ?? "", context: w.phase })}
             </li>
           ))}
         </ul>

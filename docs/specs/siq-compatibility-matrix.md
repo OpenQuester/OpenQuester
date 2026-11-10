@@ -122,3 +122,18 @@ When changing SIQ import:
 ## Done when
 
 A SIQ compatibility change is not done until unsupported or lossy behavior is visible to the creator. Silent degradation is a bug.
+
+
+### Authored media limits and playback
+
+SIQ preflight counts question and answer separately using the original groups.
+An archive with more than 30 steps in either phase or more than 10 file
+occurrences in any step is rejected with a location and count report.
+Repeated references and newly started background audio count toward the limit.
+The report leaves the source archive intact. HTML removal retains its existing
+consent flow for otherwise eligible packages.
+
+When a group contains five or more images or videos, OpenQuester presents its
+screen media in order and reports the conversion during import. With fewer
+visuals, screen audio and video can play together by default. The editor's
+playback setting can make those groups sequential while keeping their visual grid.

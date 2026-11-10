@@ -1,5 +1,6 @@
 import type { Unzipped } from "fflate";
 
+import { assertImportContentLimits } from "./contentLimits";
 import { scanOq, requireRemoval, removalWarnings } from "./htmlRemoval";
 import { md5Hex, yieldToBrowser } from "./archive";
 import type {
@@ -32,6 +33,7 @@ export async function parseOq(entries: Unzipped, allowHtmlRemoval = false): Prom
   }
   if (!isObject(json) || !Array.isArray(json.rounds)) throw new Error("badContentJson");
 
+  assertOqContentLimits(json);
   const report = scanOq(json, false);
   requireRemoval(report, allowHtmlRemoval);
   if (report.questions.length) scanOq(json, true);
@@ -61,6 +63,10 @@ export async function parseOq(entries: Unzipped, allowHtmlRemoval = false): Prom
     if (!files.has(md5)) warnings.push({ code: "missingFile", where: "", detail: md5 });
 
   return { format: "oq", content, files, warnings };
+}
+
+export function assertOqContentLimits(json: Json) {
+  assertImportContentLimits(toContent(json, new Map(), []));
 }
 
 type Json = Record<string, unknown>;
@@ -118,6 +124,7 @@ export function toContent(
       price: num(q.price),
       text: str(q.text),
       textOrder: num(q.textOrder),
+      playMediaSimultaneously: q.playMediaSimultaneously !== false,
       ...(q.textItems != null ? { textItems: readTextItems(q.textItems) } : {}),
       ...(q.pointImageOrder != null ? { pointImageOrder: num(q.pointImageOrder) ?? -1 } : {}),
       questionComment: str(q.questionComment),

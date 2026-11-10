@@ -107,3 +107,30 @@ describe("number and point answers", () => {
     });
   });
 });
+
+it("blocks publishing and points to the original question with all authored violations", () => {
+  const pkg = packageWith("number");
+  const q = pkg.rounds[0]!.themes[0]!.questions[0]!;
+  q.answerNumber = 3;
+  q.textItems = Array.from({ length: 30 }, (_, order) => ({
+    order: order + 1,
+    text: "Clue",
+    id: String(order),
+  }));
+  q.answerFiles = Array.from({ length: 11 }, () => ({
+    type: "audio",
+    displayTime: null,
+    md5: "a".repeat(32),
+    waitForFinish: false,
+    placement: "background",
+  }));
+  const issues = validatePackage(pkg, () => true).issues.filter(
+    (issue) => issue.severity === "critical",
+  );
+  expect(
+    issues.map(({ code, target, args }) => [code, target.kind === "question" && target.id, args]),
+  ).toEqual([
+    ["contentStepLimit", q.id, { context: "question", actual: 31, max: 30 }],
+    ["contentFileLimit", q.id, { context: "answer", step: 1, actual: 11, max: 10 }],
+  ]);
+});

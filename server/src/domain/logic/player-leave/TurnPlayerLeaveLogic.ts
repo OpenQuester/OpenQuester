@@ -9,7 +9,7 @@ import {
   FinalPhaseCompleteEventData,
   ThemeEliminateOutputData,
 } from "domain/types/socket/events/FinalRoundEventData";
-import { ThemeEliminationTimeoutResult } from "domain/types/socket/finalround/FinalRoundResults";
+import { ThemeEliminateResult } from "domain/types/socket/finalround/FinalRoundResults";
 
 /**
  * Type of turn player leave scenario
@@ -93,25 +93,25 @@ export class TurnPlayerLeaveLogic {
   /**
    * Builds result for final round theme elimination auto-elimination.
    *
-   * Uses result from FinalRoundService.handleThemeEliminationTimeout.
+   * Uses the result of the theme eliminated after the player left.
    */
   public static buildFinalRoundResult(
     game: Game,
-    timeoutResult: ThemeEliminationTimeoutResult
+    result: ThemeEliminateResult
   ): TurnPlayerLeaveResult {
     const broadcasts: BroadcastEvent[] = [
       {
         event: SocketIOGameEvents.THEME_ELIMINATE,
         data: {
-          themeId: timeoutResult.themeId,
+          themeId: result.themeId,
           eliminatedBy: SYSTEM_PLAYER_ID,
-          nextPlayerId: timeoutResult.nextPlayerId,
+          nextPlayerId: result.nextPlayerId,
         } satisfies ThemeEliminateOutputData,
         room: game.id,
       },
     ];
 
-    if (timeoutResult.isPhaseComplete) {
+    if (result.isPhaseComplete) {
       broadcasts.push({
         event: SocketIOGameEvents.FINAL_PHASE_COMPLETE,
         data: {

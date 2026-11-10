@@ -1,3 +1,7 @@
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { QuestionTransitionLogic } from "domain/logic/question/QuestionTransitionLogic";
+import { SYSTEM_PLAYER_ID } from "domain/constants/game";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameService } from "application/services/game/GameService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
@@ -41,6 +45,9 @@ export class UnpauseGameUseCase implements GameActionHandler<
 
     GameStateValidator.validateGameNotFinished(game);
     GameStateValidator.validateGameStarted(game);
+    if (game.gameState.questionTransition && !game.gameState.isPaused) {
+      return { success: true, mutations: [] };
+    }
 
     // Load the saved timer stored under the questionState suffix
     const questionState = game.gameState.questionState;
@@ -51,24 +58,50 @@ export class UnpauseGameUseCase implements GameActionHandler<
       savedTimer
     );
 
-    const unpauseData: GameUnpauseBroadcastData = { timer: result.data.timer };
+    const unpauseData: GameUnpauseBroadcastData = {
+      timer: result.data.timer,
+      questionTransition: game.gameState.questionTransition ?? null
+    };
+    const gated = !!game.gameState.questionTransition;
+    const regularMedia = TransitionGuards.canTransitionInRegularRound(
+      game,
+      QuestionState.MEDIA_DOWNLOADING
+    );
+    const wasReady = game.gameState.questionTransition?.mediaReady;
+    const openingMutations = QuestionTransitionLogic.refresh(game);
 
-    // ACKs received while paused can now start MEDIA_DOWNLOADING -> FINAL_ANSWERING.
-    const transition = TransitionGuards.isFinalRoundMediaDownloading(game)
-      ? await this.phaseTransitionRouter.tryTransition({
-          game,
-          trigger: TransitionTrigger.CONDITION_MET,
-          triggeredBy: { isSystem: true }
-        })
-      : null;
+    // Readiness received while paused can now release MEDIA_DOWNLOADING -> SHOWING
+    // after the regular opening barrier, or MEDIA_DOWNLOADING -> FINAL_ANSWERING.
+    const transition =
+      regularMedia || TransitionGuards.isFinalRoundMediaDownloading(game)
+        ? await this.phaseTransitionRouter.tryTransition({
+            game,
+            trigger: regularMedia ? TransitionTrigger.USER_ACTION : TransitionTrigger.CONDITION_MET,
+            triggeredBy: { isSystem: true }
+          })
+        : null;
 
     return {
       success: true,
       data: unpauseData,
       mutations: [
         DataMutationConverter.saveGameMutation(game),
-        ...DataMutationConverter.mutationFromTimerMutations(timerMutations),
+        ...DataMutationConverter.mutationFromTimerMutations(
+          transition && regularMedia
+            ? timerMutations.filter((m) => m.op === "delete")
+            : [...timerMutations, ...openingMutations]
+        ),
         ...DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts),
+        ...((regularMedia && transition) ||
+        (gated && wasReady !== game.gameState.questionTransition?.mediaReady)
+          ? [
+              DataMutationConverter.gameBroadcastMutation(
+                game.id,
+                SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+                QuestionTransitionLogic.status(game, SYSTEM_PLAYER_ID, transition?.timer ?? null)
+              )
+            ]
+          : []),
         ...DataMutationConverter.mutationFromTimerMutations(transition?.timerMutations),
         ...DataMutationConverter.mutationFromServiceBroadcasts(transition?.broadcasts, game.id)
       ]

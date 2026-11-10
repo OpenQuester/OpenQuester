@@ -10,6 +10,7 @@ import { UPLOAD_PACKAGE_LINKS_EXPIRES_IN } from "domain/constants/storage";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { Permissions } from "domain/enums/Permissions";
+import { validatePackageContentLimits } from "domain/validators/validatePackageContentLimits";
 import { ClientError } from "domain/errors/ClientError";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PackageUploadResponse } from "domain/types/package/PackageUploadResponse";
@@ -120,6 +121,7 @@ export class PackageService {
       throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND);
     }
 
+    validatePackageContentLimits(request.content);
     const unverifiedFileSizes = await this.storageQuotaService.assertPackageFits(
       author,
       request.content,
@@ -171,6 +173,7 @@ export class PackageService {
   ): Promise<PackageUploadResponse> {
     const { user, pack: packageEntity } = editable;
     const packageId = packageEntity.id;
+    validatePackageContentLimits(request.content);
     // Limits are the author's: an editor with EDIT_PACKAGE fixes someone else's package.
     const unverifiedFileSizes = await this.storageQuotaService.assertPackageFits(
       packageEntity.author ?? user,

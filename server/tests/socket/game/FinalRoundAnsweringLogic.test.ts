@@ -1,3 +1,7 @@
+import { container } from "tsyringe";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { type FinalQuestionEventData } from "domain/types/socket/events/FinalRoundEventData";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
@@ -225,7 +229,9 @@ describe("Final Round Answering Logic", () => {
         )) as FinalQuestionEventData[];
 
         // Only the showman's copy carries the answer, so they can judge
-        expect((showmanQuestion.questionData.question as PackageQuestionDTO).answerText).toBeTruthy();
+        expect(
+          (showmanQuestion.questionData.question as PackageQuestionDTO).answerText
+        ).toBeTruthy();
         expect(playerQuestion.questionData.question).not.toHaveProperty("answerText");
         expect(spectatorQuestion.questionData.question).not.toHaveProperty("answerText");
         expect(playerQuestion.questionData.question.text).toBe(
@@ -484,174 +490,190 @@ describe("Final Round Answering Logic", () => {
       });
     });
 
-    it.each(["timeout", "empty answers"])("reveals bids before automatic finish (%s)", async (source) => {
-      await suite.scenario(async (scenario) => {
-        const setupResult = await utils.setupFinalRoundGame({
-          playersCount: 2,
-          playerScores: [1500, 1200]
-        });
+    it.each(["timeout", "empty answers"])(
+      "reveals bids before automatic finish (%s)",
+      async (source) => {
+        await suite.scenario(async (scenario) => {
+          const setupResult = await utils.setupFinalRoundGame({
+            playersCount: 2,
+            playerScores: [1500, 1200]
+          });
 
-        const { showmanSocket, playerSockets, spectatorSockets, gameId, playerUsers } = setupResult;
-        const spectatorSocket = spectatorSockets[0];
-        const biddingPhasePromise = scenario.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.FINAL_PHASE_COMPLETE
-        );
-        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
-        await biddingPhasePromise;
+          const { showmanSocket, playerSockets, spectatorSockets, gameId, playerUsers } =
+            setupResult;
+          const spectatorSocket = spectatorSockets[0];
+          const biddingPhasePromise = scenario.waitForEvent(
+            playerSockets[0],
+            SocketIOGameEvents.FINAL_PHASE_COMPLETE
+          );
+          await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
+          await biddingPhasePromise;
 
-        const firstBidPromise = scenario.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_BID_SUBMIT
-        );
-        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
-        await firstBidPromise;
+          const firstBidPromise = scenario.waitForEvent(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_BID_SUBMIT
+          );
+          scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
+          await firstBidPromise;
 
-        const questionDataPromises = [
-          scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_QUESTION_DATA),
-          scenario.waitForEvent(playerSockets[0], SocketIOGameEvents.FINAL_QUESTION_DATA),
-          scenario.waitForEvent(spectatorSocket, SocketIOGameEvents.FINAL_QUESTION_DATA)
-        ];
-        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
-        await Promise.all(questionDataPromises);
+          const questionDataPromises = [
+            scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_QUESTION_DATA),
+            scenario.waitForEvent(playerSockets[0], SocketIOGameEvents.FINAL_QUESTION_DATA),
+            scenario.waitForEvent(spectatorSocket, SocketIOGameEvents.FINAL_QUESTION_DATA)
+          ];
+          scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
+          await Promise.all(questionDataPromises);
 
-        const timeoutPlayerIds = playerUsers.map((player) => player.id);
-        const showmanTimeoutAnswersPromise = waitForPlayerBroadcasts<FinalAnswerSubmitOutputData>(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
-          timeoutPlayerIds
-        );
-        const playerTimeoutAnswersPromise = waitForPlayerBroadcasts<FinalAnswerSubmitOutputData>(
-          playerSockets[0],
-          SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
-          timeoutPlayerIds
-        );
-        const spectatorTimeoutAnswersPromise = waitForPlayerBroadcasts<FinalAnswerSubmitOutputData>(
-          spectatorSocket,
-          SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
-          timeoutPlayerIds
-        );
-        const showmanAutoLossesPromise = waitForPlayerBroadcasts<SocketIOFinalAutoLossEventPayload>(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_AUTO_LOSS,
-          timeoutPlayerIds
-        );
-        const playerAutoLossesPromise = waitForPlayerBroadcasts<SocketIOFinalAutoLossEventPayload>(
-          playerSockets[0],
-          SocketIOGameEvents.FINAL_AUTO_LOSS,
-          timeoutPlayerIds
-        );
-        const spectatorAutoLossesPromise =
-          waitForPlayerBroadcasts<SocketIOFinalAutoLossEventPayload>(
-            spectatorSocket,
-            SocketIOGameEvents.FINAL_AUTO_LOSS,
+          const timeoutPlayerIds = playerUsers.map((player) => player.id);
+          const showmanTimeoutAnswersPromise = waitForPlayerBroadcasts<FinalAnswerSubmitOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
             timeoutPlayerIds
           );
-
-        const submitEndPromises = [
-          scenario.waitForEvent<FinalSubmitEndEventData>(
-            showmanSocket,
-            SocketIOGameEvents.FINAL_SUBMIT_END
-          ),
-          scenario.waitForEvent<FinalSubmitEndEventData>(
+          const playerTimeoutAnswersPromise = waitForPlayerBroadcasts<FinalAnswerSubmitOutputData>(
             playerSockets[0],
-            SocketIOGameEvents.FINAL_SUBMIT_END
-          ),
-          scenario.waitForEvent<FinalSubmitEndEventData>(
-            spectatorSocket,
-            SocketIOGameEvents.FINAL_SUBMIT_END
-          )
-        ];
-        const gameFinishedPromises = [
-          scenario.waitForEvent<boolean>(showmanSocket, SocketIOGameEvents.GAME_FINISHED),
-          scenario.waitForEvent<boolean>(playerSockets[0], SocketIOGameEvents.GAME_FINISHED),
-          scenario.waitForEvent<boolean>(spectatorSocket, SocketIOGameEvents.GAME_FINISHED)
-        ];
-        const finishOrder = scenario.collectSocketEvents(showmanSocket, [
-          SocketIOGameEvents.FINAL_SUBMIT_END,
-          SocketIOGameEvents.GAME_FINISHED
-        ], 2);
-
-        if (source === "timeout") {
-          await utils.expireTimerAndWaitForAction(
-            gameId,
-            GameActionType.TIMER_FINAL_ANSWERING_EXPIRED
+            SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
+            timeoutPlayerIds
           );
-        } else {
-          const firstAnswer = scenario.waitForEvent(
-            showmanSocket, SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+          const spectatorTimeoutAnswersPromise =
+            waitForPlayerBroadcasts<FinalAnswerSubmitOutputData>(
+              spectatorSocket,
+              SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
+              timeoutPlayerIds
+            );
+          const showmanAutoLossesPromise =
+            waitForPlayerBroadcasts<SocketIOFinalAutoLossEventPayload>(
+              showmanSocket,
+              SocketIOGameEvents.FINAL_AUTO_LOSS,
+              timeoutPlayerIds
+            );
+          const playerAutoLossesPromise =
+            waitForPlayerBroadcasts<SocketIOFinalAutoLossEventPayload>(
+              playerSockets[0],
+              SocketIOGameEvents.FINAL_AUTO_LOSS,
+              timeoutPlayerIds
+            );
+          const spectatorAutoLossesPromise =
+            waitForPlayerBroadcasts<SocketIOFinalAutoLossEventPayload>(
+              spectatorSocket,
+              SocketIOGameEvents.FINAL_AUTO_LOSS,
+              timeoutPlayerIds
+            );
+
+          const submitEndPromises = [
+            scenario.waitForEvent<FinalSubmitEndEventData>(
+              showmanSocket,
+              SocketIOGameEvents.FINAL_SUBMIT_END
+            ),
+            scenario.waitForEvent<FinalSubmitEndEventData>(
+              playerSockets[0],
+              SocketIOGameEvents.FINAL_SUBMIT_END
+            ),
+            scenario.waitForEvent<FinalSubmitEndEventData>(
+              spectatorSocket,
+              SocketIOGameEvents.FINAL_SUBMIT_END
+            )
+          ];
+          const gameFinishedPromises = [
+            scenario.waitForEvent<boolean>(showmanSocket, SocketIOGameEvents.GAME_FINISHED),
+            scenario.waitForEvent<boolean>(playerSockets[0], SocketIOGameEvents.GAME_FINISHED),
+            scenario.waitForEvent<boolean>(spectatorSocket, SocketIOGameEvents.GAME_FINISHED)
+          ];
+          const finishOrder = scenario.collectSocketEvents(
+            showmanSocket,
+            [SocketIOGameEvents.FINAL_SUBMIT_END, SocketIOGameEvents.GAME_FINISHED],
+            2
           );
-          scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
-            answerText: ""
-          });
-          await firstAnswer;
-          const beforeReview = await utils.getGameEntity(gameId);
-          expect(beforeReview.getPlayer(playerUsers[0].id, { fetchDisconnected: true })?.score).toBe(1500);
-          scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
-            answerText: ""
-          });
-        }
 
-        const [
-          submitEndBroadcasts,
-          gameFinishedBroadcasts,
-          showmanTimeoutAnswers,
-          playerTimeoutAnswers,
-          spectatorTimeoutAnswers,
-          showmanAutoLosses,
-          playerAutoLosses,
-          spectatorAutoLosses
-        ] = await Promise.all([
-          Promise.all(submitEndPromises),
-          Promise.all(gameFinishedPromises),
-          showmanTimeoutAnswersPromise,
-          playerTimeoutAnswersPromise,
-          spectatorTimeoutAnswersPromise,
-          showmanAutoLossesPromise,
-          playerAutoLossesPromise,
-          spectatorAutoLossesPromise
-        ]);
-        const expectedTimeoutAnswers = timeoutPlayerIds.map((playerId) => ({ playerId }));
-        const expectedAutoLosses = timeoutPlayerIds.map((playerId) => ({
-          playerId,
-          reason: source === "timeout"
-            ? FinalAnswerLossReason.TIMEOUT
-            : FinalAnswerLossReason.EMPTY_ANSWER
-        }));
+          if (source === "timeout") {
+            await utils.expireTimerAndWaitForAction(
+              gameId,
+              GameActionType.TIMER_FINAL_ANSWERING_EXPIRED
+            );
+          } else {
+            const firstAnswer = scenario.waitForEvent(
+              showmanSocket,
+              SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+            );
+            scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+              answerText: ""
+            });
+            await firstAnswer;
+            const beforeReview = await utils.getGameEntity(gameId);
+            expect(
+              beforeReview.getPlayer(playerUsers[0].id, { fetchDisconnected: true })?.score
+            ).toBe(1500);
+            scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+              answerText: ""
+            });
+          }
 
-        expect(showmanTimeoutAnswers).toEqual(expectedTimeoutAnswers);
-        expect(playerTimeoutAnswers).toEqual(expectedTimeoutAnswers);
-        expect(spectatorTimeoutAnswers).toEqual(expectedTimeoutAnswers);
-        expect(showmanAutoLosses).toEqual(expectedAutoLosses);
-        expect(playerAutoLosses).toEqual(expectedAutoLosses);
-        expect(spectatorAutoLosses).toEqual(expectedAutoLosses);
-        expect(gameFinishedBroadcasts).toEqual([true, true, true]);
-        expect((await finishOrder.promise).map(({ event }) => event)).toEqual([
-          SocketIOGameEvents.FINAL_SUBMIT_END,
-          SocketIOGameEvents.GAME_FINISHED
-        ]);
+          const [
+            submitEndBroadcasts,
+            gameFinishedBroadcasts,
+            showmanTimeoutAnswers,
+            playerTimeoutAnswers,
+            spectatorTimeoutAnswers,
+            showmanAutoLosses,
+            playerAutoLosses,
+            spectatorAutoLosses
+          ] = await Promise.all([
+            Promise.all(submitEndPromises),
+            Promise.all(gameFinishedPromises),
+            showmanTimeoutAnswersPromise,
+            playerTimeoutAnswersPromise,
+            spectatorTimeoutAnswersPromise,
+            showmanAutoLossesPromise,
+            playerAutoLossesPromise,
+            spectatorAutoLossesPromise
+          ]);
+          const expectedTimeoutAnswers = timeoutPlayerIds.map((playerId) => ({ playerId }));
+          const expectedAutoLosses = timeoutPlayerIds.map((playerId) => ({
+            playerId,
+            reason:
+              source === "timeout"
+                ? FinalAnswerLossReason.TIMEOUT
+                : FinalAnswerLossReason.EMPTY_ANSWER
+          }));
 
-        for (const submitEnd of submitEndBroadcasts) {
-          expect(submitEnd.phase).toBe(FinalRoundPhase.ANSWERING);
-          expect(submitEnd.nextPhase).toBe(FinalRoundPhase.REVIEWING);
-          expect(submitEnd.bids).toEqual({ [playerUsers[0].id]: 800, [playerUsers[1].id]: 600 });
-          expect(submitEnd.allReviews).toEqual(expect.arrayContaining([
-            expect.objectContaining({ playerId: playerUsers[0].id, scoreAfter: 700 }),
-            expect.objectContaining({ playerId: playerUsers[1].id, scoreAfter: 600 })
-          ]));
-          expect(submitEnd.allReviews).toHaveLength(2);
-          expect(submitEnd.allReviews?.every((review) => review.answerText === "")).toBe(true);
-          expect(submitEnd.allReviews?.every((review) => review.isCorrect === false)).toBe(true);
-          expect(
-            submitEnd.allReviews?.every((review) => review.answerType === FinalAnswerType.AUTO_LOSS)
-          ).toBe(true);
-        }
+          expect(showmanTimeoutAnswers).toEqual(expectedTimeoutAnswers);
+          expect(playerTimeoutAnswers).toEqual(expectedTimeoutAnswers);
+          expect(spectatorTimeoutAnswers).toEqual(expectedTimeoutAnswers);
+          expect(showmanAutoLosses).toEqual(expectedAutoLosses);
+          expect(playerAutoLosses).toEqual(expectedAutoLosses);
+          expect(spectatorAutoLosses).toEqual(expectedAutoLosses);
+          expect(gameFinishedBroadcasts).toEqual([true, true, true]);
+          expect((await finishOrder.promise).map(({ event }) => event)).toEqual([
+            SocketIOGameEvents.FINAL_SUBMIT_END,
+            SocketIOGameEvents.GAME_FINISHED
+          ]);
 
-        const game = await utils.getGameEntity(gameId);
-        expect(game.finishedAt).toBeDefined();
-        expect(game.gameState.timer).toBeNull();
-      });
-    });
+          for (const submitEnd of submitEndBroadcasts) {
+            expect(submitEnd.phase).toBe(FinalRoundPhase.ANSWERING);
+            expect(submitEnd.nextPhase).toBe(FinalRoundPhase.REVIEWING);
+            expect(submitEnd.bids).toEqual({ [playerUsers[0].id]: 800, [playerUsers[1].id]: 600 });
+            expect(submitEnd.allReviews).toEqual(
+              expect.arrayContaining([
+                expect.objectContaining({ playerId: playerUsers[0].id, scoreAfter: 700 }),
+                expect.objectContaining({ playerId: playerUsers[1].id, scoreAfter: 600 })
+              ])
+            );
+            expect(submitEnd.allReviews).toHaveLength(2);
+            expect(submitEnd.allReviews?.every((review) => review.answerText === "")).toBe(true);
+            expect(submitEnd.allReviews?.every((review) => review.isCorrect === false)).toBe(true);
+            expect(
+              submitEnd.allReviews?.every(
+                (review) => review.answerType === FinalAnswerType.AUTO_LOSS
+              )
+            ).toBe(true);
+          }
+
+          const game = await utils.getGameEntity(gameId);
+          expect(game.finishedAt).toBeDefined();
+          expect(game.gameState.timer).toBeNull();
+        });
+      }
+    );
 
     it("should handle empty answers as auto-loss", async () => {
       await suite.scenario(async (scenario) => {
@@ -1127,152 +1149,215 @@ describe("Final Round Answering Logic", () => {
   });
 
   describe("Review Flow", () => {
-    it("should allow showman to review answers in any order and finish game", async () => {
-      await suite.scenario(async (scenario) => {
-        // Setup game with 2 players and get to reviewing phase
-        const setupResult = await utils.setupFinalRoundGame({
-          playersCount: 2,
-          playerScores: [1500, 1200]
-        });
+    it.each([false, true])(
+      "reviews and finishes the final with answer media: %s",
+      async (withMedia) => {
+        await suite.scenario(async (scenario) => {
+          // Setup game with 2 players and get to reviewing phase
+          const setupResult = await utils.setupFinalRoundGame({
+            playersCount: 2,
+            playerScores: [1500, 1200]
+          });
 
-        const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
+          const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
 
-        // Complete theme elimination and bidding to reach answering phase
-        const phaseTransitionPromise = scenario.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.FINAL_PHASE_COMPLETE
-        );
-        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
+          // Complete theme elimination and bidding to reach answering phase
+          const phaseTransitionPromise = scenario.waitForEvent(
+            playerSockets[0],
+            SocketIOGameEvents.FINAL_PHASE_COMPLETE
+          );
+          await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
 
-        await phaseTransitionPromise;
+          await phaseTransitionPromise;
 
-        const phaseCompletePromise = scenario.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.FINAL_PHASE_COMPLETE
-        );
+          const answerFiles = [
+            {
+              order: 0,
+              displayTime: 300,
+              waitForFinish: false,
+              file: {
+                md5: "final-answer-audio",
+                type: PackageFileType.AUDIO,
+                link: "https://example.test/answer.mp3"
+              }
+            },
+            {
+              order: 1,
+              displayTime: 400,
+              file: {
+                md5: "final-answer-video",
+                type: PackageFileType.VIDEO,
+                link: "https://example.test/answer.webm"
+              }
+            }
+          ];
+          if (withMedia) {
+            const state = await utils.getGameState(gameId);
+            const theme = state.currentRound!.themes.find(
+              (item) => !item.questions.some((q) => q.isPlayed)
+            )!;
+            const questionId = theme.questions[0].id;
+            const store = container.resolve(PackageStore);
+            const question = await store.getQuestion(gameId, questionId);
+            expect(question).not.toBeNull();
+            await container.resolve(RedisRepository).hset(store.getPackageKey(gameId), {
+              [`q:${questionId}`]: JSON.stringify({
+                ...question,
+                answerFiles,
+                playMediaSimultaneously: false
+              })
+            });
+          }
 
-        const finalBidPromise = scenario.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_BID_SUBMIT
-        );
-        // Submit bids to transition to answering phase
-        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
-        await finalBidPromise;
-
-        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
-        await phaseCompletePromise;
-
-        const answerSubmitPromise = scenario.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_ANSWER_SUBMIT
-        );
-
-        // Submit answers to get to reviewing phase
-        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
-          answerText: "Player 1 answer"
-        });
-        await answerSubmitPromise;
-
-        const answerSubmitPromise2 = scenario.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_ANSWER_SUBMIT
-        );
-
-        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
-          answerText: "Player 2 answer"
-        });
-        await answerSubmitPromise2;
-
-        // Verify we're in reviewing phase
-        const gameState = await utils.getGameState(gameId);
-        expect(gameState.questionState).toBe(QuestionState.REVIEWING);
-        expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.REVIEWING);
-
-        // Get answer IDs from the game state
-        const finalRoundData = gameState.finalRoundData!;
-        const answerIds = finalRoundData.answers.map((answer) => answer.id);
-        expect(answerIds).toHaveLength(2);
-
-        // Review second answer first (testing any order)
-        const beforeFirstReview = scenario.mark();
-        const firstReviewProbe = scenario.createAcceptedActionProbe({
-          gameId,
-          actionType: GameActionType.FINAL_ANSWER_REVIEW,
-          socketId: showmanSocket.id
-        });
-        const reviewPromise =
-          suite.currentScenario.waitForEventMatching<FinalAnswerReviewOutputData>(
-            showmanSocket,
-            SocketIOGameEvents.FINAL_ANSWER_REVIEW,
-            (data) => data.answerId === answerIds[1]
+          const phaseCompletePromise = scenario.waitForEvent(
+            playerSockets[0],
+            SocketIOGameEvents.FINAL_PHASE_COMPLETE
           );
 
-        scenario.actor(showmanSocket).emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
-          answerId: answerIds[1],
-          isCorrect: false
-        } satisfies FinalAnswerReviewInputData);
-        const firstReview = await reviewPromise;
-        expect(firstReview).toEqual({
-          answerId: answerIds[1],
-          playerId: playerUsers[1].id,
-          isCorrect: false,
-          scoreChange: -600
-        });
-
-        // Game should not finish yet
-        await firstReviewProbe.waitForCount(1);
-        await scenario.assert.waitForActionsComplete({ gameId });
-        await scenario.assert.noInbound({
-          actor: scenario.actor(showmanSocket),
-          event: SocketIOGameEvents.GAME_FINISHED,
-          afterSequence: beforeFirstReview,
-          durationMs: 100
-        });
-
-        // Review first answer as correct
-        const reviewPromise2 =
-          suite.currentScenario.waitForEventMatching<FinalAnswerReviewOutputData>(
+          const finalBidPromise = scenario.waitForEvent(
             showmanSocket,
-            SocketIOGameEvents.FINAL_ANSWER_REVIEW,
-            (data) => data.answerId === answerIds[0]
+            SocketIOGameEvents.FINAL_BID_SUBMIT
           );
-        const questionFinishPromise = scenario.waitForEvent<QuestionFinishEventPayload>(
-          showmanSocket,
-          SocketIOGameEvents.QUESTION_FINISH
-        );
-        const gameFinishedPromise = scenario.waitForEvent<boolean>(
-          showmanSocket,
-          SocketIOGameEvents.GAME_FINISHED
-        );
+          // Submit bids to transition to answering phase
+          scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
+          await finalBidPromise;
 
-        scenario.actor(showmanSocket).emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
-          answerId: answerIds[0],
-          isCorrect: true
-        } satisfies FinalAnswerReviewInputData);
-        const [secondReview, questionFinishEvent, gameFinishedEvent] = await Promise.all([
-          reviewPromise2,
-          questionFinishPromise,
-          gameFinishedPromise
-        ]);
+          const publicQuestion = scenario.waitForEvent<FinalQuestionEventData>(
+            playerSockets[0],
+            SocketIOGameEvents.FINAL_QUESTION_DATA
+          );
+          scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
+          await phaseCompletePromise;
+          expect((await publicQuestion).questionData.question).not.toHaveProperty("answerFiles");
 
-        // Verify review events were received
-        const reviewEvents = [firstReview, secondReview];
-        expect(reviewEvents).toHaveLength(2);
-        expect(reviewEvents[0]).toEqual(firstReview);
-        expect(reviewEvents[1]).toEqual({
-          answerId: answerIds[0],
-          playerId: playerUsers[0].id,
-          isCorrect: true,
-          scoreChange: 800
+          const answerSubmitPromise = scenario.waitForEvent(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+          );
+
+          // Submit answers to get to reviewing phase
+          scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+            answerText: "Player 1 answer"
+          });
+          await answerSubmitPromise;
+
+          const answerSubmitPromise2 = scenario.waitForEvent(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+          );
+
+          scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+            answerText: "Player 2 answer"
+          });
+          await answerSubmitPromise2;
+
+          // Verify we're in reviewing phase
+          const gameState = await utils.getGameState(gameId);
+          expect(gameState.questionState).toBe(QuestionState.REVIEWING);
+          expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.REVIEWING);
+
+          // Get answer IDs from the game state
+          const finalRoundData = gameState.finalRoundData!;
+          const answerIds = finalRoundData.answers.map((answer) => answer.id);
+          expect(answerIds).toHaveLength(2);
+
+          // Review second answer first (testing any order)
+          const beforeFirstReview = scenario.mark();
+          const firstReviewProbe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.FINAL_ANSWER_REVIEW,
+            socketId: showmanSocket.id
+          });
+          const reviewPromise =
+            suite.currentScenario.waitForEventMatching<FinalAnswerReviewOutputData>(
+              showmanSocket,
+              SocketIOGameEvents.FINAL_ANSWER_REVIEW,
+              (data) => data.answerId === answerIds[1]
+            );
+
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
+            answerId: answerIds[1],
+            isCorrect: false
+          } satisfies FinalAnswerReviewInputData);
+          const firstReview = await reviewPromise;
+          expect(firstReview).toEqual({
+            answerId: answerIds[1],
+            playerId: playerUsers[1].id,
+            isCorrect: false,
+            scoreChange: -600
+          });
+
+          // Game should not finish yet
+          await firstReviewProbe.waitForCount(1);
+          await scenario.assert.waitForActionsComplete({ gameId });
+          await scenario.assert.noInbound({
+            actor: scenario.actor(showmanSocket),
+            event: SocketIOGameEvents.GAME_FINISHED,
+            afterSequence: beforeFirstReview,
+            durationMs: 100
+          });
+
+          expect((await utils.getGameState(gameId)).answerShowData).toBeNull();
+
+          // Review first answer as correct
+          const reviewPromise2 =
+            suite.currentScenario.waitForEventMatching<FinalAnswerReviewOutputData>(
+              showmanSocket,
+              SocketIOGameEvents.FINAL_ANSWER_REVIEW,
+              (data) => data.answerId === answerIds[0]
+            );
+          const questionFinishPromise = scenario.waitForEvent<QuestionFinishEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.QUESTION_FINISH
+          );
+          const playerReveal = scenario.waitForEvent<QuestionFinishEventPayload>(
+            playerSockets[0],
+            SocketIOGameEvents.QUESTION_FINISH
+          );
+          const gameFinishedPromise = scenario.waitForEvent<boolean>(
+            showmanSocket,
+            SocketIOGameEvents.GAME_FINISHED
+          );
+
+          scenario.actor(showmanSocket).emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
+            answerId: answerIds[0],
+            isCorrect: true
+          } satisfies FinalAnswerReviewInputData);
+          const [secondReview, questionFinishEvent, playerRevealEvent] = await Promise.all([
+            reviewPromise2,
+            questionFinishPromise,
+            playerReveal
+          ]);
+
+          // Verify review events were received
+          const reviewEvents = [firstReview, secondReview];
+          expect(reviewEvents).toHaveLength(2);
+          expect(reviewEvents[0]).toEqual(firstReview);
+          expect(reviewEvents[1]).toEqual({
+            answerId: answerIds[0],
+            playerId: playerUsers[0].id,
+            isCorrect: true,
+            scoreChange: 800
+          });
+
+          expect(playerRevealEvent).toEqual(questionFinishEvent);
+          expect(questionFinishEvent.answerFiles).toEqual(withMedia ? answerFiles : null);
+          expect(questionFinishEvent.answerText).toBeDefined();
+          if (withMedia) {
+            expect(questionFinishEvent.answerContentPlan).toMatchObject({
+              totalMs: 700,
+              steps: [{ items: [{ order: 0 }, { order: 1, startOffsetMs: 300 }] }]
+            });
+            expect(questionFinishEvent.timer?.durationMs).toBe(5700);
+            const state = await utils.getGameState(gameId);
+            expect(state.questionState).toBe(QuestionState.SHOWING_ANSWER);
+            expect(state.answerShowData?.answerFiles).toEqual(answerFiles);
+            await utils.expireTimer(gameId);
+          }
+          expect(await gameFinishedPromise).toBe(true);
         });
-
-        // Verify game finished events were sent
-        expect(questionFinishEvent.answerFiles).toBeNull();
-        expect(questionFinishEvent.answerText).toBeDefined();
-
-        expect(gameFinishedEvent).toBe(true);
-      });
-    });
+      }
+    );
 
     it("should handle mixed correct and incorrect reviews", async () => {
       await suite.scenario(async (scenario) => {

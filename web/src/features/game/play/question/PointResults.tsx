@@ -1,3 +1,4 @@
+import { cn } from "@/lib/cn";
 import { PointPicker, type PointMarker, type Spot } from "../PointPicker";
 
 /** The target and every player's point share the same image coordinates. */
@@ -6,15 +7,20 @@ export function PointResults({
   target,
   radius,
   markers,
+  compact = false,
 }: {
   src: string;
   target: Spot;
   radius?: number | null;
   markers: PointMarker[];
+  compact?: boolean;
 }) {
   return (
     <div
-      className="relative flex h-[60dvh] min-h-0 w-full flex-auto items-center justify-center overflow-hidden [container-type:size]"
+      className={cn(
+        "relative flex min-h-0 w-full flex-auto items-center justify-center overflow-hidden [container-type:size]",
+        compact ? "h-36" : "h-[60dvh]",
+      )}
       data-testid="point-result-image"
     >
       <PointPicker

@@ -15,6 +15,7 @@ import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandle
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { ValueUtils } from "domain/utils/ValueUtils";
+import { parseTimerKey, TimerKeyType } from "domain/utils/parseTimerKey";
 
 /**
  * Handles timer expiration events from Redis keyspace notifications.
@@ -41,14 +42,15 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
   }
 
   public async handle(key: string): Promise<void> {
-    // Timer key format:
-    // - Without timerAdditional: "timer:{gameId}"
-    // - With timerAdditional: "timer:{timerAdditional}:{gameId}"
-    // gameId is always the last segment
-    const parts = key.split(":");
-
-    if (parts.length !== 2 || parts[0] !== TIMER_NSP) {
-      // Only the bare active timer drives gameplay; suffixed timers are saved pause/resume state.
+    const parsedKey = parseTimerKey(key);
+    if (!parsedKey) {
+      this.logger.warn(`Invalid timer key format: ${key}`, {
+        prefix: LogPrefix.TIMER_EXPIRATION,
+        key
+      });
+      return;
+    }
+    if (parsedKey.type === TimerKeyType.SAVED) {
       this.logger.debug(`Skipping non-active timer expiration`, {
         prefix: LogPrefix.TIMER_EXPIRATION,
         key
@@ -56,15 +58,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       return;
     }
 
-    const gameId = parts[1];
-
-    if (!gameId) {
-      this.logger.warn(`Invalid timer key format: ${key}`, {
-        prefix: LogPrefix.TIMER_EXPIRATION,
-        key
-      });
-      return;
-    }
+    const { gameId, type } = parsedKey;
 
     let game;
     try {
@@ -79,7 +73,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     }
 
     const questionState = game.gameState.questionState;
-    const skipReason = this.getExpirationSkipReason(game);
+    const skipReason = this.getExpirationSkipReason(game, type);
 
     if (skipReason) {
       this.logger.debug(`Skipping stale timer expiration`, {
@@ -122,11 +116,17 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     await this.actionExecutor.submitAction(action);
   }
 
-  private getExpirationSkipReason(game: Game): string | null {
+  private getExpirationSkipReason(game: Game, keyType: TimerKeyType): string | null {
     if (game.gameState.isPaused) {
       return "game-paused";
     }
 
+    if (keyType === TimerKeyType.QUESTION_TRANSITION) {
+      return game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING &&
+        game.gameState.questionTransition
+        ? null
+        : "no-question-transition";
+    }
     if (!game.gameState.timer) {
       return "no-active-timer";
     }

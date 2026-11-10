@@ -4020,6 +4020,11 @@ export interface components {
             order: number;
             placement: components["schemas"]["ContentPlacement"];
             /**
+             * @description Scheduled start within the authored step in milliseconds. Omitted means the step start.
+             * @default 0
+             */
+            startOffsetMs: number;
+            /**
              * @description How long this item plays. A background sound can outlive its step
              * @example 12000
              */
@@ -4035,7 +4040,7 @@ export interface components {
             durationMs: number;
             items: components["schemas"]["QuestionContentPlanItem"][];
         };
-        /** @description Server-timed content timeline. Steps play one after another on the phase timer (SHOWING for questions, SHOWING_ANSWER for answers): the timeline position is the timer's elapsed time, so pauses, answers and reconnects keep every client on the same step. A step without screen items keeps the previous screen. After totalMs the question timer continues with the answer window. */
+        /** @description Server-timed content timeline with up to 30 authored steps and up to 10 file occurrences per step in new packages and games. Item startOffsetMs schedules serial playback within a step. The elapsed phase timer synchronizes playback through pauses, answers and reconnects. A step without screen items keeps the previous screen. After totalMs the question timer continues with the answer window. */
         QuestionContentPlan: {
             steps: components["schemas"]["QuestionContentStep"][];
             /** @example 26000 */
@@ -4084,6 +4089,11 @@ export interface components {
              * @example null
              */
             textOrder?: number | null;
+            /**
+             * @description Allows screen audio and video to play together within an authored group of at most four images/videos. Larger visual groups always present their screen files in order. Null uses the default.
+             * @default true
+             */
+            playMediaSimultaneously: boolean | null;
             /** @description Additional sequential screen-text steps. Each order must be unique and must not equal textOrder or a question file order. The legacy text and textOrder retain their existing meaning. For final questions with a non-null array, every question audio/video requires an integer displayTime from 1 to 120000 milliseconds. */
             textItems?: {
                 order: number;
@@ -4564,6 +4574,7 @@ export interface components {
              * @example null
              */
             password?: string | null;
+            questionTransition?: components["schemas"]["QuestionTransition"] | null;
         };
         GameStateTimer: {
             /**
@@ -4742,19 +4753,20 @@ export interface components {
              */
             mediaDownloaded: boolean;
             /**
-             * @description Whether all PLAYER participants with IN_GAME status are marked ready. Showman/spectators do not block. A timeout can force this to true without completed downloads.
+             * @description Preparation readiness of the captured connected viewers, or timeout-forced readiness. With an originally empty roster, the solo showman prepares files. This flag alone does not enter SHOWING.
              * @example true
              * @example false
              */
             allPlayersReady: boolean;
-            /** @description New question timer when readiness completion transitions to SHOWING, otherwise null. A partial status with null does not remove the active media timer. */
+            /** @description Question timer only when the server enters SHOWING. Readiness while the opening is active carries null and does not start playback. */
             timer: components["schemas"]["GameStateTimer"] | null;
-            /** @description Sent with the SHOWING timer: the content timeline to play on it */
+            /** @description Prepared content may be supplied frozen during the closing transition. Playback runs only on the released SHOWING timer. */
             contentPlan?: components["schemas"]["QuestionContentPlan"] | null;
             /** @description Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away */
             buzzerOpensAtMs?: number | null;
             /** @description True when final media readiness timed out before playback started. */
             timedOut?: boolean;
+            questionTransition?: components["schemas"]["QuestionTransition"] | null;
         };
         /** @description Data sent to all players when player unskips a question */
         SocketIOGameUnskipEventPayload: {
@@ -4767,10 +4779,12 @@ export interface components {
         /** @description Data sent to all players when the game is paused */
         SocketIOGamePauseEventPayload: {
             timer: components["schemas"]["GameStateTimer"] | null;
+            questionTransition?: components["schemas"]["QuestionTransition"] | null;
         };
         /** @description Data sent to all players when the game is unpaused */
         SocketIOGameUnpauseEventPayload: {
             timer: components["schemas"]["GameStateTimer"] | null;
+            questionTransition?: components["schemas"]["QuestionTransition"] | null;
         };
         /** @description Data sent to kick a player from the game (showman only) */
         SocketIOPlayerKickInput: {
@@ -4949,13 +4963,14 @@ export interface components {
         SocketIOQuestionDataEventPayload: {
             /** @description Question content and optional questionFiles with file links. Answer-related fields are filtered for players/spectators; do not expect their complete payload to equal the showman's. */
             data: components["schemas"]["PackageQuestion"];
-            /** @description The applicable phase timer. For the normal question readiness handshake this is the media timer; the subsequent question timer arrives in media-download-status. */
-            timer: components["schemas"]["GameStateTimer"];
+            /** @description Applicable phase timer. Text-only preparation has no media timer; questionTransition carries its opening timer. */
+            timer: components["schemas"]["GameStateTimer"] | null;
             questionEligiblePlayers?: components["schemas"]["QuestionEligiblePlayers"];
-            /** @description Content timeline on this payload's timer. Absent during MEDIA_DOWNLOADING (it then arrives with media-download-status) */
+            /** @description Content timeline, when already prepared. It remains frozen during MEDIA_DOWNLOADING and runs on the later SHOWING timer. */
             contentPlan?: components["schemas"]["QuestionContentPlan"] | null;
             /** @description Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away */
             buzzerOpensAtMs?: number | null;
+            questionTransition?: components["schemas"]["QuestionTransition"] | null;
         };
         /** @description Data sent to all players when a player starts answering a question */
         SocketIOQuestionAnswerEventPayload: {
@@ -5275,6 +5290,8 @@ export interface components {
             nextTurnPlayerId?: number | null;
             /** @description Result of the regular answer, including actual submitted text when available */
             answerResult?: components["schemas"]["GameStateAnsweredPlayer"];
+            /** @description Authoritative reveal timer for answer media. In a final, this is sent after the last ruling. */
+            timer?: components["schemas"]["GameStateTimer"];
             /** @description Answer files timeline on the SHOWING_ANSWER timer; the answer text stays visible as the headline */
             answerContentPlan?: components["schemas"]["QuestionContentPlan"] | null;
             /** @description Other answers that also counted as right */
@@ -6178,6 +6195,15 @@ export interface components {
             password: string | null;
             /** @description True when this request made the game, so the caller hosts it */
             created: boolean;
+        };
+        QuestionTransition: {
+            timer: components["schemas"]["GameStateTimer"];
+            /** @description Media viewers captured at selection. An empty list means the showman remains the sole loader, including after a late player joins. */
+            mediaEligiblePlayerIds?: number[];
+            /** @description Preparation is ready, but SHOWING still waits for the transition timer. */
+            mediaReady: boolean;
+            /** @description The media timeout forced readiness; reconnect during the closing fade cannot restart preparation. */
+            timedOut?: boolean;
         };
     };
     responses: never;

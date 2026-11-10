@@ -1,43 +1,71 @@
-import { Fragment, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import type { QuestionFile } from "@/game/protocol";
+import { isVisual } from "@/game/authoredContentGroups";
+import { ContentControls } from "./ContentControls";
+import { ExpandableVisual } from "./media/ExpandableVisual";
 import { QuestionMediaItem } from "./media/QuestionMediaItem";
+import { QuestionBody, type QuestionBodyProps } from "./question/QuestionBody";
 
-/**
- * Every file of a question at once, in order. Used by the showman's preview
- * and final questions; regular questions use the timeline in ContentStage.
- * Audio and video have no player controls: they play by themselves while
- * `playing` is true, so everybody sees and hears the same thing at the same
- * moment. Every file sits in a fixed frame, so nothing jumps when it loads.
- */
+/** Compatibility view for an already-running final from a server without a content plan. */
 export function QuestionMedia({
   files,
   playing,
+  suspended,
   replacePointImage,
-}: {
+  controls,
+  history,
+  ...body
+}: Omit<QuestionBodyProps, "media" | "audio"> & {
   files: QuestionFile[];
+  history?: ReactNode;
   playing: boolean;
+  suspended?: boolean;
   replacePointImage?: { file: QuestionFile; view: ReactNode };
 }) {
-  const sorted = [...files].filter((f) => f.file.link).sort((a, b) => a.order - b.order);
-  if (sorted.length === 0) return null;
-  const replacementIndex = replacePointImage ? sorted.indexOf(replacePointImage.file) : -1;
-  const occurrences = new Map<string, number>();
+  const sorted = [...files].sort((a, b) => a.order - b.order);
+  const visual = sorted.filter(isVisual);
+  const audio = sorted.filter(({ file }) => file.type === "audio");
+  const hasVolume = sorted.some(({ file }) => file.type !== "image");
   return (
-    <div className="question-media-list flex w-full flex-col gap-3">
-      {sorted.map((f, index) => {
-        const identity = `${f.file.md5}-${f.order}`;
-        const occurrence = occurrences.get(identity) ?? 0;
-        occurrences.set(identity, occurrence + 1);
-        return (
-          <Fragment key={`${identity}-${occurrence}`}>
-            {index === replacementIndex && replacePointImage ? (
-              replacePointImage.view
-            ) : (
-              <QuestionMediaItem file={f} playing={playing} />
-            )}
-          </Fragment>
-        );
-      })}
-    </div>
+    <QuestionBody
+      {...body}
+      media={
+        visual.length ? (
+          <div className="question-visuals">
+            <div
+              className="question-visual-grid"
+              data-count={visual.length}
+              data-testid="visual-grid"
+            >
+              {visual.map((file, index) =>
+                file === replacePointImage?.file ? (
+                  <div className="question-visual-cell" key={index}>
+                    {replacePointImage.view}
+                  </div>
+                ) : (
+                  <ExpandableVisual key={index} suspended={suspended}>
+                    <QuestionMediaItem file={file} playing={playing} />
+                  </ExpandableVisual>
+                ),
+              )}
+            </div>
+            {history}
+          </div>
+        ) : undefined
+      }
+      audio={
+        audio.length
+          ? audio.map((file, index) => (
+              <QuestionMediaItem
+                key={index}
+                file={file}
+                playing={playing}
+                audioNumber={audio.length > 1 ? index + 1 : undefined}
+              />
+            ))
+          : undefined
+      }
+      controls={controls ?? (hasVolume && <ContentControls volume />)}
+    />
   );
 }

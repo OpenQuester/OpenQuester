@@ -3,6 +3,7 @@ import { layoutStyles } from "@/ui/layoutStyles";
 import { useTranslation } from "react-i18next";
 import { ReportQuestionDialog } from "@/features/stats/QuestionReporting";
 import { seatedPlayers } from "@/game/selectors";
+import { resumeAudioContext } from "@/lib/audioContext";
 import { cn } from "@/lib/cn";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { GameActionDock } from "./GameActionDock";
@@ -25,6 +26,8 @@ export function GameScreen() {
       className="game-screen flex h-dvh overflow-hidden bg-bg"
       data-phase={phase}
       data-role={role}
+      onClickCapture={resumeAudioContext}
+      onKeyDownCapture={resumeAudioContext}
     >
       <div className={layoutStyles.contentColumn}>
         <p className="sr-only" aria-live="polite" role="status">

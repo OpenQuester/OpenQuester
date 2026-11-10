@@ -92,6 +92,21 @@
     padding-inline: 24px;
   }
 }
+@media (max-height: 600px) {
+  .game-dock {
+    --dock-height: 120px;
+  }
+  .game-dock[data-role="spectator"] {
+    --dock-height: 100px;
+  }
+}
+@media (max-height: 480px) {
+  @container action-dock (min-width: 768px) {
+    .game-dock-content {
+      --dock-height: 96px;
+    }
+  }
+}
 @container action-dock (min-width: 1280px) {
   .game-dock-content {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr);

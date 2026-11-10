@@ -41,10 +41,19 @@ export const BUZZER_FALSE_START_LOCK_TIME = SECOND_MS * 3;
 export const BUZZER_ACCEPT_WINDOW = 300;
 /** 30 seconds - how long the question waits for every player to load its media */
 export const MEDIA_DOWNLOAD_TIMEOUT = SECOND_MS * 30;
+// The browser opening takes 1550 ms. Leave room for pick delivery and paint.
+export const MEDIA_PLAYBACK_START_DELAY_MS = 1750;
+export const QUESTION_TRANSITION_MS = 1550;
+export const QUESTION_TRANSITION_FADE_OUT_MS = 300;
+export const QUESTION_CONTENT_START_LEAD_MS = 200;
 /** 75 seconds */
 export const GAME_FINAL_ANSWER_TIME = SECOND_MS * 75;
 /** 30 seconds - timeout for deciding secret question transfer target */
 export const SECRET_QUESTION_TRANSFER_TIME = SECOND_MS * 30;
+
+export const MAX_CONTENT_STEPS = 30;
+export const MAX_CONTENT_FILES_PER_STEP = 10;
+export const MAX_CONTENT_FILES = MAX_CONTENT_STEPS * MAX_CONTENT_FILES_PER_STEP;
 
 // Question content sequencing (see domain/logic/question/QuestionContentPlanLogic.ts)
 /** Reading speed for a sequenced text step: 50 ms per character (20 chars/s) */

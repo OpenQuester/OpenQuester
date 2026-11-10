@@ -3,7 +3,9 @@ import { container } from "tsyringe";
 import {
   ALL_PLAY_ANSWER_TIME,
   GAME_QUESTION_ANSWER_TIME,
-  MEDIA_DOWNLOAD_TIMEOUT
+  MEDIA_DOWNLOAD_TIMEOUT,
+  QUESTION_TRANSITION_FADE_OUT_MS,
+  QUESTION_CONTENT_START_LEAD_MS
 } from "domain/constants/game";
 import { GameActionType } from "domain/enums/GameActionType";
 import { withTimeout } from "tests/e2e/harness/TestPromiseUtils";
@@ -23,6 +25,7 @@ import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/St
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { TestUtils } from "tests/utils/TestUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import {
   assertFreshTimer,
@@ -72,10 +75,6 @@ export class SocketGameTestFlowUtils {
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[]
   ): Promise<void> {
-    if (playerSockets.length === 0) {
-      return;
-    }
-
     const gameState = await this._expectQuestionState(
       showmanSocket,
       QuestionState.MEDIA_DOWNLOADING,
@@ -95,6 +94,15 @@ export class SocketGameTestFlowUtils {
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[]
   ): Promise<void> {
+    const state = await withTimeout(
+      this.stateUtils.getGameState(showmanSocket.gameId!),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "read question preparation state"
+    );
+    if (state?.questionTransition) {
+      await this.completeQuestionTransition(showmanSocket, playerSockets, state);
+      return;
+    }
     const timeoutMs = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS;
     const deadline = Date.now() + timeoutMs;
 
@@ -143,6 +151,13 @@ export class SocketGameTestFlowUtils {
             ? "finish media download"
             : "keep partial readiness in media download"
         );
+        if (status.timer) {
+          await withTimeout(
+            this.stateUtils.startQuestionPlayback(showmanSocket.gameId!),
+            TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+            "advance scheduled question playback"
+          );
+        }
       } catch (error) {
         const failure = toError(error);
         const detail = failure.cause instanceof Error ? failure.cause : failure;
@@ -156,6 +171,91 @@ export class SocketGameTestFlowUtils {
         controller.abort();
         await Promise.allSettled([statusPromise]);
       }
+    }
+  }
+
+  private async completeQuestionTransition(
+    showman: GameClientSocket,
+    players: GameClientSocket[],
+    state: GameStateDTO
+  ): Promise<void> {
+    const timer = state.questionTransition!.timer;
+    const since = new Date(timer.resumedAt ?? timer.startedAt).getTime();
+    const left = Math.max(0, timer.durationMs - timer.elapsedMs - Math.max(0, Date.now() - since));
+    const timeoutMs =
+      left +
+      QUESTION_TRANSITION_FADE_OUT_MS +
+      QUESTION_CONTENT_START_LEAD_MS +
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS;
+    const controller = new AbortController();
+    // The last ACK is only readiness. Arm the independent release before sending it.
+    const released = this.eventUtils.waitForEventMatching<MediaDownloadStatusBroadcastData>(
+      showman,
+      SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+      (status) => status.allPlayersReady && status.timer != null,
+      timeoutMs,
+      controller.signal
+    );
+    void released.catch(() => undefined);
+    try {
+      if (state.currentQuestion?.questionFiles?.length) {
+        const loaders = players.length ? players : [showman];
+        for (const [index, player] of loaders.entries()) {
+          const id = await withTimeout(
+            this.userUtils.getUserIdFromSocket(player),
+            TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+            "identify media loader"
+          );
+          const receipt = this.eventUtils.waitForEventMatching<MediaDownloadStatusBroadcastData>(
+            showman,
+            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+            (status) => status.playerId === id,
+            TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+            controller.signal
+          );
+          void receipt.catch(() => undefined);
+          const accepted = this.eventUtils.waitForSubmittedActions(
+            showman.gameId!,
+            1,
+            GameActionType.MEDIA_DOWNLOADED
+          );
+          player.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+          const [status] = await Promise.all([receipt, accepted]);
+          assertMediaDownloadStatus(status, id, index === loaders.length - 1, null);
+          await this.eventUtils.waitForActionsComplete(showman.gameId!);
+          await this._expectQuestionState(
+            showman,
+            QuestionState.MEDIA_DOWNLOADING,
+            "retain transition barrier"
+          );
+        }
+      }
+      await withTimeout(
+        TestUtils.expireTimer(showman.gameId!, "question-transition"),
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        "expire question transition"
+      );
+      const status = await released;
+      await this.eventUtils.waitForActionsComplete(showman.gameId!);
+      const showing = await this._expectQuestionState(
+        showman,
+        QuestionState.SHOWING,
+        "finish question transition"
+      );
+      assertMediaDownloadStatus(
+        status,
+        status.playerId,
+        true,
+        questionTimerFor(status, showing.allPlay ? ALL_PLAY_ANSWER_TIME : GAME_QUESTION_ANSWER_TIME)
+      );
+      await withTimeout(
+        this.stateUtils.startQuestionPlayback(showman.gameId!),
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        "advance scheduled question playback"
+      );
+    } finally {
+      controller.abort();
+      await Promise.allSettled([released]);
     }
   }
 
@@ -247,7 +347,7 @@ export class SocketGameTestFlowUtils {
         "wait for media readiness"
       );
       if (playerSockets.length > 0) {
-        // No-file clients ACK immediately too; the backend uses the same handshake.
+        // Legacy active questions keep their handshake; new text questions need no ACK.
         await this._acknowledgeMediaDownload(showmanSocket, playerSockets);
       }
     } finally {
@@ -362,15 +462,21 @@ export class SocketGameTestFlowUtils {
       );
     }
 
+    if (
+      expectedState === QuestionState.MEDIA_DOWNLOADING &&
+      gameState.questionTransition &&
+      !gameState.currentQuestion?.questionFiles?.length
+    ) {
+      if (gameState.timer !== null)
+        throw new Error("Text preparation must use only the transition timer");
+      return gameState;
+    }
     assertFreshTimer(
       gameState.timer,
       expectedState === QuestionState.MEDIA_DOWNLOADING
         ? MEDIA_DOWNLOAD_TIMEOUT
         : (gameState.allPlay ? ALL_PLAY_ANSWER_TIME : GAME_QUESTION_ANSWER_TIME) +
-            Math.max(
-              gameState.questionContentPlan?.totalMs ?? 0,
-              gameState.buzzerOpensAtMs ?? 0
-            ),
+            Math.max(gameState.questionContentPlan?.totalMs ?? 0, gameState.buzzerOpensAtMs ?? 0),
       operation
     );
     return gameState;

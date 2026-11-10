@@ -1,9 +1,8 @@
 import { questionStyles, questionContentLayout, questionText } from "./question/questionStyles";
 import { useTranslation } from "react-i18next";
 import { formatScore } from "@/lib/format";
-import { Badge } from "@/ui/Badge";
+import { QuestionTypeBadge } from "./question/QuestionTypeBadge";
 import { ContentStage } from "./ContentStage";
-import { QuestionMedia } from "./QuestionMedia";
 import { AnswerReveal } from "./question/AnswerReveal";
 import { AnswerChoices } from "./question/AnswerChoices";
 import { PointAnswer } from "./question/PointAnswer";
@@ -12,6 +11,8 @@ import { ShowmanPanel } from "./question/ShowmanPanel";
 import { QuestionBody } from "./question/QuestionBody";
 import { useQuestionStage } from "./question/useQuestionStage";
 import { pointImage } from "@/lib/pointImage";
+import type { ReactNode } from "react";
+import { buildContentPlan } from "@/game/contentPlan";
 import { ChoiceLayout } from "./question/ChoiceLayout";
 
 /** Question content, the reveal, and the showman's private answer panel. */
@@ -23,13 +24,12 @@ export function QuestionStage() {
   return (
     <div className={questionStyles.layout}>
       <section className={questionStyles.content} aria-label={t("question.region")}>
-        <div className={questionStyles.heading}>
+        <div className={`question-heading ${questionStyles.heading}`}>
           {meta && <span className="font-semibold text-soft">{meta.theme.name}</span>}
           {price != null && (
             <span className="font-mono font-bold text-accent-strong">{formatScore(price)}</span>
           )}
-          {q && q.type !== "simple" && <Badge tone="info">{t(`questionTypes.${q.type}`)}</Badge>}
-          {q?.type === "noRisk" && <span className="text-sm">{t("question.noRiskHelp")}</span>}
+          {q && <QuestionTypeBadge type={q.type} />}
         </div>
 
         <QuestionContent stage={stage} />
@@ -44,54 +44,77 @@ function QuestionContent({ stage }: { stage: ReturnType<typeof useQuestionStage>
   const { q, s, gated, reveal } = stage;
   if (gated) return <MediaWait />;
   if (reveal) return <AnswerReveal />;
-  const prompt = <QuestionPrompt stage={stage} />;
+  const wrapBody =
+    q?.type === "choice" && q.answers
+      ? (body: ReactNode) => (
+          <ChoiceLayout prompt={body} count={q.answers!.length}>
+            <AnswerChoices key={`${q.id}:${s.answeringPlayer ?? "open"}`} />
+          </ChoiceLayout>
+        )
+      : undefined;
   return (
     <div className={questionContentLayout} key={q?.id ?? "q"}>
-      {q?.type === "choice" && q.answers ? (
-        <ChoiceLayout prompt={prompt} count={q.answers.length}>
-          <AnswerChoices key={`${q.id}:${s.answeringPlayer ?? "open"}`} />
-        </ChoiceLayout>
-      ) : (
-        prompt
-      )}
+      <QuestionPrompt stage={stage} wrapBody={wrapBody} />
     </div>
   );
 }
 
-function QuestionPrompt({ stage }: { stage: ReturnType<typeof useQuestionStage> }) {
+type QuestionPromptProps = {
+  stage: ReturnType<typeof useQuestionStage>;
+  wrapBody?: (body: ReactNode) => ReactNode;
+};
+
+function QuestionPrompt({ stage, wrapBody }: QuestionPromptProps) {
   const { t } = useTranslation();
   const { q, phase, role } = stage;
   const isEmpty = !q?.text && !q?.textItems?.length && !q?.questionFiles?.length;
   return (
     <>
-      <QuestionPromptMedia stage={stage} />
+      <QuestionPromptMedia stage={stage} wrapBody={wrapBody} />
       {isEmpty && (
         <p className="m-0 text-muted">
           {t(!q && phase === "answering" ? "dock.answering.questionLoading" : "question.noContent")}
         </p>
       )}
-      {phase === "media" && role === "showman" && (
+      {phase === "media" && role === "showman" && !stage.s.questionTransition?.mediaReady && (
         <p className={questionStyles.waiting}>{t("question.showmanPreview")}</p>
       )}
     </>
   );
 }
 
-function QuestionPromptMedia({ stage }: { stage: ReturnType<typeof useQuestionStage> }) {
-  const { myId, s, q, content, showmanPreview, textIsStep, picture, picking } = stage;
+function QuestionPromptMedia({ stage, wrapBody }: QuestionPromptProps) {
+  const { myId, s, q, content, showmanPreview, textIsStep, picture, picking, phase } = stage;
   const files = q?.questionFiles ?? [];
-  const selectedPoint = picking ? pointImage(q?.questionFiles, q?.pointImageOrder) : null;
-  const showCaption = !!q?.text && (showmanPreview || !textIsStep);
+  const selectedPoint = picking ? pointImage(files, q?.pointImageOrder) : null;
+  const fallback =
+    q && !content && (showmanPreview || phase === "showing")
+      ? buildContentPlan({
+          text: q.text,
+          textOrder: q.textOrder,
+          textItems: q.textItems,
+          files,
+          playMediaSimultaneously: q.playMediaSimultaneously,
+        })
+      : null;
+  const clock = fallback
+    ? {
+        kind: "question" as const,
+        plan: fallback,
+        timer: showmanPreview ? null : s.timer,
+        frozenAtMs: showmanPreview ? 0 : null,
+      }
+    : content;
+  const showCaption = !!q?.text && !(fallback ? q.textOrder != null : textIsStep);
   const caption = showCaption ? (
     <p className={questionText} data-testid="question-text">
       {q?.text}
     </p>
   ) : undefined;
-  if (!showmanPreview && content) {
-    if (content.kind !== "question") return null;
+  if (clock?.kind === "question") {
     return (
       <ContentStage
-        content={content}
+        content={clock}
         files={files}
         text={q?.text}
         textOrder={q?.textOrder}
@@ -99,28 +122,21 @@ function QuestionPromptMedia({ stage }: { stage: ReturnType<typeof useQuestionSt
         paused={s.isPaused}
         caption={caption}
         captionLength={showCaption ? q?.text?.length : 0}
+        wrapBody={wrapBody}
         pointAnswer={
           selectedPoint && picture
-            ? {
-                order: selectedPoint.order,
-                view: <PointAnswer key={myId} src={picture} />,
-              }
+            ? { file: selectedPoint, view: <PointAnswer key={myId} src={picture} /> }
             : undefined
         }
       />
     );
   }
-  return (
+  const body = (
     <QuestionBody
-      media={files.length > 0 ? <LegacyQuestionMedia stage={stage} /> : undefined}
+      media={picking && picture ? <PointAnswer key={myId} src={picture} /> : undefined}
       text={caption}
       textLength={q?.text?.length}
     />
   );
-}
-
-function LegacyQuestionMedia({ stage }: { stage: ReturnType<typeof useQuestionStage> }) {
-  const { picking, picture, showmanPreview, myId, q, playing } = stage;
-  if (picking && picture && !showmanPreview) return <PointAnswer key={myId} src={picture} />;
-  return <QuestionMedia files={q?.questionFiles ?? []} playing={!showmanPreview && playing} />;
+  return wrapBody ? wrapBody(body) : body;
 }

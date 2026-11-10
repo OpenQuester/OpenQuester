@@ -2,7 +2,7 @@ import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 
 export enum QuestionContentItemKind {
   TEXT = "text",
-  FILE = "file",
+  FILE = "file"
 }
 
 export interface QuestionContentPlanItemDTO {
@@ -12,6 +12,8 @@ export interface QuestionContentPlanItemDTO {
   placement: ContentPlacement;
   /** How long this item plays; a background sound can outlive its step */
   durationMs: number;
+  /** Offset within this authored step. Missing means the step start. */
+  startOffsetMs?: number;
 }
 
 export interface QuestionContentStepDTO {

@@ -338,6 +338,39 @@ export async function seedMediaPackage(base, title = "Media check") {
                       { file: { md5: md5(png), type: "image" }, displayTime: 3000, order: 2 },
                     ],
                   }),
+                  q(4, 500, "Watch all five clues", "Blue", {
+                    playMediaSimultaneously: true,
+                    questionFiles: [
+                      {
+                        file: { md5: md5(clip), type: "video" },
+                        displayTime: 4500,
+                        order: 0,
+                        waitForFinish: false,
+                      },
+                      ...Array.from({ length: 4 }, (_, i) => ({
+                        file: { md5: md5(png), type: "image" },
+                        displayTime: 500,
+                        order: i + 1,
+                        waitForFinish: i === 3,
+                      })),
+                    ],
+                  }),
+                  q(5, 600, "The first clue is brief", "Blue", {
+                    questionFiles: [
+                      {
+                        file: { md5: md5(clip), type: "video" },
+                        displayTime: 600,
+                        order: 0,
+                        waitForFinish: false,
+                      },
+                      ...Array.from({ length: 4 }, (_, i) => ({
+                        file: { md5: md5(png), type: "image" },
+                        displayTime: i === 0 ? 6000 : 500,
+                        order: i + 1,
+                        waitForFinish: i === 3,
+                      })),
+                    ],
+                  }),
                 ],
               },
             ],

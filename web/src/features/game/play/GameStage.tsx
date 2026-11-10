@@ -25,8 +25,13 @@ function GamePhaseStage() {
     case "media":
     case "showing":
     case "answering":
-    case "reveal":
       return <QuestionStage />;
+    case "reveal":
+      return session.state.currentRound?.type === "final" ? (
+        <FinalReviewStage />
+      ) : (
+        <QuestionStage />
+      );
     case "secret_transfer":
       return <SecretStage />;
     case "stake_bidding":

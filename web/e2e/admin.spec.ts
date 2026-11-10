@@ -164,6 +164,7 @@ test("every admin tab fits the screen", async ({ page }) => {
     await expectNoHorizontalScroll(page);
   }
   await page.getByRole("tab", { name: "Users" }).click();
+  await page.getByRole("combobox", { name: "Type", exact: true }).selectOption("registered");
   await page.getByRole("button", { name: "Role…" }).first().click();
   await expect(page.getByTestId("staff-editor")).toBeVisible();
   await expectNoHorizontalScroll(page);

@@ -1,3 +1,4 @@
+import { QuestionTransitionLogic } from "domain/logic/question/QuestionTransitionLogic";
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { UserService } from "application/services/user/UserService";
@@ -96,12 +97,16 @@ export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, Gam
       payload.targetSlot
     );
     if (
-      player.role === PlayerRole.PLAYER &&
+      (player.role === PlayerRole.PLAYER ||
+        (player.role === PlayerRole.SHOWMAN && game.getMediaEligiblePlayerIds()?.length === 0)) &&
       game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING &&
-      game.isPlayerEligibleForMedia(player.meta.id)
+      (player.role === PlayerRole.SHOWMAN || game.isPlayerEligibleForMedia(player.meta.id))
     ) {
       player.mediaDownloaded = false;
     }
+
+    const wasReady = game.gameState.questionTransition?.mediaReady;
+    const openingMutations = QuestionTransitionLogic.refresh(game);
 
     // 6. Fetch chat history for the joining socket (1 RT)
     const chatMessages = await this.socketIOChatService.getMessages(
@@ -143,9 +148,23 @@ export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, Gam
       mutations: [
         // Persist updated game state to Redis
         DataMutationConverter.saveGameMutation(game),
+        ...DataMutationConverter.mutationFromTimerMutations(openingMutations),
 
         // Broadcast JOIN to all players in the room
         ...DataMutationConverter.mutationFromSocketBroadcasts(joinResult.broadcasts),
+
+        ...(wasReady !== game.gameState.questionTransition?.mediaReady
+          ? [
+              DataMutationConverter.gameBroadcastMutation(
+                game.id,
+                SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+                {
+                  ...QuestionTransitionLogic.status(game, player.meta.id, null),
+                  mediaDownloaded: player.mediaDownloaded
+                }
+              )
+            ]
+          : []),
 
         // Send full game snapshot to the joining socket
         gameDataBroadcast,
@@ -167,7 +186,11 @@ export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, Gam
     };
   }
 
-  private buildJoinVisibleGameState(game: Game, joinedRole: PlayerRole, viewerId: number): GameStateDTO {
+  private buildJoinVisibleGameState(
+    game: Game,
+    joinedRole: PlayerRole,
+    viewerId: number
+  ): GameStateDTO {
     const gameState = game.gameState;
     const currentRound = this.buildJoinVisibleCurrentRound(gameState, joinedRole);
     const finalRoundData = projectFinalRoundData(gameState.finalRoundData, viewerId);

@@ -7,6 +7,12 @@ export interface TimerLike {
   resumedAt?: string | null;
 }
 
+export function timerStartDelay(timer: TimerLike | null | undefined, now = serverNow()) {
+  if (!timer) return 0;
+  const start = Date.parse(timer.resumedAt ?? timer.startedAt);
+  return Number.isFinite(start) ? Math.max(0, start - now) : 0;
+}
+
 /**
  * Milliseconds left on a server timer.
  *

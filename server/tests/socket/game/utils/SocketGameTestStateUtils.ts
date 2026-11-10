@@ -1,3 +1,5 @@
+import { timerKey } from "domain/constants/redisKeys";
+import { RedisConfig } from "shared/config/RedisConfig";
 import { container } from "tsyringe";
 import { GameService } from "application/services/game/GameService";
 import { Game } from "domain/entities/game/Game";
@@ -21,6 +23,32 @@ export class SocketGameTestStateUtils {
 
   public async updateGame(game: Game): Promise<void> {
     return this.gameService.updateGame(game);
+  }
+
+  /** Advance only the delivery lead; preserve the full question/answer window. */
+  public async startQuestionPlayback(gameId: string): Promise<void> {
+    const game = await this.getGame(gameId);
+    const timer = game.gameState.timer;
+    if (!timer || game.gameState.isPaused) {
+      throw new Error(`No running question timer for game ${gameId}`);
+    }
+    const now = new Date();
+    const delay = new Date(timer.resumedAt ?? timer.startedAt).getTime() - now.getTime();
+    if (delay <= 0) {
+      return;
+    }
+    if (timer.resumedAt) {
+      timer.resumedAt = now;
+    } else {
+      timer.startedAt = now;
+    }
+    await this.updateGame(game);
+    await RedisConfig.getClient().set(
+      timerKey(gameId),
+      JSON.stringify(timer),
+      "PX",
+      timer.durationMs - timer.elapsedMs
+    );
   }
 
   /**

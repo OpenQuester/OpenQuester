@@ -233,6 +233,7 @@ export class GameActionExecutor {
       game: inResult.game,
       currentPlayer,
       timer: inResult.timer,
+      questionTransitionTimer: inResult.questionTransitionTimer,
       lockToken: inResult.lockToken,
       userData: inResult.userData
     };

@@ -588,3 +588,14 @@ describe("GameScenario transport API", () => {
     expect(jest.getTimerCount()).toBe(0);
   });
 });
+
+it("honors an explicit transition wait beyond the ordinary event deadline", async () => {
+  jest.useFakeTimers();
+  const scenario = new GameScenario();
+  const socket = new FakeSocket();
+  const status = scenario.waitForEvent(socket.asSocket(), "media-download-status", 3050);
+  await jest.advanceTimersByTimeAsync(1600);
+  socket.receive("media-download-status", { allPlayersReady: true });
+  await expect(status).resolves.toEqual({ allPlayersReady: true });
+  await scenario.finish();
+});

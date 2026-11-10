@@ -35,7 +35,7 @@
   overflow-wrap: anywhere;
 }
 
-.question-pick-title > span {
+.question-pick-price {
   color: var(--oq-accent-strong);
   font: 700 clamp(38px, 6vw, 70px) / 1 var(--oq-font-mono);
   letter-spacing: -2px;

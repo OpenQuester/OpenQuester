@@ -1,4 +1,5 @@
 import { useCountdown } from "@/lib/useCountdown";
+import { timerStartDelay } from "@/lib/timer";
 import { useGame, useGameState, useSession } from "../../GameContext";
 import { useDockModel } from "./useDockModel";
 import { myRole, phaseOf, type Phase } from "@/game/selectors";
@@ -34,12 +35,13 @@ export function useDockPresentation() {
   const { myId } = useGame();
   const isShowman = myRole(session, myId) === "showman";
   const connection = useGameState((s) => s.connection);
-  const opening = questionOpening(useGameState((s) => s.questionPresentation));
+  const presentation = useGameState((s) => s.questionPresentation);
   const phase = phaseOf(session);
   const s = session.state;
   const paused = s.isPaused;
+  const opening = questionOpening(presentation) || (!paused && timerStartDelay(s.timer) > 0);
   // While media loads there is no countdown to show: the question timer only
-  // starts when the server confirms preparation; local opening runs independently.
+  // is scheduled once the server confirms preparation.
   const { left, fraction } = useCountdown(
     phase === "finished" || phase === "media" ? null : s.timer,
     paused,

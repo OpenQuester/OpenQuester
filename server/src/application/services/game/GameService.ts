@@ -23,6 +23,7 @@ import { LogPrefix } from "shared/logging/LogPrefix";
 import { S3FileUrlBuilder } from "infrastructure/storage/S3FileUrlBuilder";
 import { PACKAGE_DETAILED_RELATIONS, PACKAGE_SELECT_FIELDS } from "domain/constants/package";
 import { ValueUtils } from "domain/utils/ValueUtils";
+import { validatePackageContentLimits } from "domain/validators/validatePackageContentLimits";
 import { ClientError } from "domain/errors/ClientError";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
@@ -135,6 +136,7 @@ export class GameService {
       const packageDTO = packageData.toDTO(this.fileUrlBuilder, {
         fetchIds: true
       });
+      validatePackageContentLimits(packageDTO);
       const counts = await this.packageService.getCountsForPackage(updateData.packageId);
 
       // Apply package updates

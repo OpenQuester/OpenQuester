@@ -35,6 +35,8 @@ export enum ClientResponse {
 
   // Package
   PACKAGE_AUTHOR_NOT_FOUND = "package_author_not_found",
+  PACKAGE_CONTENT_STEP_LIMIT = "package_content_step_limit",
+  PACKAGE_CONTENT_FILE_LIMIT = "package_content_file_limit",
   PACKAGE_NOT_FOUND = "package_not_found",
   PACKAGE_CORRUPTED = "package_corrupted",
   ORDER_DUPLICATED = "order_duplicated",

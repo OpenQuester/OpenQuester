@@ -196,7 +196,7 @@ for (const viewport of [
   });
 }
 
-for (const kind of ["secret", "stake"]) {
+for (const kind of ["secret", "stake"] as const) {
   test("opens the existing special scene for " + kind, async ({ page }) => {
     await mount(page, ["player", 0, kind]);
     await pick(page);
@@ -208,3 +208,227 @@ for (const kind of ["secret", "stake"]) {
     ).toBeVisible();
   });
 }
+
+for (const role of ["player", "showman", "spectator"] as const) {
+  for (const [kind, label] of [
+    ["simple", "Simple"],
+    ["secret", "Secret"],
+    ["stake", "Stake"],
+    ["noRisk", "No risk"],
+    ["hidden", "Hidden"],
+    ["choice", "Choice"],
+  ] as const) {
+    test(`places the ${kind} badge correctly for ${role}`, async ({ page }) => {
+      await mount(page, [role, 0, kind]);
+      await pick(page);
+      const opening = page.getByTestId("question-pick-transition");
+      const badge = opening.getByTestId("question-type-badge");
+      if (kind === "simple") await expect(badge).toHaveCount(0);
+      else {
+        await expect(badge).toBeVisible();
+        await expect(badge).toHaveText(label);
+        expect((await badge.boundingBox())!.y).toBeLessThan(
+          (await opening.getByRole("heading").boundingBox())!.y,
+        );
+        expect(
+          await badge
+            .locator("span")
+            .evaluate((node) => parseFloat(getComputedStyle(node).fontSize)),
+        ).toBeLessThan(20);
+      }
+      await expect(opening).toHaveCount(0);
+      if (kind === "secret" || kind === "stake")
+        await page.evaluate(async () => {
+          const path = "/browser-tests/question-pick.fixture.tsx";
+          ((await import(path)) as typeof Fixture).confirmSpecialQuestion();
+        });
+      const heading = page.locator(".question-main > div").first();
+      const type = heading.getByTestId("question-type-badge");
+      if (kind === "simple") await expect(type).toHaveCount(0);
+      else {
+        await expect(type).toHaveText(label);
+        const price = (await heading.getByText("100", { exact: true }).boundingBox())!;
+        const box = (await type.boundingBox())!;
+        expect(box.x).toBeGreaterThan(price.x + price.width);
+        expect(Math.abs(box.y + box.height / 2 - price.y - price.height / 2)).toBeLessThan(1);
+        const tooltip = page.getByRole("tooltip");
+        await expect(tooltip).toHaveCount(0);
+        await type.hover();
+        await expect(tooltip).toBeVisible();
+        await expect(tooltip).not.toBeEmpty();
+        if (kind === "noRisk") await expect(tooltip).toHaveText("A wrong answer costs nothing");
+        await heading.getByText("Capitals", { exact: true }).hover();
+        await expect(tooltip).toHaveCount(0);
+        await type.focus();
+        await expect(tooltip).toBeVisible();
+        await page.keyboard.press("Escape");
+        await expect(tooltip).toHaveCount(0);
+      }
+    });
+  }
+}
+
+test("type badge has the default cursor and no click or touch action", async ({ browser }) => {
+  const context = await browser.newContext({
+    viewport: { width: 375, height: 812 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  try {
+    const page = await context.newPage();
+    await mount(page, ["player", 0, "noRisk"]);
+    await pick(page);
+    await expect(page.getByTestId("question-pick-transition")).toHaveCount(0);
+    const badge = page.locator(".question-heading").getByTestId("question-type-badge");
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    expect(await badge.evaluate((node) => getComputedStyle(node).cursor)).toBe("default");
+    await expect(
+      page.locator(".question-heading").getByRole("button", { name: "No risk", exact: true }),
+    ).toHaveCount(0);
+    await badge.tap();
+    await expect(badge).not.toBeFocused();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await badge.focus();
+    await expect(page.getByRole("tooltip")).toHaveText("A wrong answer costs nothing");
+    await expect(page.getByRole("tooltip")).toBeInViewport({ ratio: 1 });
+    await page
+      .getByRole("tooltip")
+      .evaluate((node) => Promise.all(node.getAnimations().map((animation) => animation.finished)));
+    const help = (await page.getByRole("tooltip").locator(":scope > span").boundingBox())!;
+    expect((await badge.boundingBox())!.y - help.y - help.height).toBeCloseTo(6, 0);
+    await page.screenshot({ path: test.info().outputPath("type-help-mobile.png") });
+    await page.locator(".question-heading").getByText("Capitals", { exact: true }).tap();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});
+
+for (const reduced of [false, true]) {
+  test(`type tooltip prefers above, bridges its gap and animates closing (reduced motion: ${reduced})`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: reduced ? "reduce" : "no-preference" });
+    await mount(page, ["player", 0, "noRisk"]);
+    await pick(page);
+    await expect(page.getByTestId("question-pick-transition")).toHaveCount(0);
+    const badge = page.locator(".question-heading").getByTestId("question-type-badge");
+    const tooltip = page.getByRole("tooltip");
+    await badge.hover();
+    await expect(tooltip).toHaveAttribute("data-side", "above");
+    await tooltip.evaluate((node) =>
+      Promise.all(node.getAnimations().map((animation) => animation.finished)),
+    );
+    const button = (await badge.boundingBox())!;
+    await page.mouse.move(button.x + button.width / 2, button.y - 3);
+    await expect(tooltip).toBeVisible();
+    await tooltip.hover();
+    await expect(tooltip).toBeVisible();
+    const exit = await tooltip.evaluate(async (node: HTMLElement) => {
+      node.hidePopover();
+      const animations = node.getAnimations();
+      const opacity = animations.find(
+        (animation) =>
+          animation instanceof CSSTransition && animation.transitionProperty === "opacity",
+      );
+      if (opacity) {
+        opacity.pause();
+        opacity.currentTime = 90;
+      }
+      const middle = opacity ? Number(getComputedStyle(node).opacity) : null;
+      const duration = opacity?.effect?.getTiming().duration;
+      animations.forEach((animation) => animation.finish());
+      await new Promise(requestAnimationFrame);
+      return { middle, duration, display: getComputedStyle(node).display };
+    });
+    if (reduced) expect(exit.middle).toBeNull();
+    else {
+      expect(exit.duration).toBe(180);
+      expect(exit.middle).toBeGreaterThan(0);
+      expect(exit.middle).toBeLessThan(1);
+    }
+    expect(exit.display).toBe("none");
+    await badge.evaluate((node) => {
+      node.style.position = "fixed";
+      node.style.top = "2px";
+    });
+    await badge.focus();
+    await expect(tooltip).toHaveAttribute("data-side", "below");
+    await expect(tooltip).toBeInViewport({ ratio: 1 });
+  });
+}
+
+test("restores the server opening remainder after reconnect", async ({ page }) => {
+  await mount(page, ["player", 0, "simple", true]);
+  await pick(page);
+  await expect(page.getByTestId("question-pick-transition")).toHaveAttribute(
+    "data-started",
+    "true",
+  );
+  await page.evaluate(async () => {
+    const path = "/browser-tests/question-pick.fixture.tsx";
+    const fixture = (await import(path)) as typeof Fixture;
+    fixture.reconnect();
+  });
+  await expect(page.getByTestId("question-pick-transition")).toHaveCount(1);
+  await expect(page.getByTestId("question-pick-transition")).toHaveCount(0);
+  const state = await page.evaluate(async () => {
+    const path = "/browser-tests/question-pick.fixture.tsx";
+    return ((await import(path)) as typeof Fixture).snapshot();
+  });
+  expect(state.opening?.serverDriven).toBe(true);
+  expect(state.opening?.complete).toBe(true);
+});
+
+test("two warm clients start the short first clip on the same shared schedule", async ({
+  page,
+  context,
+}) => {
+  const other = await context.newPage();
+  try {
+    for (const client of [page, other]) {
+      await mount(client, ["player", 0, "simple", true]);
+      await client.evaluate(async () => {
+        await fetch("/e2e/fixtures/clip.webm");
+        document.addEventListener(
+          "playing",
+          (event) => {
+            if (event.target instanceof HTMLVideoElement)
+              (window as unknown as { clipStart: { at: number; position: number } }).clipStart = {
+                at: Date.now(),
+                position: event.target.currentTime,
+              };
+          },
+          { capture: true },
+        );
+      });
+    }
+    const selectedAt = Date.now();
+    await Promise.all(
+      [page, other].map((client) =>
+        client.evaluate(async (at) => {
+          const path = "/browser-tests/question-pick.fixture.tsx";
+          ((await import(path)) as typeof Fixture).pick(100, at);
+        }, selectedAt),
+      ),
+    );
+    const starts = await Promise.all(
+      [page, other].map(async (client) => {
+        await expect
+          .poll(() =>
+            client.evaluate(() => (window as unknown as { clipStart?: unknown }).clipStart),
+          )
+          .toBeTruthy();
+        return client.evaluate(
+          () => (window as unknown as { clipStart: { at: number; position: number } }).clipStart,
+        );
+      }),
+    );
+    expect(starts.every((start) => start.at >= selectedAt + 1750 && start.position < 0.15)).toBe(
+      true,
+    );
+    expect(Math.abs(starts[0]!.at - starts[1]!.at)).toBeLessThan(150);
+  } finally {
+    await other.close();
+  }
+});

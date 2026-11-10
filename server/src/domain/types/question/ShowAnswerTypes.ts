@@ -3,6 +3,7 @@ import type { AnswerPointDTO } from "domain/types/dto/package/PackageQuestionDTO
 
 /** Only answer files are needed to construct their playback timeline. */
 export interface AnswerContentSource {
+  playMediaSimultaneously?: boolean | null;
   answerFiles?: PackageAnswerFileDTO[] | null;
 }
 

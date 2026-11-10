@@ -1,7 +1,7 @@
 /**
  * State timer that allows to track time for each state
  *
- * @param startedAt - Date when the timer started (e.g. question state "showing" started)
+ * @param startedAt - Date when the timer starts, including a scheduled future start
  * @param durationMs - Initial duration of the timer in milliseconds (e.g. 30 seconds)
  * @param elapsedMs - Track elapsed time in milliseconds in case of game pause or
  * if someone starts answering (while someone answers we do not track "show question" time)

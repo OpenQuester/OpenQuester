@@ -143,6 +143,17 @@ describe("Mid-Question Join Restriction", () => {
         scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         await allReady;
         await utils.waitForActionsComplete(gameId);
+        expect((await utils.getGameState(gameId))?.questionState).toBe(
+          QuestionState.MEDIA_DOWNLOADING
+        );
+        const released = scenario.waitForEventMatching<{ timer: unknown }>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          (status) => status.timer != null
+        );
+        await suite.testUtils.expireTimer(gameId, "question-transition");
+        await released;
+        await utils.waitForActionsComplete(gameId);
         const showing = await utils.getGameState(gameId);
         expect(showing?.questionState).toBe(QuestionState.SHOWING);
         expect(showing?.mediaDurations?.["readiness-audio"]).toBe(2000);
@@ -159,7 +170,10 @@ describe("Mid-Question Join Restriction", () => {
         userRepo,
         app,
         1,
-        0
+        0,
+        false,
+        0,
+        true
       );
       await utils.startGame(showmanSocket);
       await utils.pickQuestion(showmanSocket, undefined, []);
@@ -172,7 +186,14 @@ describe("Mid-Question Join Restriction", () => {
       const left = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
       scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.LEAVE);
       await left;
-      expect(await ready).toMatchObject({ allPlayersReady: true, timer: expect.any(Object) });
+      expect(await ready).toMatchObject({ allPlayersReady: true, timer: null });
+      const released = scenario.waitForEventMatching<{ timer: unknown }>(
+        lateSocket,
+        SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+        (status) => status.timer != null
+      );
+      await suite.testUtils.expireTimer(gameId, "question-transition");
+      await released;
       expect((await utils.getGameState(gameId))?.questionState).toBe(QuestionState.SHOWING);
     });
   });

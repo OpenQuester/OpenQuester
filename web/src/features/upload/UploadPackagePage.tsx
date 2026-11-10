@@ -20,7 +20,7 @@ export function UploadPackagePage() {
       backLabel={t("upload.back")}
       description={<p className="m-0 text-soft">{t("upload.lead")}</p>}
     >
-      <HtmlRemovalDialog report={confirmation.report} settle={confirmation.settle} />
+      <HtmlRemovalDialog {...confirmation} />
       <UploadAccess>
         {step.kind === "pick" ? (
           <PackageImportDropZone onFile={(f) => void pick(f)} error={step.error} />

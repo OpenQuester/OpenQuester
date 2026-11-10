@@ -1,3 +1,4 @@
+import { QuestionTransitionDTO } from "domain/types/dto/game/state/QuestionTransitionDTO";
 import { AllPlayDataDTO } from "domain/types/dto/game/state/AllPlayDataDTO";
 import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
@@ -55,6 +56,7 @@ export interface GameStateDTO {
   /** This is used as readiness at game start and as readiness for another events */
   readyPlayers: number[] | null;
   timer: GameStateTimerDTO | null;
+  questionTransition?: QuestionTransitionDTO | null;
   /**
    * Timeline of the current question's content, run on the SHOWING timer.
    * Null when the question has nothing to sequence (text only, single caption).

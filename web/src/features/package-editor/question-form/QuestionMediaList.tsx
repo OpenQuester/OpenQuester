@@ -36,22 +36,24 @@ export function QuestionMediaList({
   const { inputRef, over, setOver, remove, add, onDrop, edit, canEdit, setDisplayTime, move } =
     useQuestionMedia({ label, help, files, onChange, slot, applyMedia, point, pointImageId });
   const addButton = useRef<HTMLButtonElement>(null);
-  const steps: Exclude<QuestionStep, { kind: "main" }>[] = timeline
-    ? questionSteps(timeline.q).filter(
-        (step): step is Exclude<QuestionStep, { kind: "main" }> => step.kind !== "main",
-      )
+  const orderedSteps: QuestionStep[] = timeline
+    ? questionSteps(timeline.q)
     : files.map((file) => ({ kind: "media", file }));
+  const steps = orderedSteps.filter(
+    (step): step is Exclude<QuestionStep, { kind: "main" }> => step.kind !== "main",
+  );
+  const mainIndex = orderedSteps.findIndex((step) => step.kind === "main");
+  const timelineIndex = (index: number) => index + (mainIndex >= 0 && index >= mainIndex ? 1 : 0);
   const moveStep = (id: string, destination: number) => {
     if (timeline) {
-      const offset = timeline.q.mainTextFirst ? 1 : 0;
-      timeline.applyTimeline(moveTimeline(id, destination + offset));
+      timeline.applyTimeline(moveTimeline(id, timelineIndex(destination)));
     } else {
       const file = steps.find((step) => stepId(step) === id);
       if (file?.kind === "media" && file.file.occurrenceId)
         move(file.file.occurrenceId, destination);
     }
   };
-  const reorder = useAttachmentReorder(steps, moveStep, timeline ? 2 : 1);
+  const reorder = useAttachmentReorder(steps, moveStep, (index) => timelineIndex(index) + 1);
   return (
     <div className="flex flex-col gap-2">
       <div className={layoutStyles.spacedActions}>
@@ -119,7 +121,7 @@ export function QuestionMediaList({
             step.kind === "media"
               ? files.findIndex((file) => file.occurrenceId === step.file.occurrenceId)
               : -1;
-          const number = timeline ? index + 2 : index + 1;
+          const number = timelineIndex(index) + 1;
           const label =
             step.kind === "media"
               ? t("editor.media.dragFile", { number: mediaIndex + 1 })

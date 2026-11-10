@@ -5,6 +5,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import {
   FinalBidSubmitOutputData,
   FinalPhaseCompleteEventData,
@@ -25,6 +26,7 @@ describe("Final Round Bidding Logic", () => {
   });
 
   afterEach(async () => {
+    if (suite) suite.utils.packageTransform = null;
     await suite?.reset();
   });
 
@@ -91,6 +93,40 @@ describe("Final Round Bidding Logic", () => {
         expect(phaseCompleteEvent.nextPhase).toBe(FinalRoundPhase.BIDDING);
         expect(phaseCompleteEvent.timer).toBeDefined();
         expect(phaseCompleteEvent.timer!.durationMs).toBe(45000); // 45 seconds
+      });
+    });
+
+    it("starts bidding on timeout when the final began with one theme", async () => {
+      await suite.scenario(async (scenario) => {
+        suite.utils.packageTransform = (pkg) => {
+          const final = pkg.rounds.find((round) => round.type === PackageRoundType.FINAL)!;
+          final.themes = final.themes.slice(0, 1);
+        };
+        const { showmanSocket, gameId } = await suite.utils.setupGameTestEnvironment(
+          suite.userRepo,
+          suite.app,
+          1,
+          0
+        );
+        await suite.utils.startGame(showmanSocket);
+        await suite.utils.progressToNextRound(showmanSocket);
+        const initialState = await utils.getGameState(gameId);
+        expect(initialState.currentRound?.themes).toHaveLength(1);
+        const bidding = scenario.waitForEvent<FinalPhaseCompleteEventData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_PHASE_COMPLETE
+        );
+
+        await utils.expireTimerAndWaitForAction(gameId, GameActionType.TIMER_THEME_ELIMINATION_EXPIRED);
+        expect(await bidding).toMatchObject({
+          phase: FinalRoundPhase.THEME_ELIMINATION,
+          nextPhase: FinalRoundPhase.BIDDING,
+          timer: { durationMs: 45000 }
+        });
+        const state = await utils.getGameState(gameId);
+        expect(state.questionState).toBe(QuestionState.BIDDING);
+        expect(state.finalRoundData?.eliminatedThemes).toEqual([]);
+        expect(state.currentRound?.themes[0]?.questions[0]?.isPlayed).toBe(false);
       });
     });
 

@@ -13,6 +13,7 @@ import { useQuestionForm } from "./useQuestionForm";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { usePackageEditor } from "../packageEditorStore";
 import { Spinner } from "@/ui/Spinner";
+import { resumeAudioContext } from "@/lib/audioContext";
 
 const QuestionPlaytest = lazy(() =>
   import("../playtest/QuestionPlaytest").then((module) => ({ default: module.QuestionPlaytest })),
@@ -86,7 +87,13 @@ export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: (
 
                 <div className={questionFormStyles.body} data-testid="question-form-body">
                   <div className={questionFormStyles.content}>
-                    <Button variant="primary" onClick={() => setPreview(true)}>
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        resumeAudioContext();
+                        setPreview(true);
+                      }}
+                    >
                       {t("editor.form.preview")}
                     </Button>
                     <QuestionContent form={form} />

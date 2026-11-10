@@ -294,7 +294,10 @@ export class GameConnection {
         this.maybeReportMedia();
         break;
       case "player-role-change":
-        if (event.payload.playerId === this.myId) this.moveToWantedSlot();
+        if (event.payload.playerId === this.myId) {
+          this.moveToWantedSlot();
+          this.maybeReportMedia();
+        }
         break;
       default:
         break;
@@ -365,6 +368,13 @@ export class GameConnection {
   private canReportMedia(session: GameSession | null): boolean {
     if (session?.state.questionState !== "media_downloading") return false;
     const role = session.players.find((p) => p.meta.id === this.myId)?.role;
+    const mediaRoster = session.state.questionTransition?.mediaEligiblePlayerIds;
+    if (mediaRoster) {
+      return (
+        (role === "player" && mediaRoster.includes(this.myId)) ||
+        (role === "showman" && mediaRoster.length === 0)
+      );
+    }
     return (
       role === "player" ||
       (role === "showman" &&
@@ -384,6 +394,8 @@ export class GameConnection {
         ? session.state.finalRoundData?.questionData?.mediaPreparationId
         : undefined;
     if (session.state.currentRound?.type === "final" && !preparation) return;
+    if (session.state.questionTransition && !session.state.currentQuestion?.questionFiles?.length)
+      return;
     const controller = new AbortController();
     this.mediaAbort = controller;
     const question = preparation

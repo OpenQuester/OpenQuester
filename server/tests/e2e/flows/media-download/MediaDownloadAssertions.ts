@@ -3,7 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 import {
   CONTENT_IMAGE_TIME,
   GAME_QUESTION_ANSWER_TIME,
-  MEDIA_DOWNLOAD_TIMEOUT
+  MEDIA_DOWNLOAD_TIMEOUT,
+  QUESTION_TRANSITION_MS
 } from "domain/constants/game";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { type PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
@@ -55,6 +56,14 @@ export function assertMediaQuestionData(
       throw new Error(
         `Question media must include a filename and HTTP(S) link: ${JSON.stringify(file)}`
       );
+    }
+  }
+  if (payload.questionTransition) {
+    assertFreshTimer(payload.questionTransition.timer, QUESTION_TRANSITION_MS, "question opening");
+    if (!expectedFiles.length) {
+      if (payload.timer !== null || !payload.questionTransition.mediaReady)
+        throw new Error("Text preparation must be ready with no media timer");
+      return;
     }
   }
   assertFreshTimer(payload.timer, MEDIA_DOWNLOAD_TIMEOUT, "question data");

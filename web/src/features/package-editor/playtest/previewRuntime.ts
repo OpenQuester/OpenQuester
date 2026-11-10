@@ -1,11 +1,25 @@
 import type { GameCommands } from "@/features/game/GameContext";
-import { buildContentPlan, nextChangeAt, textDuration, timerElapsed } from "@/game/contentPlan";
+import {
+  buildAnswerContentPlan,
+  buildContentPlan,
+  nextChangeAt,
+  textDuration,
+  timerElapsed,
+} from "@/game/contentPlan";
 import type { ClientEventName, ClientEvents, Question, ServerEvent, Timer } from "@/game/protocol";
 import { reduce, type GameSession } from "@/game/reducer";
 import { canBuzz, phaseOf, questionValue, wrongCostsPoints } from "@/game/selectors";
 import { createGameStore } from "@/game/store";
 import { serverNow } from "@/lib/clock";
-import { contentElapsed, presentedQuestionContent } from "@/game/questionPresentation";
+import {
+  contentElapsed,
+  MEDIA_PLAYBACK_START_DELAY_MS,
+  QUESTION_TRANSITION_MS,
+  QUESTION_PICK_TIMING,
+  QUESTION_CONTENT_START_LEAD_MS,
+  presentedQuestionContent,
+} from "@/game/questionPresentation";
+import { timerStartDelay } from "@/lib/timer";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
 import {
   ambiguousImagePlaceholder,
@@ -24,8 +38,8 @@ import { handleFinal, timeoutFinal } from "./previewFinal";
 export type PreviewCommand = {
   [K in ClientEventName]: { type: K; payload: ClientEvents[K] };
 }[ClientEventName];
-export const previewTimer = (durationMs: number, elapsedMs = 0): Timer => ({
-  startedAt: new Date(serverNow()).toISOString(),
+export const previewTimer = (durationMs: number, elapsedMs = 0, delayMs = 0): Timer => ({
+  startedAt: new Date(serverNow() + delayMs).toISOString(),
   durationMs,
   elapsedMs,
   resumedAt: null,
@@ -129,6 +143,13 @@ export class PreviewRuntime {
   }
   get activeTimer(): Timer | null {
     if (this.state.finished) return null;
+    const opening = this.state.state.questionTransition;
+    if (
+      opening &&
+      (opening.mediaReady ||
+        timerElapsed(opening.timer, this.state.state.isPaused) < opening.timer.durationMs)
+    )
+      return opening.timer;
     return phaseOf(this.state) === "reveal" ? this.revealTimer : this.state.state.timer;
   }
   setPerspective(id: number) {
@@ -213,11 +234,19 @@ export class PreviewRuntime {
     const direct =
       this.state.state.stakeQuestionData?.winnerPlayerId != null ||
       (this.state.state.secretQuestionData != null && this.state.state.answeringPlayer != null);
+    const gated = !direct && this.question.type !== "secret" && this.question.type !== "stake";
+    const hasMedia = !!this.question.questionFiles?.length;
     this.dispatch({
       type: "question-data",
       payload: {
         data: this.question,
-        timer: previewTimer(direct ? duration : 30_000),
+        timer: gated && !hasMedia ? null : previewTimer(direct ? duration : 30_000),
+        questionTransition: gated
+          ? {
+              timer: previewTimer(QUESTION_TRANSITION_MS),
+              mediaReady: !hasMedia,
+            }
+          : null,
         buzzerOpensAtMs: opensAt,
         questionEligiblePlayers:
           this.question.type === "noRisk" && this.question.subType !== "forEveryone"
@@ -231,16 +260,50 @@ export class PreviewRuntime {
       text: this.question.text,
       textOrder: this.question.textOrder,
       textItems: this.question.textItems,
+      playMediaSimultaneously: this.question.playMediaSimultaneously,
       files: this.question.questionFiles,
     });
     const { duration, opensAt } = this.questionTiming();
+    const opening = this.state.state.questionTransition;
+    if (opening) {
+      const elapsed = timerElapsed(opening.timer, this.state.state.isPaused);
+      const next = {
+        ...opening,
+        mediaReady: true,
+        timer: {
+          ...opening.timer,
+          durationMs: opening.mediaReady
+            ? opening.timer.durationMs
+            : Math.max(opening.timer.durationMs, elapsed + QUESTION_PICK_TIMING.fadeOut),
+        },
+      };
+      if (this.state.state.isPaused || elapsed < next.timer.durationMs) {
+        this.dispatch({
+          type: "media-download-status",
+          payload: {
+            playerId: PREVIEW_PLAYERS[0],
+            mediaDownloaded: true,
+            allPlayersReady: true,
+            timer: null,
+            questionTransition: next,
+            contentPlan: plan,
+          },
+        });
+        return;
+      }
+    }
     this.dispatch({
       type: "media-download-status",
       payload: {
         playerId: PREVIEW_PLAYERS[0],
         mediaDownloaded: true,
         allPlayersReady: true,
-        timer: previewTimer(duration),
+        timer: previewTimer(
+          duration,
+          0,
+          opening ? QUESTION_CONTENT_START_LEAD_MS : MEDIA_PLAYBACK_START_DELAY_MS,
+        ),
+        questionTransition: null,
         contentPlan: plan,
         buzzerOpensAtMs: opensAt,
       },
@@ -252,6 +315,7 @@ export class PreviewRuntime {
       text: q.text,
       textOrder: q.textOrder,
       textItems: q.textItems,
+      playMediaSimultaneously: q.playMediaSimultaneously,
       files: q.questionFiles,
     });
     const content = plan?.totalMs ?? 0;
@@ -376,9 +440,14 @@ export class PreviewRuntime {
         file.displayTime ??
         (file.file.type === "audio" ? 10_000 : file.file.type === "video" ? 15_000 : 5000),
     }));
-    const answerContentPlan = buildContentPlan({ files });
+    const answerContentPlan = buildAnswerContentPlan({
+      files,
+      playMediaSimultaneously: this.question.playMediaSimultaneously,
+    });
     this.revealTimer = previewTimer(
-      answerContentPlan?.totalMs || this.question.showAnswerDuration || 5000,
+      answerContentPlan
+        ? answerContentPlan.totalMs + 5000
+        : this.question.showAnswerDuration || 5000,
     );
     this.dispatch({
       type: "question-finish",
@@ -395,6 +464,7 @@ export class PreviewRuntime {
         answerPoint: this.question.answerPoint ?? null,
         answerDeviation: this.question.answerDeviation ?? null,
         answerContentPlan,
+        ...(answerContentPlan ? { timer: this.revealTimer } : {}),
         authors: this.credits.authors,
         sources: this.credits.sources,
         nextTurnPlayerId: id,
@@ -403,13 +473,25 @@ export class PreviewRuntime {
   }
   pause(paused: boolean) {
     if (this.disposed || this.state.finished) return;
-    const timer = this.activeTimer;
+    const timer = phaseOf(this.state) === "reveal" ? this.revealTimer : this.state.state.timer;
     const elapsed = timer ? timerElapsed(timer, this.state.state.isPaused) : 0;
-    const next = timer ? previewTimer(timer.durationMs, elapsed) : null;
+    const delay = timerStartDelay(timer, this.state.state.pausedAt ?? serverNow());
+    const next = timer ? previewTimer(timer.durationMs, elapsed, delay) : null;
     if (phaseOf(this.state) === "reveal") this.revealTimer = next;
     this.dispatch({
       type: paused ? "game-pause" : "game-unpause",
-      payload: { timer: next },
+      payload: {
+        timer: next,
+        questionTransition: this.state.state.questionTransition
+          ? {
+              ...this.state.state.questionTransition,
+              timer: previewTimer(
+                this.state.state.questionTransition.timer.durationMs,
+                timerElapsed(this.state.state.questionTransition.timer, this.state.state.isPaused),
+              ),
+            }
+          : null,
+      },
     });
   }
   setClock(timer: Timer) {
@@ -434,7 +516,9 @@ export class PreviewRuntime {
     }
   }
   private endRound() {
-    this.dispatch({ type: "answer-show-end", payload: {} });
+    if (this.state.state.currentRound?.type !== "final") {
+      this.dispatch({ type: "answer-show-end", payload: {} });
+    }
     this.dispatch({ type: "game-finished", payload: {} });
   }
   advanceWait(): boolean {

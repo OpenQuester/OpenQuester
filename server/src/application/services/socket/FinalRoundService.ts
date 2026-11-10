@@ -36,7 +36,7 @@ export class FinalRoundService {
   }
 
   /**
-   * Handle theme elimination timeout - randomly eliminate a theme.
+   * Eliminate a random theme on timeout if a choice remains.
    *
    * Uses ThemeEliminateLogic for random selection and elimination,
    * then attempts phase transition via PhaseTransitionRouter.
@@ -51,13 +51,13 @@ export class FinalRoundService {
 
     const finalRoundHandler = this._getFinalRoundHandler(game);
 
-    // Select random theme via Logic class
-    const themeId = ThemeEliminateLogic.selectRandomTheme(game, finalRoundHandler);
+    const themeId = finalRoundHandler.isThemeEliminationComplete(game)
+      ? null
+      : ThemeEliminateLogic.selectRandomTheme(game, finalRoundHandler);
+    const mutationResult =
+      themeId == null ? null : ThemeEliminateLogic.eliminateTheme(game, themeId, finalRoundHandler);
 
-    // Eliminate theme via Logic class
-    const mutationResult = ThemeEliminateLogic.eliminateTheme(game, themeId, finalRoundHandler);
-
-    // Try phase transition (THEME_ELIMINATION → BIDDING)
+    // FINAL_THEME_ELIMINATION -> FINAL_BIDDING when one theme remains.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
@@ -70,7 +70,6 @@ export class FinalRoundService {
 
     return ThemeEliminateLogic.buildTimeoutResult({
       game,
-      themeId: mutationResult.theme.id!,
       mutationResult,
       transitionResult
     });
@@ -96,7 +95,7 @@ export class FinalRoundService {
     // Process timeout bids via Logic class
     const mutationResult = BiddingTimeoutLogic.processTimeout(game);
 
-    // Try phase transition (BIDDING → ANSWERING)
+    // FINAL_BIDDING -> MEDIA_DOWNLOADING with question files, otherwise -> FINAL_ANSWERING.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
@@ -137,25 +136,27 @@ export class FinalRoundService {
     // Use Logic class for pure mutation
     const mutationResult = AutoLossProcessLogic.processAutoLoss(game, finalRoundData);
 
-    // Try phase transition (ANSWERING -> REVIEWING) if now complete
+    // FINAL_ANSWERING -> FINAL_REVIEWING once every answer has been submitted.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true }
     });
 
-    // If all answers are reviewed (all auto-loss), immediately transition to game finish
     if (transitionResult && FinalRoundStateManager.areAllAnswersReviewed(game)) {
-      const finishTransitionResult = await this.phaseTransitionRouter.tryTransition({
+      // All auto-losses: FINAL_REVIEWING -> SHOWING_ANSWER with answer media,
+      // otherwise FINAL_REVIEWING -> GAME_FINISHED.
+      const reviewCompletionTransition = await this.phaseTransitionRouter.tryTransition({
         game,
         trigger: TransitionTrigger.CONDITION_MET,
         triggeredBy: { isSystem: true },
-        resources: await this.transitionResourceService.getFinalReviewingToGameFinishResources(game)
+        resources: await this.transitionResourceService.getFinalReviewCompletionResources(game)
       });
 
       // Merge broadcasts from both transitions
-      if (finishTransitionResult) {
-        transitionResult.broadcasts.push(...finishTransitionResult.broadcasts);
+      if (reviewCompletionTransition) {
+        transitionResult.broadcasts.push(...reviewCompletionTransition.broadcasts);
+        transitionResult.timerMutations.push(...reviewCompletionTransition.timerMutations);
       }
     }
 

@@ -31,6 +31,13 @@ export async function preloadQuestionMedia(
   const files = question?.questionFiles ?? [];
   if (files.some((f) => !f.file.link)) return null;
   if (files.length === 0) return [];
+  // Repeated occurrences share downloaded bytes and one duration report.
+  const distinct = new Map(
+    files.map((entry) => [
+      JSON.stringify([entry.file.md5, entry.file.type, entry.file.link]),
+      entry,
+    ]),
+  );
   const durations: MediaDuration[] = [];
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -38,7 +45,7 @@ export async function preloadQuestionMedia(
   const timeout = window.setTimeout(abort, PRELOAD_TIMEOUT_MS);
   try {
     const loaded = await Promise.all(
-      files.map((f) => preloadFile(f, durations, controller.signal)),
+      Array.from(distinct.values(), (file) => preloadFile(file, durations, controller.signal)),
     );
     return loaded.every(Boolean) && !controller.signal.aborted ? durations : null;
   } finally {

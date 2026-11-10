@@ -11,6 +11,12 @@ let frames: Map<number, FrameRequestCallback>;
 let frameId: number;
 beforeEach(() => {
   vi.useFakeTimers();
+  vi.stubGlobal("matchMedia", () => ({ matches: false }));
+  Element.prototype.animate = vi.fn(() => ({
+    currentTime: 0,
+    pause: vi.fn(),
+    cancel: vi.fn(),
+  })) as unknown as typeof Element.prototype.animate;
   frames = new Map();
   frameId = 0;
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
@@ -38,13 +44,20 @@ function paint() {
     current.forEach((callback) => callback(performance.now()));
   });
 }
-function mount(strict = false) {
+function mount(strict = false, serverReady?: boolean) {
   const store = createGameStore();
   store.setState({ gameId: "ABCD", connection: "connected", session: choosing() });
+  const openingTimer = timer(1550);
   const pick = () =>
     store.getState().dispatch({
       type: "question-data",
-      payload: { data: question(100, { textOrder: 0 }), timer: timer() },
+      payload: {
+        data: question(100, { textOrder: 0 }),
+        timer: serverReady === undefined ? timer() : null,
+        ...(serverReady === undefined
+          ? {}
+          : { questionTransition: { timer: openingTimer, mediaReady: serverReady } }),
+      },
     });
   const ready = () =>
     store.getState().dispatch({
@@ -64,7 +77,7 @@ function mount(strict = false) {
   render(strict ? <StrictMode>{element}</StrictMode> : element);
   return { store, pick, ready };
 }
-it.each([false, true])("keeps the full 200/300/250/300ms sequence (StrictMode: %s)", (strict) => {
+it.each([false, true])("keeps the full 200/800/250/300ms sequence (StrictMode: %s)", (strict) => {
   const { store, ready } = mount(strict);
   const overlay = screen.getByTestId("question-pick-transition");
   expect(overlay).not.toHaveAttribute("data-started");
@@ -78,7 +91,7 @@ it.each([false, true])("keeps the full 200/300/250/300ms sequence (StrictMode: %
   expect(screen.getAllByTestId("board-cell").length).toBeGreaterThan(0);
   act(() => vi.advanceTimersByTime(1));
   expect(screen.queryByTestId("board-cell")).toBeNull();
-  act(() => vi.advanceTimersByTime(300));
+  act(() => vi.advanceTimersByTime(800));
   expect(screen.queryByTestId("next-scene")).toBeNull();
   act(() => vi.advanceTimersByTime(249));
   expect(overlay).not.toHaveAttribute("data-exiting");
@@ -91,14 +104,14 @@ it.each([false, true])("keeps the full 200/300/250/300ms sequence (StrictMode: %
   act(() => vi.advanceTimersByTime(1));
   expect(screen.queryByTestId("question-pick-transition")).toBeNull();
   expect(screen.getByTestId("next-scene").parentElement).not.toHaveAttribute("inert");
-  expect(store.getState().questionPresentation?.contentOffsetMs).toBe(1050);
+  expect(store.getState().questionPresentation?.complete).toBe(true);
 });
 
 it("delays its hint, preserves its identity through fade out and waits only 300ms after readiness", () => {
   const { ready } = mount();
   paint();
   paint();
-  act(() => vi.advanceTimersByTime(749));
+  act(() => vi.advanceTimersByTime(1249));
   expect(screen.queryByTestId("question-pick-waiting")).toBeNull();
   act(() => vi.advanceTimersByTime(1));
   const hint = screen.getByTestId("question-pick-waiting");
@@ -139,7 +152,7 @@ it("cancels callbacks when a snapshot replaces an unfinished opening", () => {
   expect(screen.queryByTestId("question-pick-transition")).toBeNull();
 });
 
-it("keeps a later point image gated on the shifted clock, including answer freezes", () => {
+it("keeps a later point image gated on its server offset, including answer freezes", () => {
   const store = createGameStore();
   store.setState({ session: choosing(), connection: "connected" });
   store.getState().dispatch({
@@ -185,7 +198,6 @@ it("keeps a later point image gated on the shifted clock, including answer freez
   });
   vi.advanceTimersByTime(900);
   store.getState().finishQuestionOpening(store.getState().questionPresentation!.id);
-  vi.advanceTimersByTime(500);
   const current = store.getState().session!;
   const view = renderHook((session) => usePointImageReady(session), {
     initialProps: current,
@@ -198,8 +210,90 @@ it("keeps a later point image gated on the shifted clock, including answer freez
     ),
   });
   expect(view.result.current).toBe(false);
-  act(() => vi.advanceTimersByTime(530));
+  act(() => vi.advanceTimersByTime(130));
   expect(view.result.current).toBe(true);
-  view.rerender({ ...current, content: { ...current.content!, timer: null, frozenAtMs: 1500 } });
+  view.rerender({ ...current, content: { ...current.content!, timer: null, frozenAtMs: 950 } });
   expect(view.result.current).toBe(false);
+});
+
+it("follows the server's 1550ms opening while readiness alone keeps the media phase", () => {
+  const { store } = mount(false, true);
+  expect(screen.getByTestId("question-pick-transition")).toBeInTheDocument();
+  act(() => vi.advanceTimersByTime(1250));
+  expect(screen.getByTestId("question-pick-transition")).toHaveAttribute("data-exiting");
+  act(() => vi.advanceTimersByTime(299));
+  expect(screen.getByTestId("question-pick-transition")).toBeInTheDocument();
+  act(() => vi.advanceTimersByTime(1));
+  expect(screen.queryByTestId("question-pick-transition")).not.toBeInTheDocument();
+  expect(store.getState().session?.state.questionState).toBe("media_downloading");
+  act(() =>
+    store.getState().dispatch({
+      type: "media-download-status",
+      payload: {
+        playerId: -1,
+        mediaDownloaded: true,
+        allPlayersReady: true,
+        timer: timer(),
+        questionTransition: null,
+      },
+    }),
+  );
+  expect(store.getState().session?.state.questionState).toBe("showing");
+});
+
+it("waits for slow readiness, then uses the server's final 300ms fade", () => {
+  const { store } = mount(false, false);
+  act(() => vi.advanceTimersByTime(2000));
+  expect(screen.getByTestId("question-pick-waiting")).toBeInTheDocument();
+  const opening = store.getState().session!.state.questionTransition!;
+  act(() =>
+    store.getState().dispatch({
+      type: "media-download-status",
+      payload: {
+        playerId: ALICE,
+        mediaDownloaded: true,
+        allPlayersReady: true,
+        timer: null,
+        questionTransition: { timer: { ...opening.timer, durationMs: 2300 }, mediaReady: true },
+      },
+    }),
+  );
+  expect(store.getState().session?.state.questionState).toBe("media_downloading");
+  expect(screen.getByTestId("question-pick-transition")).toHaveAttribute("data-exiting");
+  act(() => vi.advanceTimersByTime(300));
+  expect(screen.queryByTestId("question-pick-transition")).not.toBeInTheDocument();
+});
+
+it("freezes and resumes the remaining server opening without replaying its intro", () => {
+  const { store } = mount(false, true);
+  act(() => vi.advanceTimersByTime(500));
+  const opening = store.getState().session!.state.questionTransition!;
+  const paused = { ...opening, timer: { ...opening.timer, elapsedMs: 500 } };
+  act(() =>
+    store.getState().dispatch({
+      type: "game-pause",
+      payload: {
+        timer: null,
+        questionTransition: paused,
+      },
+    }),
+  );
+  act(() => vi.advanceTimersByTime(5000));
+  expect(screen.getByTestId("question-pick-transition")).toBeInTheDocument();
+  act(() =>
+    store.getState().dispatch({
+      type: "game-unpause",
+      payload: {
+        timer: null,
+        questionTransition: {
+          ...paused,
+          timer: { ...paused.timer, resumedAt: new Date().toISOString() },
+        },
+      },
+    }),
+  );
+  act(() => vi.advanceTimersByTime(1049));
+  expect(screen.getByTestId("question-pick-transition")).toBeInTheDocument();
+  act(() => vi.advanceTimersByTime(1));
+  expect(screen.queryByTestId("question-pick-transition")).not.toBeInTheDocument();
 });

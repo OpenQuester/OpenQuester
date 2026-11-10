@@ -1,30 +1,38 @@
-import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/cn";
-import { onChoiceKeyDown } from "@/ui/choiceNavigation";
 import "./QuestionLayout.css";
-import { ContentControlsContext } from "../ContentControlsContext";
 
-/** Media and text share the remaining stage, never the document's height. */
-export function QuestionBody({
-  media,
-  text,
-  textLength = 0,
-  label,
-  footer,
-}: {
+export interface QuestionBodyProps {
   media?: ReactNode;
+  audio?: ReactNode;
   text?: ReactNode;
   textLength?: number;
+  textRevision?: string;
   label?: string;
   footer?: ReactNode;
-}) {
+  controls?: ReactNode;
+}
+
+/** One canvas, with separate scroll regions for long text and media. */
+export function QuestionBody({
+  media,
+  audio,
+  text,
+  textLength = 0,
+  textRevision,
+  label,
+  footer,
+  controls,
+}: QuestionBodyProps) {
   const { t } = useTranslation();
-  const controls = useContext(ContentControlsContext);
+  const hasText = !!text;
   const scroll = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(false);
-  const [tab, setTab] = useState<"media" | "text">("media");
-  const mixed = !!media && !!text;
+
+  useLayoutEffect(() => {
+    if (scroll.current) scroll.current.scrollTop = 0;
+  }, [textRevision]);
+
   useEffect(() => {
     const element = scroll.current;
     if (!element || typeof ResizeObserver === "undefined") return;
@@ -34,46 +42,13 @@ export function QuestionBody({
     if (element.firstElementChild) observer.observe(element.firstElementChild);
     measure();
     return () => observer.disconnect();
-  }, [text]);
+  }, [hasText]);
+
   return (
-    <div
-      className={cn(
-        "question-body",
-        mixed && "question-body-mixed",
-        mixed && textLength > 240 && "question-body-split",
-      )}
-      data-tab={tab}
-      data-short={textLength <= 240}
-      data-testid="question-body"
-    >
-      {mixed && (
-        <div className="question-body-tabs" role="tablist" aria-label={t("question.region")}>
-          {(["media", "text"] as const).map((view) => (
-            <button
-              key={view}
-              type="button"
-              role="tab"
-              aria-selected={tab === view}
-              tabIndex={tab === view ? 0 : -1}
-              onKeyDown={onChoiceKeyDown}
-              onClick={() => setTab(view)}
-            >
-              {t(view === "media" ? "question.mediaTab" : "question.textTab")}
-            </button>
-          ))}
-        </div>
-      )}
-      {media && (
-        <div className="question-body-media" data-testid="question-media-region">
-          {media}
-        </div>
-      )}
+    <div className="question-body" data-short={textLength <= 240} data-testid="question-body">
       {text && (
         <section className="question-body-text" aria-label={label ?? t("question.region")}>
-          <div className="question-text-label">
-            <span>{label ?? t("question.region")}</span>
-            {overflow && <span className="question-scroll-hint">{t("question.scrollHint")}</span>}
-          </div>
+          {overflow && <div className="question-scroll-hint">{t("question.scrollHint")}</div>}
           <div
             ref={scroll}
             className="question-text-scroll"
@@ -82,10 +57,24 @@ export function QuestionBody({
           >
             <div>{text}</div>
           </div>
-          {footer}
         </section>
       )}
+      {(media || audio) && (
+        <div className="question-body-material">
+          {media && (
+            <div className="question-body-media" data-testid="question-media-region">
+              {media}
+            </div>
+          )}
+          {audio && (
+            <div className="question-body-audio" data-testid="question-audio-region">
+              {audio}
+            </div>
+          )}
+        </div>
+      )}
       {controls}
+      {footer}
     </div>
   );
 }

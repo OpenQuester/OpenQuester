@@ -1,9 +1,6 @@
-import { afterAll, afterEach, beforeAll, describe, it } from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 
-import {
-  MEDIA_DOWNLOAD_TIMEOUT,
-  SYSTEM_PLAYER_ID
-} from "domain/constants/game";
+import { MEDIA_DOWNLOAD_TIMEOUT, SYSTEM_PLAYER_ID } from "domain/constants/game";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -51,7 +48,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const status = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterLeave,
-        expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
+        expectedStatus(SYSTEM_PLAYER_ID, true, null)
       );
       const leave = flow.waitForLeaveBroadcast(flow.allRecipients, afterLeave, leavingPlayer);
 
@@ -106,7 +103,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const status = flow.waitForMediaDownloadBroadcast(
         remainingRecipients,
         afterDisconnect,
-        expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
+        expectedStatus(SYSTEM_PLAYER_ID, true, null)
       );
       const leave = flow.waitForLeaveBroadcast(
         remainingRecipients,
@@ -172,7 +169,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const status = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterKick,
-        expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
+        expectedStatus(SYSTEM_PLAYER_ID, true, null)
       );
       const kicked = flow.waitForKickBroadcast(flow.allRecipients, afterKick, kickedPlayer);
       const leave = flow.waitForLeaveBroadcast(flow.allRecipients, afterKick, kickedPlayer);
@@ -285,7 +282,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const status = flow.waitForMediaDownloadBroadcast(
         activeRecipients,
         afterFinalDownload,
-        expectedStatus(remainingPlayer.userId!, true, IMAGE_QUESTION_TIMER_MS)
+        expectedStatus(remainingPlayer.userId!, true, null)
       );
 
       flow.emitPlayerDownloaded(remainingPlayer);
@@ -481,7 +478,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const status = flow.waitForMediaDownloadBroadcast(
         flow.allRecipients,
         afterRestriction,
-        expectedStatus(SYSTEM_PLAYER_ID, true, IMAGE_QUESTION_TIMER_MS)
+        expectedStatus(SYSTEM_PLAYER_ID, true, null)
       );
 
       flow.emitPlayerRestriction(restrictedPlayer);
@@ -686,6 +683,13 @@ async function assertMediaDownloading(flow: MediaDownloadFlow): Promise<void> {
 }
 
 async function assertShowing(flow: MediaDownloadFlow): Promise<void> {
+  // Departure first announces readiness to the old room; the independent
+  // timer later releases content to the clients who are still in that room.
+  await flow.waitForAllPlayersReadyBroadcast([flow.showman], 0);
+  await flow.waitForActionsComplete();
+  expect(
+    flow.mediaStatusHistory(flow.showman, 0).filter((r) => r.args[0].timer != null)
+  ).toHaveLength(1);
   await flow.expectQuestionState(QuestionState.SHOWING);
   await flow.expectActiveTimerDuration(IMAGE_QUESTION_TIMER_MS);
 }

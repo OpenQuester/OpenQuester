@@ -15,9 +15,7 @@ import { AnswerShowEndEventPayload } from "domain/types/socket/events/game/Answe
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 /**
- * Handles transition from SHOWING_ANSWER to GAME_FINISHED when
- * this was the last question of the last regular round and the
- * package does not contain a final round.
+ * Finish after the last regular answer or the final answer media reveal.
  */
 export class ShowingAnswerToGameFinishHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.SHOWING_ANSWER;
@@ -30,12 +28,12 @@ export class ShowingAnswerToGameFinishHandler extends BaseTransitionHandler {
       return false;
     }
 
-    if (!TransitionGuards.isSimpleRound(game)) {
+    if (trigger !== TransitionTrigger.TIMER_EXPIRED && trigger !== TransitionTrigger.USER_ACTION) {
       return false;
     }
 
-    if (trigger !== TransitionTrigger.TIMER_EXPIRED && trigger !== TransitionTrigger.USER_ACTION) {
-      return false;
+    if (TransitionGuards.isFinalRound(game)) {
+      return !!game.gameState.answerShowData;
     }
 
     const isRoundFinished = game.isRoundOver();
@@ -78,6 +76,9 @@ export class ShowingAnswerToGameFinishHandler extends BaseTransitionHandler {
     _mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {
+    if (TransitionGuards.isFinalRound(ctx.game)) {
+      return [{ event: SocketIOGameEvents.GAME_FINISHED, data: true, room: ctx.game.id }];
+    }
     return [
       {
         event: SocketIOGameEvents.ANSWER_SHOW_END,

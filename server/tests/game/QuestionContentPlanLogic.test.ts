@@ -129,6 +129,74 @@ describe("QuestionContentPlanLogic", () => {
     expect(plan.steps[1].startMs).toBe(7_000);
   });
 
+  it("uses only the number of images and videos to select the schedule for every supported group", () => {
+    for (let images = 0; images <= 10; images++) {
+      for (let videos = 0; videos <= 10 - images; videos++) {
+        for (let audio = 0; audio <= 10 - images - videos; audio++) {
+          const types = [
+            ...Array<PackageFileType>(audio).fill(PackageFileType.AUDIO),
+            ...Array<PackageFileType>(images).fill(PackageFileType.IMAGE),
+            ...Array<PackageFileType>(videos).fill(PackageFileType.VIDEO)
+          ];
+          if (types.length === 0) continue;
+          const files = types.map((type, order) =>
+            file(order, type, { displayTime: 100, waitForFinish: order === types.length - 1 })
+          );
+          for (const playMediaSimultaneously of [true, false, null, undefined]) {
+            const plan = QuestionContentPlanLogic.build({ files, playMediaSimultaneously })!;
+            expect(plan.steps).toHaveLength(1);
+            const sequential = images + videos >= 5;
+            let offset = 0;
+            const expected = types.map((type) => {
+              if (
+                !sequential &&
+                (playMediaSimultaneously !== false || type === PackageFileType.IMAGE)
+              ) {
+                return 0;
+              }
+              const start = offset;
+              offset += 100;
+              return start;
+            });
+            expect(plan.steps[0].items.map((item) => item.startOffsetMs ?? 0)).toEqual(expected);
+            expect(plan.totalMs).toBe(Math.max(100, offset));
+          }
+        }
+      }
+    }
+  });
+
+  it("keeps text and carried background independent of a measured foreground queue", () => {
+    const plan = QuestionContentPlanLogic.build(
+      {
+        playMediaSimultaneously: false,
+        textItems: [{ order: 3, text: "Read the clue" }],
+        files: [
+          file(0, PackageFileType.AUDIO, {
+            placement: ContentPlacement.BACKGROUND,
+            waitForFinish: false
+          }),
+          file(1, PackageFileType.VIDEO, { displayTime: 500, waitForFinish: false }),
+          file(2, PackageFileType.AUDIO, { waitForFinish: false }),
+          file(4, PackageFileType.VIDEO, { displayTime: 250 })
+        ]
+      },
+      { "md5-0": 10000, "md5-1": 800, "md5-2": 1300 }
+    )!;
+    expect(plan.steps.map(({ startMs, durationMs }) => [startMs, durationMs])).toEqual([
+      [0, 2000],
+      [2000, 250]
+    ]);
+    expect(
+      plan.steps[0].items.map(({ startOffsetMs, durationMs }) => [startOffsetMs ?? 0, durationMs])
+    ).toEqual([
+      [0, 10000],
+      [0, 500],
+      [500, 1300],
+      [0, 2000]
+    ]);
+  });
+
   it("does not let a non-waiting background sound stretch its step", () => {
     const plan = QuestionContentPlanLogic.build(
       {

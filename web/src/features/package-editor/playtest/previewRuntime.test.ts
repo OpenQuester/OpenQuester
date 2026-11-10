@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { newQuestion } from "../packageDraft";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
 import { initialPreview, PREVIEW_PLAYERS, PREVIEW_SHOWMAN, previewQuestion } from "./previewModel";
@@ -26,8 +26,18 @@ function setup(patch: Parameters<typeof newQuestion>[1] = {}, final = false) {
   );
 }
 
+beforeEach(() => vi.useFakeTimers());
+afterEach(() => vi.useRealTimers());
+
+function finishTransition(game: PreviewRuntime) {
+  const opening = game.session.state.questionTransition;
+  if (!opening) return;
+  vi.advanceTimersByTime(opening.timer.durationMs - opening.timer.elapsedMs);
+  game.timeout();
+}
+
 describe("local question playtest", () => {
-  it("advances the next visible content step after the opening offset", () => {
+  it("advances the next visible content step on the server-equivalent clock after the opening", () => {
     vi.useFakeTimers();
     try {
       const game = setup({
@@ -36,13 +46,15 @@ describe("local question playtest", () => {
       });
       game.pick();
       game.ready();
-      vi.advanceTimersByTime(900);
+      finishTransition(game);
       game.store.getState().finishQuestionOpening(game.store.getState().questionPresentation!.id);
       const before = presentedQuestionContent(
         game.session,
         game.store.getState().questionPresentation,
       )!;
       expect(contentElapsed(before, false)).toBe(0);
+      vi.advanceTimersByTime(1100);
+      expect(contentElapsed(before, false)).toBe(900);
       expect(game.advanceWait()).toBe(true);
       const after = presentedQuestionContent(
         game.session,
@@ -65,6 +77,7 @@ describe("local question playtest", () => {
     });
     game.advance();
     game.advance();
+    finishTransition(game);
     game.advanceWait();
     const [wrong, , other] = game.question.answers!;
     game.buzz(PREVIEW_PLAYERS[0]);
@@ -91,6 +104,7 @@ describe("local question playtest", () => {
     });
     game.advance();
     game.advance();
+    finishTransition(game);
     game.advanceWait();
     game.buzz(PREVIEW_PLAYERS[0]);
     game.submit("1", game.question.answers![0]!.order);
@@ -125,6 +139,7 @@ describe("local question playtest", () => {
     );
     game.advance();
     game.advance();
+    finishTransition(game);
     game.advanceWait();
     expect(game.store.getState().session?.state.currentQuestion).not.toHaveProperty(
       "correctChoiceOrder",
@@ -152,6 +167,7 @@ describe("local question playtest", () => {
     );
     game.advance();
     game.advance();
+    finishTransition(game);
     game.advanceWait();
     game.buzz(PREVIEW_PLAYERS[0]);
     game.submit("1");
@@ -173,6 +189,7 @@ describe("local question playtest", () => {
     });
     game.advance();
     game.advance();
+    finishTransition(game);
     game.advance();
     game.commands.emit("question-answer");
     game.commands.emit("answer-submitted", { answerText: "-12.5" });
@@ -192,6 +209,8 @@ describe("local question playtest", () => {
     game.setPerspective(PREVIEW_PLAYERS[0]);
     game.advance();
     game.advance();
+    finishTransition(game);
+    game.advanceWait();
     game.commands.emit("question-answer");
     game.commands.emit("answer-submitted", { answerText: "42" });
     expect(game.session.state.questionState).toBe("showing_answer");
@@ -203,6 +222,7 @@ describe("local question playtest", () => {
     const game = setup({ answerText: "Canonical" });
     game.advance();
     game.advance();
+    finishTransition(game);
     game.advanceWait();
     game.commands.emit("question-answer");
     game.commands.emit("answer-submitted", { answerText: "Different response" });
@@ -220,6 +240,7 @@ describe("local question playtest", () => {
     const wrong = setup({ answerType: "number", answerNumber: 42 });
     wrong.advance();
     wrong.advance();
+    finishTransition(wrong);
     wrong.advanceWait();
     for (const id of [PREVIEW_PLAYERS[1], PREVIEW_PLAYERS[2], PREVIEW_PLAYERS[0]]) {
       wrong.buzz(id);
@@ -230,6 +251,7 @@ describe("local question playtest", () => {
     const correct = setup({ answerType: "number", answerNumber: 42 });
     correct.advance();
     correct.advance();
+    finishTransition(correct);
     correct.advanceWait();
     correct.buzz(PREVIEW_PLAYERS[1]);
     correct.submit("42");
@@ -279,6 +301,7 @@ describe("local question playtest", () => {
     });
     game.advance();
     game.advance();
+    finishTransition(game);
     game.setPerspective(PREVIEW_PLAYERS[1]);
     game.commands.emit("all-play-answer", { answerText: "42" });
     game.advance();
@@ -296,6 +319,7 @@ describe("local question playtest", () => {
     const game = setup({ answerType: "number", answerNumber: 42 });
     game.advance();
     game.advance();
+    finishTransition(game);
     game.advanceWait();
     game.buzz(PREVIEW_PLAYERS[1]);
     game.advance();
@@ -310,8 +334,13 @@ describe("local question playtest", () => {
     const game = setup({ type: "choice", text: "Hello", showDelay: 4000, answerDelay: 30_000 });
     game.advance();
     game.advance();
+    finishTransition(game);
     expect(game.session.state.buzzerOpensAtMs).toBe(6000);
     expect(game.session.state.timer?.durationMs).toBe(26_500);
+    // A press during the opening lead is ignored, before the normal early-press rule.
+    game.commands.emit("question-answer");
+    expect(game.session.state.buzzerLocks?.[String(PREVIEW_PLAYERS[0])]).toBeUndefined();
+    game.setClock(previewTimer(26_500));
     game.commands.emit("question-answer");
     expect(game.session.state.buzzerLocks?.[String(PREVIEW_PLAYERS[0])]).toBeDefined();
     expect(game.session.state.questionState).toBe("showing");
@@ -411,6 +440,7 @@ describe("local question playtest", () => {
     const game = setup();
     game.advance();
     game.advance();
+    finishTransition(game);
     game.pause(true);
     game.timeout();
     expect(game.session.state.questionState).toBe("showing");
@@ -464,6 +494,7 @@ describe("local question playtest", () => {
     });
     game.advance();
     game.advance();
+    finishTransition(game);
     for (const [id, value] of [
       [2, "42"],
       [3, "41"],
@@ -483,6 +514,7 @@ describe("local question playtest", () => {
     const game = setup({ type: "noRisk", forEveryone: true });
     game.advance();
     game.advance();
+    finishTransition(game);
     game.setPerspective(PREVIEW_SHOWMAN);
     expect(game.store.getState().session?.state.currentQuestion?.answerText).toBe("42");
     game.setPerspective(5);

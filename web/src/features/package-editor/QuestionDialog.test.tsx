@@ -503,7 +503,8 @@ it("keeps the unsaved question mounted when the preview closes and does not save
   await userEvent.click(opener);
   const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
   await screen.findByTestId("question-playtest");
-  await waitFor(() => expect(preview).toHaveTextContent("Unsaved"));
+  // The shared opening now deliberately covers the question for 1550 ms.
+  await waitFor(() => expect(preview).toHaveTextContent("Unsaved"), { timeout: 3000 });
   await userEvent.keyboard("{Control>}{Enter}{/Control}");
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.text).toBe("Original");
   await userEvent.keyboard("{Escape}");

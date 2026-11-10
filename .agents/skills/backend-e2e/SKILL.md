@@ -60,9 +60,9 @@ Read `server/docs/media-download-sync.md`. For normal regular-round questions, o
 `QUESTION_PICK` receives `QUESTION_DATA`, not inbound preload `QUESTION_PICK`.
 Before ACKs, assert the selected media fixture, files/links, persisted
 `MEDIA_DOWNLOADING`, and media timer. Partial player readiness must retain that
-phase; the last required ACK or timeout completes readiness via
-`MEDIA_DOWNLOAD_STATUS`, not a second `QUESTION_DATA`. Showman/spectators do not
-block; no-file questions use immediate simulated client ACKs.
+phase; readiness and the later question-timer release both use
+`MEDIA_DOWNLOAD_STATUS`, not a second `QUESTION_DATA`. Spectators do not block;
+a solo showman prepares media when the original player roster was empty; text-only gated questions use the transition timer and send no ACK.
 
 A valid payload with already-`SHOWING` state must fail the helper. When changing
 critical infrastructure, keep both a controlled correct-flow test and a

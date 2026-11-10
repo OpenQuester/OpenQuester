@@ -1,56 +1,56 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { strToU8, zipSync } from "fflate";
+import type * as CreateDraft from "../src/features/package-editor/createDraft";
 import type * as Draft from "../src/features/package-editor/packageDraft";
 import type * as Storage from "../src/features/package-editor/draftStorage";
+import type * as PackageMedia from "../src/features/package-editor/packageMedia";
+import type * as Limits from "../src/features/upload/contentLimits";
+import type * as Upload from "../src/features/upload/upload";
 
-async function openDraft(page: Page, legacy = false, mixed = false) {
+async function openDraft(page: Page, mixed = false) {
   await page.goto("/");
-  await page.evaluate(
-    async ({ legacy, mixed }) => {
-      const model = "/src/features/package-editor/packageDraft.ts";
-      const storage = "/src/features/package-editor/draftStorage.ts";
-      const { emptyPackage, newRound, newTheme, newQuestion } = (await import(
-        model
-      )) as typeof Draft;
-      const { saveDraft } = (await import(storage)) as typeof Storage;
-      const canvas = document.createElement("canvas");
-      canvas.width = canvas.height = 80;
-      canvas.getContext("2d")!.fillRect(0, 0, 80, 80);
-      const blob = await new Promise<Blob>((resolve) =>
-        canvas.toBlob((value) => resolve(value!), "image/png"),
-      );
-      const bytes = new Uint8Array(await blob.arrayBuffer());
-      const question = newQuestion(100, {
-        text: "Main prompt",
-        answerText: "Answer",
-        questionFiles: [
-          { occurrenceId: "image-1", md5: "image", type: "image", displayTime: 1000 },
-          ...(mixed
-            ? [
-                { occurrenceId: "sound", md5: "sound", type: "audio" as const, displayTime: null },
-                { occurrenceId: "video", md5: "video", type: "video" as const, displayTime: null },
-              ]
-            : []),
-        ],
-        ...(legacy ? { textPosition: null, textItems: undefined, mainTextFirst: undefined } : {}),
-      });
-      const pkg = emptyPackage("Ordered steps");
-      const round = newRound("Round");
-      round.themes = [newTheme("Theme", [question])];
-      pkg.rounds = [round];
-      await saveDraft({ id: "timeline-browser", pkg, updatedAt: 1 }, [
-        { md5: "image", type: "image", name: "image.png", bytes },
+  await page.evaluate(async (mixed) => {
+    const model = "/src/features/package-editor/packageDraft.ts";
+    const storage = "/src/features/package-editor/draftStorage.ts";
+    const { emptyPackage, newRound, newTheme, newQuestion } = (await import(model)) as typeof Draft;
+    const { saveDraft } = (await import(storage)) as typeof Storage;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 80;
+    canvas.getContext("2d")!.fillRect(0, 0, 80, 80);
+    const blob = await new Promise<Blob>((resolve) =>
+      canvas.toBlob((value) => resolve(value!), "image/png"),
+    );
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const question = newQuestion(100, {
+      text: "Main prompt",
+      answerText: "Answer",
+      questionFiles: [
+        { occurrenceId: "image-1", md5: "image", type: "image", displayTime: 1000 },
         ...(mixed
           ? [
-              { md5: "sound", type: "audio" as const, name: "sound.mp3", bytes },
-              { md5: "video", type: "video" as const, name: "video.mp4", bytes },
+              { occurrenceId: "sound", md5: "sound", type: "audio" as const, displayTime: null },
+              { occurrenceId: "video", md5: "video", type: "video" as const, displayTime: null },
             ]
           : []),
-      ]);
-    },
-    { legacy, mixed },
-  );
+      ],
+    });
+    const pkg = emptyPackage("Ordered steps");
+    const round = newRound("Round");
+    round.themes = [newTheme("Theme", [question])];
+    pkg.rounds = [round];
+    await saveDraft({ id: "timeline-browser", pkg, updatedAt: 1 }, [
+      { md5: "image", type: "image", name: "image.png", bytes },
+      ...(mixed
+        ? [
+            { md5: "sound", type: "audio" as const, name: "sound.mp3", bytes },
+            { md5: "video", type: "video" as const, name: "video.mp4", bytes },
+          ]
+        : []),
+    ]);
+  }, mixed);
   await page.goto("/packages/editor/timeline-browser");
   await page.getByTestId("question-card").first().press("Control+Enter");
 }
@@ -70,6 +70,7 @@ test("new question keeps main text first while additional text moves between med
   await timeline.getByRole("button", { name: "Add text step" }).click();
   const textarea = timeline.getByRole("textbox", { name: "Additional text 3" });
   await textarea.fill("Second part");
+  await textarea.scrollIntoViewIfNeeded();
   const originalBox = (await textarea.boundingBox())!;
   await page.mouse.move(
     originalBox.x + originalBox.width - 3,
@@ -173,7 +174,7 @@ test("mixed image, audio, video and text cards keep the grip clear of media cont
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await openDraft(page, false, true);
+  await openDraft(page, true);
   const form = page.getByTestId("question-dialog");
   await form.getByRole("button", { name: "Add text step" }).click();
   const cards = form.getByTestId("attachment-card");
@@ -232,52 +233,150 @@ test("touch drag reorders text among media without opening a menu", async ({ pag
   await expect(page.getByRole("menu")).toHaveCount(0);
 });
 
-test("legacy caption becomes main-first only after an explicit save", async ({ page }) => {
-  await openDraft(page, true);
-  const form = page.getByTestId("question-dialog");
-  await expect(form.getByText("Shown first, before the media and other text steps.")).toBeVisible();
-  await expect(form.getByTestId("text-step-card")).toHaveCount(0);
-  await expect(form.getByRole("checkbox", { name: /main text/i })).toHaveCount(0);
-  await form.getByRole("button", { name: "Close", exact: true }).click();
-  await expect(form).toBeHidden();
-  const original = await page.evaluate(async () => {
-    const storage = "/src/features/package-editor/draftStorage.ts";
-    const { loadDraft } = (await import(storage)) as typeof Storage;
-    return (await loadDraft("timeline-browser"))!.pkg.rounds[0]!.themes[0]!.questions[0]!;
-  });
-  expect(original.textPosition).toBeNull();
-  expect(original.mainTextFirst).toBeUndefined();
-  await page.getByTestId("question-card").first().press("Control+Enter");
-  await form.getByRole("button", { name: "Preview", exact: true }).click();
-  const preview = page.getByRole("dialog", { name: "Interactive game preview" });
-  const game = preview.getByTestId("question-playtest");
-  await expect(game).toBeVisible();
-  await game.getByRole("button", { name: "Pause", exact: true }).click();
-  await expect(game.getByTestId("question-text")).toHaveText("Main prompt");
-  await expect(game.getByTestId("content-stage").locator("img")).toHaveCount(0);
-  await preview.getByRole("button", { name: "Close", exact: true }).click();
-  await form.getByTestId("question-save").click();
-  await expect
-    .poll(async () =>
-      page.evaluate(async () => {
-        const storage = "/src/features/package-editor/draftStorage.ts";
-        const { loadDraft } = (await import(storage)) as typeof Storage;
-        return (await loadDraft("timeline-browser"))!.pkg.rounds[0]!.themes[0]!.questions[0]!
-          .textPosition;
-      }),
-    )
-    .toBe(0);
-  const saved = await page.evaluate(async () => {
-    const model = "/src/features/package-editor/packageDraft.ts";
-    const storage = "/src/features/package-editor/draftStorage.ts";
-    const { toUploadQuestion } = (await import(model)) as typeof Draft;
-    const { loadDraft } = (await import(storage)) as typeof Storage;
-    return toUploadQuestion(
-      (await loadDraft("timeline-browser"))!.pkg.rounds[0]!.themes[0]!.questions[0]!,
-      0,
-      false,
+const importedTimelines = [
+  {
+    name: "caption with 30 groups of 10",
+    textOrder: null,
+    textItems: undefined,
+    fileOrders: Array.from({ length: 300 }, (_, index) => index),
+    filesPerGroup: 10,
+    steps: 30,
+  },
+  {
+    name: "caption with an additional text step",
+    textOrder: null,
+    textItems: [{ order: 1, text: "Additional clue" }],
+    fileOrders: [0, 2],
+    filesPerGroup: 1,
+    steps: 3,
+  },
+  {
+    name: "main text after the first image",
+    textOrder: 1,
+    textItems: [],
+    fileOrders: [0, 2],
+    filesPerGroup: 1,
+    steps: 3,
+  },
+];
+
+for (const fixture of importedTimelines) {
+  test(`preserves imported ${fixture.name} through editing, preview and export`, async ({
+    page,
+  }) => {
+    const image = readFileSync(new URL("../public/icons/icon-192.png", import.meta.url));
+    const md5 = createHash("md5").update(image).digest("hex");
+    const question = {
+      type: "simple",
+      price: 100,
+      text: "Main prompt",
+      textOrder: fixture.textOrder,
+      textItems: fixture.textItems,
+      answerText: "Answer",
+      questionFiles: fixture.fileOrders.map((order, index) => ({
+        order,
+        displayTime: 5000,
+        waitForFinish: (index + 1) % fixture.filesPerGroup === 0,
+        file: { md5, type: "image" },
+      })),
+    };
+    const archive = zipSync({
+      "content.json": strToU8(
+        JSON.stringify({
+          title: fixture.name,
+          rounds: [{ name: "Round", themes: [{ name: "Theme", questions: [question] }] }],
+        }),
+      ),
+      [`files/${md5}`]: image,
+    });
+    await page.goto("/");
+    const id = await page.evaluate(async (bytes) => {
+      const uploadPath = "/src/features/upload/upload.ts";
+      const draftPath = "/src/features/package-editor/createDraft.ts";
+      const { readPackageFile } = (await import(uploadPath)) as typeof Upload;
+      const { draftFromParsed } = (await import(draftPath)) as typeof CreateDraft;
+      return draftFromParsed(
+        await readPackageFile(new File([new Uint8Array(bytes)], "timeline.oq")),
+      );
+    }, Array.from(archive));
+    await page.goto(`/packages/editor/${id}`);
+    const card = page.getByTestId("question-card").first();
+    await card.press("Control+Enter");
+    const form = page.getByTestId("question-dialog");
+    await expect(
+      form.getByText(
+        fixture.textOrder == null
+          ? "Shown alongside the question content."
+          : "Shown at position 2 in the playback order.",
+      ),
+    ).toBeVisible();
+    const previewButton = form.getByRole("button", { name: "Preview", exact: true });
+    await previewButton.click();
+    const preview = page.getByRole("dialog", { name: "Interactive game preview" });
+    const game = preview.getByTestId("question-playtest");
+    await expect(game.getByTestId("content-step-label")).toHaveText(`Part 1 of ${fixture.steps}`);
+    await expect(game.getByTestId("visual-grid").getByRole("img")).toBeVisible();
+    if (fixture.textOrder == null)
+      await expect(game.getByTestId("question-text")).toHaveText("Main prompt");
+    else await expect(game.getByTestId("question-text")).toHaveCount(0);
+    if (fixture.steps === 3) {
+      await game.getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(game.getByTestId("content-step-label")).toHaveText("Part 2 of 3");
+      await expect(game.getByTestId("question-text")).toHaveText(
+        fixture.textOrder == null ? ["Additional clue", "Main prompt"] : ["Main prompt"],
+      );
+    }
+    await preview.getByRole("button", { name: "Close", exact: true }).click();
+    await form.getByTestId("question-save").click();
+    await expect(form).toBeHidden();
+    await card.press("Control+Enter");
+    await form.locator("#qf-comment").fill("Reviewed without changing the timeline");
+    await form.getByTestId("question-save").click();
+    await expect(form).toBeHidden();
+    await expect
+      .poll(() =>
+        page.evaluate(async (id) => {
+          const path = "/src/features/package-editor/draftStorage.ts";
+          const { loadDraft } = (await import(path)) as typeof Storage;
+          return (await loadDraft(id))!.pkg.rounds[0]!.themes[0]!.questions[0]!.questionComment;
+        }, id),
+      )
+      .toBe("Reviewed without changing the timeline");
+    const exported = await page.evaluate(
+      async ({ id, md5 }) => {
+        const storagePath = "/src/features/package-editor/draftStorage.ts";
+        const mediaPath = "/src/features/package-editor/packageMedia.ts";
+        const uploadPath = "/src/features/upload/upload.ts";
+        const limitsPath = "/src/features/upload/contentLimits.ts";
+        const { loadDraft, loadMedia } = (await import(storagePath)) as typeof Storage;
+        const { exportOq } = (await import(mediaPath)) as typeof PackageMedia;
+        const { readPackageFile } = (await import(uploadPath)) as typeof Upload;
+        const { questionGroupSizes } = (await import(limitsPath)) as typeof Limits;
+        const blob = await exportOq((await loadDraft(id))!.pkg, await loadMedia([md5]));
+        const { content } = await readPackageFile(new File([blob], "exported.oq"));
+        const saved = content.rounds[0]!.themes[0]!.questions[0]!;
+        return {
+          textOrder: saved.textOrder,
+          textItems: saved.textItems,
+          fileOrders: saved.questionFiles!.map(({ order }) => order),
+          groups: questionGroupSizes(saved, "question").map(({ files }) => files),
+        };
+      },
+      { id, md5 },
     );
+    expect(exported).toEqual({
+      textOrder: fixture.textOrder,
+      textItems: fixture.textItems,
+      fileOrders: fixture.fileOrders,
+      groups: fixture.steps === 30 ? Array(30).fill(10) : [1, 0, 1],
+    });
+    if (fixture.steps === 30) {
+      await card.press("Control+Enter");
+      await form.getByRole("button", { name: "Add text step" }).click();
+      await form.getByTestId("text-step-card").getByRole("textbox").fill("Actual step 31");
+      await previewButton.click();
+      await expect(preview.getByText("Question has 31 steps. Maximum 30.")).toBeVisible();
+      await expect(game).toHaveCount(0);
+    }
   });
-  expect(saved.textOrder).toBe(0);
-  expect(saved.textItems).toEqual([]);
-});
+}

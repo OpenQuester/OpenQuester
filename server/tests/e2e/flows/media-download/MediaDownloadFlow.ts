@@ -17,6 +17,7 @@ import { type GameQuestionDataEventPayload } from "domain/types/socket/events/ga
 import { type GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
 import { type MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import {
+  type GamePauseBroadcastData,
   type PlayerKickBroadcastData,
   type PlayerRestrictionBroadcastData,
   type PlayerRestrictionInputData,
@@ -199,7 +200,7 @@ export class MediaDownloadFlow {
     }
   }
 
-  private get gameId(): string {
+  public get gameId(): string {
     return this.setup.gameId;
   }
 
@@ -265,7 +266,9 @@ export class MediaDownloadFlow {
     await this.waitForActionsComplete();
     // Receiving valid links must not hide a skipped readiness barrier.
     await this.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
-    await this.expectActiveTimerDuration(MEDIA_DOWNLOAD_TIMEOUT);
+    if (this.expectedQuestionFiles.length)
+      await this.expectActiveTimerDuration(MEDIA_DOWNLOAD_TIMEOUT);
+    else await this.expectNoActiveTimer();
     for (const actor of this.allRecipients) {
       this.assertExactInboundEventCount(
         actor,
@@ -330,6 +333,13 @@ export class MediaDownloadFlow {
         afterSequence,
         expectedCount
       )
+    );
+  }
+
+  public setPaused(paused: boolean): Promise<GamePauseBroadcastData> {
+    const event = paused ? SocketIOGameEvents.GAME_PAUSE : SocketIOGameEvents.GAME_UNPAUSE;
+    return this.scenario.emitAndWaitForEvent(this.showman.socket, event, () =>
+      this.showman.emit(event)
     );
   }
 
@@ -502,13 +512,17 @@ export class MediaDownloadFlow {
         .inbound<readonly [MediaDownloadStatusBroadcastData]>({
           actor,
           event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-          timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+          timeoutMs:
+            expected.timerDurationMs == null
+              ? TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
+              : TEST_TIMEOUTS.QUESTION_ENTRY_WAIT_MS,
           afterSequence,
           predicate: (eventRecord) => {
             const data = eventRecord.args[0];
             return (
               data.playerId === expected.playerId &&
-              data.allPlayersReady === expected.allPlayersReady
+              data.allPlayersReady === expected.allPlayersReady &&
+              (expected.timerDurationMs == null ? data.timer == null : data.timer != null)
             );
           }
         })
@@ -530,13 +544,17 @@ export class MediaDownloadFlow {
         .broadcast<readonly [MediaDownloadStatusBroadcastData]>({
           actors,
           event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-          timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+          timeoutMs:
+            expected.timerDurationMs == null
+              ? TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
+              : TEST_TIMEOUTS.QUESTION_ENTRY_WAIT_MS,
           afterSequence,
           predicate: (record) => {
             const data = record.args[0];
             return (
               data.playerId === expected.playerId &&
-              data.allPlayersReady === expected.allPlayersReady
+              data.allPlayersReady === expected.allPlayersReady &&
+              (expected.timerDurationMs == null ? data.timer == null : data.timer != null)
             );
           }
         })
@@ -668,9 +686,10 @@ export class MediaDownloadFlow {
         .broadcast<readonly [MediaDownloadStatusBroadcastData]>({
           actors,
           event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-          timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+          timeoutMs: TEST_TIMEOUTS.QUESTION_ENTRY_WAIT_MS,
           afterSequence,
-          predicate: (record) => record.args[0].allPlayersReady === true
+          predicate: (record) =>
+            record.args[0].allPlayersReady === true && record.args[0].timer != null
         })
         .then((records) => {
           records.forEach(({ args: [status] }) =>
@@ -876,8 +895,13 @@ export class MediaDownloadFlow {
     );
 
     expect(questionData).toBeDefined();
-    expect(mediaDownloaded).toBeDefined();
     expect(status).toBeDefined();
+    if (!this.expectedQuestionFiles.length) {
+      expect(mediaDownloaded).toBeUndefined();
+      expect(questionData!.sequence).toBeLessThan(status!.sequence);
+      return;
+    }
+    expect(mediaDownloaded).toBeDefined();
     expect(questionData!.sequence).toBeLessThan(mediaDownloaded!.sequence);
     expect(mediaDownloaded!.sequence).toBeLessThan(status!.sequence);
   }

@@ -1,3 +1,4 @@
+import { MAX_CONTENT_FILES } from "domain/constants/game";
 import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 import {
   GameJoinModeChangeInputData,
@@ -130,7 +131,7 @@ export class GameValidator {
               .required()
           })
         )
-        .max(100)
+        .max(MAX_CONTENT_FILES)
         .optional()
     });
 

@@ -6,15 +6,12 @@ import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRoute
 import { TransitionTrigger } from "domain/state-machine/types";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
-import {
-  DataMutationConverter,
-  type DataMutation,
-} from "domain/types/action/DataMutation";
+import { DataMutationConverter, type DataMutation } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import {
   FinalAnswerReviewInputData,
-  FinalAnswerReviewOutputData,
+  FinalAnswerReviewOutputData
 } from "domain/types/socket/events/FinalAnswerReviewData";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
@@ -23,10 +20,10 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
  * Handles final round answer review event triggered by showman.
  * Uses prefetched ctx.game and ctx.currentPlayer — no Redis re-fetch.
  */
-export class FinalAnswerReviewUseCase
-  implements
-    GameActionHandler<FinalAnswerReviewInputData, FinalAnswerReviewOutputData>
-{
+export class FinalAnswerReviewUseCase implements GameActionHandler<
+  FinalAnswerReviewInputData,
+  FinalAnswerReviewOutputData
+> {
   constructor(
     private readonly socketGameValidationService: SocketGameValidationService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
@@ -48,79 +45,68 @@ export class FinalAnswerReviewUseCase
     );
     FinalAnswerReviewLogic.validate(game);
 
-    const mutationResult = FinalAnswerReviewLogic.reviewAnswer(
-      game,
-      action.payload
-    );
+    const mutationResult = FinalAnswerReviewLogic.reviewAnswer(game, action.payload);
 
-    // Transition from FINAL_REVIEWING to GAME_FINISHED if all answers reviewed
+    // FINAL_REVIEWING -> SHOWING_ANSWER with answer media, otherwise -> GAME_FINISHED,
+    // once every answer has been reviewed.
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.USER_ACTION,
       triggeredBy: {
         playerId: currentPlayer?.meta.id,
-        isSystem: false,
+        isSystem: false
       },
-      resources:
-        await this.transitionResourceService.getFinalReviewingToGameFinishResources(
-          game
-        ),
+      resources: await this.transitionResourceService.getFinalReviewCompletionResources(game)
     });
 
     const result = FinalAnswerReviewLogic.buildResult({
       game,
       mutationResult,
-      transitionResult,
+      transitionResult
     });
 
     const outputData: FinalAnswerReviewOutputData = {
       answerId: action.payload.answerId,
       playerId: result.reviewResult.playerId,
       isCorrect: action.payload.isCorrect,
-      scoreChange: result.reviewResult.scoreChange,
+      scoreChange: result.reviewResult.scoreChange
     };
 
     const mutations: DataMutation[] = [
       DataMutationConverter.saveGameMutation(game),
-      ...DataMutationConverter.mutationFromTimerMutations(
-        transitionResult?.timerMutations
-      ),
+      ...DataMutationConverter.mutationFromTimerMutations(transitionResult?.timerMutations),
       DataMutationConverter.gameBroadcastMutation(
         game.id,
         SocketIOGameEvents.FINAL_ANSWER_REVIEW,
         outputData
-      ),
+      )
     ];
 
     if (result.isGameFinished) {
       mutations.push(
-        DataMutationConverter.gameBroadcastMutation(
-          game.id,
-          SocketIOGameEvents.QUESTION_FINISH,
-          {
-            answerFiles: null,
-            answerText: result.questionAnswerData?.answerText ?? null,
-            nextTurnPlayerId: null,
-          } satisfies QuestionFinishEventPayload
-        )
+        DataMutationConverter.gameBroadcastMutation(game.id, SocketIOGameEvents.QUESTION_FINISH, {
+          answerFiles: null,
+          answerText: result.questionAnswerData?.answerText ?? null,
+          nextTurnPlayerId: null
+        } satisfies QuestionFinishEventPayload)
       );
 
       mutations.push(
-        DataMutationConverter.gameBroadcastMutation(
-          game.id,
-          SocketIOGameEvents.GAME_FINISHED,
-          true
-        )
+        DataMutationConverter.gameBroadcastMutation(game.id, SocketIOGameEvents.GAME_FINISHED, true)
       );
 
       mutations.push(DataMutationConverter.gameCompletionMutation(game.id));
+    } else if (transitionResult) {
+      mutations.push(
+        ...DataMutationConverter.mutationFromServiceBroadcasts(transitionResult.broadcasts, game.id)
+      );
     }
 
     return {
       success: true,
       data: outputData,
       mutations,
-      broadcastGame: game,
+      broadcastGame: game
     };
   }
 }

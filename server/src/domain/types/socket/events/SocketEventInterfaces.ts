@@ -1,3 +1,4 @@
+import { QuestionTransitionDTO } from "domain/types/dto/game/state/QuestionTransitionDTO";
 /**
  * Dedicated interfaces for socket event input/output data
  * Provides strict typing without indexed access patterns
@@ -106,10 +107,12 @@ export interface GameStartBroadcastData {
 }
 
 export interface GamePauseBroadcastData {
+  questionTransition?: QuestionTransitionDTO | null;
   timer: GameStateTimerDTO | null;
 }
 
 export interface GameUnpauseBroadcastData {
+  questionTransition?: QuestionTransitionDTO | null;
   timer: GameStateTimerDTO | null;
 }
 

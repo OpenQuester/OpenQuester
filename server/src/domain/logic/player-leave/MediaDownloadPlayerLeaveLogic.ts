@@ -93,7 +93,7 @@ export class MediaDownloadPlayerLeaveLogic {
     const { game, timer } = input;
     const broadcasts: BroadcastEvent[] = [];
 
-    if (!completionResult.allPlayersReady) {
+    if (!completionResult.allPlayersReady && !timer) {
       return { broadcasts };
     }
 
@@ -103,6 +103,7 @@ export class MediaDownloadPlayerLeaveLogic {
         playerId: SYSTEM_PLAYER_ID,
         mediaDownloaded: true,
         allPlayersReady: true,
+        questionTransition: null,
         timer,
         contentPlan: game.gameState.questionContentPlan ?? null,
         buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null

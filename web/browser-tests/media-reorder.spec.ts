@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import type * as Drafts from "../src/features/package-editor/draftStorage";
 import type * as Model from "../src/features/package-editor/packageDraft";
 
-test("reorders distinct occurrences safely and keeps main text first with external drops", async ({
+test("reorders distinct occurrences, preserves a legacy caption and accepts external drops", async ({
   page,
   context,
 }) => {
@@ -123,7 +123,8 @@ test("reorders distinct occurrences safely and keeps main text first with extern
     return await loadDraft("reorder-test");
   });
   expect(draft!.pkg.rounds[0]!.themes[0]!.questions[0]).toMatchObject({
-    textPosition: 0,
+    text: "Prompt",
+    textPosition: null,
     questionFiles: [
       { md5: "first", displayTime: 4000 },
       { md5: "second", displayTime: 3000 },

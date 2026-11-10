@@ -6,6 +6,7 @@ import {
   CONTENT_TEXT_MIN_TIME,
   CONTENT_TEXT_MS_PER_CHAR
 } from "domain/constants/game";
+import { authoredContentGroups } from "domain/logic/question/authoredContentGroups";
 import { Game } from "domain/entities/game/Game";
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
@@ -18,9 +19,7 @@ import {
 import { PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
 import type {
   ContentDefaults,
-  ContentPlanEntry,
   MediaDurations,
-  OrderedContentPlanEntry,
   QuestionContentSource
 } from "domain/types/question/QuestionContentPlanTypes";
 import type { MediaDurationReport } from "domain/types/socket/events/game/MediaDownloadedInputData";
@@ -34,8 +33,8 @@ const QUESTION_DEFAULTS: ContentDefaults = {
 /**
  * Builds the content timeline of a question or answer, following SIGame:
  * items play in order, and consecutive items are grouped into one step until
- * an item that waits for its finish. A step lasts as long as its longest item,
- * except background sounds that do not wait (they keep playing underneath).
+ * an item that waits for its finish. Queue offsets schedule files within a
+ * step. Background sounds that do not wait keep playing underneath.
  */
 export class QuestionContentPlanLogic {
   public static build(
@@ -43,96 +42,60 @@ export class QuestionContentPlanLogic {
     mediaDurations: MediaDurations | null = null,
     defaults: ContentDefaults = QUESTION_DEFAULTS
   ): QuestionContentPlanDTO | null {
-    const entries: OrderedContentPlanEntry[] = [];
-
-    for (const file of source.files ?? []) {
-      const placement =
-        file.file.type === PackageFileType.AUDIO && file.placement === ContentPlacement.BACKGROUND
-          ? ContentPlacement.BACKGROUND
-          : ContentPlacement.SCREEN;
-
-      entries.push({
-        item: {
-          kind: QuestionContentItemKind.FILE,
-          order: file.order,
-          placement,
-          durationMs: this._fileDuration(file, mediaDurations, defaults)
-        },
-        waitForFinish: file.waitForFinish ?? true,
-        sortKey: file.order,
-        tieBreak: 1
-      });
-    }
-
-    const text = source.text?.trim();
-    if (text && source.textOrder !== null && source.textOrder !== undefined) {
-      entries.push({
-        item: {
-          kind: QuestionContentItemKind.TEXT,
-          order: source.textOrder,
-          placement: ContentPlacement.SCREEN,
-          durationMs: this.textDuration(text)
-        },
-        waitForFinish: true,
-        sortKey: source.textOrder,
-        tieBreak: 0
-      });
-    }
-
-    for (const item of source.textItems ?? []) {
-      const text = item.text.trim();
-      if (!text) continue;
-      entries.push({
-        item: {
-          kind: QuestionContentItemKind.TEXT,
-          order: item.order,
-          placement: ContentPlacement.SCREEN,
-          durationMs: this.textDuration(text)
-        },
-        waitForFinish: true,
-        sortKey: item.order,
-        tieBreak: 0
-      });
-    }
-
-    if (entries.length === 0) {
+    const groups = authoredContentGroups(source);
+    if (groups.length === 0) {
       return null;
     }
 
-    entries.sort((a, b) => a.sortKey - b.sortKey || a.tieBreak - b.tieBreak);
-
-    const steps: QuestionContentStepDTO[] = [];
-    let current: ContentPlanEntry[] = [];
     let cursor = 0;
+    const steps: QuestionContentStepDTO[] = groups.map((group) => {
+      const visualCount = group.filter(
+        (entry) => "media" in entry && entry.media.file.type !== PackageFileType.AUDIO
+      ).length;
+      const forceQueue = visualCount >= 5;
+      let offset = 0;
+      let durationMs = 0;
+      const items = group.map((entry) => {
+        const { order } = entry;
+        if ("text" in entry) {
+          const duration = this.textDuration(entry.text);
+          durationMs = Math.max(durationMs, duration);
+          return {
+            kind: QuestionContentItemKind.TEXT,
+            order,
+            placement: ContentPlacement.SCREEN,
+            durationMs: duration
+          };
+        }
 
-    const close = () => {
-      if (current.length === 0) {
-        return;
-      }
-
-      const blocking = current.filter(
-        (e) => e.waitForFinish || e.item.placement !== ContentPlacement.BACKGROUND
-      );
-      const durationMs = Math.max(0, ...blocking.map((e) => e.item.durationMs));
-
-      steps.push({
-        startMs: cursor,
-        durationMs,
-        items: current.map((e) => e.item)
+        const file = entry.media;
+        const type = file.file.type;
+        const background =
+          type === PackageFileType.AUDIO && file.placement === ContentPlacement.BACKGROUND;
+        const duration = this._fileDuration(file, mediaDurations, defaults);
+        const queued =
+          !background &&
+          (forceQueue ||
+            (source.playMediaSimultaneously === false && type !== PackageFileType.IMAGE));
+        const startOffsetMs = queued ? offset : 0;
+        if (queued) {
+          offset += duration;
+        }
+        if (!background || file.waitForFinish !== false) {
+          durationMs = Math.max(durationMs, startOffsetMs + duration);
+        }
+        return {
+          kind: QuestionContentItemKind.FILE,
+          order,
+          placement: background ? ContentPlacement.BACKGROUND : ContentPlacement.SCREEN,
+          durationMs: duration,
+          ...(startOffsetMs > 0 ? { startOffsetMs } : {})
+        };
       });
+      const step = { startMs: cursor, durationMs, items };
       cursor += durationMs;
-      current = [];
-    };
-
-    for (const entry of entries) {
-      current.push(entry);
-
-      if (entry.waitForFinish) {
-        close();
-      }
-    }
-
-    close();
+      return step;
+    });
 
     return { steps, totalMs: cursor };
   }
@@ -150,6 +113,7 @@ export class QuestionContentPlanLogic {
             text: question.text,
             textOrder: question.textOrder,
             textItems: question.textItems,
+            playMediaSimultaneously: question.playMediaSimultaneously,
             files: question.questionFiles
           },
           game.gameState.mediaDurations ?? null
@@ -215,15 +179,14 @@ export class QuestionContentPlanLogic {
    */
   public static mergeMediaDurations(
     game: Game,
-    reported: MediaDurationReport[] | null | undefined
+    reported: MediaDurationReport[] | null | undefined,
+    files = game.gameState.currentQuestion?.questionFiles
   ): void {
     if (!reported?.length) {
       return;
     }
 
-    const known = new Set(
-      (game.gameState.currentQuestion?.questionFiles ?? []).map((f) => f.file.md5)
-    );
+    const known = new Set((files ?? []).map((f) => f.file.md5));
     const durations: MediaDurations = { ...(game.gameState.mediaDurations ?? {}) };
 
     for (const { md5, durationMs } of reported) {

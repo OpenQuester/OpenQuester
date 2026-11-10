@@ -97,7 +97,9 @@ export class SkipQuestionForceUseCase implements GameActionHandler<
     const broadcasts: SocketEventBroadcast[] = [
       {
         event: SocketIOGameEvents.QUESTION_FINISH,
-        data: questionFinishPayload,
+        data: questionFinishPayload.answerContentPlan
+          ? { ...questionFinishPayload, timer: game.gameState.timer ?? undefined }
+          : questionFinishPayload,
         target: SocketBroadcastTarget.GAME,
         gameId: game.id
       } satisfies SocketEventBroadcast<QuestionFinishEventPayload>,
@@ -126,19 +128,14 @@ export class SkipQuestionForceUseCase implements GameActionHandler<
   ): Promise<ActionHandlerResult<EmptyOutputData> | null> {
     const { game, currentPlayer } = ctx;
 
-    if (
-      game.gameState.questionState !== QuestionState.SHOWING ||
-      !game.gameState.currentQuestion
-    ) {
+    if (game.gameState.questionState !== QuestionState.SHOWING || !game.gameState.currentQuestion) {
       return null;
     }
 
     const transitionResources =
       await this.transitionResourceService.getCurrentQuestionWithTheme(game);
 
-    QuestionForceSkipLogic.getQuestionToSkip(
-      transitionResources?.questionWithTheme ?? null
-    );
+    QuestionForceSkipLogic.getQuestionToSkip(transitionResources?.questionWithTheme ?? null);
 
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
@@ -159,22 +156,14 @@ export class SkipQuestionForceUseCase implements GameActionHandler<
       data: {},
       mutations: [
         DataMutationConverter.saveGameMutation(game),
-        ...DataMutationConverter.mutationFromTimerMutations(
-          transitionResult.timerMutations
-        ),
-        ...DataMutationConverter.mutationFromServiceBroadcasts(
-          transitionResult.broadcasts,
-          game.id
-        )
+        ...DataMutationConverter.mutationFromTimerMutations(transitionResult.timerMutations),
+        ...DataMutationConverter.mutationFromServiceBroadcasts(transitionResult.broadcasts, game.id)
       ],
       broadcastGame: game
     };
   }
 
-  private buildShowAnswerTimerMutations(
-    game: Game,
-    question: PackageQuestionDTO
-  ): TimerMutation[] {
+  private buildShowAnswerTimerMutations(game: Game, question: PackageQuestionDTO): TimerMutation[] {
     const duration = ShowAnswerLogic.calculateShowAnswerDuration(question);
     const timer = new GameStateTimer(duration);
     const timerValue = timer.start();

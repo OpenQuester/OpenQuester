@@ -25,6 +25,8 @@ export interface PackageQuestionDTO {
   textOrder?: number | null;
   /** Additional text steps, each identified by its unique content order. */
   textItems?: QuestionTextItemDTO[] | null;
+  /** Allows screen audio/video to overlap in groups with up to four visuals. Defaults to true. */
+  playMediaSimultaneously?: boolean | null;
   answerHint?: string | null;
   answerText?: string | null;
   /** How the answer is given and checked; text when missing */

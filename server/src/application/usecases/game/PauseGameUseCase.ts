@@ -7,7 +7,7 @@ import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import {
   type EmptyInputData,
-  type GamePauseBroadcastData,
+  type GamePauseBroadcastData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
@@ -17,9 +17,7 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
  * Validates showman role and game-in-progress state, then builds
  * timer pause mutations.
  */
-export class PauseGameUseCase
-  implements GameActionHandler<EmptyInputData, GamePauseBroadcastData>
-{
+export class PauseGameUseCase implements GameActionHandler<EmptyInputData, GamePauseBroadcastData> {
   constructor(
     private readonly socketGameTimerService: SocketGameTimerService,
     private readonly socketGameValidationService: SocketGameValidationService
@@ -33,11 +31,19 @@ export class PauseGameUseCase
     const { game, timer } = ctx;
 
     GameStateValidator.validateGameInProgress(game);
+    if (game.gameState.questionTransition && game.gameState.isPaused) {
+      return { success: true, mutations: [] };
+    }
 
-    const { result, timerMutations } =
-      this.socketGameTimerService.buildPauseTimerMutations(game, timer);
+    const { result, timerMutations } = this.socketGameTimerService.buildPauseTimerMutations(
+      game,
+      timer
+    );
 
-    const pauseData: GamePauseBroadcastData = { timer: result.data.timer };
+    const pauseData: GamePauseBroadcastData = {
+      timer: result.data.timer,
+      questionTransition: game.gameState.questionTransition ?? null
+    };
 
     return {
       success: true,
@@ -45,10 +51,8 @@ export class PauseGameUseCase
       mutations: [
         DataMutationConverter.saveGameMutation(game),
         ...DataMutationConverter.mutationFromTimerMutations(timerMutations),
-        ...DataMutationConverter.mutationFromSocketBroadcasts(
-          result.broadcasts
-        ),
-      ],
+        ...DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts)
+      ]
     };
   }
 }

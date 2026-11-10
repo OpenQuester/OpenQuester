@@ -5,7 +5,7 @@ import { Server as IOServer } from "socket.io";
 import { bootstrapContainer, container } from "bootstrap/bootstrapContainer";
 import { SingleInstanceRestartRecoveryService } from "application/services/recovery/SingleInstanceRestartRecoveryService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
-import { timerKey } from "domain/constants/redisKeys";
+import { questionTransitionTimerKey, timerKey } from "domain/constants/redisKeys";
 import { SOCKET_GAME_NAMESPACE, SOCKET_USER_PREFIX } from "domain/constants/socket";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -148,6 +148,33 @@ describe("SingleInstanceRestartRecovery real Redis integration", () => {
     ]);
     expect(resume.result.data.timer?.durationMs).toBe(recoveryTimerDurationMs);
     expect(resume.result.data.timer?.elapsedMs).toBe(0);
+  });
+
+  it("recovers a transition-only text question into a paused restore point", async () => {
+    const game = buildGame("RCVT", null);
+    game.setQuestionState(QuestionState.MEDIA_DOWNLOADING);
+    game.gameState.questionTransition = {
+      timer: { ...buildTimer(), durationMs: 1550 },
+      mediaReady: true
+    };
+    await gameRepository.updateGame(game);
+    const key = questionTransitionTimerKey(game.id);
+    await RedisConfig.getClient().set(
+      key,
+      JSON.stringify(game.gameState.questionTransition.timer),
+      "PX",
+      1550
+    );
+    await recoveryService.recoverIfEnabled();
+    const recovered = await gameRepository.getGameEntity(game.id);
+    expect(recovered.gameState.isPaused).toBe(true);
+    expect(recovered.gameState.timer).toBeNull();
+    expect(recovered.gameState.questionTransition?.timer.elapsedMs).toBe(0);
+    expect(await RedisConfig.getClient().exists(key)).toBe(0);
+    const resumed = new SocketGameTimerService().buildUnpauseTimerMutations(recovered, null);
+    expect(resumed.timerMutations).toContainEqual(
+      expect.objectContaining({ op: "set", key, pxTtl: 1550 })
+    );
   });
 
   it("disconnects players without inventing paused timers when a game has no active timer", async () => {

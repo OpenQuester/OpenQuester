@@ -85,15 +85,13 @@ function bid(game: PreviewRuntime, id: number, value: number) {
       (item) => item.id === PREVIEW_FINAL_THEME,
     );
     const q = game.question;
-    const plan =
-      q.textItems == null
-        ? null
-        : buildContentPlan({
-            text: q.text,
-            textOrder: q.textOrder,
-            textItems: q.textItems,
-            files: q.questionFiles,
-          });
+    const plan = buildContentPlan({
+      text: q.text,
+      textOrder: q.textOrder,
+      textItems: q.textItems,
+      files: q.questionFiles,
+      playMediaSimultaneously: q.playMediaSimultaneously,
+    });
     game.dispatch({
       type: "final-question-data",
       payload: {
@@ -101,7 +99,7 @@ function bid(game: PreviewRuntime, id: number, value: number) {
           themeId: PREVIEW_FINAL_THEME,
           themeName: theme?.name ?? "",
           question: game.question,
-          ...(q.textItems != null ? { contentPlan: plan } : {}),
+          contentPlan: plan,
         },
       },
     });
@@ -181,8 +179,8 @@ function review(game: PreviewRuntime, id: string, correct: boolean) {
 }
 
 function finishFinal(game: PreviewRuntime) {
-  game.finish();
-  game.dispatch({ type: "game-finished", payload: {} });
+  game.finish(null);
+  if (!game.question.answerFiles?.length) game.dispatch({ type: "game-finished", payload: {} });
 }
 
 export function timeoutFinal(game: PreviewRuntime): boolean {

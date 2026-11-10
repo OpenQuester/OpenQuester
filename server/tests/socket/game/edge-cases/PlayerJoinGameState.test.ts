@@ -80,11 +80,9 @@ describe("Player Join Game State Tests", () => {
         const data = await prepared;
         expect((await utils.getGameState(gameId)).finalRoundData?.bids[playerUsers[1].id]).toBe(1);
         const phase = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_PHASE_COMPLETE);
-        scenario
-          .actor(playerSockets[0])
-          .emit(SocketIOGameEvents.MEDIA_DOWNLOADED, {
-            mediaPreparationId: data.questionData.mediaPreparationId
-          });
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.MEDIA_DOWNLOADED, {
+          mediaPreparationId: data.questionData.mediaPreparationId
+        });
         await phase;
         const game = await utils.getGameFromGameService(gameId);
         expect(game.gameState.finalRoundData?.answers).toHaveLength(0);
@@ -583,9 +581,9 @@ describe("Player Join Game State Tests", () => {
             await scenario.assert.waitForActionsComplete({ gameId });
             const reviewing = await utils.getGameFromGameService(gameId);
             expect(reviewing.gameState.questionState).toBe(QuestionState.REVIEWING);
-            expect(
-              reviewing.getPlayer(playerUsers[1].id, { fetchDisconnected: true })?.score
-            ).toBe(600);
+            expect(reviewing.getPlayer(playerUsers[1].id, { fetchDisconnected: true })?.score).toBe(
+              600
+            );
           }
         });
       }
@@ -846,7 +844,7 @@ describe("Player Join Game State Tests", () => {
           questionFiles: [
             {
               order: 0,
-              displayTime: null,
+              displayTime: 1,
               file: {
                 md5: "point-image",
                 type: PackageFileType.IMAGE,
@@ -867,9 +865,25 @@ describe("Player Join Game State Tests", () => {
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
         scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
-        expect((await finalQuestion).questionData.question).toMatchObject({
-          answerPoint: question.answerPoint
-        });
+        const { questionData } = await finalQuestion;
+        expect(questionData.question).toMatchObject({ answerPoint: question.answerPoint });
+        expect(questionData.mediaPreparationId).toBeDefined();
+        const ready = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_PHASE_COMPLETE);
+        const acceptedMedia = playerSockets.map((socket) =>
+          scenario
+            .createAcceptedActionProbe({
+              gameId,
+              actionType: GameActionType.MEDIA_DOWNLOADED,
+              socketId: socket.id
+            })
+            .waitForCount(1)
+        );
+        for (const socket of playerSockets) {
+          scenario.actor(socket).emit(SocketIOGameEvents.MEDIA_DOWNLOADED, {
+            mediaPreparationId: questionData.mediaPreparationId
+          });
+        }
+        await Promise.all([ready, ...acceptedMedia]);
         const firstAnswer = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_ANSWER_SUBMIT

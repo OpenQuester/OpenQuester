@@ -209,7 +209,9 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
 
     broadcasts.push({
       event: SocketIOGameEvents.QUESTION_FINISH,
-      data: questionFinishPayload,
+      data: questionFinishPayload.answerContentPlan
+        ? { ...questionFinishPayload, timer: timerResult.timer }
+        : questionFinishPayload,
       room: game.id
     });
 

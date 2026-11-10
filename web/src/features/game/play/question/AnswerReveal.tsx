@@ -7,7 +7,6 @@ import { parsePointAnswer } from "@/game/pointAnswer";
 import { useGame, useSession } from "../../GameContext";
 import { ContentStage } from "../ContentStage";
 import { PointResults } from "./PointResults";
-import { QuestionMedia } from "../QuestionMedia";
 import { QuestionBody } from "./QuestionBody";
 import { allPlayRevealText } from "../allPlayRevealText";
 import { RevealResult } from "./RevealResult";
@@ -54,6 +53,7 @@ export function AnswerReveal() {
   const { t } = useTranslation();
   const session = useSession();
   const s = session.state;
+  const content = session.content;
   const data = s.answerShowData;
   const allPlaySummary = allPlayRevealText(session, t);
   const result =
@@ -64,7 +64,8 @@ export function AnswerReveal() {
   const pointImage = data?.answerPointImage ?? pointPicture(s.currentQuestion);
   const markers = pointMarkers(session, result, t);
   const credits = revealCredits(data, t);
-  if (data?.answerPoint && pointImage)
+  const timed = content?.kind === "answer";
+  if (data?.answerPoint && pointImage && !timed)
     return (
       <div className={`${questionContentLayout} oq-pop`} data-testid="answer-reveal">
         <PointResults
@@ -75,17 +76,52 @@ export function AnswerReveal() {
         />
       </div>
     );
+  const label = t("reveal.answer");
+  const textLength = (answerText?.length ?? 0) + (result?.answerText?.length ?? 0);
+  const text = (
+    <>
+      <RevealedText answerText={answerText} rightAnswers={data?.rightAnswers} result={result} />
+      {timed && data?.answerPoint && pointImage && (
+        <PointResults
+          src={pointImage}
+          target={data.answerPoint}
+          radius={data.answerDeviation}
+          markers={markers}
+          compact
+        />
+      )}
+    </>
+  );
+  const footer = <RevealFooter credits={credits} />;
   return (
     <div className={`${questionContentLayout} oq-pop`} data-testid="answer-reveal">
-      <QuestionBody
-        label={t("reveal.answer")}
-        textLength={(answerText?.length ?? 0) + credits.length + (result?.answerText?.length ?? 0)}
-        footer={<RevealFooter credits={credits} />}
-        media={data?.correctChoiceImage || data?.answerFiles?.length ? <RevealMedia /> : undefined}
-        text={
-          <RevealedText answerText={answerText} rightAnswers={data?.rightAnswers} result={result} />
-        }
-      />
+      {content?.kind === "answer" ? (
+        <ContentStage
+          content={content}
+          files={data?.answerFiles ?? []}
+          paused={s.isPaused}
+          label={label}
+          caption={text}
+          captionLength={textLength}
+          footer={footer}
+        />
+      ) : (
+        <QuestionBody
+          label={label}
+          textLength={textLength}
+          text={text}
+          footer={footer}
+          media={
+            data?.correctChoiceImage ? (
+              <img
+                src={data.correctChoiceImage}
+                alt={label}
+                className="min-h-0 w-full flex-1 rounded-md object-contain"
+              />
+            ) : undefined
+          }
+        />
+      )}
     </div>
   );
 }
@@ -108,30 +144,6 @@ function RevealFooter({ credits }: { credits: string }) {
         </div>
       )}
     </footer>
-  );
-}
-
-function RevealMedia() {
-  const { t } = useTranslation();
-  const { state, content } = useSession();
-  const data = state.answerShowData;
-  return (
-    <>
-      {data?.correctChoiceImage && (
-        <img
-          src={data.correctChoiceImage}
-          alt={t("reveal.answer")}
-          className="min-h-0 w-full flex-1 rounded-md object-contain"
-        />
-      )}
-      {content?.kind === "answer" ? (
-        <ContentStage content={content} files={data?.answerFiles ?? []} paused={state.isPaused} />
-      ) : (
-        !!data?.answerFiles?.length && (
-          <QuestionMedia files={data.answerFiles} playing={!state.isPaused} />
-        )
-      )}
-    </>
   );
 }
 
@@ -168,12 +180,14 @@ function RevealedText({
           />
         </p>
       )}
-      <p
-        className="m-0 text-center text-lg text-soft [overflow-wrap:anywhere] 3xl:text-2xl"
-        data-testid="reveal-result"
-      >
-        <RevealResult result={result} />
-      </p>
+      {session.state.currentRound?.type !== "final" && (
+        <p
+          className="m-0 text-center text-lg text-soft [overflow-wrap:anywhere] 3xl:text-2xl"
+          data-testid="reveal-result"
+        >
+          <RevealResult result={result} />
+        </p>
+      )}
       {result?.answerText && (
         <p
           className="m-0 text-center text-soft [overflow-wrap:anywhere]"

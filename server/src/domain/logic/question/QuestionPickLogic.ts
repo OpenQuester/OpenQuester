@@ -174,13 +174,13 @@ export class QuestionPickLogic {
 
       case GamePhase.MEDIA_DOWNLOADING:
       case GamePhase.SHOWING: {
-        if (timerDto) {
+        if (timerDto || game.gameState.questionTransition) {
           return {
             success: true,
             data: {
               type: QuestionPickType.NORMAL,
               gameId: game.id,
-              timer: timerDto,
+              timer: timerDto ?? null,
               question
             }
           };

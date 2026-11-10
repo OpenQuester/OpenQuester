@@ -1,6 +1,7 @@
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
 import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
+import { QuestionTransitionLogic } from "domain/logic/question/QuestionTransitionLogic";
 import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
@@ -58,17 +59,30 @@ export class MediaDownloadedUseCase implements GameActionHandler<
       return { success: true, mutations: [] };
     }
 
-    currentPlayer.mediaDownloaded = true;
-    if (!isFinal)
-      QuestionContentPlanLogic.mergeMediaDurations(game, ctx.action.payload?.mediaDurations);
+    if (game.gameState.questionTransition && !QuestionTransitionLogic.hasMedia(game)) {
+      return { success: true, mutations: [] };
+    }
 
-    const allPlayersReady = MediaDownloadLogic.areAllPlayersReady(game);
+    currentPlayer.mediaDownloaded = true;
+    QuestionContentPlanLogic.mergeMediaDurations(
+      game,
+      ctx.action.payload?.mediaDurations,
+      isFinal
+        ? game.gameState.finalRoundData?.questionData?.question.questionFiles
+        : game.gameState.currentQuestion?.questionFiles
+    );
+
+    const openingMutations = QuestionTransitionLogic.refresh(game);
+    const allPlayersReady = game.gameState.questionTransition
+      ? QuestionTransitionLogic.mediaReady(game)
+      : MediaDownloadLogic.areAllPlayersReady(game);
 
     let transitionTimer = null;
     const transitionMutations: DataMutation[] = [];
 
-    if (allPlayersReady && (!isFinal || !game.gameState.isPaused)) {
-      // Transition to showing question if all players are ready
+    if (allPlayersReady && !game.gameState.isPaused) {
+      // MEDIA_DOWNLOADING -> SHOWING after the regular opening barrier,
+      // or MEDIA_DOWNLOADING -> FINAL_ANSWERING when final media is ready.
       const transitionResult = await this.phaseTransitionRouter.tryTransition({
         game,
         trigger: TransitionTrigger.USER_ACTION,
@@ -95,7 +109,11 @@ export class MediaDownloadedUseCase implements GameActionHandler<
       mediaDownloaded: true,
       allPlayersReady: isFinal ? false : allPlayersReady,
       timer: transitionTimer,
-      contentPlan: transitionTimer ? (game.gameState.questionContentPlan ?? null) : undefined,
+      questionTransition: game.gameState.questionTransition ?? null,
+      contentPlan:
+        transitionTimer || game.gameState.questionTransition?.mediaReady
+          ? (game.gameState.questionContentPlan ?? null)
+          : undefined,
       buzzerOpensAtMs: transitionTimer ? (game.gameState.buzzerOpensAtMs ?? null) : undefined
     };
 
@@ -111,6 +129,9 @@ export class MediaDownloadedUseCase implements GameActionHandler<
       data: statusData,
       mutations: [
         DataMutationConverter.saveGameMutation(game),
+        ...DataMutationConverter.mutationFromTimerMutations(
+          transitionTimer ? [] : openingMutations
+        ),
         ...transitionMutations,
         ...(!isFinal || !transitionTimer
           ? DataMutationConverter.mutationFromSocketBroadcasts([broadcast])

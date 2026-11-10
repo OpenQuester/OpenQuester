@@ -76,6 +76,7 @@ export class GameQuestionMapper {
       text: question.text,
       textOrder: question.textOrder ?? null,
       textItems: question.textItems ?? null,
+      playMediaSimultaneously: question.playMediaSimultaneously ?? true,
       transferType: question.transferType
     };
   }

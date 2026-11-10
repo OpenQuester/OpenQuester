@@ -1,0 +1,41 @@
+.question-type-tooltip {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  /* Transparent padding bridges the visible gap when the pointer enters the tooltip. */
+  padding: 6px 0;
+  overflow: visible;
+  opacity: 0;
+  transform: scale(0.98);
+  transform-origin: center bottom;
+  pointer-events: none;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    display 180ms allow-discrete,
+    overlay 180ms allow-discrete;
+}
+.question-type-tooltip[data-side="below"] {
+  transform-origin: center top;
+}
+.question-type-tooltip:popover-open {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+@starting-style {
+  .question-type-tooltip:popover-open {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .question-type-tooltip {
+    transition: none;
+  }
+}
+html[data-motion="reduced"] .question-type-tooltip {
+  transition: none;
+}

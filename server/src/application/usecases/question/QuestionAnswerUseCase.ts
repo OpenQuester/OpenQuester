@@ -6,6 +6,7 @@ import { ClientError } from "domain/errors/ClientError";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { BuzzerLogic } from "domain/logic/question/BuzzerLogic";
 import { QuestionAnswerRequestLogic } from "domain/logic/question/QuestionAnswerRequestLogic";
+import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
@@ -63,6 +64,10 @@ export class QuestionAnswerUseCase
 
     const playerId = currentPlayer!.meta.id;
     const now = Date.now();
+    const timer = game.gameState.timer;
+    if (timer && GamePauseLogic.startDelayMs(timer, now) > 0) {
+      throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
+    }
 
     if (BuzzerLogic.isRace(game)) {
       if (BuzzerLogic.lockedUntil(game, playerId, now)) {

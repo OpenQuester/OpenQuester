@@ -107,6 +107,7 @@ export interface ContentPlanItem {
   order: number;
   placement: ContentPlacement;
   durationMs: number;
+  startOffsetMs?: number;
 }
 
 export interface ContentStep {
@@ -143,6 +144,7 @@ export interface Question {
   textOrder?: number | null;
   /** Additional text steps in the same order space as question files. */
   textItems?: { order: number; text: string }[] | null;
+  playMediaSimultaneously?: boolean | null;
   /** Showman only. */
   answerHint?: string | null;
   /** How the answer is given: typed/said, a number, or a spot on the picture. */
@@ -184,6 +186,7 @@ export interface AnsweredPlayer {
 }
 
 export interface AnswerShowData {
+  timer?: Timer;
   answerFiles: QuestionFile[] | null;
   answerText: string | null;
   correctChoiceImage?: string | null;
@@ -312,7 +315,15 @@ export interface AllPlayData {
   entries: AllPlayEntry[];
 }
 
+export interface QuestionTransition {
+  timer: Timer;
+  mediaReady: boolean;
+  mediaEligiblePlayerIds?: number[];
+  timedOut?: boolean;
+}
+
 export interface GameState {
+  questionTransition?: QuestionTransition | null;
   questionState: QuestionState | null;
   isPaused: boolean;
   currentRound: Round | null;
@@ -387,8 +398,8 @@ export interface ServerEvents {
     currentTurnPlayerId?: number | null;
     roundStartedAt?: number | null;
   };
-  "game-pause": { timer: Timer | null };
-  "game-unpause": { timer: Timer | null };
+  "game-pause": { timer: Timer | null; questionTransition?: QuestionTransition | null };
+  "game-unpause": { timer: Timer | null; questionTransition?: QuestionTransition | null };
   "player-ready": {
     playerId: number;
     isReady: boolean;
@@ -397,6 +408,7 @@ export interface ServerEvents {
   };
   "player-unready": { playerId: number; isReady: boolean; readyPlayers: number[] };
   "media-download-status": {
+    questionTransition?: QuestionTransition | null;
     playerId: number;
     mediaDownloaded: boolean;
     allPlayersReady: boolean;
@@ -407,7 +419,8 @@ export interface ServerEvents {
   };
   "question-data": {
     data: Question;
-    timer: Timer;
+    timer: Timer | null;
+    questionTransition?: QuestionTransition | null;
     questionEligiblePlayers?: number[] | null;
     contentPlan?: ContentPlan | null;
     buzzerOpensAtMs?: number | null;

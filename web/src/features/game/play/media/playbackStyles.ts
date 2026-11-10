@@ -10,7 +10,7 @@ export const playbackStyles = {
   loading: "absolute inset-0 flex items-center justify-center bg-surface-2",
   image: "absolute inset-0 h-full w-full object-contain transition-opacity duration-200",
   audioPlayer:
-    "relative flex min-h-24 items-center gap-4 overflow-hidden rounded-lg border border-line bg-surface-2 p-4",
+    "audio-player relative grid min-h-24 items-center overflow-hidden rounded-lg border border-line bg-surface-2",
   audioIcon:
     "inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-accent-surface text-accent",
   replay: `${playbackButton} border border-line-strong text-text hover:bg-surface-2`,
