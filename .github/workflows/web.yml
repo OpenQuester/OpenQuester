@@ -54,6 +54,7 @@ jobs:
 
   browser:
     name: Native browser tests (${{ matrix.shard }}/2)
+    # Run half the suite on each runner; the full suite exceeds its 10-minute budget.
     strategy:
       fail-fast: false
       matrix:

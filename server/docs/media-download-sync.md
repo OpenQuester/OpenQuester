@@ -1,114 +1,68 @@
 # Media download coordination
 
-This reference covers the direct `CHOOSING -> MEDIA_DOWNLOADING` entry in a
-regular round. Secret transfer, stake bidding (including everyone-stake), final
-questions and already-active legacy questions without transition metadata keep
-their separate entry paths.
+This reference covers direct regular-round picks. Secret, stake and final
+questions use separate transitions; active legacy questions without
+`questionTransition` retain their existing handshake.
 
-The server coordinates reported readiness, not file transfers. Data delivery,
-readiness, the opening animation and playback are distinct boundaries.
+The server coordinates **reported readiness**, not file transfers. Data delivery,
+readiness and playback are separate boundaries.
 
 ## Current Socket.IO contract
 
-No new event or question state is introduced. `QUESTION_DATA` delivers
-role-filtered content and links in `MEDIA_DOWNLOADING`, with optional
-`questionTransition: { timer, mediaReady, timedOut? }`. The opening uses the
-existing `GameStateTimerDTO`; `timedOut` records the durable media-timeout fallback.
-The same metadata travels in media statuses, snapshots and pause/unpause payloads.
+Namespace: `/games`. Names below are backend enum members; wire names and
+payloads live in [OpenAPI](../../openapi/schema.json).
 
-- Selection starts `timer:question-transition:{gameId}` at 1550 ms, alongside
-  the ordinary 30-second media timer when files exist.
-- Without files, `QUESTION_DATA.timer` is null, media is ready immediately,
-  and clients neither preload nor send ACKs. Only the opening timer releases play.
-- `MEDIA_DOWNLOADED` reports readiness and optional measured media lengths.
-  Statuses with `allPlayersReady: true` and `timer: null` still leave the server
-  in `MEDIA_DOWNLOADING`. They may include the prepared content plan, frozen at zero.
-- Release uses the existing `MEDIA_DOWNLOAD_STATUS`, with the question timer,
-  content plan, null transition metadata and system player ID. Only this release
-  enters `SHOWING`; no second `QUESTION_DATA` is sent.
-- ACKs outside the media phase are successful no-ops. Duplicate ACKs inside it
-  may repeat statuses, but do not extend the closing fade or release twice.
+| Step | Event | State and payload |
+| --- | --- | --- |
+| Pick | Client → server `QUESTION_PICK` | `{ questionId }`; existing role/phase validation applies. |
+| Deliver data | Server → clients `QUESTION_DATA` | Role-filtered data and links in `MEDIA_DOWNLOADING`, with `questionTransition`. The 30-second media timer is null for text-only questions. |
+| Readiness | Client `MEDIA_DOWNLOADED` → server `MEDIA_DOWNLOAD_STATUS` | Clients ACK after loading files. Even `allPlayersReady: true` with `timer: null` keeps preparation active. Text-only questions send no ACK. |
+| Release | Server → clients `MEDIA_DOWNLOAD_STATUS` | Enters `SHOWING` with the shared question timer, `contentPlan`, null transition metadata and system player ID. No second `QUESTION_DATA`. |
+| Media timeout | Same status event | Forces readiness after 30 seconds; the opening deadline still applies. This does not prove successful downloads. |
 
-Readiness waits for connected PLAYERs captured at selection, including no-risk
-viewers who cannot answer. Late arrivals and promoted spectators do not enter
-this roster. Eligible reconnecting viewers preload again. With an originally
-empty roster, the solo showman must prepare media; spectators cannot release it.
-`questionTransition.mediaEligiblePlayerIds` exposes that captured roster so a
-late join cannot cancel the showman's preload or introduce another accepted loader.
-The field is optional for compatibility with active preparations from older servers.
-Departure removes a participant from the waiting set. The media timeout forces
-readiness and keeps it forced through reconnect during the closing fade.
+`questionTransition` carries `{ timer, mediaReady, mediaEligiblePlayerIds?, timedOut? }`
+in question data, statuses, snapshots and pause/unpause events. Its roster captures
+the original viewers: connected players, including no-risk viewers who cannot
+answer. Late arrivals/promoted spectators do not join it; eligible reconnects
+preload again, and departures stop blocking. An originally empty roster requires
+the solo showman's ACK. Spectators never block readiness. Timeout-forced readiness
+survives reconnect during the closing fade.
 
-## Opening timer and lifecycle
+## Phase guards and timers
 
-The opening deadline is `max(selection + 1550 ms, readiness + 300 ms)`.
-The final 300 ms remains available after slow readiness. Once both conditions
-hold, the content timer starts 200 ms ahead for delivery, making a warm question
-start at selection + 1750 ms. Redis TTL includes that 200 ms lead.
-
-ACK, roster-change, unpause and expiration paths use the shared domain barrier
-and queued `GameActionExecutor` transitions. Opening expiration never forces
-media readiness; only the media timeout does. Known active auxiliary keys are
-handled explicitly; saved pause keys remain inactive. Replacement, stale and
-duplicate expiration actions cannot release a newer question.
-
-Pause saves the elapsed opening clock in the game and deletes its running key.
-ACKs may update readiness while paused, but cannot start playback. Resume rearms
-both remaining clocks. A snapshot during an opening restores its remainder; a
-snapshot after release does not replay it. Exit, skip, round/game completion
-and deletion clear the auxiliary key and metadata. Single-instance restart
-recovery also restores transition-only text preparation to a safe paused state.
+- Selection starts `timer:question-transition:{gameId}`. Opening ends at
+  `max(pick + 1550 ms, ready + 300 ms)`; its expiration never forces readiness.
+- Release schedules content 200 ms ahead. Redis TTL includes this lead;
+  buzzing and playback wait for that shared start. Legacy entries use 1750 ms.
+- Pause freezes both clocks; ACKs cannot release a paused game. Resume rearms
+  the remainder. Rejoin restores preparation without replaying a released opening.
+- ACKs outside `MEDIA_DOWNLOADING` are no-ops. Duplicates inside it can repeat
+  statuses but cannot extend the fade. A regular ACK has no question ID, so the
+  phase guard alone cannot identify an ACK delayed from an older pick.
+- Expirations enter the game action queue. Saved pause keys are inactive;
+  replacement/stale timer guards remain in the queued use case. Phase exit and
+  game deletion clear the opening; restart recovery restores it paused.
 
 ## Client obligations
 
-Prepare files before ACK (including image decoding). Text-only gated questions
-send no readiness command. Physical readiness without a question timer must not
-start playback. The first content frame can mount frozen during the closing
-fade; playback and buzzer availability follow the released shared timer.
-Reduced motion changes the animation, not the deadline. Editor playtests use
-the same barrier and timing. Legacy active questions retain their prior flow
-until the next applicable pick.
+Load every file and decode images before ACK. Failed preparation sends no ACK;
+the server timeout provides the fallback. Prepared content stays frozen until
+release. Reduced motion preserves timing, and editor playtests share the clock.
+See [web rules](../../web/AGENTS.md) for browser resource cleanup.
 
-## Backend implementation and verification
+## Content timeline
 
-Backend source paths (repository-relative):
+`QuestionContentPlanLogic` preserves authored wait groups. `startOffsetMs`
+schedules queued files within each step; non-waiting background audio may outlive
+it. Explicit display times override the longest eligible client's reported length,
+capped at `CONTENT_ITEM_MAX_TIME`; unknown hashes are ignored. The question timer
+covers content, buzzer opening and the answer window. Final content extends its
+answer window; answer media uses `answerContentPlan` on the reveal timer.
+See the [game-state matrix](../../docs/specs/game-state-matrix.md) for playback rules.
 
-- `server/src/application/usecases/question/QuestionPickUseCase.ts`
-- `server/src/application/services/socket/SocketActionHooks.ts`
-- `server/src/application/usecases/game/MediaDownloadedUseCase.ts`
-- `server/src/domain/logic/question/MediaDownloadLogic.ts`
-- `server/src/domain/state-machine/handlers/regular-round/ChoosingToMediaDownloadingHandler.ts`
-- `server/src/domain/state-machine/handlers/regular-round/MediaDownloadingToShowingHandler.ts`
-- `server/src/application/services/timer/TimerExpirationService.ts`
-- `server/src/domain/types/socket/events/game/MediaDownloadStatusEventPayload.ts`
+## Verification
 
-Follow the [E2E README](../tests/e2e/README.md) for test writing and commands.
-Transport cases use real sockets/Redis/PostgreSQL, supply file metadata, and
-simulate client ACKs. They assert the media phase and active timer **before any
-ACK**, partial readiness, the independent opening barrier, completion/timeout, and exact
-relevant event counts. Explicit question-entry waits account for the transition;
-the ordinary 1500 ms event budget is unchanged.
-A correct `QUESTION_DATA` with an already-`SHOWING` state must fail.
-
-Controlled helper self-tests prove assertions reject injected defects; they
-are not evidence of backend health. Backend transport tests prove coordination,
-while download, reveal, and playback need browser evidence. Keep those evidence
-boundaries explicit in bug reports and release claims.
-
-## Content timeline (question sequencing)
-
-`QuestionContentPlanLogic` preserves the authored wait groups. Each plan item
-contains its duration and an optional `startOffsetMs` relative to its step.
-A missing offset starts the item at the start of the step. Screen audio and video
-serialize when the question disables simultaneous playback. Five or more images
-or videos serialize all screen files in that group. Non-waiting background audio
-keeps its own start and can carry across steps. The step duration includes the
-latest blocking end and any text reading time.
-
-Regular and final readiness combine measured audio/video durations from eligible
-clients. Explicit display times take precedence. For the gated direct regular entry, the opening completes before the timer is
-scheduled 200 ms ahead. Separate legacy entries retain their 1750 ms start lead. The Redis expiry includes that lead and a pause preserves
-any remaining lead. Reconnecting clients use the same timer. Buzzer presses
-before its scheduled start are unavailable. Once the timer starts, buzzer timing derives
-from the completed plan and reading and choice delays. Final content adds its
-duration to the answering timer. Answer reveal uses its own plan and timing.
+Follow the [E2E README](../tests/e2e/README.md). Transport tests assert preparation
+before ACKs, partial readiness, independent release/timeout, persisted state and
+event counts. Helper self-tests prove assertion behavior; transport tests prove
+coordination. Actual downloads, content hiding and playback need browser evidence.
