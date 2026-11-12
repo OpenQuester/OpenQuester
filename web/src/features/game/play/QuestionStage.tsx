@@ -1,3 +1,4 @@
+import { answerFormat } from "@/game/answerFormat";
 import { questionStyles, questionContentLayout, questionText } from "./question/questionStyles";
 import { useTranslation } from "react-i18next";
 import { formatScore } from "@/lib/format";
@@ -32,6 +33,11 @@ export function QuestionStage() {
           {q && <QuestionTypeBadge type={q.type} />}
         </div>
 
+        {stage.s.scriptView?.priceRange && (
+          <p className={questionStyles.waiting}>
+            {t("script.priceRange", { ...stage.s.scriptView.priceRange })}
+          </p>
+        )}
         <QuestionContent stage={stage} />
       </section>
       {role === "showman" && !reveal && <ShowmanPanel />}
@@ -45,10 +51,14 @@ function QuestionContent({ stage }: { stage: ReturnType<typeof useQuestionStage>
   if (gated) return <MediaWait />;
   if (reveal) return <AnswerReveal />;
   const wrapBody =
-    q?.type === "choice" && q.answers
+    q && answerFormat(q) === "select" && q.answers &&
+    (!s.scriptView || s.scriptView.waitingFor === "answer")
       ? (body: ReactNode) => (
           <ChoiceLayout prompt={body} count={q.answers!.length}>
-            <AnswerChoices key={`${q.id}:${s.answeringPlayer ?? "open"}`} />
+            <AnswerChoices
+              question={q}
+              key={`${q.id}:${s.scriptView?.programCounter ?? "native"}:${s.answeringPlayer ?? "open"}`}
+            />
           </ChoiceLayout>
         )
       : undefined;
@@ -91,8 +101,11 @@ function QuestionPromptMedia({ stage, wrapBody }: QuestionPromptProps) {
     q && !content && (showmanPreview || phase === "showing")
       ? buildContentPlan({
           text: q.text,
+          answerDurationMs: q.answerDurationMs,
           textOrder: q.textOrder,
           textItems: q.textItems,
+          textDurationMs: q.textDurationMs,
+          textWaitForFinish: q.textWaitForFinish,
           files,
           playMediaSimultaneously: q.playMediaSimultaneously,
         })

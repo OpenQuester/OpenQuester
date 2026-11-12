@@ -1,3 +1,8 @@
+import { questionMediaFiles } from "@/game/questionMediaFiles";
+import { answerFormat } from "@/game/answerFormat";
+import type { SecretQuestionAward } from "@/game/protocol";
+import { answerWindowDuration } from "@/game/answerWindowDuration";
+import { PreviewScript } from "./previewScript";
 import type { GameCommands } from "@/features/game/GameContext";
 import {
   buildAnswerContentPlan,
@@ -8,7 +13,7 @@ import {
 } from "@/game/contentPlan";
 import type { ClientEventName, ClientEvents, Question, ServerEvent, Timer } from "@/game/protocol";
 import { reduce, type GameSession } from "@/game/reducer";
-import { canBuzz, phaseOf, questionValue, wrongCostsPoints } from "@/game/selectors";
+import { canAnswerNow, canBuzz, phaseOf, questionValue, wrongCostsPoints } from "@/game/selectors";
 import { createGameStore } from "@/game/store";
 import { serverNow } from "@/lib/clock";
 import {
@@ -21,10 +26,7 @@ import {
 } from "@/game/questionPresentation";
 import { timerStartDelay } from "@/lib/timer";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
-import {
-  ambiguousImagePlaceholder,
-  optionAnswer,
-} from "@/features/game/play/question/optionAnswer";
+import { previewChoiceSelection } from "./previewChoiceSelection";
 import {
   clampPreviewScore,
   PREVIEW_PLAYERS,
@@ -46,7 +48,11 @@ export const previewTimer = (durationMs: number, elapsedMs = 0, delayMs = 0): Ti
 });
 
 /** Project the private simulation into the selected player's visible session. */
-function previewView(s: GameSession, perspective: number): GameSession {
+function previewView(
+  s: GameSession,
+  perspective: number,
+  scriptView: ReturnType<PreviewScript["viewFor"]>,
+): GameSession {
   const isHost = perspective === PREVIEW_SHOWMAN;
   const q = s.state.currentQuestion;
   const final = s.state.finalRoundData;
@@ -82,6 +88,7 @@ function previewView(s: GameSession, perspective: number): GameSession {
             ...entry,
             stake: entry.stake == null ? null : 0,
             answer: entry.answer == null ? null : "",
+            choiceOrder: undefined,
           })),
         });
   return {
@@ -89,9 +96,30 @@ function previewView(s: GameSession, perspective: number): GameSession {
     submittedAnswer: isHost || s.state.answeringPlayer === perspective ? s.submittedAnswer : null,
     state: {
       ...s.state,
-      currentQuestion: q && !isHost ? publicQuestion(q) : q,
+      currentQuestion:
+        q && !isHost
+          ? publicQuestion(
+              s.state.scriptView &&
+                s.state.scriptView.waitingFor !== "answer" &&
+                s.state.questionState !== "media_downloading"
+                ? { ...q, answers: [] }
+                : q,
+            )
+          : q,
+      answerShowData:
+        s.state.answerShowData && !isHost
+          ? {
+              ...s.state.answerShowData,
+              answerTextItems: s.state.answerShowData.answerTextItems?.map((item) =>
+                item.placement === "replic"
+                  ? { ...item, text: "", durationMs: item.durationMs ?? textDuration(item.text) }
+                  : item,
+              ),
+            }
+          : s.state.answerShowData,
       submittedAnswer:
         isHost || s.state.answeringPlayer === perspective ? s.state.submittedAnswer : null,
+      scriptView,
       finalRoundData: visibleFinal,
       allPlay: visibleAll,
     },
@@ -103,22 +131,40 @@ export class PreviewRuntime {
   readonly store = createGameStore();
   readonly commands: GameCommands;
   private state: GameSession;
+  private readonly script: PreviewScript;
   private readonly picker: number | null;
   private disposed = false;
   private showingTimer: Timer | null = null;
   private revealTimer: Timer | null = null;
   private perspective: number = PREVIEW_PLAYERS[0];
   readonly answers = new Map<number, string>();
+  readonly choices = new Map<number, number>();
   readonly stakes = new Map<number, number>();
+  readonly question: Question;
+  readonly secretRoundPrices: { min: number; max: number };
   constructor(
     initial: GameSession,
-    readonly question: Question,
+    question: Question,
     private readonly credits: { authors: string[]; sources: string[] } = {
       authors: [],
       sources: [],
     },
+    roundNominalPrices?: number[],
+    readonly finalRoundPrices?: { min: number; max: number },
   ) {
+    const nominal = (
+      roundNominalPrices ?? [
+        ...(initial.state.currentRound?.themes.flatMap((t) => t.questions.map((q) => q.price)) ??
+          []),
+        question.price,
+      ]
+    ).filter(
+      (price): price is number => price != null && price >= 0 && Number.isSafeInteger(price),
+    );
+    this.secretRoundPrices = { min: Math.min(...nominal), max: Math.max(...nominal) };
+    this.question = { ...question };
     this.state = initial;
+    this.script = new PreviewScript(this);
     this.picker = initial.state.currentTurnPlayerId ?? null;
     this.commands = {
       connected: true,
@@ -143,6 +189,7 @@ export class PreviewRuntime {
   }
   get activeTimer(): Timer | null {
     if (this.state.finished) return null;
+    if (this.state.state.scriptView) return this.state.state.timer;
     const opening = this.state.state.questionTransition;
     if (
       opening &&
@@ -150,7 +197,9 @@ export class PreviewRuntime {
         timerElapsed(opening.timer, this.state.state.isPaused) < opening.timer.durationMs)
     )
       return opening.timer;
-    return phaseOf(this.state) === "reveal" ? this.revealTimer : this.state.state.timer;
+    return phaseOf(this.state) === "reveal"
+      ? (this.revealTimer ?? this.state.state.timer)
+      : this.state.state.timer;
   }
   setPerspective(id: number) {
     if (this.disposed) return;
@@ -163,7 +212,12 @@ export class PreviewRuntime {
     this.publish(event);
   }
   private publish(event?: ServerEvent) {
-    this.store.getState().setSession(previewView(this.state, this.perspective), event);
+    this.store
+      .getState()
+      .setSession(
+        previewView(this.state, this.perspective, this.script.viewFor(this.perspective)),
+        event,
+      );
   }
   command(command: PreviewCommand, sender = this.perspective) {
     if (this.disposed) return;
@@ -172,7 +226,13 @@ export class PreviewRuntime {
       this.pause(command.type === "game-pause");
       return;
     }
-    if (handleFinal(this, command, sender) || handleSpecial(this, command, sender)) return;
+    if (this.script.handle(command, sender)) return;
+    if (handleFinal(this, command, sender)) {
+      if (this.question.script && this.state.state.finalRoundData?.phase === "bidding")
+        this.script.start();
+      return;
+    }
+    if (handleSpecial(this, command, sender)) return;
     switch (command.type) {
       case "question-pick":
         if (
@@ -226,21 +286,23 @@ export class PreviewRuntime {
       .flatMap((theme) => theme.questions)
       .find((q) => q.id === PREVIEW_QUESTION);
     if (!target || target.isPlayed) return;
-    if (startSpecial(this)) return;
+    if (this.script.start() || startSpecial(this)) return;
     this.showQuestion();
   }
   showQuestion() {
-    const { duration, opensAt } = this.questionTiming();
+    const { duration, opensAt, plan } = this.questionTiming();
     const direct =
       this.state.state.stakeQuestionData?.winnerPlayerId != null ||
       (this.state.state.secretQuestionData != null && this.state.state.answeringPlayer != null);
     const gated = !direct && this.question.type !== "secret" && this.question.type !== "stake";
-    const hasMedia = !!this.question.questionFiles?.length;
+    const hasMedia = questionMediaFiles(this.question).length > 0;
     this.dispatch({
       type: "question-data",
       payload: {
         data: this.question,
-        timer: gated && !hasMedia ? null : previewTimer(direct ? duration : 30_000),
+        contentPlan: plan,
+        questionState: direct ? (hasMedia ? "media_downloading" : "answering") : undefined,
+        timer: gated && !hasMedia ? null : previewTimer(direct && !hasMedia ? duration : 30_000),
         questionTransition: gated
           ? {
               timer: previewTimer(QUESTION_TRANSITION_MS),
@@ -256,10 +318,14 @@ export class PreviewRuntime {
     });
   }
   ready() {
+    if (this.script.ready()) return;
     const plan = buildContentPlan({
       text: this.question.text,
+      answerDurationMs: this.question.answerDurationMs,
       textOrder: this.question.textOrder,
       textItems: this.question.textItems,
+      textDurationMs: this.question.textDurationMs,
+      textWaitForFinish: this.question.textWaitForFinish,
       playMediaSimultaneously: this.question.playMediaSimultaneously,
       files: this.question.questionFiles,
     });
@@ -313,18 +379,30 @@ export class PreviewRuntime {
     const q = this.question;
     const plan = buildContentPlan({
       text: q.text,
+      answerDurationMs: q.answerDurationMs,
       textOrder: q.textOrder,
       textItems: q.textItems,
+      textDurationMs: q.textDurationMs,
+      textWaitForFinish: q.textWaitForFinish,
       playMediaSimultaneously: q.playMediaSimultaneously,
       files: q.questionFiles,
     });
     const content = plan?.totalMs ?? 0;
-    const caption = q.text?.trim() && q.textOrder == null ? textDuration(q.text.trim()) : 0;
-    const opensAt = this.state.settings?.falseStart
-      ? Math.max(content, caption) + (q.type === "choice" ? Math.max(0, q.showDelay ?? 0) : 0)
-      : 0;
+    const caption =
+      q.text?.trim() && q.textOrder == null ? (q.textDurationMs ?? textDuration(q.text.trim())) : 0;
+    const opensAt =
+      this.state.settings?.falseStart ||
+      (answerFormat(q) === "select" &&
+        (this.state.state.allPlay || ["stake", "secret", "noRisk"].includes(q.type)))
+        ? Math.max(content, caption) +
+          (answerFormat(q) === "select" ? Math.max(0, q.showDelay ?? 0) : 0)
+        : 0;
     const answerMs = this.state.state.allPlay ? 45_000 : 20_500;
-    return { opensAt, duration: Math.max(content, opensAt) + answerMs };
+    return {
+      plan,
+      opensAt,
+      duration: Math.max(content, opensAt) + answerWindowDuration(q, answerMs),
+    };
   }
   buzz(id: number) {
     if (this.disposed) return;
@@ -341,34 +419,15 @@ export class PreviewRuntime {
     });
   }
   submit(answer: string, order?: number) {
-    if (phaseOf(this.state) !== "answering" || this.state.submittedAnswer != null || !answer.trim())
-      return;
-    const options =
-      this.question.type === "choice"
-        ? [...(this.question.answers ?? [])].sort((a, b) => a.order - b.order)
-        : [];
-    const normalize = (text: string | null | undefined) =>
-      (text ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
-    const matches =
-      order == null
-        ? ambiguousImagePlaceholder(options, answer)
-          ? []
-          : options.filter(
-              (option) => normalize(option.text) && normalize(option.text) === normalize(answer),
-            )
-        : options.filter((option) => option.order === order);
-    if (order != null && matches.length !== 1) return;
-    const option =
-      matches.length === 1 && options.filter((o) => o.order === matches[0]!.order).length === 1
-        ? matches[0]
-        : undefined;
     if (
-      option &&
-      order != null &&
-      normalize(answer) !== normalize(optionAnswer(option.text, options.indexOf(option), options))
+      !canAnswerNow(this.state, this.state.state.answeringPlayer ?? -1) ||
+      this.state.submittedAnswer != null ||
+      !answer.trim()
     )
       return;
-    const choiceOrder = option?.order;
+    const selection = previewChoiceSelection(this.question, answer, order);
+    if (!selection) return;
+    const choiceOrder = selection.choiceOrder;
     if (
       choiceOrder != null &&
       (this.state.state.answeredPlayers ?? []).some(
@@ -428,7 +487,7 @@ export class PreviewRuntime {
   }
   finish(id: number | null = this.picker) {
     const correctChoices =
-      this.question.type === "choice" && this.question.correctChoiceOrder != null
+      answerFormat(this.question) === "select" && this.question.correctChoiceOrder != null
         ? (this.question.answers ?? []).filter(
             (option) => option.order === this.question.correctChoiceOrder,
           )
@@ -442,6 +501,7 @@ export class PreviewRuntime {
     }));
     const answerContentPlan = buildAnswerContentPlan({
       files,
+      textItems: this.question.answerTextItems,
       playMediaSimultaneously: this.question.playMediaSimultaneously,
     });
     this.revealTimer = previewTimer(
@@ -454,6 +514,9 @@ export class PreviewRuntime {
       payload: {
         answerText: this.question.answerText ?? null,
         answerFiles: this.question.answerFiles ?? null,
+        correctChoice: correctChoice ?? null,
+        answerTextItems: this.question.answerTextItems ?? null,
+        answerExplanation: this.question.answerExplanation ?? null,
         correctChoiceImage:
           !this.question.answerFiles?.length &&
           !correctChoice?.text?.trim() &&
@@ -464,11 +527,20 @@ export class PreviewRuntime {
         answerPoint: this.question.answerPoint ?? null,
         answerDeviation: this.question.answerDeviation ?? null,
         answerContentPlan,
-        ...(answerContentPlan ? { timer: this.revealTimer } : {}),
+        ...(answerContentPlan || (this.state.state.currentRound?.type === "final" && correctChoice)
+          ? { timer: this.revealTimer }
+          : {}),
         authors: this.credits.authors,
         sources: this.credits.sources,
         nextTurnPlayerId: id,
       },
+    });
+  }
+  award(data: SecretQuestionAward) {
+    this.revealTimer = previewTimer(this.question.showAnswerDuration ?? 5000);
+    this.dispatch({
+      type: "secret-question-awarded",
+      payload: { ...data, timer: this.revealTimer },
     });
   }
   pause(paused: boolean) {
@@ -499,7 +571,7 @@ export class PreviewRuntime {
   }
   timeout() {
     if (this.disposed || this.state.state.isPaused) return;
-    if (timeoutFinal(this) || timeoutSpecial(this)) return;
+    if (this.script.timeout() || timeoutFinal(this) || timeoutSpecial(this)) return;
     switch (phaseOf(this.state)) {
       case "media":
         this.ready();
@@ -549,6 +621,10 @@ export class PreviewRuntime {
   }
   advance() {
     if (this.disposed || this.state.state.isPaused) return;
+    if (this.script.running) {
+      this.script.timeout();
+      return;
+    }
     switch (phaseOf(this.state)) {
       case "choosing":
         this.pick();

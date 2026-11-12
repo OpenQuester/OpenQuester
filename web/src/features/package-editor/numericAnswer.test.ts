@@ -84,13 +84,13 @@ it("respects choice and effective final mode, and leaves invalid numeric targets
   expect(playableNumericQuestion(choice)).toBe(choice);
   expect(playableNumericQuestion(toUploadQuestion(draft, 0, true))).toMatchObject({
     type: "simple",
-    answerText: "42",
-    answerNumber: 42,
+    answerText: "Option",
+    answerType: "select",
   });
   expect(previewQuestion(draft, true, new Map())).toMatchObject({
     type: "simple",
-    answerText: "42",
-    answerNumber: 42,
+    answerText: "Option",
+    answerType: "select",
   });
   const invalid = { ...toUploadQuestion(draft, 0, true), answerNumber: Infinity };
   expect(playableNumericQuestion(invalid)).toBe(invalid);

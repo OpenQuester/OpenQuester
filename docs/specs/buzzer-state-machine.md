@@ -24,6 +24,10 @@ Fairness is not only server ordering. It is also visible feedback.
 
 Implementation names may differ. Keep behavior aligned with this model.
 
+Questions with `subType=forEveryone` (simple, legacy choice, stake, noRisk)
+use private all-play submissions and no buzzer. Simple mode goes directly to
+media/content and the shared answer window; only stake mode has bidding.
+
 ## False-start behavior
 
 A false start should never feel like a mysterious punishment.
@@ -65,8 +69,9 @@ Per-game settings (`GameSettings`, chosen when the game is created):
   The content keeps playing. It changes nothing when the buzzer is already open.
 
 Server: `BuzzerLogic`, `QuestionAnswerUseCase`,
-`TimerExpirationService._resolveBuzzerWindow` (the window rides on the active
-timer key, so a pause or expiry needs no extra timer). Web: `buzzerOpensIn`,
+`TimerExpirationService._resolveBuzzerWindow`. After writing the active Redis
+timer key for the draw, the server reads that key once just after its TTL
+so Redis can expire it on access. Web: `buzzerOpensIn`,
 `buzzerLockLeft`, `useBuzzer`; the Dock shows "Wait for it…" before the buzzer
 opens (still pressable, so spamming is penalised), with the reason under the
 button, and a lock countdown after a false start. The showman's dock has
@@ -179,3 +184,18 @@ A buzzer change is done only when:
 - server authority is preserved
 - localization is updated
 - relevant tests/checks are reported
+
+Select is an answer format, including legacy choice. Option reveal/showDelay
+applies with any supported mechanics. Buzzer availability still follows mechanics:
+regular simple/hidden/choice questions retain their sequential buzzer flow.
+Single no-risk gives the picker the same buzzer and a fresh submission window.
+Direct stake/secret and all-play/final selection do not require a buzz. A wrong
+choice blocks the next sequential answerer only. Direct/all-play select waits
+for the question timeline and option delay even with `falseStart` off. Buzzed
+answers keep their normal submission window.
+
+Authored `answerDurationMs` (when positive) replaces only the pressing window after
+presentation. It never changes `answerSubmitMs` after a player buzzes, and it does
+not activate the legacy `answerDelay` field. Direct/all-play/final windows use the
+same authored/default fallback in their own phase. Pause and reconnect use the
+remaining authoritative timer.

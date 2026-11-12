@@ -4,13 +4,11 @@ import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadc
 import { TransitionResult } from "domain/state-machine/types";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
-import {
-  PlayerBidData,
-  ThemeEliminateOutputData,
-} from "../events/FinalRoundEventData";
+import { PlayerBidData, ThemeEliminateOutputData } from "../events/FinalRoundEventData";
 import { QuestionAnswerData } from "./QuestionAnswerData";
 
 export interface AnswerReviewData {
+  choiceOrder?: number;
   playerId: number;
   answerId: string;
   answerText: string;
@@ -83,6 +81,7 @@ export interface BiddingTimeoutResult {
  * Standard answer data structure
  */
 export interface AnswerData {
+  choiceOrder?: number;
   id: string;
   playerId: number;
   answer: string;

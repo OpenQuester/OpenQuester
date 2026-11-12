@@ -1,5 +1,22 @@
 # Package validation and publish-readiness spec
 
+## Structured SI scripts
+
+Script imports keep a typed program and authored file and text occurrences in the
+same draft and `.oq` archive. The editor preserves the imported order and playtest
+runs the program. Missing or cyclic current-question references, unknown operations,
+and managed client input require repair before publication or playtest. HTML still
+requires explicit removal consent.
+
+Archived script operations and modes use exact string values. The local playtest
+uses the same answer window defaults, valid select orders, pass rules, and
+bidding timeouts as the server.
+
+Expanded occurrences, including repeated references, count against the existing
+30 steps per question or answer phase and 10 files per authored group. Five or
+more visuals in one group use the existing sequential adaptation. Script command
+count has a separate bound and does not increase the media limits.
+
 This spec defines how package/editor validation should behave. Use it when changing package editor fields, `.oq`/`.siq` import, media upload, package publish, package health, or package discovery metadata.
 
 Status note: this is a target validation spec, not a claim that every validation rule or health state is implemented today. Verify current editor/backend code before marking a rule as done.
@@ -35,7 +52,7 @@ A package should be considered broken when any of these are true:
 - package has no rounds
 - round has no themes
 - theme has no questions
-- question has neither text nor media
+- question has neither text nor media, except a valid secretRules outcome=award
 - answer has neither text, answer media nor a valid numeric target where answer is required
 - media reference is missing/broken
 - media file type is not allowed
@@ -58,8 +75,12 @@ blocks publishing instead of silently changing the mode to text.
 | Field | Publication rule |
 |---|---|
 | `pointImageOrder` | Must identify exactly one question image. Null/absent keeps the first ordered image. |
-| `answerPoint.imageAspectRatio` | Web publication measures the optimized target image; decode failure blocks publication and preserves the source for retry. Legacy packages keep their old checking until republished. |
-| `textItems` | Nonblank text with distinct nonnegative integer orders, separate from main text and files. Null/absent preserves legacy ordering and ties. |
+| `answerPoint.imageAspectRatio` | Web publication measures the optimized target image; decode failure blocks publication and preserves the source for retry. Legacy native packages keep their old checking until republished. |
+| `answerPoint.sourceGeometry` | Optional private `{ kind: "sigame", aspectRatio: positive finite number }`. SIQ checking uses `hypot(a*dx,dy) <= max(.02,deviation)` and defaults to `.02` when no deviation is supplied. Measured image aspect does not affect this calculation. Invalid source points/targets remain drafts with critical validation. Native radius/target edits remove this metric; autosave, text edits, re-encoding and archive round-trips retain it. Target crop/rotation/replacement resets coordinates and metric; undo restores them together. |
+| `textItems` / `answerTextItems` | Distinct nonnegative integer orders within their phase, shared with that phase's files. Blank screen clears and private replic pauses require a positive duration. Drafts flag untimed blank items before publish or playtest. Null/absent preserves legacy ordering and ties. |
+| Authored text timing | Optional `durationMs` / `textDurationMs` is an integer from 1 to 120,000 ms; wait flags control grouping. Text placement is screen or replic, never background. |
+| `answerDurationMs` | Optional nullable integer 0–2,147,483,647 ms. Null/0 uses room default; no change to `answerDelay` or post-buzz submit time. |
+| SIQ content repairs | Question-local `compatibilityIssues` retains bounded source timing/placement/item evidence in drafts and `.oq`; unresolved critical issues block publish and playtest. It is archive metadata and is forbidden by HTTP publication. |
 | Final audio/video `displayTime` | With non-null `textItems`, each duration must be an integer from 1 to 120,000 ms. |
 | `correctChoiceOrder` | An explicit key must identify one choice, including image-only choices. Removing it or importing an invalid key blocks publication until repaired; null/absent retains legacy behavior. |
 
@@ -69,6 +90,39 @@ choices keep their selected key plus **Also accept** aliases. Numeric mode keeps
 hidden text lists in the draft/archive but omits them from editor publication and
 preview, using the numeric target instead. Drafts and `.oq` archives retain
 incomplete targets for repair; existing packages and direct uploads are not migrated.
+
+## Price and participation fields
+
+`price` remains the nominal board value. Optional `realPrice` must be an integer
+from 0 to 1,000,000 or null; null/missing uses the nominal and zero stays zero.
+It survives draft save, OQ export/reimport, create and replacement. A fixed actual
+price and legacy secret `allowedPrices` cannot both be authored: the creator must
+clear one before publication/playtest. A single-player auction preview compares
+its cap against the actual base, while board cells retain the nominal.
+
+Simple and legacy choice questions accept `subType=forEveryone`; stake/noRisk
+keep their existing participation values and formulas. Normal-for-all scoring
+uses the room's penalty, not an inferred SIQ setting. Final questions retain the
+existing final bidding flow.
+
+### Secret rules and import repair
+
+`secretRules` is optional and only belongs to secret questions. A complete valid
+award rule permits an empty prompt/right answer; ordinary questions retain their
+content checks. The editor explains the award after-transfer behavior and offers
+fixed actual price, nominal round extrema or compact integer ranges. Legacy OQ
+allowedPrices remains a 2–5 value list. Dynamic rules conflict with authored
+realPrice; secretRules conflicts with allowedPrices. Bounds and choices must be
+safe integers within the server's 1,000,000 price cap; explicit realPrice=0 is valid.
+
+Question-local critical `compatibilityIssues` survive drafts and `.oq`, with
+bounded typed non-HTML source and source-only media. They follow the question's
+stable draft ID after moves. Save/export remain available, while publication and
+local playtest block; the server rejects archive-only repair markers. The editor
+has an explicit, confirmed conversion to a regular question describing which
+unsupported rules/input modes are discarded. Hiding the import report alone
+does not clear repair state. The existing HTML preflight/removal consent still
+applies, including HTML found inside retained source metadata.
 
 ## Warning validations
 
@@ -198,3 +252,15 @@ original archive before retrying. The editor keeps invalid drafts editable and
 blocks publish and playtest. The API checks create, replacement, and package
 selection for a new game, including older published packages. Existing games keep
 their saved package data.
+
+Select publication requires at least two nonempty text/media options, unique
+nonnegative integer orders, and a valid explicit correctChoiceOrder for the new
+answerType=select format. REST also accepts a numbered blank option for legacy
+`type=choice` without explicit `answerType=select`. Legacy choice retains unambiguous
+text judging when its key is absent. There is no arbitrary maximum of eight options. Source labels
+are display/archive metadata; selection payloads use choiceOrder. Drafts retain
+unresolved select source and the selected format. Selecting a replacement key is
+an explicit repair. The editor still blocks publication and playtest for empty
+or missing-media options. Switching the legacy choice mechanism to another type retains the
+select format. Option media supports image/audio/video through the existing
+local playback controls, separately from selecting an answer.

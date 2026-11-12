@@ -42,11 +42,18 @@ export function isMainTextItem(
 }
 
 export function buildContentPlan(
-  source: AuthoredContentSource<QuestionFile> & { playMediaSimultaneously?: boolean | null },
+  source: AuthoredContentSource<QuestionFile> & {
+    playMediaSimultaneously?: boolean | null;
+    answerDurationMs?: number | null;
+  },
   defaults = { image: IMAGE_MS, audio: MEDIA_UNKNOWN_MS, video: MEDIA_UNKNOWN_MS },
 ): ContentPlan | null {
   const groups = authoredContentGroups(source);
-  if (groups.length === 0) return null;
+  const captionMs =
+    source.textOrder == null && source.text?.trim() && (source.answerDurationMs ?? 0) > 0
+      ? (source.textDurationMs ?? textDuration(source.text))
+      : 0;
+  if (groups.length === 0 && !captionMs) return null;
   let cursor = 0;
   const steps: ContentStep[] = groups.map((group) => {
     const forceQueue =
@@ -57,9 +64,14 @@ export function buildContentPlan(
     const items = group.map<ContentPlanItem>((entry) => {
       const { order } = entry;
       if ("text" in entry) {
-        const duration = textDuration(entry.text);
+        const duration = entry.durationMs ?? textDuration(entry.text);
         durationMs = Math.max(durationMs, duration);
-        return { kind: "text", order, placement: "screen", durationMs: duration };
+        return {
+          kind: "text",
+          order,
+          placement: entry.placement ?? "screen",
+          durationMs: duration,
+        };
       }
 
       const file = entry.media;
@@ -89,6 +101,10 @@ export function buildContentPlan(
     cursor += durationMs;
     return step;
   });
+  if (captionMs > cursor) {
+    steps.push({ startMs: cursor, durationMs: captionMs - cursor, items: [] });
+    cursor = captionMs;
+  }
   return { steps, totalMs: cursor };
 }
 

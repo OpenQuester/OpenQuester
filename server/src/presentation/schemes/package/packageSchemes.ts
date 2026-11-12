@@ -1,4 +1,7 @@
+import { questionScriptScheme } from "presentation/schemes/package/questionScriptScheme";
+import { validateQuestionScript } from "domain/logic/question/validateQuestionScript";
 import Joi from "joi";
+import { answerFormat } from "domain/logic/question/answerFormat";
 
 import { CONTENT_ITEM_MAX_TIME, MAX_QUESTION_PRICE_UPLOAD } from "domain/constants/game";
 import { LIMIT_MAX, LIMIT_MIN, OFFSET_MIN } from "domain/constants/pagination";
@@ -38,16 +41,46 @@ const packageFileSchema = Joi.object({
   displayTime: Joi.number().allow(null).required(),
   order: Joi.number().min(0).required(),
   placement: Joi.string()
-    .valid(...Object.values(ContentPlacement))
+    .valid(ContentPlacement.SCREEN, ContentPlacement.BACKGROUND)
     .default(ContentPlacement.SCREEN),
   waitForFinish: Joi.boolean().default(true)
 });
 
+const pointTargetSchema = Joi.object({
+  x: Joi.number().min(0).max(1).required(),
+  y: Joi.number().min(0).max(1).required(),
+  imageAspectRatio: Joi.number().positive(),
+  sourceGeometry: Joi.object({
+    kind: Joi.string().valid("sigame").required(),
+    aspectRatio: Joi.number().positive().required()
+  })
+});
+
+const textItemSchema = Joi.object({
+  order: Joi.number().integer().min(0).max(2147483647).required(),
+  text: Joi.string()
+    .when("durationMs", {
+      is: Joi.number().positive().required(),
+      then: Joi.string().allow(""),
+      otherwise: Joi.string().pattern(/\S/)
+    })
+    .required(),
+  durationMs: Joi.number().integer().min(1).max(CONTENT_ITEM_MAX_TIME).allow(null),
+  waitForFinish: Joi.boolean(),
+  placement: Joi.string().valid("screen", "replic")
+});
+
 // Base question schema with common fields
-type PackageQuestionInput = PackageQuestionDTO & { correctChoiceNeedsRepair?: unknown };
+type PackageQuestionInput = PackageQuestionDTO & {
+  correctChoiceNeedsRepair?: unknown;
+  compatibilityIssues?: unknown;
+};
 
 const baseQuestionSchema = Joi.object<PackageQuestionInput>({
+  script: questionScriptScheme,
   price: Joi.number().allow(null).max(MAX_QUESTION_PRICE_UPLOAD).required(), // Final round questions have null price - players bid after theme selection
+  realPrice: Joi.number().integer().min(0).max(MAX_QUESTION_PRICE_UPLOAD).allow(null),
+  compatibilityIssues: Joi.forbidden(),
   order: Joi.number().min(0).required(),
   type: Joi.string()
     .valid(...Object.values(PackageQuestionType))
@@ -59,14 +92,13 @@ const baseQuestionSchema = Joi.object<PackageQuestionInput>({
   }),
   text: Joi.string().allow(null, ""),
   textOrder: Joi.number().integer().min(0).allow(null),
-  textItems: Joi.array()
-    .items(
-      Joi.object({
-        order: Joi.number().integer().min(0).max(2147483647).required(),
-        text: Joi.string().pattern(/\S/).required()
-      })
-    )
-    .allow(null),
+  textDurationMs: Joi.number().integer().min(1).max(CONTENT_ITEM_MAX_TIME).allow(null),
+  textWaitForFinish: Joi.boolean().allow(null),
+  textItems: Joi.array().items(textItemSchema).allow(null),
+  answerTextItems: Joi.array().items(textItemSchema).allow(null),
+  answerDurationMs: Joi.number().integer().min(0).max(2147483647).allow(null),
+  showmanComments: Joi.string().allow(null, ""),
+  answerExplanation: Joi.string().allow(null, ""),
   playMediaSimultaneously: Joi.boolean().allow(null).default(true),
   answerHint: Joi.string().allow(null, ""),
   answerText: Joi.string().allow(null, ""),
@@ -75,20 +107,28 @@ const baseQuestionSchema = Joi.object<PackageQuestionInput>({
     .allow(null),
   answerNumber: Joi.when("answerType", {
     is: AnswerType.NUMBER,
-    then: Joi.number().required(),
+    then: Joi.when("secretRules.outcome", {
+      is: Joi.valid("award").required(),
+      then: Joi.number().allow(null),
+      otherwise: Joi.number().required()
+    }),
     otherwise: Joi.number().allow(null)
   }),
   answerPoint: Joi.when("answerType", {
     is: AnswerType.POINT,
-    then: Joi.object({
-      x: Joi.number().min(0).max(1).required(),
-      y: Joi.number().min(0).max(1).required(),
-      imageAspectRatio: Joi.number().positive()
-    }).required(),
+    then: Joi.when("secretRules.outcome", {
+      is: Joi.valid("award").required(),
+      then: pointTargetSchema.allow(null),
+      otherwise: pointTargetSchema.required()
+    }),
     otherwise: Joi.object({
       x: Joi.number().min(0).max(1),
       y: Joi.number().min(0).max(1),
-      imageAspectRatio: Joi.number().positive()
+      imageAspectRatio: Joi.number().positive(),
+      sourceGeometry: Joi.object({
+        kind: Joi.string().valid("sigame").required(),
+        aspectRatio: Joi.number().positive().required()
+      })
     }).allow(null)
   }),
   pointImageOrder: Joi.number().integer().min(0).max(2147483647).allow(null),
@@ -104,8 +144,42 @@ const baseQuestionSchema = Joi.object<PackageQuestionInput>({
   answerFiles: Joi.array().items(packageFileSchema).allow(null)
 });
 
+const secretPriceRuleSchema = Joi.alternatives()
+  .try(
+    Joi.object({ kind: Joi.string().valid("roundExtremes").required() }),
+    Joi.object({
+      kind: Joi.string().valid("range").required(),
+      min: Joi.number().integer().min(0).max(MAX_QUESTION_PRICE_UPLOAD).required(),
+      max: Joi.number().integer().greater(Joi.ref("min")).max(MAX_QUESTION_PRICE_UPLOAD).required(),
+      step: Joi.number().integer().min(0).max(MAX_QUESTION_PRICE_UPLOAD).required()
+    })
+  )
+  .allow(null)
+  .required();
+
+const secretRulesSchema = Joi.object({
+  outcome: Joi.string().valid("question", "award").required(),
+  priceAnnouncement: Joi.string().valid("beforeTransfer", "afterTransfer").required(),
+  priceChooser: Joi.string().valid("opener", "receiver").required(),
+  priceRule: secretPriceRuleSchema
+}).allow(null);
+
 // Full question schema with type-specific fields
+const choiceOptions = Joi.array().items(
+  Joi.object({
+    text: Joi.string().allow(null, ""),
+    file: fileSchema.allow(null),
+    sourceLabel: Joi.string().max(500).allow(null, ""),
+    order: Joi.number().integer().min(0).required()
+  })
+);
+
 const questionSchema = baseQuestionSchema.keys({
+  secretRules: Joi.when("type", {
+    is: "secret",
+    then: secretRulesSchema,
+    otherwise: Joi.forbidden()
+  }),
   subType: Joi.when("type", {
     is: "stake",
     then: Joi.string()
@@ -123,10 +197,17 @@ const questionSchema = baseQuestionSchema.keys({
           .required(),
         otherwise: Joi.when("type", {
           is: "choice",
-          then: Joi.string().valid(PackageQuestionSubType.SIMPLE).required(),
-          otherwise: Joi.string() // For hidden and simple types it's optional
-            .valid(PackageQuestionSubType.SIMPLE)
-            .optional()
+          then: Joi.string()
+            .valid(PackageQuestionSubType.SIMPLE, PackageQuestionSubType.FOR_EVERYONE)
+            .required(),
+          otherwise: Joi.when("type", {
+            is: "simple",
+            then: Joi.string().valid(
+              PackageQuestionSubType.SIMPLE,
+              PackageQuestionSubType.FOR_EVERYONE
+            ),
+            otherwise: Joi.string().valid(PackageQuestionSubType.SIMPLE)
+          })
         })
       })
     })
@@ -140,7 +221,11 @@ const questionSchema = baseQuestionSchema.keys({
     is: "secret",
     then: Joi.when("subType", {
       is: PackageQuestionSubType.CUSTOM_PRICE,
-      then: Joi.array().items(Joi.number().max(MAX_QUESTION_PRICE_UPLOAD)).min(2).max(5).required(),
+      then: Joi.array()
+        .items(Joi.number().integer().min(0).max(MAX_QUESTION_PRICE_UPLOAD))
+        .min(2)
+        .max(5)
+        .required(),
       otherwise: Joi.optional().valid(null)
     }),
     otherwise: Joi.optional().valid(null)
@@ -157,36 +242,54 @@ const questionSchema = baseQuestionSchema.keys({
     then: Joi.number().required(),
     otherwise: Joi.forbidden()
   }),
-  showDelay: Joi.when("type", {
-    is: "choice",
-    then: Joi.number().required(),
-    otherwise: Joi.forbidden()
-  }),
-  correctChoiceOrder: Joi.when("type", {
-    is: "choice",
-    then: Joi.number().integer().min(0).allow(null),
-    otherwise: Joi.forbidden()
-  }),
+  showDelay: Joi.number().min(0),
+  correctChoiceOrder: Joi.number().integer().min(0).allow(null),
+  selectSource: Joi.object({
+    rightLabels: Joi.array().items(Joi.string().max(500)).min(1).max(1000).unique().required()
+  }).unknown(false),
   // Archive-only marker: an unresolved draft cannot be published as legacy.
   correctChoiceNeedsRepair: Joi.forbidden(),
-  answers: Joi.when("type", {
-    is: "choice",
-    then: Joi.array()
-      .items(
-        Joi.object({
-          text: Joi.string().allow(null),
-          file: fileSchema.allow(null),
-          order: Joi.number().min(0).required()
-        })
-      )
-      .min(2)
-      .max(8)
-      .required(),
-    otherwise: Joi.forbidden()
+  answers: Joi.when("script", {
+    is: Joi.object().required(),
+    then: choiceOptions.max(1000),
+    otherwise: choiceOptions.min(2)
   })
 });
 
+const validateQuestionPrices = (question: PackageQuestionDTO, helpers: Joi.CustomHelpers) => {
+  if (
+    question.type === PackageQuestionType.SECRET &&
+    question.subType === PackageQuestionSubType.CUSTOM_PRICE &&
+    question.realPrice != null
+  ) {
+    return helpers.error("any.invalid");
+  }
+  return question;
+};
+
 const validateChoiceKey = (question: PackageQuestionDTO, helpers: Joi.CustomHelpers) => {
+  if (question.script) {
+    return question.selectSource == null ? question : helpers.error("any.invalid");
+  }
+  if (answerFormat(question) !== AnswerType.SELECT) {
+    return question.answers !== undefined ||
+      question.correctChoiceOrder !== undefined ||
+      question.selectSource !== undefined ||
+      question.showDelay !== undefined
+      ? helpers.error("any.invalid")
+      : question;
+  }
+  const options = question.answers ?? [];
+  const explicitSelect = question.answerType === AnswerType.SELECT;
+  if (
+    options.length < 2 ||
+    new Set(options.map((option) => option.order)).size !== options.length ||
+    (explicitSelect &&
+      (question.correctChoiceOrder == null ||
+        options.some((option) => !option.text?.trim() && !option.file)))
+  ) {
+    return helpers.error("any.invalid");
+  }
   if (
     question.correctChoiceOrder != null &&
     (question.answers ?? []).filter((answer) => answer.order === question.correctChoiceOrder)
@@ -194,13 +297,58 @@ const validateChoiceKey = (question: PackageQuestionDTO, helpers: Joi.CustomHelp
   ) {
     return helpers.error("any.invalid");
   }
+  if (question.selectSource) {
+    const counts = new Map<string, number>();
+    for (const { sourceLabel } of options) {
+      if (sourceLabel) {
+        counts.set(sourceLabel, (counts.get(sourceLabel) ?? 0) + 1);
+      }
+    }
+    if (question.selectSource.rightLabels.some((label) => counts.get(label) !== 1)) {
+      return helpers.error("any.invalid");
+    }
+  }
   return question;
 };
 
 const validateQuestionContent = (question: PackageQuestionDTO, helpers: Joi.CustomHelpers) => {
+  if (!validateQuestionScript(question)) {
+    return helpers.error("any.invalid");
+  }
   if (
+    question.secretRules?.outcome !== "award" &&
     question.pointImageOrder != null &&
     !findPointAnswerImage(question.questionFiles, question.pointImageOrder)
+  ) {
+    return helpers.error("any.invalid");
+  }
+  const rules = question.script ? null : question.secretRules;
+  if (
+    (rules && question.allowedPrices?.length) ||
+    (!question.script &&
+      question.realPrice != null &&
+      (rules?.priceRule || question.allowedPrices?.length)) ||
+    (rules?.priceChooser === "opener" && rules.priceAnnouncement !== "beforeTransfer") ||
+    (rules?.outcome === "award" &&
+      (rules.priceChooser !== "receiver" || rules.priceAnnouncement !== "afterTransfer"))
+  ) {
+    return helpers.error("any.invalid");
+  }
+  if (
+    rules?.outcome === "question" &&
+    !question.text?.trim() &&
+    !question.textItems?.some((item) => item.text.trim()) &&
+    !question.questionFiles?.length
+  ) {
+    return helpers.error("any.invalid");
+  }
+  if (
+    rules?.outcome === "question" &&
+    !question.answerText?.trim() &&
+    !question.answerFiles?.length &&
+    question.answerType !== AnswerType.NUMBER &&
+    question.answerType !== AnswerType.POINT &&
+    !(question.answers?.length && question.correctChoiceOrder != null)
   ) {
     return helpers.error("any.invalid");
   }
@@ -217,6 +365,13 @@ const validateQuestionContent = (question: PackageQuestionDTO, helpers: Joi.Cust
   for (const item of question.textItems ?? []) {
     if (orders.has(item.order)) return helpers.error("any.invalid");
     orders.add(item.order);
+  }
+  const answerOrders = new Set<number>();
+  for (const item of [...(question.answerFiles ?? []), ...(question.answerTextItems ?? [])]) {
+    if (answerOrders.has(item.order)) {
+      return helpers.error("any.invalid");
+    }
+    answerOrders.add(item.order);
   }
   return question;
 };
@@ -237,7 +392,12 @@ const validateFinalMediaDuration = (question: PackageQuestionDTO, helpers: Joi.C
 };
 
 const questions = Joi.array()
-  .items(questionSchema.custom(validateChoiceKey).custom(validateQuestionContent))
+  .items(
+    questionSchema
+      .custom(validateQuestionPrices)
+      .custom(validateChoiceKey)
+      .custom(validateQuestionContent)
+  )
   .required();
 
 // Themes schema with conditional validation for final rounds
@@ -263,7 +423,13 @@ const finalRoundThemes = Joi.array()
         .items(
           questionSchema
             .keys({
-              type: Joi.string().valid("simple").required(),
+              type: Joi.when("script", {
+                is: Joi.object().required(),
+                then: Joi.string()
+                  .valid(...Object.values(PackageQuestionType))
+                  .required(),
+                otherwise: Joi.string().valid("simple").required()
+              }),
               price: Joi.allow(null).required(), // Final round questions must have null price
               isHidden: Joi.boolean().valid(false).optional()
             })

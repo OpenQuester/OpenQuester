@@ -1,3 +1,7 @@
+import { PlayerRole } from "domain/types/game/PlayerRole";
+import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
+import { questionMediaFiles } from "domain/logic/question/questionMediaFiles";
+import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -68,6 +72,10 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     }
 
     // 5. Target player must be eligible
+    if (trigger === TransitionTrigger.TIMER_EXPIRED) {
+      const recipient = game.getPlayer(targetPlayerId, { fetchDisconnected: true });
+      return recipient?.role === PlayerRole.PLAYER && game.isPlayerEligibleToAnswer(targetPlayerId);
+    }
     return TransitionGuards.isPlayerEligible(game, targetPlayerId);
   }
 
@@ -81,17 +89,18 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     const targetPlayerId = payload!.targetPlayerId;
     const fromPlayerId = secretData.pickerPlayerId;
 
-    const questionData = ctx.resources?.simpleQuestion ?? null;
+    const sourceQuestion = ctx.resources?.simpleQuestion;
+    const questionData = sourceQuestion ? { ...sourceQuestion } : null;
     if (questionData) {
       game.gameState.currentQuestion = questionData;
     }
 
-    // customPrice: the receiver's pick replaces the board price
+    // Only the live question changes; package resources and board stay nominal.
     if (payload?.price !== undefined && game.gameState.currentQuestion) {
-      game.gameState.currentQuestion.price = payload.price;
+      game.gameState.currentQuestion.realPrice = payload.price;
 
       if (questionData) {
-        questionData.price = payload.price;
+        questionData.realPrice = payload.price;
       }
     }
 
@@ -103,6 +112,12 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     game.gameState.submittedAnswer = null;
     game.gameState.submittedChoiceOrder = null;
     game.gameState.secretQuestionData = null;
+
+    if (questionMediaFiles(game.gameState.currentQuestion).length) {
+      game.gameState.mediaDurations = null;
+      MediaDownloadLogic.resetAllPlayerStatus(game);
+      game.setQuestionState(QuestionState.MEDIA_DOWNLOADING);
+    }
 
     return {
       data: {
@@ -121,7 +136,10 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     const { game } = ctx;
 
     // Setup answering timer
-    const durationMs = QuestionContentPlanLogic.questionTimerDuration(game);
+    const durationMs =
+      game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING
+        ? MEDIA_DOWNLOAD_TIMEOUT
+        : QuestionContentPlanLogic.questionTimerDuration(game);
     const timer = new GameStateTimer(durationMs);
     game.gameState.timer = timer.start();
 

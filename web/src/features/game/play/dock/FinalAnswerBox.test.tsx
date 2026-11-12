@@ -49,6 +49,40 @@ describe.each(["final-answer-submit", "all-play-answer"] as const)("%s form", (e
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it("uses the authoritative remaining deadline through presentation, pause and reconnect", () => {
+    const { emit } = setup(event);
+    const update = (elapsedMs: number, paused: boolean, online = true) =>
+      act(() => {
+        const current = useGameStore.getState().session!;
+        useGameStore.setState({
+          session: {
+            ...current,
+            state: {
+              ...current.state,
+              currentQuestion: current.state.currentQuestion && {
+                ...current.state.currentQuestion,
+                answerDurationMs: 15000,
+              },
+              timer: { ...timer(20000), elapsedMs, resumedAt: new Date().toISOString() },
+              isPaused: paused,
+            },
+          },
+          connection: online ? "connected" : "reconnecting",
+        });
+      });
+    update(12000, false);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "retained" } });
+    act(() => vi.advanceTimersByTime(2000));
+    expect(emit).not.toHaveBeenCalled();
+    update(15000, true, false);
+    act(() => vi.advanceTimersByTime(30000));
+    expect(emit).not.toHaveBeenCalled();
+    update(15000, false);
+    expect(screen.getByRole("textbox")).toHaveValue("retained");
+    act(() => vi.advanceTimersByTime(4250));
+    expect(emit).toHaveBeenCalledExactlyOnceWith(event, { answerText: "retained" });
+  });
+
   it("does not repeat a manually sent answer when the timer expires", () => {
     const { emit } = setup(event);
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "  manual  " } });

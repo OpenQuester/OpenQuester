@@ -1,3 +1,4 @@
+import { answerFormat } from "domain/logic/question/answerFormat";
 import {
   SHOW_ANSWER_DURATION_AUDIO,
   SHOW_ANSWER_DURATION_TEXT,
@@ -6,7 +7,6 @@ import {
 import { AnswerType } from "domain/enums/package/AnswerType";
 import { findPointAnswerImage } from "domain/logic/question/PointImageLogic";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import type { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
@@ -21,18 +21,22 @@ import type {
  */
 export class ShowAnswerLogic {
   /**
-   * Timeline of the answer files, played one step at a time on the
+   * Timeline of the authored answer text and files, played one step at a time on the
    * SHOWING_ANSWER timer. The answer text stays visible as the headline.
    */
   public static buildAnswerPlan(
     question: AnswerContentSource | null
   ): QuestionContentPlanDTO | null {
-    if (!question?.answerFiles?.length) {
+    if (!question || (!question.answerFiles?.length && !question.answerTextItems?.length)) {
       return null;
     }
 
     return QuestionContentPlanLogic.build(
-      { files: question.answerFiles, playMediaSimultaneously: question.playMediaSimultaneously },
+      {
+        files: question.answerFiles,
+        textItems: question.answerTextItems,
+        playMediaSimultaneously: question.playMediaSimultaneously
+      },
       null,
       {
         imageMs: SHOW_ANSWER_DURATION_TEXT,
@@ -71,7 +75,9 @@ export class ShowAnswerLogic {
         ? findPointAnswerImage(question.questionFiles, question.pointImageOrder)
         : undefined;
     const choices =
-      question?.type === PackageQuestionType.CHOICE && question.correctChoiceOrder != null
+      question &&
+      answerFormat(question) === AnswerType.SELECT &&
+      question.correctChoiceOrder != null
         ? (question.answers ?? []).filter((option) => option.order === question.correctChoiceOrder)
         : [];
     const correctChoice = choices.length === 1 ? choices[0] : undefined;
@@ -79,12 +85,15 @@ export class ShowAnswerLogic {
       answerPointImage: image?.file.link ?? null,
       answerPoint: question?.answerPoint ?? null,
       answerDeviation: question?.answerDeviation ?? null,
+      correctChoice: correctChoice ?? null,
       correctChoiceImage:
         !question?.answerFiles?.length &&
         !correctChoice?.text?.trim() &&
         correctChoice?.file?.type === PackageFileType.IMAGE
           ? (correctChoice.file.link ?? null)
           : null,
+      answerTextItems: question?.answerTextItems ?? null,
+      answerExplanation: question?.answerExplanation ?? null,
       rightAnswers: question?.rightAnswers ?? null,
       authors: question?.authors ?? null,
       sources: question?.sources ?? null

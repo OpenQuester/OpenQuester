@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { allowedSecretPrice } from "@/game/secretRules";
+import { inputClass, Label } from "@/ui/Field";
 import { cn } from "@/lib/cn";
 import { useTranslation } from "react-i18next";
 
@@ -27,10 +30,18 @@ export function SecretStage() {
   const canChoose = isPicker || role === "showman";
   const [target, setTarget] = useSecretTarget();
   const selection = secret?.priceSelection;
-  if (selection) return <SecretPriceStage selection={selection} />;
+  if (selection)
+    return (
+      <SecretPriceStage key={`${secret?.questionId}:${selection.playerId}`} selection={selection} />
+    );
+  const eligibleIds = session.state.questionEligiblePlayers;
+  const eligible = eligibleIds ? new Set(eligibleIds) : null;
   const options = seatedPlayers(session).filter(
     (p) =>
       p.status === "in-game" &&
+      !p.restrictionData.banned &&
+      !p.restrictionData.restricted &&
+      (eligible === null || eligible.has(p.meta.id)) &&
       !(secret?.transferType === "exceptCurrent" && p.meta.id === secret.pickerPlayerId),
   );
   const selectedTarget = options.some((p) => p.meta.id === target) ? target : null;
@@ -48,9 +59,15 @@ export function SecretStage() {
           <PlayerMessage i18nKey="secret.picked" name={picker?.meta.username ?? ""} />
         )}
       </h2>
+      {session.state.scriptView?.priceRange && (
+        <p className="m-0 text-soft">
+          {t("script.priceRange", { ...session.state.scriptView.priceRange })}
+        </p>
+      )}
       <p className="m-0 text-soft">
         {secret?.transferType === "exceptCurrent" ? t("secret.ruleExcept") : t("secret.ruleAny")}
       </p>
+      <SecretPriceAnnouncement />
       <StagePages role="radiogroup" label={t("secret.giveTo")} itemWidth={270}>
         {options.map((p) => (
           <button
@@ -165,6 +182,9 @@ function SecretPriceStage({
   const { connection } = useGame();
   const pending = useGameState((state) => state.pending);
   const connected = useGameState((state) => state.connection === "connected");
+  const [price, setPrice] = useState(() =>
+    String(selection.range?.min ?? selection.allowedPrices[0] ?? ""),
+  );
   const mine = selection.playerId === myId;
   const disabled =
     !!pending || !connected || !connection.connected || session.state.isPaused || session.finished;
@@ -188,6 +208,50 @@ function SecretPriceStage({
           <PlayerMessage i18nKey="secret.pickPrice" name={chooser?.meta.username ?? ""} />
         )}
       </h2>
+      {selection.range && (
+        <div className="flex w-full max-w-sm flex-col gap-3">
+          <p className="m-0 text-soft">
+            {t("secret.range", {
+              min: formatScore(selection.range.min),
+              max: formatScore(selection.range.max),
+              step: selection.range.step || 1,
+            })}
+          </p>
+          {mine && (
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!disabled && price.trim() && allowedSecretPrice(selection, Number(price)))
+                  connection.emit("secret-question-price", { price: Number(price) });
+              }}
+            >
+              <Label htmlFor="secret-price-input">{t("secret.prices")}</Label>
+              <input
+                id="secret-price-input"
+                type="number"
+                required
+                min={selection.range.min}
+                max={selection.range.max}
+                step={selection.range.step || 1}
+                value={price}
+                onChange={(event) => setPrice(event.target.value)}
+                disabled={disabled}
+                className={inputClass}
+              />
+              <Button
+                type="submit"
+                variant="accent"
+                disabled={
+                  disabled || !price.trim() || !allowedSecretPrice(selection, Number(price))
+                }
+              >
+                {t("secret.confirmPrice")}
+              </Button>
+            </form>
+          )}
+        </div>
+      )}
       <ul
         className={cn(
           "m-0 w-full max-w-[720px] list-none p-0",
@@ -218,6 +282,49 @@ function SecretPriceStage({
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function SecretPriceAnnouncement() {
+  const { t } = useTranslation();
+  const secret = useSession().state.secretQuestionData;
+  if (!secret?.priceRevealed) return null;
+  return (
+    <p className="m-0 text-soft">
+      {secret.announcedPrice != null
+        ? t("secret.announcedPrice", { price: formatScore(secret.announcedPrice) })
+        : secret.announcedRange
+          ? t("secret.range", { ...secret.announcedRange, step: secret.announcedRange.step || 1 })
+          : t("secret.announcedPrices", {
+              prices: secret.announcedPrices?.map(formatScore).join(" / ") ?? "",
+            })}
+    </p>
+  );
+}
+
+export function SecretAwardStage() {
+  const { t } = useTranslation();
+  const session = useSession();
+  const award = session.state.secretAward;
+  if (!award) return null;
+  const recipient = findPlayer(session, award.recipientPlayerId);
+  return (
+    <section className={stageStyles.secretPrice} aria-live="polite">
+      <span className="text-sm font-semibold text-muted">{t("secret.awardTitle")}</span>
+      <h2 className={stageStyles.secretTitle}>
+        <PlayerMessage
+          i18nKey="secret.awarded"
+          name={recipient?.meta.username ?? ""}
+          values={{ price: formatScore(award.price) }}
+        />
+      </h2>
+      <p className="m-0 text-soft">
+        {t("secret.awardScore", {
+          change: formatScore(award.appliedChange),
+          score: formatScore(award.newScore),
+        })}
+      </p>
     </section>
   );
 }

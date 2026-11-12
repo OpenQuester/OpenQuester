@@ -70,7 +70,7 @@ export function QuestionMediaList({
               )
             }
           >
-            {t("editor.timeline.add")}
+            {t(slot === "answerFiles" ? "editor.timeline.addAnswer" : "editor.timeline.add")}
           </Button>
         )}
         <input
@@ -222,6 +222,56 @@ export function QuestionMediaList({
                       }));
                     }}
                   />
+                  <DurationInput
+                    value={step.item.durationMs ?? null}
+                    onChange={(value) => {
+                      const seconds = Number(value.replace(",", "."));
+                      if (!Number.isFinite(seconds)) return;
+                      timeline.setQ((current) => ({
+                        ...current,
+                        textItems: current.textItems?.map((item) =>
+                          item.id === step.item.id
+                            ? {
+                                ...item,
+                                durationMs: value.trim() ? Math.round(seconds * 1000) : null,
+                              }
+                            : item,
+                        ),
+                      }));
+                    }}
+                  />
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={step.item.placement === "replic"}
+                      onChange={(event) => {
+                        const placement = event.target.checked ? "replic" : "screen";
+                        timeline.setQ((current) => ({
+                          ...current,
+                          textItems: current.textItems?.map((item) =>
+                            item.id === step.item.id ? { ...item, placement } : item,
+                          ),
+                        }));
+                      }}
+                    />
+                    {t("editor.timeline.replic")}
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={step.item.waitForFinish !== false}
+                      onChange={(event) => {
+                        const waitForFinish = event.target.checked;
+                        timeline.setQ((current) => ({
+                          ...current,
+                          textItems: current.textItems?.map((item) =>
+                            item.id === step.item.id ? { ...item, waitForFinish } : item,
+                          ),
+                        }));
+                      }}
+                    />
+                    {t("editor.timeline.waitForFinish")}
+                  </label>
                   <div className="flex items-center justify-end gap-2">
                     {grip}
                     <button

@@ -1,3 +1,4 @@
+import type { WrongAnswerPenalty } from "domain/enums/game/GameSettings";
 import { AllPlayDataDTO, AllPlayMode } from "domain/types/dto/game/state/AllPlayDataDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 
@@ -10,6 +11,7 @@ export interface AllPlayStartEventPayload {
   price: number;
   maxStake: number | null;
   priceMultiplier: number | null;
+  wrongAnswerPenalty?: WrongAnswerPenalty;
   /** Stake timer in stake mode; null when the question comes next */
   timer: GameStateTimerDTO | null;
 }
@@ -38,6 +40,7 @@ export interface AllPlayStakeInputData {
 
 export interface AllPlayAnswerInputData {
   answerText: string;
+  choiceOrder?: number;
 }
 
 export interface AllPlayReviewInputData {

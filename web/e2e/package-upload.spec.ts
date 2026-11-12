@@ -91,7 +91,7 @@ test.describe("package upload", () => {
     await expect(review.getByText("3 questions")).toBeVisible();
     await expect(review.getByText(/^1 media file/)).toBeVisible();
     const warnings = page.getByTestId("upload-warnings");
-    await expect(warnings).toContainText("2 things were adjusted while reading");
+    await expect(warnings.getByText("Import report (2)", { exact: true })).toBeVisible();
     await expect(warnings).toContainText("Images/lost.png isn't in the archive");
     await expect(warnings).toContainText("Question has no text or media, so it was skipped.");
     await expect(review.getByText("1 final themes")).toBeVisible();

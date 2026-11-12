@@ -1,3 +1,7 @@
+import type {
+  PublicSecretQuestionGameData,
+  SecretQuestionAward
+} from "domain/types/dto/game/state/SecretQuestionGameData";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 
 export interface SecretQuestionTransferInputData {
@@ -6,6 +10,7 @@ export interface SecretQuestionTransferInputData {
 }
 
 export interface SecretQuestionTransferBroadcastData {
+  secretQuestionData?: PublicSecretQuestionGameData | null;
   /** The player who transferred the question */
   fromPlayerId: number;
   /** The player who received the question */
@@ -24,8 +29,14 @@ export interface SecretQuestionPriceInputData {
 }
 
 export interface SecretQuestionPriceBroadcastData {
+  secretQuestionData?: PublicSecretQuestionGameData | null;
+  timer?: GameStateTimerDTO | null;
   /** The player who picked the price and answers the question */
   playerId: number;
   price: number;
   questionId: number;
+}
+
+export interface SecretQuestionAwardedPayload extends SecretQuestionAward {
+  timer: GameStateTimerDTO | null;
 }

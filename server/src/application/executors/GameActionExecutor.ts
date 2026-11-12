@@ -1,4 +1,5 @@
 import { inject, singleton } from "tsyringe";
+import { QuestionScriptService } from "application/services/question/QuestionScriptService";
 
 import { DI_TOKENS } from "shared/di/tokens";
 import { DataMutationProcessor } from "application/executors/DataMutationProcessor";
@@ -79,6 +80,7 @@ export class GameActionExecutor {
     private readonly mutationProcessor: DataMutationProcessor,
     private readonly pipelineService: GamePipelineService,
     private readonly socketActionHooks: SocketActionHooks,
+    private readonly questionScriptService: QuestionScriptService,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -283,7 +285,12 @@ export class GameActionExecutor {
     const { action } = ctx;
 
     try {
-      const result = await handler.execute(ctx);
+      const previousFinalPhase = ctx.game.gameState.finalRoundData?.phase;
+      const scriptedResult = ctx.lockToken ? await this.questionScriptService.execute(ctx) : undefined;
+      let result = scriptedResult ?? (await handler.execute(ctx));
+      if (ctx.lockToken && !scriptedResult) {
+        result = await this.questionScriptService.afterAction(ctx, result, previousFinalPhase);
+      }
 
       const durationMs = Date.now() - startTime;
 

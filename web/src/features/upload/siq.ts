@@ -1,3 +1,6 @@
+import { readCompatibilityIssues, sourceFromSiq } from "./siqCompatibility";
+import { type SiqQuestionCoordinates, normalizeSiqQuestion } from "./normalizeSiqQuestion";
+import { readSiqScript, resolveSiqQuestionParameters } from "./siqScript";
 import { VISUAL_QUEUE_THRESHOLD } from "@/game/authoredContentGroups";
 import type { Unzipped } from "fflate";
 
@@ -9,6 +12,7 @@ import {
   type TimelineGroupSize,
   type TimelinePhase,
 } from "./contentLimits";
+import { parseSiqPoint, pointTargetOrder } from "./siqPoint";
 import { scanSiq, requireRemoval, removalWarnings } from "./htmlRemoval";
 import { EntryIndex, md5Hex, yieldToBrowser } from "./archive";
 import type {
@@ -18,6 +22,7 @@ import type {
   MediaType,
   ParsedPackage,
   QuestionFile,
+  QuestionTextItem,
   UploadContent,
   UploadQuestion,
   UploadRound,
@@ -46,14 +51,24 @@ export async function parseSiq(
   const sequentialWarnings = scanSiqContentLimits(pkg);
   const originalRounds = [...children(child(pkg, "rounds"), "round")];
   const nonLastFinals = new Set(
-    originalRounds.slice(0, -1).filter((r) => r.getAttribute("type") === "final"),
+    originalRounds
+      .slice(0, -1)
+      .filter((r) => ["final", "themeList"].includes(r.getAttribute("type") ?? "")),
   );
   const names = Object.keys(entries);
   const nonEmptyNames = names.filter((name) => entries[name]!.length > 0);
+  const sourceCoordinates = new WeakMap<Element, SiqQuestionCoordinates>();
+  originalRounds.forEach((round, ri) => {
+    [...children(child(round, "themes"), "theme")].forEach((theme, ti) => {
+      [...children(child(theme, "questions"), "question")].forEach((question, qi) => {
+        sourceCoordinates.set(question, { round: ri, theme: ti, question: qi });
+      });
+    });
+  });
   const report = scanSiq(pkg, names, false, nonEmptyNames);
   requireRemoval(report, allowHtmlRemoval);
   if (report.questions.length) scanSiq(pkg, names, true, nonEmptyNames);
-  const reader = new SiqReader(index, nonLastFinals);
+  const reader = new SiqReader(index, nonLastFinals, sourceCoordinates);
   reader.warnings.push(...removalWarnings(report), ...sequentialWarnings);
   await yieldToBrowser();
   const content = reader.readPackage(pkg);
@@ -68,30 +83,17 @@ export async function parseSiq(
 
 const FOLDERS: Record<MediaType, string> = { image: "Images", audio: "Audio", video: "Video" };
 
-/** SIGame names for the special question kinds OpenQuester supports. */
-const TYPE_ALIASES: Record<string, UploadQuestion["type"]> = {
-  simple: "simple",
-  stake: "stake",
-  auction: "stake",
-  secret: "secret",
-  secretPublicPrice: "secret",
-  secretNoQuestion: "secret",
-  cat: "secret",
-  bagcat: "secret",
-  noRisk: "noRisk",
-  sponsored: "noRisk",
-};
-
 /**
  * One content item read from SIGame XML, in package order. SIGame plays these
  * one at a time (an item that does not wait for its finish is shown together
  * with the next), so the importer keeps order, placement and timing.
  */
 interface ContentEntry {
+  sourceIndex?: number;
   kind: "text" | "said" | "file";
   value?: string;
   file?: FileRef;
-  placement: "screen" | "background";
+  placement: "screen" | "background" | "replic";
   waitForFinish: boolean;
   /** Explicit duration in ms, or null for the default/real length. */
   durationMs: number | null;
@@ -105,6 +107,7 @@ class SiqReader {
   constructor(
     private readonly index: EntryIndex,
     private readonly nonLastFinals: Set<Element>,
+    private readonly sourceCoordinates: WeakMap<Element, SiqQuestionCoordinates>,
   ) {}
 
   readPackage(pkg: Element): UploadContent {
@@ -118,7 +121,7 @@ class SiqReader {
     const nodes = [...children(child(pkg, "rounds"), "round")];
     // Normalize before parsing themes so converted rounds keep all their questions.
     const rounds = nodes.map((r, i) => {
-      const final = r.getAttribute("type") === "final";
+      const final = ["final", "themeList"].includes(r.getAttribute("type") ?? "");
       const type =
         final && i === nodes.length - 1 && !this.nonLastFinals.has(r) ? "final" : "simple";
       if (final && type === "simple")
@@ -194,42 +197,95 @@ class SiqReader {
     path: string,
     roundType: "simple" | "final",
   ): UploadQuestion | null {
+    if (q.getAttribute("price")?.trim() === "-1") return null;
     const priceRaw = Number.parseInt(q.getAttribute("price") ?? "", 10);
     const price = Number.isFinite(priceRaw) ? Math.max(0, priceRaw) : 0;
     const where = roundType === "final" ? path : `${path} › ${price}`;
 
+    const firstBodyWarning = this.warnings.length;
+    const original = q;
+    const coordinates = this.sourceCoordinates.get(q);
+    const resolvedParameters = resolveSiqQuestionParameters(q, where);
+    q = resolvedParameters.question;
     const params = child(q, "params");
-    const body = params ? this.readV5(params, where) : this.readV4(child(q, "scenario"), where);
+    const modernBody = params ? this.readV5(params, where) : null;
+    const body = modernBody ?? this.readV4(child(q, "scenario"), where);
 
+    const script = resolvedParameters.issue
+      ? null
+      : readSiqScript(q, where, roundType === "final", (content) =>
+          this.readScriptContent(content, where),
+        );
+    const handledScript = script != null || resolvedParameters.issue != null;
+    const normalized = normalizeSiqQuestion(
+      q,
+      where,
+      roundType === "final",
+      (type, name) => this.media(type, name, where),
+      coordinates,
+      handledScript,
+    );
+    const award = !handledScript && normalized.fields.secretRules?.outcome === "award";
+    const scriptIssue = resolvedParameters.issue ?? script?.issue;
+    const importIssues = scriptIssue
+      ? [
+          ...normalized.issues,
+          {
+            ...scriptIssue,
+            source: scriptIssue.source ?? coordinates,
+            sourceData: sourceFromSiq(original, (type, name) => this.media(type, name, where)),
+          },
+        ]
+      : normalized.issues;
+    const repairIssues = [
+      ...importIssues,
+      ...this.warnings.slice(firstBodyWarning).filter((issue) => issue.severity === "critical"),
+    ];
+    const compatibilityIssues = readCompatibilityIssues(
+      repairIssues.map((issue) => ({
+        ...issue,
+        where: issue.where.slice(0, 1024),
+      })),
+    );
+    this.warnings.push(...importIssues);
     const right = answersOf(q, "right");
     const wrong = answersOf(q, "wrong");
     // The first right answer is the answer; the rest also count as right.
     const answerText = right[0] ?? null;
-    if (!body.text && body.questionFiles.length === 0) {
+    if (
+      !handledScript &&
+      !award &&
+      !compatibilityIssues?.length &&
+      !body.text &&
+      !body.textItems.some((item) => item.text.trim()) &&
+      body.questionFiles.length === 0 &&
+      modernBody?.answerType !== "point"
+    ) {
       this.warnings.push({ code: "emptyQuestion", where });
       return null;
     }
-    if (!answerText && body.answerFiles.length === 0)
+    if (!answerText && body.answerFiles.length === 0 && !award && !handledScript)
       this.warnings.push({ code: "noAnswer", where });
-
-    const rawType = q.getAttribute("type") ?? child(q, "type")?.getAttribute("name") ?? "simple";
-    let type = TYPE_ALIASES[rawType];
-    if (!type) {
-      this.warnings.push({ code: "unknownType", where, detail: rawType });
-      type = "simple";
-    }
-    if (roundType === "final") type = "simple";
 
     const firstType = body.questionFiles[0]?.file.type;
     const base: UploadQuestion = {
-      type,
+      ...(handledScript ? { type: normalized.fields.type } : normalized.fields),
+      ...(compatibilityIssues ? { compatibilityIssues } : {}),
       order,
       price: roundType === "final" ? null : price,
+      // Keep SI nominal prices for explicit final scripts and round extrema.
+      ...(roundType === "final" && price > 0 ? { realPrice: price } : {}),
       text: body.text,
       textOrder: body.textOrder,
+      textDurationMs: body.textDurationMs,
+      textWaitForFinish: body.textWaitForFinish,
+      answerTextItems: body.answerTextItems,
+      answerDurationMs: body.answerDurationMs,
+      showmanComments: child(child(q, "info"), "showmanComments")?.textContent?.trim() || null,
       ...(body.textItems.length ? { textItems: body.textItems } : {}),
       playMediaSimultaneously: true,
-      questionComment: body.comment,
+      questionComment: null,
+      answerExplanation: comment(q),
       answerText,
       answerHint: null,
       rightAnswers: right.length > 1 ? right.slice(1) : null,
@@ -241,40 +297,197 @@ class SiqReader {
       answerFiles: body.answerFiles,
     };
     // SIQ v5 number and point answers: the right answer holds the number / "x,y".
-    const answerType = "answerType" in body ? body.answerType : null;
-    const deviation =
-      "answerDeviation" in body && Number.isFinite(body.answerDeviation)
-        ? body.answerDeviation
-        : null;
+    const answerType = modernBody?.answerType;
+    const deviation = modernBody?.answerDeviation ?? NaN;
     if (answerType === "number" && right[0] != null) {
       const n = Number(right[0].replace(",", ".").replace(/\s/g, ""));
       if (Number.isFinite(n)) {
         base.answerType = "number";
         base.answerNumber = n;
-        base.answerDeviation = deviation;
+        base.answerDeviation = Number.isFinite(deviation) ? deviation : null;
       }
-    } else if (answerType === "point" && right[0] != null) {
-      const [x, y] = right[0].split(/[,;\s]+/).map(Number);
-      if (x! >= 0 && x! <= 1 && y! >= 0 && y! <= 1) {
-        base.answerType = "point";
-        base.answerPoint = { x: x!, y: y! };
-        base.answerDeviation = deviation;
-      }
+    } else if (answerType === "point") {
+      base.answerType = "point";
+      const parsed = parseSiqPoint(right[0] ?? "", modernBody?.rawAnswerDeviation ?? null);
+      base.answerPoint = parsed?.target ?? null;
+      base.answerDeviation = parsed?.deviation ?? null;
+      base.pointImageOrder = modernBody?.pointImageOrder ?? -1;
+      if (!parsed) this.warnings.push({ code: "pointInvalid", where });
+      if (base.pointImageOrder === -1) this.warnings.push({ code: "pointTargetMissing", where });
     }
-    switch (type) {
-      case "stake":
-        return { ...base, subType: "simple", maxPrice: null };
-      case "secret":
-        return {
-          ...base,
-          subType: "simple",
-          transferType: body.selectionMode === "exceptCurrent" ? "exceptCurrent" : "any",
+    if (!handledScript && !award && (answerType === "select" || normalized.rawType === "choice")) {
+      base.answerType = "select";
+      base.showDelay = 0;
+      base.rightAnswers = null;
+      const options: NonNullable<UploadQuestion["answers"]> = [];
+      const unresolvedOptions: NonNullable<
+        NonNullable<UploadQuestion["selectSource"]>["unresolvedOptions"]
+      > = [];
+      const group = modernBody?.options;
+      for (const option of children(group, "param")) {
+        const sourceLabel = option.getAttribute("name") ?? "";
+        const item = child(option, "item"); // SIEngine uses only the first content item.
+        const kind = item?.getAttribute("type") ?? "text";
+        const value = item ? text(item) : "";
+        const order = options.length;
+        const media = mediaType(kind);
+        const file = media && value ? this.media(media, value, where) : null;
+        const supported = kind === "text" ? !!value : !!file;
+        options.push({ order, sourceLabel, text: kind === "text" ? value : null, file });
+        if (!supported) unresolvedOptions.push({ order, sourceLabel, kind, value });
+      }
+      base.answers = options;
+      base.selectSource = { rightLabels: right, unresolvedOptions };
+      const labels = options.map((option) => option.sourceLabel);
+      const matches = options.filter((option) => option.sourceLabel === right[0]);
+      if (
+        options.length < 2 ||
+        labels.some((label) => !label) ||
+        new Set(labels).size !== labels.length ||
+        matches.length !== 1 ||
+        unresolvedOptions.length
+      ) {
+        base.correctChoiceNeedsRepair = true;
+        const issue: ImportWarning = {
+          code: "choiceCorrectUnresolved",
+          where,
+          severity: "critical",
+          feature: "select",
+          resolution: "needsRepair",
         };
-      case "noRisk":
-        return { ...base, subType: "simple", priceMultiplier: 2 };
-      default:
-        return base;
+        base.compatibilityIssues = readCompatibilityIssues([
+          ...(base.compatibilityIssues ?? []),
+          { ...issue, where: issue.where.slice(0, 1024) },
+        ]);
+        this.warnings.push(issue);
+        base.answerText = null;
+      } else {
+        base.correctChoiceOrder = matches[0]!.order;
+        base.answerText = matches[0]!.text;
+      }
     }
+    if (script?.issue) Object.assign(base, script.fields);
+    if (script?.script) {
+      Object.assign(base, script.fields, {
+        script: script.script,
+        textDurationMs: null,
+        textWaitForFinish: null,
+      });
+      // Native compilation is safe only for an exact supported template, never a partial match.
+      // Final special scripts retain the program so preamble precedes any native final bids.
+      // Select groups in scripts can use labels in media and repeated asks. The
+      // native choice editor cannot preserve their step-local keys.
+      if (
+        script.nativeKind &&
+        roundType !== "final" &&
+        !script.script.steps.some(
+          (step) => step.op === "setAnswerType" && step.answerType === "select",
+        )
+      ) {
+        const native = script.nativeKind;
+        const type = native.startsWith("secret")
+          ? "secret"
+          : native === "stakeAll"
+            ? "stake"
+            : native === "forAll"
+              ? "simple"
+              : (native as UploadQuestion["type"]);
+        base.type = type;
+        // Existing v5 body is the native question/answer presentation for these exact ref templates.
+        const formats = script.script.steps.filter((s) => s.op === "setAnswerType");
+        const currentFormat = formats[0];
+        base.answerType = currentFormat?.answerType ?? "text";
+        const ask = script.script.steps.find((step) => step.op === "askAnswer");
+        if (ask?.op === "askAnswer") base.answerDurationMs = ask.durationMs;
+        if (native === "stakeAll" || native === "forAll") base.subType = "forEveryone";
+        if (native === "noRisk") base.priceMultiplier = 2;
+        if (native.startsWith("secret")) {
+          const transfer = script.script.steps.find(
+            (step) => step.op === "setAnswerer" && step.mode === "byCurrent",
+          );
+          base.transferType =
+            transfer?.op === "setAnswerer" && transfer.mode === "byCurrent"
+              ? transfer.select
+              : "exceptCurrent";
+          const selection = script.script.steps.find(
+            (s) => s.op === "setPrice" && s.mode === "select",
+          );
+          if (selection?.op === "setPrice" && selection.mode === "select") {
+            const r = selection.range;
+            if (r.min === r.max && r.min > 0) base.realPrice = r.min;
+            base.secretRules = {
+              outcome: native === "secretNoQuestion" ? "award" : "question",
+              priceAnnouncement:
+                native === "secret" || native === "secretNoQuestion"
+                  ? "afterTransfer"
+                  : "beforeTransfer",
+              priceChooser: native === "secretOpenerPrice" ? "opener" : "receiver",
+              priceRule:
+                r.min === r.max
+                  ? r.min === 0
+                    ? { kind: "roundExtremes" }
+                    : null
+                  : { kind: "range", ...r },
+            };
+          }
+        }
+        base.script = null;
+        if (base.answerType !== "select") delete base.answers;
+      }
+    }
+    return base;
+  }
+
+  /** Preserve every script content occurrence, including private replic and timed blank steps. */
+  private readScriptContent(content: Element, where: string) {
+    const textItems: NonNullable<UploadQuestion["textItems"]> = [];
+    const questionFiles: QuestionFile[] = [];
+    for (const [order, item] of [...children(content, "item")].entries()) {
+      const kind = item.getAttribute("type") ?? "text";
+      const placement = item.getAttribute("placement");
+      if (placement != null && !["screen", "background", "replic"].includes(placement))
+        throw new Error(`unknown content placement: ${placement}`);
+      const rawDuration = item.getAttribute("duration");
+      const durationMs = parseTimeSpan(rawDuration);
+      if (rawDuration && durationMs === null && !isZeroDuration(rawDuration))
+        throw new Error("invalid content duration");
+      if (durationMs != null && durationMs > 120_000) throw new Error("content duration limit");
+      const rawWait = item.getAttribute("waitForFinish")?.toLowerCase();
+      if (rawWait != null && rawWait !== "true" && rawWait !== "false")
+        throw new Error(`invalid waitForFinish: ${rawWait}`);
+      const waitForFinish = rawWait !== "false";
+      const value = text(item);
+      if (kind === "text" || kind === "say") {
+        if (placement === "background") throw new Error(`invalid ${kind} placement: ${placement}`);
+        textItems.push({
+          order,
+          text: value,
+          durationMs: durationMs ?? (!value ? 2000 : null),
+          waitForFinish,
+          placement: kind === "say" || placement === "replic" ? "replic" : "screen",
+        });
+      } else {
+        const media = mediaType(kind);
+        if (!media) throw new Error(`unknown content type: ${kind}`);
+        if (placement === "replic" || (placement === "background" && media !== "audio"))
+          throw new Error(`invalid ${kind} placement: ${placement}`);
+        if (item.getAttribute("isRef")?.toLowerCase() !== "true" && /^https?:/i.test(value))
+          throw new Error("external script media");
+        const file = this.media(media, value, where);
+        if (!file) throw new Error("missing script media");
+        questionFiles.push({
+          order,
+          file,
+          displayTime: durationMs,
+          waitForFinish,
+          placement:
+            media === "audio" && (placement ?? "background") === "background"
+              ? "background"
+              : "screen",
+        });
+      }
+    }
+    return { textItems, questionFiles };
   }
 
   /** Format 5: <params><param name="question" type="content"><item …/></param>…</params> */
@@ -285,58 +498,94 @@ class SiqReader {
     const answer = byName("answer");
     const read = (param: Element | null) => {
       const entries: ContentEntry[] = [];
-      for (const item of children(param, "item")) {
+      const sourceItems = [...children(param, "item")];
+      for (const [sourceIndex, item] of sourceItems.entries()) {
         const kind = item.getAttribute("type") ?? "text";
         const value = text(item);
-        if (!value) continue;
-        const waitForFinish = item.getAttribute("waitForFinish")?.toLowerCase() !== "false";
-        const durationMs = parseTimeSpan(item.getAttribute("duration"));
+        const rawWait = item.getAttribute("waitForFinish");
+        if (rawWait != null && !["true", "false"].includes(rawWait.toLowerCase()))
+          this.repair(where, "waitForFinish", rawWait, item);
+        const waitForFinish = rawWait?.toLowerCase() !== "false";
+        const rawDuration = item.getAttribute("duration");
+        const durationMs = parseTimeSpan(rawDuration);
+        if (rawDuration && durationMs === null && !isZeroDuration(rawDuration))
+          this.repair(where, "duration", rawDuration, item);
+        if (durationMs != null && durationMs > 120_000)
+          this.repair(where, "duration", rawDuration ?? "", item);
+        const placement = item.getAttribute("placement");
+        if (placement != null && !["screen", "background", "replic"].includes(placement))
+          this.repair(where, "placement", placement, item);
         if (kind === "text" || kind === "say") {
-          const said = item.getAttribute("placement") === "replic" || kind === "say";
+          if (placement === "background") this.repair(where, "placement", placement, item);
+          const said = placement === "replic" || kind === "say";
           entries.push({
+            sourceIndex,
             kind: said ? "said" : "text",
             value,
-            placement: "screen",
+            placement: said ? "replic" : "screen",
             waitForFinish,
             durationMs,
           });
           continue;
         }
         const media = mediaType(kind);
-        if (!media) continue;
+        if (!media) {
+          this.repair(where, "contentType", kind, item);
+          entries.push({ kind: "said", value: "", placement: "replic", waitForFinish, durationMs });
+          continue;
+        }
+        if (placement === "replic" || (placement === "background" && media !== "audio"))
+          this.repair(where, "placement", placement, item);
+        if (!value) this.repair(where, "contentType", `${kind}: empty reference`, item);
         if (item.getAttribute("isRef")?.toLowerCase() !== "true" && /^https?:/i.test(value)) {
           this.warnings.push({ code: "externalMedia", where, detail: value });
-          entries.push({ kind: "file", placement: "screen", waitForFinish, durationMs });
+          entries.push({
+            sourceIndex,
+            kind: "file",
+            placement: "screen",
+            waitForFinish,
+            durationMs,
+          });
           continue;
         }
         const ref = this.media(media, value, where);
         // SIGame plays audio in the background unless the item says otherwise.
-        const placement =
+        const filePlacement =
           media === "audio" && (item.getAttribute("placement") ?? "background") === "background"
             ? "background"
             : "screen";
         entries.push({
+          sourceIndex,
           kind: "file",
           file: ref ?? undefined,
-          placement,
+          placement: filePlacement,
           waitForFinish,
           durationMs,
         });
       }
-      return toSequence(entries);
+      const sequence = toSequence(entries);
+      return {
+        ...sequence,
+        pointImageOrder: pointTargetOrder(sourceItems.length - 1, sequence.occurrences) ?? -1,
+      };
     };
     const asked = read(question);
     const shown = read(answer);
     return {
-      text: asked.texts[0] ?? joined(asked.said),
+      text: asked.text,
       textOrder: asked.textOrder,
+      textDurationMs: asked.textDurationMs,
+      textWaitForFinish: asked.textWaitForFinish,
       textItems: asked.textItems,
-      comment: asked.texts.length ? joined(asked.said) : null,
       questionFiles: asked.files,
       answerFiles: shown.files,
-      selectionMode: byName("selectionMode") ? text(byName("selectionMode")!) : null,
+      pointImageOrder: asked.pointImageOrder,
+      rawAnswerDeviation: byName("answerDeviation") ? text(byName("answerDeviation")!) : null,
+      answerTextItems: shown.allTextItems,
+      answerDurationMs: this.answerDuration(byName("answerDuration"), where),
       answerType: byName("answerType") ? text(byName("answerType")!) : null,
       answerDeviation: byName("answerDeviation") ? Number(text(byName("answerDeviation")!)) : null,
+      options: byName("answerOptions"),
     };
   }
 
@@ -352,25 +601,29 @@ class SiqReader {
         continue;
       }
       const value = text(atom);
-      if (!value) continue;
       // SIGame: time -1 means "do not wait"; a positive time is the duration in seconds.
-      const time = Number.parseFloat(atom.getAttribute("time") ?? "0");
+      const rawTime = atom.getAttribute("time");
+      const time = Number(rawTime ?? "0");
+      if (!Number.isFinite(time) || (time < 0 && time != -1) || time * 1000 > 120_000)
+        this.repair(where, "duration", rawTime ?? "", atom);
       const waitForFinish = time !== -1;
       const durationMs = Number.isFinite(time) && time > 0 ? Math.round(time * 1000) : null;
       const into = afterMarker ? shown : asked;
       if (kind === "text" || kind === "say") {
-        if (afterMarker) continue;
         into.push({
           kind: kind === "say" ? "said" : "text",
           value,
-          placement: "screen",
+          placement: kind === "say" ? "replic" : "screen",
           waitForFinish,
           durationMs,
         });
         continue;
       }
       const media = mediaType(kind);
-      if (!media) continue;
+      if (!media) {
+        this.repair(where, "contentType", kind, atom);
+        continue;
+      }
       if (!value.startsWith("@") && /^https?:/i.test(value)) {
         this.warnings.push({ code: "externalMedia", where, detail: value });
         into.push({ kind: "file", placement: "screen", waitForFinish, durationMs });
@@ -388,14 +641,53 @@ class SiqReader {
     const q = toSequence(asked);
     const a = toSequence(shown);
     return {
-      text: q.texts[0] ?? joined(q.said),
+      text: q.text,
       textOrder: q.textOrder,
+      textDurationMs: q.textDurationMs,
+      textWaitForFinish: q.textWaitForFinish,
       textItems: q.textItems,
-      comment: q.texts.length ? joined(q.said) : null,
       questionFiles: q.files,
       answerFiles: a.files,
-      selectionMode: null,
+      answerTextItems: a.allTextItems,
+      answerDurationMs: null,
     };
+  }
+
+  private repair(where: string, feature: string, value: string, item?: Element) {
+    this.warnings.push({
+      code: "contentNeedsRepair",
+      ...(item
+        ? {
+            contentSource: {
+              type: (item.getAttribute("type") ?? "text").slice(0, 100),
+              text: (item.textContent ?? "").slice(0, 2000),
+              placement: item.getAttribute("placement")?.slice(0, 100) ?? null,
+              duration: item.getAttribute("duration")?.slice(0, 100) ?? null,
+              waitForFinish: item.getAttribute("waitForFinish")?.slice(0, 16) ?? null,
+              time: item.getAttribute("time")?.slice(0, 100) ?? null,
+            },
+          }
+        : {}),
+      where,
+      feature,
+      detail: value.slice(0, 500),
+      severity: "critical",
+      resolution: "needsRepair",
+    });
+  }
+
+  private answerDuration(param: Element | null, where: string): number | null {
+    if (!param) return null;
+    const raw = text(param);
+    if (
+      !/^\d+$/.test(raw) ||
+      !Number.isSafeInteger(Number(raw)) ||
+      Number(raw) * 1000 > 2147483647
+    ) {
+      this.repair(where, "answerDuration", raw);
+      return null;
+    }
+    return Number(raw) === 0 ? null : Number(raw) * 1000;
   }
 
   /** Finds a referenced file in the archive and registers it by MD5. */
@@ -436,10 +728,6 @@ function nonEmpty(s: string | null | undefined): string | null {
   return t ? t : null;
 }
 
-function joined(parts: string[]): string | null {
-  return parts.length ? parts.join(" ") : null;
-}
-
 /** SIQ <info><authors><author>… (or sources/source) of a package, round, theme or question. */
 function infoList(
   el: Element,
@@ -473,53 +761,52 @@ function mediaType(kind: string): MediaType | null {
   return null;
 }
 
-/** Preserve sequential screen text groups along with file order and wait flags. */
+/** Keep source occurrences in one order space, including blank screen clears and private pauses. */
 function toSequence(entries: ContentEntry[]) {
-  const texts: string[] = [];
-  const said: string[] = [];
-  const textItems: { order: number; text: string }[] = [];
   const files: QuestionFile[] = [];
-  let textOrder: number | null = null;
-  let order = 0;
-  let group: ContentEntry[] = [];
-  const close = () => {
-    const groupText = group.filter((entry) => entry.kind === "text");
-    const groupFiles = group.filter((entry) => entry.kind === "file" && entry.file);
-    const firstCaption =
-      !texts.length && groupText[0]?.waitForFinish === false && groupFiles.length > 0;
-    if (firstCaption) order++;
-    groupFiles.forEach((entry, index) => {
-      const file: QuestionFile = {
-        file: entry.file!,
-        order: order++,
-        displayTime: entry.durationMs,
-      };
-      if (entry.placement === "background") file.placement = "background";
-      const groupWaits = group.at(-1)?.waitForFinish;
-      if (index < groupFiles.length - 1 || (groupText.length > 0 && !firstCaption) || !groupWaits) {
-        file.waitForFinish = false;
+  const occurrences: { sourceIndex: number; order: number; kind: string }[] = [];
+  const allTextItems: QuestionTextItem[] = [];
+  for (const [order, entry] of entries.entries()) {
+    if (entry.kind === "file") {
+      if (entry.file) {
+        files.push({
+          file: entry.file,
+          order,
+          displayTime: entry.durationMs,
+          ...(entry.placement === "background" ? { placement: "background" as const } : {}),
+          ...(entry.waitForFinish === false ? { waitForFinish: false } : {}),
+        });
+        if (entry.sourceIndex != null)
+          occurrences.push({ sourceIndex: entry.sourceIndex, order, kind: entry.file.type });
       }
-      files.push(file);
-    });
-    if (groupText.length) {
-      const text = groupText.map((entry) => entry.value).join(" ");
-      if (texts.length) textItems.push({ order: order++, text });
-      else if (!firstCaption) textOrder = order++;
-      texts.push(text);
+    } else {
+      allTextItems.push({
+        order,
+        text: entry.value ?? "",
+        durationMs: entry.durationMs ?? (!entry.value?.trim() ? 2000 : null),
+        waitForFinish: entry.waitForFinish,
+        placement: entry.kind === "said" ? "replic" : "screen",
+      });
     }
-    group = [];
-  };
-  for (const entry of entries) {
-    if (entry.kind === "said") {
-      said.push(entry.value!);
-      continue;
-    }
-    group.push(entry);
-    if (entry.waitForFinish) close();
   }
-  if (group.length) close();
-  if (files.length === 0 && textItems.length === 0) textOrder = null;
-  return { texts, said, files, textOrder, textItems };
+  const main = allTextItems.find((item) => item.placement === "screen" && item.text.trim());
+  const caption =
+    main?.durationMs == null &&
+    ((entries.length === 1 && main?.waitForFinish !== false) ||
+      (main?.order === 0 &&
+        main.waitForFinish === false &&
+        files.length > 0 &&
+        allTextItems.filter((item) => item.placement === "screen").length === 1));
+  return {
+    text: main?.text ?? null,
+    textOrder: main && !caption ? main.order : null,
+    textDurationMs: main?.durationMs ?? null,
+    textWaitForFinish: main?.waitForFinish ?? null,
+    textItems: allTextItems.filter((item) => item !== main),
+    allTextItems,
+    files,
+    occurrences,
+  };
 }
 
 /** Inspect original entries before missing files, unsupported content or extra finals are removed. */
@@ -560,7 +847,8 @@ export function scanSiqContentLimits(pkg: Element): ImportWarning[] {
 }
 
 function siqGroupSizes(question: Element) {
-  const params = child(question, "params");
+  const resolved = resolveSiqQuestionParameters(question, "");
+  const params = child(resolved.question, "params");
   const groups: Record<TimelinePhase, TimelineGroupSize[]> = { question: [], answer: [] };
   let phase: TimelinePhase = "question";
   let group: TimelineGroupSize | null = null;
@@ -571,14 +859,39 @@ function siqGroupSizes(question: Element) {
   const count = (item: Element, waits: boolean) => {
     const type = item.getAttribute("type") ?? "text";
     const media = mediaType(type);
-    if (!text(item) || (!media && (type !== "text" || item.getAttribute("placement") === "replic")))
-      return;
     group ??= { files: 0, visuals: 0 };
-    if (media) group.files++;
+    if (media || (type !== "text" && type !== "say")) group.files++;
     if (media === "image" || media === "video") group.visuals++;
     if (waits) close();
   };
-  if (params) {
+  const script = child(question, "script");
+  if (script) {
+    const byName = (parent: Element | null, name: string) =>
+      [...children(parent, "param")].find((item) => item.getAttribute("name") === name) ?? null;
+    for (const step of children(script, "step")) {
+      const op = step.getAttribute("type") ?? "showContent";
+      if (op === "askAnswer") {
+        phase = "answer";
+        continue;
+      }
+      if (op !== "showContent") continue;
+      const operand = byName(step, "content");
+      const source =
+        operand?.getAttribute("isRef")?.toLowerCase() === "true"
+          ? byName(params, text(operand))
+          : operand;
+      if (!source && byName(step, "fallbackRefId")?.textContent?.trim() === "right")
+        groups[phase].push({ files: 0, visuals: 0 });
+      for (const item of children(source, "item")) {
+        const media = mediaType(item.getAttribute("type") ?? "text");
+        group ??= { files: 0, visuals: 0 };
+        if (media) group.files++;
+        if (media === "image" || media === "video") group.visuals++;
+        if (item.getAttribute("waitForFinish")?.toLowerCase() !== "false") close();
+      }
+      close();
+    }
+  } else if (params) {
     const parts = [...children(params, "param")];
     for (const name of ["question", "answer"] as const) {
       phase = name;
@@ -603,6 +916,10 @@ function siqGroupSizes(question: Element) {
   return groups;
 }
 
+function isZeroDuration(raw: string): boolean {
+  return /^(?:0|(?:0\.)?00:00:00(?:\.0+)?)$/.test(raw.trim());
+}
+
 /** SIGame durations are .NET TimeSpans ("00:00:05" or "00:00:05.5"). */
 function parseTimeSpan(raw: string | null): number | null {
   if (!raw) return null;
@@ -612,5 +929,11 @@ function parseTimeSpan(raw: string | null): number | null {
   const ms =
     ((Number(days ?? 0) * 24 + Number(h)) * 3600 + Number(min) * 60 + Number(sec)) * 1000 +
     (frac ? Math.round(Number(`0.${frac}`) * 1000) : 0);
-  return ms > 0 ? ms : null;
+  return Number.isSafeInteger(ms) &&
+    Number(h) < 24 &&
+    Number(min) < 60 &&
+    Number(sec) < 60 &&
+    ms > 0
+    ? ms
+    : null;
 }

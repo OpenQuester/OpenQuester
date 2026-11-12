@@ -373,7 +373,10 @@ for (const fixture of importedTimelines) {
     if (fixture.steps === 30) {
       await card.press("Control+Enter");
       await form.getByRole("button", { name: "Add text step" }).click();
-      await form.getByTestId("text-step-card").getByRole("textbox").fill("Actual step 31");
+      await form
+        .getByTestId("text-step-card")
+        .getByRole("textbox", { name: /Additional text/ })
+        .fill("Actual step 31");
       await previewButton.click();
       await expect(preview.getByText("Question has 31 steps. Maximum 30.")).toBeVisible();
       await expect(game).toHaveCount(0);

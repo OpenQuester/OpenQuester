@@ -1,3 +1,4 @@
+import { WrongAnswerPenalty } from "domain/enums/game/GameSettings";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
@@ -15,6 +16,8 @@ import {
   AllPlayReviewingEventPayload,
   AllPlayStartEventPayload
 } from "domain/types/socket/events/game/AllPlayEventPayloads";
+import type { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { User } from "infrastructure/database/models/User";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
@@ -122,6 +125,296 @@ describe("Everyone-answers questions", () => {
     }
   }
 
+  it("scores three submitted text answers at the nominal for-everyone price", async () => {
+    await suite.scenario(async (scenario) => {
+      utils.packageTransform = (pkg) => {
+        const question = pkg.rounds[0].themes[0].questions.find(
+          (item) => item.type === PackageQuestionType.SIMPLE
+        )!;
+        question.subType = PackageQuestionSubType.FOR_EVERYONE;
+        question.price = 100;
+        delete question.realPrice;
+      };
+      const { showmanSocket, playerSockets, playerUsers, gameId } =
+        await utils.setupGameTestEnvironment(userRepo, app, 3, 0, false);
+      await utils.startGame(showmanSocket);
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.GAME_SETTINGS_CHANGE, () =>
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.GAME_SETTINGS_CHANGE, {
+          wrongAnswerPenalty: WrongAnswerPenalty.SUBTRACT
+        })
+      );
+
+      const question = await utils.findQuestionByType(PackageQuestionType.SIMPLE, gameId);
+      const started = scenario.waitForEvent<AllPlayStartEventPayload>(
+        playerSockets[0],
+        SocketIOGameEvents.ALL_PLAY_START
+      );
+      await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+      expect(await started).toMatchObject({
+        mode: AllPlayMode.SIMPLE,
+        price: 100,
+        players: playerUsers.map(({ id }) => id).sort((a, b) => a - b),
+        wrongAnswerPenalty: WrongAnswerPenalty.SUBTRACT
+      });
+      expect((await utils.getGameState(gameId))!.currentQuestion?.realPrice ?? null).toBeNull();
+      await scenario.emitAndWaitForEvent(playerSockets[0], SocketIOEvents.ERROR, () =>
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_ANSWER)
+      );
+
+      const answers = ["First answer", "Second answer", "Third answer"];
+      const reviewing = await answerAll(scenario, showmanSocket, playerSockets, answers);
+      expect(reviewing.allPlay.entries).toHaveLength(3);
+      for (const [index, player] of playerUsers.entries()) {
+        expect(reviewing.allPlay.entries.find(({ playerId }) => playerId === player.id)).toMatchObject({
+          answer: answers[index],
+          stake: null,
+          submitted: true
+        });
+      }
+      expect((await review(scenario, showmanSocket, playerUsers[0].id, true)).scoreChange).toBe(100);
+      expect((await review(scenario, showmanSocket, playerUsers[1].id, false)).scoreChange).toBe(-100);
+      const finish = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH);
+      expect((await review(scenario, showmanSocket, playerUsers[2].id, true)).scoreChange).toBe(100);
+      await finish;
+      await scenario.assert.waitForActionsComplete({ gameId });
+    });
+  });
+
+  it.each([WrongAnswerPenalty.SUBTRACT, WrongAnswerPenalty.NONE])(
+    "normal for everyone uses actual price with %s, private answers and timeout review",
+    async (penalty) => {
+      await suite.scenario(async (scenario) => {
+        utils.packageTransform = (pkg) => {
+          const q = pkg.rounds[0].themes[0].questions.find(
+            (item) => item.type === PackageQuestionType.SIMPLE
+          )!;
+          Object.assign(q, {
+            subType: PackageQuestionSubType.FOR_EVERYONE,
+            price: 100,
+            realPrice: 500
+          });
+        };
+        const { showmanSocket, playerSockets, playerUsers, gameId } =
+          await utils.setupGameTestEnvironment(userRepo, app, 3, 0, false);
+        await utils.startGame(showmanSocket);
+        await scenario.emitAndWaitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.GAME_SETTINGS_CHANGE,
+          () =>
+            scenario
+              .actor(showmanSocket)
+              .emit(SocketIOGameEvents.GAME_SETTINGS_CHANGE, { wrongAnswerPenalty: penalty })
+        );
+        const question = await utils.findQuestionByType(PackageQuestionType.SIMPLE, gameId);
+        const started = scenario.waitForEvent<AllPlayStartEventPayload>(
+          playerSockets[0],
+          SocketIOGameEvents.ALL_PLAY_START
+        );
+        await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+        expect(await started).toMatchObject({
+          mode: AllPlayMode.SIMPLE,
+          price: 500,
+          wrongAnswerPenalty: penalty,
+          timer: null
+        });
+        expect((await utils.getGameState(gameId))!.currentQuestion).toMatchObject({
+          price: 100,
+          realPrice: 500
+        });
+        await scenario.emitAndWaitForEvent(playerSockets[0], SocketIOEvents.ERROR, () =>
+          scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_ANSWER)
+        );
+        await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ALL_PLAY_ANSWER, () =>
+          scenario
+            .actor(playerSockets[0])
+            .emit(SocketIOGameEvents.ALL_PLAY_ANSWER, { answerText: "first private answer" })
+        );
+        await scenario.emitAndWaitForEvent(playerSockets[0], SocketIOEvents.ERROR, () =>
+          scenario
+            .actor(playerSockets[0])
+            .emit(SocketIOGameEvents.ALL_PLAY_ANSWER, { answerText: "replacement" })
+        );
+        const { socket } = await utils.createGameClient(app, userRepo);
+        const joined = scenario.waitForEvent(socket, SocketIOGameEvents.GAME_DATA);
+        scenario
+          .actor(socket)
+          .emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+        const snapshot = await joined;
+        expect(snapshot.gameState.allPlay).toMatchObject({
+          mode: AllPlayMode.SIMPLE,
+          price: 500,
+          wrongAnswerPenalty: penalty
+        });
+        expect(JSON.stringify(snapshot.gameState)).not.toContain("first private answer");
+        await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.ALL_PLAY_ANSWER, () =>
+          scenario
+            .actor(playerSockets[1])
+            .emit(SocketIOGameEvents.ALL_PLAY_ANSWER, { answerText: "wrong answer" })
+        );
+        const reviewing = scenario.waitForEvent<AllPlayReviewingEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ALL_PLAY_REVIEWING
+        );
+        const testUtils = new TestUtils(app, userRepo, suite.serverUrl);
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
+        expect((await reviewing).allPlay.entries).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              playerId: playerUsers[0].id,
+              answer: "first private answer"
+            }),
+            expect.objectContaining({
+              playerId: playerUsers[2].id,
+              isCorrect: false,
+              scoreChange: penalty === WrongAnswerPenalty.NONE ? 0 : -500
+            })
+          ])
+        );
+        expect((await review(scenario, showmanSocket, playerUsers[0].id, true)).scoreChange).toBe(
+          500
+        );
+        const finish = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH);
+        expect((await review(scenario, showmanSocket, playerUsers[1].id, false)).scoreChange).toBe(
+          penalty === WrongAnswerPenalty.NONE ? 0 : -500
+        );
+        await finish;
+        await scenario.assert.waitForActionsComplete({ gameId });
+        expect((await utils.getGameState(gameId))!.questionState).toBe(
+          QuestionState.SHOWING_ANSWER
+        );
+      });
+    }
+  );
+
+  it.each([
+    { type: PackageQuestionType.NO_RISK, penalty: WrongAnswerPenalty.SUBTRACT, changes: [0, 0] },
+    {
+      type: PackageQuestionType.SIMPLE,
+      penalty: WrongAnswerPenalty.SUBTRACT,
+      changes: [-500, -500, 500]
+    },
+    { type: PackageQuestionType.SIMPLE, penalty: WrongAnswerPenalty.NONE, changes: [0, 0, 500] }
+  ])(
+    "select all-play keeps independent choices private and scores duplicate wrong picks ($type, $penalty)",
+    async ({ type, penalty, changes }) => {
+      await suite.scenario(async (scenario) => {
+        utils.packageTransform = (pkg) => {
+          const q = pkg.rounds[0].themes
+            .flatMap((theme) => theme.questions)
+            .find((item) => item.type === type)!;
+          if (type === PackageQuestionType.SIMPLE) Object.assign(q, { price: 100, realPrice: 500 });
+          q.subType = PackageQuestionSubType.FOR_EVERYONE;
+          q.answerType = AnswerType.SELECT;
+          q.correctChoiceOrder = 2;
+          q.selectSource = { rightLabels: ["C", "A"] };
+          q.showDelay = 0;
+          q.text = null;
+          q.questionFiles = null;
+          q.answers = [0, 1, 2].map((order) => ({
+            order,
+            sourceLabel: String.fromCharCode(65 + order),
+            text: "Same",
+            file: null
+          }));
+        };
+        const { showmanSocket, playerSockets, playerUsers, gameId } =
+          await utils.setupGameTestEnvironment(userRepo, app, changes.length, 0, false);
+        await utils.startGame(showmanSocket);
+        await scenario.emitAndWaitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.GAME_SETTINGS_CHANGE,
+          () =>
+            scenario
+              .actor(showmanSocket)
+              .emit(SocketIOGameEvents.GAME_SETTINGS_CHANGE, { wrongAnswerPenalty: penalty })
+        );
+        const q = await utils.findQuestionByType(type, gameId);
+        const data = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          playerSockets[0],
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        await utils.pickQuestion(showmanSocket, q!.id, playerSockets);
+        expect((await data).data).not.toHaveProperty("selectSource");
+        const gameplayQuestion = await container.resolve(PackageStore).getQuestion(gameId, q!.id);
+        expect(gameplayQuestion).not.toBeNull();
+        expect(gameplayQuestion).not.toHaveProperty("selectSource");
+        await scenario.emitAndWaitForEvent(playerSockets[0], SocketIOEvents.ERROR, () =>
+          scenario
+            .actor(playerSockets[0])
+            .emit(SocketIOGameEvents.ALL_PLAY_ANSWER, { answerText: "Same", choiceOrder: 99 })
+        );
+        const accepted = scenario
+          .createAcceptedActionProbe({ gameId, actionType: GameActionType.EVERYONE_ANSWER_SUBMIT })
+          .waitForCount(1);
+        const submitted = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.ALL_PLAY_ANSWER);
+        scenario
+          .actor(playerSockets[0])
+          .emit(SocketIOGameEvents.ALL_PLAY_ANSWER, { answerText: "Same", choiceOrder: 0 });
+        await Promise.all([accepted, submitted]);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        await scenario.emitAndWaitForEvent(playerSockets[0], SocketIOEvents.ERROR, () =>
+          scenario
+            .actor(playerSockets[0])
+            .emit(SocketIOGameEvents.ALL_PLAY_ANSWER, { answerText: "Same", choiceOrder: 2 })
+        );
+        const { socket } = await utils.createGameClient(app, userRepo);
+        const joined = scenario.waitForEvent(socket, SocketIOGameEvents.GAME_DATA);
+        scenario
+          .actor(socket)
+          .emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+        const snapshot = await joined;
+        expect(JSON.stringify(snapshot.gameState)).not.toContain("choiceOrder");
+        expect(JSON.stringify(snapshot.gameState)).not.toContain("correctChoiceOrder");
+        expect(JSON.stringify(snapshot.gameState)).not.toContain("selectSource");
+        expect(snapshot.gameState.allPlay.entries[0].answer).toBe("");
+        if (type === PackageQuestionType.SIMPLE) {
+          expect(snapshot.gameState.currentQuestion).toMatchObject({ price: 100, realPrice: 500 });
+          expect(snapshot.gameState.allPlay).toMatchObject({
+            mode: AllPlayMode.SIMPLE,
+            price: 500,
+            wrongAnswerPenalty: penalty
+          });
+        }
+        const reviewing = scenario.waitForEvent<AllPlayReviewingEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ALL_PLAY_REVIEWING
+        );
+        const finish = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH);
+        const remainingAccepted = scenario
+          .createAcceptedActionProbe({ gameId, actionType: GameActionType.EVERYONE_ANSWER_SUBMIT })
+          .waitForCount(playerSockets.length - 1);
+        const orders = playerSockets.map((_, index) => (index === 2 ? 2 : 0));
+        for (let i = 1; i < playerSockets.length; i++) {
+          scenario.actor(playerSockets[i]).emit(SocketIOGameEvents.ALL_PLAY_ANSWER, {
+            answerText: "Same",
+            choiceOrder: orders[i]
+          });
+        }
+        await Promise.all([remainingAccepted, finish]);
+        expect((await reviewing).allPlay.entries).toEqual(
+          expect.arrayContaining(
+            playerUsers.map((user, i) =>
+              expect.objectContaining({
+                playerId: user.id,
+                choiceOrder: orders[i],
+                isCorrect: orders[i] === 2,
+                scoreChange: changes[i]
+              })
+            )
+          )
+        );
+        await scenario.assert.waitForActionsComplete({ gameId });
+        const final = (await utils.getGameState(gameId))!.allPlay!.entries;
+        expect(
+          playerUsers.map((user) => final.find((entry) => entry.playerId === user.id)?.choiceOrder)
+        ).toEqual(orders);
+      });
+    }
+  );
+
   it("keeps an all-play submission private on a spectator join before review", async () => {
     await suite.scenario(async (scenario) => {
       forEveryone(PackageQuestionType.NO_RISK);
@@ -150,7 +443,9 @@ describe("Everyone-answers questions", () => {
       const data = await joined;
       expect(data.gameState.questionState).toBe(QuestionState.SHOWING);
       expect(
-        data.gameState.allPlay.entries.map((entry: { submitted: boolean }) => entry.submitted).sort()
+        data.gameState.allPlay.entries
+          .map((entry: { submitted: boolean }) => entry.submitted)
+          .sort()
       ).toEqual([false, true]);
       expect(data.gameState.submittedAnswer ?? null).toBeNull();
       expect(JSON.stringify(data.gameState)).not.toContain("private all-play text");
@@ -243,26 +538,51 @@ describe("Everyone-answers questions", () => {
     });
   });
 
-  it("judges everyone-answer points using the persisted image aspect", async () => {
-    await suite.scenario(async (scenario) => {
-      utils.packageTransform = (pkg) => {
-        const question = pkg.rounds.flatMap(({ themes }) => themes).flatMap(({ questions }) => questions).find((q) => q.type === PackageQuestionType.NO_RISK)!;
-        question.subType = PackageQuestionSubType.FOR_EVERYONE;
-        question.answerType = AnswerType.POINT;
-        question.answerPoint = { x: 0.5, y: 0.5, imageAspectRatio: 2 };
-        question.answerDeviation = 0.1;
-      };
-      const { showmanSocket, playerSockets, playerUsers, gameId } = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
-      await utils.startGame(showmanSocket);
-      const question = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
-      await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
-      const finish = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH);
-      await answerAll(scenario, showmanSocket, playerSockets, ["0.500,0.680", "0.500,0.701"]);
-      await finish;
-      expect((await utils.getGameState(gameId))!.questionState).toBe(QuestionState.SHOWING_ANSWER);
-      await expectSavedStats(scenario, showmanSocket, gameId, playerUsers, [800, 0]);
-    });
-  });
+  it.each([false, true])(
+    "judges everyone-answer points using native/SIQ=%s persisted geometry",
+    async (imported) => {
+      await suite.scenario(async (scenario) => {
+        utils.packageTransform = (pkg) => {
+          const question = pkg.rounds
+            .flatMap(({ themes }) => themes)
+            .flatMap(({ questions }) => questions)
+            .find((q) => q.type === PackageQuestionType.NO_RISK)!;
+          question.subType = PackageQuestionSubType.FOR_EVERYONE;
+          question.answerType = AnswerType.POINT;
+          question.answerPoint = {
+            x: 0.5,
+            y: 0.5,
+            imageAspectRatio: 2,
+            ...(imported ? { sourceGeometry: { kind: "sigame" as const, aspectRatio: 2 } } : {})
+          };
+          question.answerDeviation = imported ? 0.05 : 0.1;
+        };
+        const { showmanSocket, playerSockets, playerUsers, gameId } =
+          await utils.setupGameTestEnvironment(userRepo, app, 2, 0, false);
+        await utils.startGame(showmanSocket);
+        const question = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
+        await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+        const finish = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH);
+        await answerAll(
+          scenario,
+          showmanSocket,
+          playerSockets,
+          imported ? ["0.540,0.500", "0.500,0.500"] : ["0.500,0.680", "0.500,0.701"]
+        );
+        await finish;
+        expect((await utils.getGameState(gameId))!.questionState).toBe(
+          QuestionState.SHOWING_ANSWER
+        );
+        await expectSavedStats(
+          scenario,
+          showmanSocket,
+          gameId,
+          imported ? [playerUsers[1], playerUsers[0]] : playerUsers,
+          [800, 0]
+        );
+      });
+    }
+  );
 
   it("persists automatic and missing-answer rulings after the everyone-answer timer expires", async () => {
     await suite.scenario(async (scenario) => {

@@ -1,6 +1,8 @@
+import type { BroadcastEvent } from "domain/types/service/ServiceResult";
+import type { DataMutation } from "domain/types/action/DataMutation";
 import type { Game } from "domain/entities/game/Game";
 import type { GameStateTimer } from "domain/entities/game/GameStateTimer";
-import type { TransitionResult, TransitionTrigger } from "domain/state-machine/types";
+import type { TransitionTrigger } from "domain/state-machine/types";
 import type { TimerMutation } from "domain/types/action/ActionExecutionContext";
 import type { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import type { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
@@ -12,8 +14,6 @@ export interface CompleteSecretQuestionTransferInput {
   price?: number;
   trigger: TransitionTrigger;
   triggeredBy?: number;
-  /** Who handed the question over; defaults to its picker. */
-  fromPlayerId?: number;
 }
 
 /** A completed transfer, or a receiver waiting to select the question price. */
@@ -22,7 +22,9 @@ export interface SecretQuestionTransferContextResult {
   fromPlayerId: number;
   toPlayerId: number;
   questionId: number;
-  timer: GameStateTimer;
+  timer: GameStateTimer | null;
+  broadcasts: BroadcastEvent[];
+  additionalMutations: DataMutation[];
   /** Full data for role-specific broadcasts; null during price selection. */
   question: PackageQuestionDTO | null;
   allowedPrices: number[] | null;
@@ -30,14 +32,9 @@ export interface SecretQuestionTransferContextResult {
   timerMutations: TimerMutation[];
 }
 
-export interface CompletedSecretQuestionTransferResult extends SecretQuestionTransferContextResult {
-  transition: TransitionResult;
-}
-
 /**
  * Result of secret question transfer action.
- * Contains all data needed for socket handler's afterBroadcast to perform
- * personalized emissions (different question data for showman vs players).
+ * Carries the action result; broadcasts and role filtering are declared mutations.
  */
 export interface SecretQuestionTransferResult extends SecretQuestionTransferBroadcastData {
   gameId: string;

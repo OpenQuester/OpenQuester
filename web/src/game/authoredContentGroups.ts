@@ -1,3 +1,4 @@
+import type { QuestionTextItem } from "@/features/upload/types";
 import type { QuestionFile } from "./protocol";
 
 export const VISUAL_QUEUE_THRESHOLD = 5;
@@ -6,7 +7,9 @@ export interface AuthoredContentSource<T> {
   files?: readonly T[] | null;
   text?: string | null;
   textOrder?: number | null;
-  textItems?: readonly { order: number; text: string }[] | null;
+  textItems?: readonly QuestionTextItem[] | null;
+  textDurationMs?: number | null;
+  textWaitForFinish?: boolean | null;
 }
 
 export function isVisual({ file }: Pick<QuestionFile, "file">) {
@@ -18,12 +21,19 @@ export function authoredContentGroups<T extends Pick<QuestionFile, "order" | "wa
   source: AuthoredContentSource<T>,
 ) {
   const texts = [
-    ...(source.textOrder != null && source.text?.trim()
-      ? [{ order: source.textOrder, text: source.text.trim() }]
+    ...(source.textOrder != null && (source.text?.trim() || source.textDurationMs != null)
+      ? [
+          {
+            order: source.textOrder,
+            text: source.text ?? "",
+            durationMs: source.textDurationMs,
+            waitForFinish: source.textWaitForFinish ?? true,
+          },
+        ]
       : []),
-    ...(source.textItems ?? []).flatMap(({ order, text }) =>
-      text.trim() ? [{ order, text: text.trim() }] : [],
-    ),
+    ...(source.textItems ?? [])
+      .filter((item) => item.text.trim() || item.durationMs != null || item.placement === "replic")
+      .map((item) => ({ ...item })),
   ];
   const entries = [
     ...texts,
@@ -33,7 +43,7 @@ export function authoredContentGroups<T extends Pick<QuestionFile, "order" | "wa
   let group: typeof entries = [];
   for (const entry of entries) {
     group.push(entry);
-    if (!("media" in entry) || entry.media.waitForFinish !== false) {
+    if (("media" in entry ? entry.media.waitForFinish : entry.waitForFinish) !== false) {
       groups.push(group);
       group = [];
     }

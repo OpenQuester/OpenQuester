@@ -18,3 +18,18 @@ export function findPointAnswerImage(
     .sort((a, b) => a.order - b.order)
     .find((file) => file.file.type === PackageFileType.IMAGE);
 }
+
+/** Select the last authored script occurrence only if it is an image. */
+export function scriptPointImageOrder(
+  files: PackageQuestionFileDTO[] | null | undefined,
+  texts: { order: number }[] | null | undefined
+): number {
+  const order = Math.max(
+    -1,
+    ...(files ?? []).map((item) => item.order),
+    ...(texts ?? []).map((item) => item.order)
+  );
+  return !texts?.some((item) => item.order === order) && findPointAnswerImage(files, order)
+    ? order
+    : -1;
+}

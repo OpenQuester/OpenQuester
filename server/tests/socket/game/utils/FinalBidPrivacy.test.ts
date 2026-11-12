@@ -10,15 +10,20 @@ import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { PackageQuestionSubType } from "domain/types/dto/package/PackageQuestionDTO";
 import { projectFinalRoundData } from "domain/mappers/projectFinalRoundData";
 import { AutoLossProcessLogic } from "domain/state-machine/logic/AutoLossProcessLogic";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import type { FinalQuestionEventData } from "domain/types/socket/events/FinalRoundEventData";
+import type { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import type { ILogger } from "shared/logging/ILogger";
+import { buildGame } from "tests/integration/recovery/SingleInstanceRestartRecoveryFixtures";
 
 describe("final bid privacy boundaries", () => {
   it.each([FinalRoundPhase.BIDDING, FinalRoundPhase.ANSWERING])(
@@ -112,14 +117,29 @@ describe("final bid privacy boundaries", () => {
         {} as SocketUserDataService,
         { error: jest.fn() } as unknown as ILogger
       );
+      const privateAnswer = {
+        id: "answer",
+        playerId: 1,
+        answer: "private",
+        choiceOrder: 2,
+        submittedAt: new Date(0)
+      };
       const finalRoundData = {
         phase: FinalRoundPhase.ANSWERING,
         turnOrder: [1],
         bids: { 1: 700 },
-        answers: [],
+        answers: [privateAnswer],
         eliminatedThemes: []
       };
-      const game = { id: "quiz", gameState: { isPaused: true, finalRoundData } } as unknown as Game;
+      const game = buildGame("quiz", null);
+      const gameState = game.gameState;
+      gameState.currentRound!.type = PackageRoundType.FINAL;
+      gameState.questionState = QuestionState.ANSWERING;
+      gameState.isPaused = true;
+      gameState.finalRoundData = finalRoundData;
+      // Old persisted states may omit the optional secret and reveal fields.
+      delete gameState.secretQuestionData;
+      delete gameState.answerShowData;
       await service.emitBroadcasts(
         [
           {
@@ -131,16 +151,25 @@ describe("final bid privacy boundaries", () => {
         ],
         game
       );
-      expect(publish).toHaveBeenCalledWith(
-        RealtimeEvents.toRoom("quiz", SocketIOGameEvents.GAME_DATA, {
-          gameState: {
-            isPaused: true,
-            finalRoundData: { ...finalRoundData, bids: {}, submittedBidPlayerIds: [1] }
-          }
-        })
-      );
-      expect(publish).toHaveBeenCalledTimes(1);
+      expect(publish.mock.calls).toStrictEqual([
+        [
+          RealtimeEvents.toRoom("quiz", SocketIOGameEvents.GAME_DATA, {
+            gameState: {
+              ...gameState,
+              finalRoundData: {
+                ...finalRoundData,
+                bids: {},
+                submittedBidPlayerIds: [1],
+                answers: [{ ...privateAnswer, answer: "", choiceOrder: undefined }]
+              }
+            }
+          })
+        ]
+      ]);
       expect(finalRoundData.bids).toEqual({ 1: 700 });
+      expect(finalRoundData.answers[0]).toMatchObject({ answer: "private", choiceOrder: 2 });
+      expect(gameState).not.toHaveProperty("secretQuestionData");
+      expect(gameState).not.toHaveProperty("answerShowData");
     }
   );
 
@@ -177,6 +206,55 @@ describe("final bid privacy boundaries", () => {
     for (const socketId of ["stale", "missing"]) {
       expect(states.get(socketId)?.finalRoundData?.bids).toEqual({});
       expect(states.get(socketId)?.finalRoundData?.submittedBidPlayerIds).toEqual([1]);
+    }
+  });
+
+  it("delivers public question data to every room socket without a verified session", async () => {
+    const sockets = ["verified", "stale", "missing"];
+    const sessions = new Map([
+      ["verified", { id: 1, gameId: "quiz" }],
+      ["stale", { id: 1, gameId: "other" }]
+    ]);
+    const game = buildGame("quiz", null);
+    const question = { ...game.gameState.currentQuestion!, answerText: "showman only" };
+    const publish = jest.fn<(event: RealtimeEvent) => void>();
+    const logger = { performance: () => ({ finish: jest.fn() }), warn: jest.fn() } as unknown as ILogger;
+    const fetchUserSocketDataBatch = jest
+      .fn<() => Promise<typeof sessions>>()
+      .mockResolvedValueOnce(sessions)
+      .mockRejectedValueOnce(new Error("session lookup unavailable"));
+    const questionService = new SocketIOQuestionService(
+      { fetchUserSocketDataBatch } as unknown as SocketGameContextService,
+      logger
+    );
+    const questionBySocket = await questionService.mapSocketToQuestionPayload(sockets, game, question);
+    expect(questionBySocket.get("verified")).toHaveProperty("answerText", "showman only");
+    for (const socket of ["stale", "missing"]) {
+      expect(questionBySocket.get(socket)).toHaveProperty("id", question.id);
+      expect(questionBySocket.get(socket)).not.toHaveProperty("answerText");
+    }
+    const publicQuestions = await questionService.mapSocketToQuestionPayload(sockets, game, question);
+    expect([...publicQuestions.values()]).toEqual(sockets.map(() => questionBySocket.get("missing")));
+
+    const service = new GameActionBroadcastService(
+      { publish, getRoomSocketIds: async () => sockets } as unknown as RealtimeGateway,
+      questionService,
+      { getSocketDataBatch: async () => sessions } as unknown as SocketUserDataService,
+      logger
+    );
+    const event = SocketIOGameEvents.QUESTION_SCRIPT_STATE;
+    const data = { question, scores: [] };
+    await service.emitBroadcasts([{ target: SocketBroadcastTarget.GAME, event, data }], game);
+    expect(publish).toHaveBeenCalledTimes(3);
+    for (const [index, socket] of sockets.entries()) {
+      expect(publish).toHaveBeenNthCalledWith(
+        index + 1,
+        RealtimeEvents.toSocket(socket, event, {
+          gameState: expect.objectContaining({ currentQuestion: questionBySocket.get(socket) }),
+          scores: [],
+          outcomes: undefined
+        })
+      );
     }
   });
 
@@ -231,27 +309,53 @@ describe("final bid privacy boundaries", () => {
 
   it("routes ordinary broadcasts, both question payloads and addressed state in order", async () => {
     const publish = jest.fn<(event: RealtimeEvent) => void>();
-    const fullQuestion = { id: 7, answerText: "secret" };
-    const publicQuestion = { id: 7 };
-    const gameState = { finalRoundData: { submittedBidPlayerIds: [1], bids: { 1: 700 } } };
+    const publicQuestion = {
+      id: 7,
+      type: PackageQuestionType.SIMPLE,
+      price: 100,
+      order: 0,
+      isHidden: false,
+      answerDelay: 0,
+      showAnswerDuration: 5000,
+      subType: PackageQuestionSubType.SIMPLE
+    };
+    const fullQuestion = { ...publicQuestion, answerText: "secret" };
+    const finalRoundData = {
+      phase: FinalRoundPhase.ANSWERING,
+      turnOrder: [1, 2],
+      bids: { 1: 700, 2: 500 },
+      answers: [],
+      eliminatedThemes: []
+    };
+    const game = buildGame("quiz", null);
+    const gameState = game.gameState;
+    gameState.questionState = QuestionState.MEDIA_DOWNLOADING;
+    gameState.finalRoundData = finalRoundData;
+    const addressedState = {
+      ...gameState,
+      finalRoundData: { ...finalRoundData, submittedBidPlayerIds: [1, 2], bids: { 1: 700 } }
+    };
     const gateway = {
       publish,
       getRoomSocketIds: async () => ["owner"]
     } as unknown as RealtimeGateway;
     const questionService = {
       mapSocketToQuestionPayload: async () => new Map([["owner", publicQuestion]]),
-      getGameStateBroadcastMap: async () => new Map([["owner", gameState]])
+      getGameStateBroadcastMap: async () => new Map([["owner", addressedState]])
     } as unknown as SocketIOQuestionService;
+    const error = jest.fn();
     const service = new GameActionBroadcastService(
       gateway,
       questionService,
       {} as SocketUserDataService,
-      {} as ILogger
+      { error } as unknown as ILogger
     );
     const room = { target: SocketBroadcastTarget.GAME };
     const filtered = { ...room, useRoleBasedBroadcast: true };
-    const regular = { data: fullQuestion };
-    const final = { questionData: { themeId: 1, question: fullQuestion } };
+    const regular: GameQuestionDataEventPayload = { data: fullQuestion, timer: null };
+    const final: FinalQuestionEventData = {
+      questionData: { themeId: 1, themeName: "Final", question: fullQuestion }
+    };
     const { FINAL_ANSWER_SUBMIT, QUESTION_DATA, FINAL_QUESTION_DATA, GAME_DATA } = SocketIOGameEvents;
     await service.emitBroadcasts(
       [
@@ -260,15 +364,24 @@ describe("final bid privacy boundaries", () => {
         { ...filtered, event: FINAL_QUESTION_DATA, data: final },
         { ...filtered, event: GAME_DATA, data: {} }
       ],
-      { id: "quiz" } as Game
+      game
     );
-    expect(publish.mock.calls).toEqual([
+    expect(error).not.toHaveBeenCalled();
+    expect(publish.mock.calls).toStrictEqual([
       [RealtimeEvents.toRoom("quiz", FINAL_ANSWER_SUBMIT, { playerId: 1 })],
-      [RealtimeEvents.toSocket("owner", QUESTION_DATA, { data: publicQuestion })],
-      [RealtimeEvents.toSocket("owner", FINAL_QUESTION_DATA, {
-        questionData: { themeId: 1, question: publicQuestion }
-      })],
-      [RealtimeEvents.toSocket("owner", GAME_DATA, { gameState })]
+      [
+        RealtimeEvents.toSocket("owner", QUESTION_DATA, {
+          timer: null,
+          questionState: QuestionState.MEDIA_DOWNLOADING,
+          data: publicQuestion
+        })
+      ],
+      [
+        RealtimeEvents.toSocket("owner", FINAL_QUESTION_DATA, {
+          questionData: { themeId: 1, themeName: "Final", question: publicQuestion }
+        })
+      ],
+      [RealtimeEvents.toSocket("owner", GAME_DATA, { gameState: addressedState })]
     ]);
   });
 

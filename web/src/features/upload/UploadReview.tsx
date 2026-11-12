@@ -13,6 +13,7 @@ import { Card } from "@/ui/Card";
 import { AlertIcon, EditIcon, UploadIcon } from "@/ui/icons";
 import { UploadMediaSummary } from "./UploadMediaSummary";
 import { ImportWarnings } from "./ImportWarnings";
+import { needsCompatibilityRepair } from "./siqCompatibility";
 import type { ParsedPackage } from "./types";
 import { contentHash, describe, findDuplicates } from "./upload";
 
@@ -39,16 +40,19 @@ export function UploadReview({
   const c = parsed.content;
   const totals = describe(parsed);
   const empty = totals.questions === 0;
-  const needsChoiceRepair = parsed.warnings.some(
-    (warning) => warning.code === "choiceCorrectUnresolved",
-  );
+  const needsRepair = needsCompatibilityRepair(c, parsed.warnings);
+  const blocked = empty || needsRepair;
   const duplicates = useDuplicates(parsed);
   const hasDuplicates = (duplicates.data?.length ?? 0) > 0;
   return (
     <div className="flex flex-col gap-5" data-testid="upload-review">
       {/* First, so nobody scrolls past it to the upload button. */}
       {hasDuplicates && (
-        <Duplicates packages={duplicates.data ?? []} onResume={onResume} disabled={editing} />
+        <Duplicates
+          packages={duplicates.data ?? []}
+          onResume={onResume}
+          disabled={needsRepair || editing}
+        />
       )}
       <Card>
         <div className="flex flex-col gap-4">
@@ -93,7 +97,9 @@ export function UploadReview({
         </div>
       </Card>
 
-      {parsed.warnings.length > 0 && <ImportWarnings warnings={parsed.warnings} />}
+      {(parsed.warnings.length > 0 || needsRepair) && (
+        <ImportWarnings warnings={parsed.warnings} needsRepair={needsRepair} />
+      )}
 
       {totals.mediaCount > 0 && <UploadMediaSummary files={parsed.files} />}
 
@@ -101,8 +107,8 @@ export function UploadReview({
         <Button
           variant={hasDuplicates ? "secondary" : "accent"}
           size="lg"
-          inactive={empty || needsChoiceRepair}
-          disabled={empty || needsChoiceRepair || editing}
+          inactive={blocked}
+          disabled={blocked || editing}
           onClick={onUpload}
           className="sm:min-w-[240px]"
           icon={<UploadIcon size={20} />}

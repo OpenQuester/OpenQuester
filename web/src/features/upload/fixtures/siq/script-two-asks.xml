@@ -1,0 +1,23 @@
+<package name="Script continuation" version="5">
+  <rounds><round name="Round"><themes><theme name="Cell theme"><questions>
+    <question price="100" type="custom">
+      <params>
+        <param name="question" isRef="True">prompt</param>
+        <param name="prompt" type="content"><item>First prompt</item></param>
+        <param name="answerType">number</param>
+        <param name="answerDuration">15</param>
+      </params>
+      <script>
+        <step type="setTheme"><param name="content" isRef="True">deliberatelyIgnoredTheme</param></step>
+        <step type="setAnswerType"><param name="type" isRef="True">answerType</param></step>
+        <step type="setAnswerer"><param name="mode">current</param></step>
+        <step><param name="content" isRef="True">question</param></step>
+        <step type="askAnswer"><param name="mode">direct</param><param name="duration" isRef="True">answerDuration</param></step>
+        <step><param name="content" type="content"><item>Second prompt</item></param></step>
+        <step type="askAnswer"><param name="mode">direct</param><param name="duration">2</param></step>
+        <step><param name="content" isRef="True">answer</param><param name="fallbackRefId" isRef="True">right</param></step>
+      </script>
+      <right><answer>42</answer></right>
+    </question>
+  </questions></theme></themes></round></rounds>
+</package>

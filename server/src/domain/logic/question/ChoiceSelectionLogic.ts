@@ -1,38 +1,39 @@
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
+import { AnswerType } from "domain/enums/package/AnswerType";
+import { answerFormat } from "domain/logic/question/answerFormat";
 import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { type PackageAnswerDTO } from "domain/types/dto/package/PackageAnswerDTO";
-import { PackageFileType } from "domain/enums/package/PackageFileType";
 
 const normalize = (text: string | null | undefined): string =>
   (text ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
 
 /** Resolve only identities that the current package actually identifies uniquely. */
 export class ChoiceSelectionLogic {
-  public static hasAmbiguousImagePlaceholder(
+  public static hasAmbiguousMediaPlaceholder(
     options: PackageAnswerDTO[],
     answer: string | null
   ): boolean {
     const sorted = [...options].sort((a, b) => a.order - b.order);
     const normalizedAnswer = normalize(answer);
     return sorted.some((option, index) => {
-      const imageOnly = option.file?.type === PackageFileType.IMAGE && !normalize(option.text);
-      // "1" can mean the first image-only option or a text answer containing "1".
+      const mediaOnly = !!option.file && !normalize(option.text);
+      // "1" can mean the first media-only option or a text answer containing "1".
       const legacyPlaceholder = String(index + 1);
-      return imageOnly && normalizedAnswer === legacyPlaceholder;
+      return mediaOnly && normalizedAnswer === legacyPlaceholder;
     });
   }
 
   /** Returns the unique selected option order, or null when it needs manual judging. */
   public static resolve(game: Game, answer: string | null, order?: number): number | null {
-    const question = game.gameState.currentQuestion;
-    const canSelectOption =
-      question?.type === PackageQuestionType.CHOICE &&
-      !game.gameState.allPlay &&
-      game.gameState.currentRound?.type !== PackageRoundType.FINAL;
+    const final = game.gameState.currentRound?.type === PackageRoundType.FINAL;
+    const question = final
+      ? game.gameState.finalRoundData?.questionData?.question
+      : game.gameState.currentQuestion;
+    const canSelectOption = answerFormat(question) === AnswerType.SELECT;
 
     if (!canSelectOption) {
       if (order !== undefined) {
@@ -41,7 +42,26 @@ export class ChoiceSelectionLogic {
       return null;
     }
 
-    const options = question.answers ?? [];
+    if (
+      !final &&
+      QuestionContentPlanLogic.selectionWaitsForPresentation(game) &&
+      !QuestionContentPlanLogic.isPresentationComplete(game)
+    ) {
+      throw new ClientError(ClientResponse.CANNOT_SUBMIT_ANSWER);
+    }
+    if (question?.answerType === AnswerType.SELECT && order === undefined && answer?.trim()) {
+      throw new ClientError(ClientResponse.INVALID_INPUT);
+    }
+    const options = question?.answers ?? [];
+    if (order !== undefined && (!Number.isInteger(order) || order < 0)) {
+      throw new ClientError(ClientResponse.INVALID_INPUT);
+    }
+    if (
+      new Set(options.map((option) => option.order)).size !== options.length ||
+      options.some((option) => !Number.isInteger(option.order) || option.order < 0)
+    ) {
+      throw new ClientError(ClientResponse.INVALID_INPUT);
+    }
     const selected = this.findSelectedOption(options, answer, order);
     if (!selected) {
       return null;
@@ -50,17 +70,19 @@ export class ChoiceSelectionLogic {
     if (order !== undefined) {
       this.validateExplicitAnswer(options, selected, answer);
     }
-    this.rejectPreviouslyWrongOption(game, selected.order);
+    if (!game.gameState.allPlay && !final) {
+      this.rejectPreviouslyWrongOption(game, selected.order);
+    }
     return selected.order;
   }
 
-  /** A legacy text match is usable only if both its text and order are unique. */
+  /** The caller already checked that option orders are unique. */
   private static findSelectedOption(
     options: PackageAnswerDTO[],
     answer: string | null,
     order?: number
   ): PackageAnswerDTO | undefined {
-    if (order === undefined && this.hasAmbiguousImagePlaceholder(options, answer)) {
+    if (order === undefined && this.hasAmbiguousMediaPlaceholder(options, answer)) {
       return undefined;
     }
 
@@ -74,17 +96,10 @@ export class ChoiceSelectionLogic {
     if (order !== undefined && matches.length !== 1) {
       throw new ClientError(ClientResponse.INVALID_INPUT);
     }
-    if (matches.length !== 1) {
-      return undefined;
-    }
-
-    const selected = matches[0];
-    return options.filter((option) => option.order === selected.order).length === 1
-      ? selected
-      : undefined;
+    return matches.length === 1 ? matches[0] : undefined;
   }
 
-  /** Image-only options use their displayed position, prefixed when it conflicts with text. */
+  /** Media-only options use their displayed position, prefixed when it conflicts with text. */
   private static validateExplicitAnswer(
     options: PackageAnswerDTO[],
     selected: PackageAnswerDTO,

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Authored fixture. SI 0c2167728f9eb66117b4c3576a05d91f9509cd8a:
+ GameController OnContentScreenText replaces screen 0 even for empty text;
+ OnContentReplicText only updates the showman speech and keeps the screen.
+ AskToPress/AskDirectAnswer/HaveMultipleAnswerers use separate room windows. -->
+<package name="Authored content" version="5"><rounds><round name="R"><themes><theme name="T"><questions>
+  <question price="100"><params>
+    <param name="answerDuration">15</param>
+    <param name="question" type="content">
+      <item duration="00:00:03">First screen</item>
+      <item placement="replic" duration="00:00:02">Read this privately</item>
+      <item duration="00:00:01"></item>
+      <item placement="replic" duration="00:00:04"></item>
+      <item waitForFinish="false" duration="00:00:01">Final clue</item>
+      <item type="image" isRef="true">picture.png</item>
+    </param>
+    <param name="answer" type="content">
+      <item duration="00:00:02">Paris is the capital of France</item>
+      <item type="image" isRef="true">picture.png</item>
+      <item duration="00:00:03">After the image</item>
+    </param>
+  </params><right><answer>Paris</answer><answer>City of light</answer></right>
+  <info><comments>After-answer explanation</comments><showmanComments>Private instruction</showmanComments></info></question>
+  <question price="200"><params><param name="question" type="content">
+    <item placement="replic" duration="00:00:05">Purely oral private question</item>
+  </param></params><right><answer>Oral answer</answer></right></question>
+  <question price="300"><scenario>
+    <atom>Legacy clue</atom><atom type="marker"/><atom time="2">Legacy answer explanation</atom>
+    <atom type="image">@picture.png</atom><atom time="3">After legacy image</atom>
+  </scenario><right><answer>Legacy key</answer></right></question>
+</questions></theme></themes></round></rounds></package>

@@ -559,7 +559,8 @@
     "mediaTab": "Media",
     "textTab": "Text",
     "scrollHint": "Scroll to read more",
-    "expandOption": "Open option {{n}}"
+    "expandOption": "Open option {{n}}",
+    "showmanReading": "The showman is reading the question"
   },
   "showman": {
     "panel": "Only you can see this",
@@ -599,7 +600,14 @@
     "giveTo": "Give the question to",
     "prices": "Prices to pick from",
     "pickPriceYou": "The question is yours — pick its price",
-    "pickPrice": "<player>{{name}}</player> got the question and picks its price"
+    "pickPrice": "<player>{{name}}</player> got the question and picks its price",
+    "range": "Price: {{min}}–{{max}}, step {{step}}.",
+    "confirmPrice": "Confirm price",
+    "announcedPrice": "Actual question price: {{price}}",
+    "announcedPrices": "Choose one of: {{prices}}",
+    "awardTitle": "Secret bonus",
+    "awarded": "<player>{{name}}</player> receives <points>{{price}}</points> points.",
+    "awardScore": "Applied change: {{change}}. Score: {{score}}."
   },
   "stake": {
     "kicker": "Stake question · auction",
@@ -814,6 +822,7 @@
       "bidNext": "Bids stay hidden until the review. Players with 0 or less sit the final out.",
       "sitOut": "You sit this final out",
       "typeAnswer": "Type your answer · bid {{amount}}",
+      "selectAnswer": "Choose an option · bid {{amount}}",
       "pointAnswer": "Pick a point · bid {{amount}}",
       "pointNext": "Select a point on the picture to submit. If time runs out without an answer, the bid is lost.",
       "answerLabel": "Your final answer",
@@ -842,6 +851,7 @@
       "stakeLocked": "Stake placed",
       "stakeNext": "When every stake is in, the question is shown to everyone.",
       "typeAnswer": "Type your answer — everyone answers this one",
+      "selectAnswer": "Choose an option — everyone answers this one",
       "answerWatch": "Players are writing their answers",
       "answerNextStakeAuto": "Valid answers are checked automatically; the showman reviews unrecognized answers. Right wins your stake; wrong loses it.",
       "answerNextNoRiskAuto": "Valid answers are checked automatically; the showman reviews unrecognized answers. Right wins {{points}}; wrong costs nothing.",
@@ -921,9 +931,9 @@
     "mediaCount_one": "{{count}} media file · {{size}}",
     "mediaCount_other": "{{count}} media files · {{size}}",
     "noQuestions": "There are no playable questions in this file, so there's nothing to upload.",
-    "warningsTitle_one": "{{count}} thing was adjusted while reading",
-    "warningsTitle_other": "{{count}} things were adjusted while reading",
-    "warningsHelp": "The package still uploads. These questions may look different from the original.",
+    "warningsTitle": "Import report ({{count}})",
+    "warningsHelp": "Review the changes and warnings from this import.",
+    "repairTitle": "Repair required before upload",
     "warnings": {
       "missingFile": "Media file {{detail}} isn't in the archive, so it was left out.",
       "externalMedia": "Linked media ({{detail}}) can't be uploaded and was left out.",
@@ -937,7 +947,11 @@
       "visualGroupSequential_question": "Question step {{detail}} will play in order because it has five or more images or videos.",
       "visualGroupSequential_answer": "Answer step {{detail}} will play in order because it has five or more images or videos.",
       "hashMismatch": "Media file {{detail}} is damaged and was left out.",
-      "htmlQuestionRemoved": "Unsupported HTML question removed."
+      "htmlQuestionRemoved": "Unsupported HTML question removed.",
+      "pointTargetMissing": "The SIQ point target is missing. Select an image and set the target before publishing.",
+      "pointInvalid": "The SIQ point coordinates or deviation are invalid. Set a valid target before publishing.",
+      "siqCompatibility": "Needs repair: {{detail}}. The source is retained in this question; publication and playtest are blocked.",
+      "contentNeedsRepair": "Imported content needs repair: {{detail}}. Publication and playtest are blocked."
     },
     "showAll": "Show all {{count}}",
     "showFewer": "Show fewer",
@@ -1008,7 +1022,12 @@
       "cancel": "Cancel",
       "confirm": "Remove and continue"
     },
-    "includesMedia": "Images, audio and video inside the file are uploaded too."
+    "includesMedia": "Images, audio and video inside the file are uploaded too.",
+    "errors": {
+      "siqSourceLimit": "The retained SIQ source is malformed or exceeds safe import limits.",
+      "compatibilityNeedsRepair": "Repair imported compatibility issues in the editor before publishing.",
+      "badSecretRules": "The archive contains invalid secret rules."
+    }
   },
   "editor": {
     "storageFailed": "Couldn't update drafts on this device. Try again.",
@@ -1220,7 +1239,7 @@
       "comment": "Comment",
       "commentHelp": "Instruction for the showman before reading the question.",
       "options": "Options",
-      "optionsHelp": "Two to eight options. Mark the correct one.",
+      "optionsHelp": "At least two options. Mark the correct one.",
       "option": "Option {{letter}}",
       "correct": "Correct",
       "removeOption": "Remove option {{letter}}",
@@ -1260,12 +1279,14 @@
       "answerTypes": {
         "text": "Text",
         "number": "Number",
-        "point": "Point on image"
+        "point": "Point on image",
+        "select": "Choose an option"
       },
       "answerTypeHelp": {
         "text": "The showman judges the answer.",
         "number": "The answer is checked automatically against the number.",
-        "point": "The answer is checked automatically against a point on the image."
+        "point": "The answer is checked automatically against a point on the image.",
+        "select": "Choose one of the text or media options. The question keeps its selected rules."
       },
       "answerNumber": "Right number",
       "answerNumberMissing": "Enter the right number",
@@ -1277,10 +1298,47 @@
       "radiusValue": "{{percent}}% · {{pixels}} px radius",
       "radiusLegacy": "This radius exceeds the slider range. It stays unchanged until you adjust it.",
       "pointLegacy": "This published point uses legacy checking until you publish it again from the web editor.",
-      "pointNeedsImage": "Add a picture to the question first."
+      "pointNeedsImage": "Add a picture to the question first.",
+      "simpleEveryone": "Everyone answers",
+      "simpleEveryoneHelp": "Everyone answers privately. Correct: +actual price; wrong or missing: room penalty (subtract price or no deduction).",
+      "realPrice": "Actual price (optional)",
+      "realPriceHelp": "Leave empty to use the board price. Changes scoring, not the board cell.",
+      "radiusSourceValue": "Imported area radius: {{x}} px horizontally, {{y}} px vertically.",
+      "pointSourceGeometry": "Uses the imported SIGame acceptance area. Moving the target or editing the radius switches to OpenQuester geometry.",
+      "secretKind": "Secret outcome",
+      "secretQuestion": "Question for the receiver",
+      "secretAward": "No question: award points",
+      "secretAwardHelp": "After an accepted transfer the receiver gets the resolved price immediately. Before transfer, players see an ordinary secret question. No prompt or right answer is required.",
+      "secretPriceMode": "Secret price rule",
+      "secretPriceModes": {
+        "legacy": "Original OQ price / short list",
+        "fixed": "Fixed actual price",
+        "roundExtremes": "Lowest or highest nominal price in this round",
+        "range": "Integer range"
+      },
+      "secretRange": {
+        "min": "Minimum",
+        "max": "Maximum",
+        "step": "Step (0 = any integer)"
+      },
+      "secretOrder": "Announcement and price chooser",
+      "secretOrders": {
+        "afterTransfer": "Transfer → announce → receiver chooses",
+        "beforeTransfer": "Announce → transfer → receiver chooses",
+        "opener": "Announce → opener chooses → transfer"
+      },
+      "convertSimple": "Convert to a regular question",
+      "convertSimpleLoss": "This discards unsupported source behavior, secret rules and imported answer modes. The visible prompt, media and reveal remain. Review the question before publishing.",
+      "answerDuration": "Answer window (seconds; blank uses room default)",
+      "answerDurationHelp": "Starts after presentation. Button mode keeps the room’s separate submit time after buzzing.",
+      "textDuration": "Prompt duration (seconds; blank uses reading time)",
+      "showmanComments": "Private showman instructions",
+      "answerExplanation": "Answer explanation",
+      "answerExplanationHelp": "Shown after the answer; separate from private showman instructions."
     },
     "timeline": {
       "add": "Add text step",
+      "addAnswer": "Add answer text step",
       "text": "Additional text {{number}}",
       "earlier": "Move step {{number}} earlier",
       "later": "Move step {{number}} later",
@@ -1289,7 +1347,9 @@
       "captionHelp": "Shown alongside the question content.",
       "mainPositionHelp": "Shown at position {{number}} in the playback order.",
       "moveHandle": "Drag to reorder, or use the arrow keys",
-      "moveStatus": "Moved to position {{number}}"
+      "moveStatus": "Moved to position {{number}}",
+      "replic": "Private showman speech",
+      "waitForFinish": "Wait for this item to finish"
     },
     "move": {
       "questionTitle": "Move question",
@@ -1389,7 +1449,7 @@
       "noPrice": "The question has no price.",
       "priceRange": "The price must be between 0 and {{max}}.",
       "missingMedia": "A media file is missing from this browser. Add it again.",
-      "choiceOptions": "A choice question needs 2 to 8 options (has {{count}}).",
+      "choiceOptions": "A select answer needs at least 2 options (has {{count}}).",
       "choiceEmptyOption": "An option has no text.",
       "choiceNoCorrect": "No option is marked as correct.",
       "choiceCorrectUnresolved": "Choose the correct option again before publishing.",
@@ -1404,7 +1464,15 @@
       "noDescription": "Add a short description.",
       "noTags": "Add a few tags.",
       "numberAnswerMissing": "Number answer without the right number",
-      "pointAnswerMissing": "Point answer without a picture or the right spot"
+      "pointAnswerMissing": "Point answer without a picture or the right spot",
+      "realPriceConflict": "Use either an actual fixed price or a price choice, not both.",
+      "compatibilityNeedsRepair": "Imported behavior needs repair. Open the question to inspect the import report or explicitly convert it to a regular question.",
+      "secretRulesInvalid": "Secret rules conflict or contain an invalid price range.",
+      "realPriceRange": "The actual price must be a whole number from 0 to 1,000,000.",
+      "contentNeedsRepair": "Unsupported content needs repair before publishing or playtest.",
+      "answerDurationInvalid": "Answer duration must be a nonnegative whole number of milliseconds within the timer limit.",
+      "contentTimingInvalid": "Use 1–120,000 whole milliseconds for duration. Blank text steps need a duration.",
+      "scriptRepair": "The imported script needs repair: {{detail}}"
     },
     "tools": {
       "pricesTitle": "Set prices for the round",
@@ -1605,10 +1673,13 @@
   "allPlay": {
     "kickerStake": "Stake for everyone",
     "kickerNoRisk": "No risk for everyone",
-    "ruleStake": "Everyone stakes and writes an answer. Right wins your stake, wrong loses it. Stakes up to {{max}}.",
+    "ruleStake": "Everyone stakes and writes an answer. Right wins your stake, wrong loses it.",
     "ruleNoRisk": "Everyone writes an answer. Right wins {{points}}, wrong costs nothing.",
     "stakePrompt": "Make your stake — nobody sees it until the answers are in",
-    "players": "Players"
+    "players": "Players",
+    "kickerSimple": "Everyone answers",
+    "ruleSimple": "Everyone answers. +{{points}} / −{{points}}",
+    "ruleSimpleFree": "Everyone answers. +{{points}} / no deduction"
   },
   "point": {
     "pick": "Click where the answer is",
@@ -1622,7 +1693,8 @@
     "finalPictureUnavailable": "The target picture is unavailable. You cannot submit a point answer.",
     "targetDescription": "Correct point: {{x}}% of the image width from the left, {{y}}% of its height from the top. Tolerance radius: {{radius}}% of the image width.",
     "imageDimensions": "Image dimensions: {{width}} by {{height}} pixels.",
-    "imageDimensionsUnavailable": "Image dimensions are not yet available."
+    "imageDimensionsUnavailable": "Image dimensions are not yet available.",
+    "sourceTargetDescription": "Correct point: {{x}}% of the image width from the left, {{y}}% of its height from the top. Imported tolerance: {{rx}}% of the image width horizontally and {{ry}}% of its height vertically."
   },
   "stats": {
     "title": "Your games",
@@ -1840,5 +1912,21 @@
     "rotation": "Rotation (degrees)",
     "restoreAudio": "Restore audio",
     "fadeEnvelope": "Volume fade envelope"
+  },
+  "script": {
+    "answerNext": "The question continues when this answer is resolved.",
+    "groupAnswer": "Group answers",
+    "scoreHint": "Correct: {{win}}. Wrong: {{lose}}.",
+    "choosePrice": "Choose the question value",
+    "priceRange": "Allowed value: {{min}}–{{max}}, step {{step}}",
+    "confirmPrice": "Confirm value",
+    "waitPrice": "Waiting for the value to be selected.",
+    "content": "Question script: presenting content",
+    "next": "The next authored step starts when this step finishes.",
+    "waitContent": "Wait for the current content to finish.",
+    "repair": "The imported script needs repair: {{detail}}",
+    "preserved": "This question uses an imported script. Its steps and content order are preserved.",
+    "stop": "Stop this script",
+    "award": "{{name}} received {{points}} points."
   }
 }

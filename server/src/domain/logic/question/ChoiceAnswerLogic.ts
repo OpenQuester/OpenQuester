@@ -1,4 +1,5 @@
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { AnswerType } from "domain/enums/package/AnswerType";
+import { answerFormat } from "domain/logic/question/answerFormat";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { ChoiceSelectionLogic } from "domain/logic/question/ChoiceSelectionLogic";
 
@@ -18,7 +19,7 @@ export class ChoiceAnswerLogic {
     choiceOrder: number | null = null,
     explicitSelection = false
   ): boolean | null {
-    if (question?.type !== PackageQuestionType.CHOICE || !picked?.trim()) {
+    if (!question || answerFormat(question) !== AnswerType.SELECT || !picked?.trim()) {
       return null;
     }
 
@@ -26,7 +27,7 @@ export class ChoiceAnswerLogic {
     const options = answers.map((a) => normalize(a.text)).filter(Boolean);
     const pick = normalize(picked);
     if (!explicitSelection) {
-      if (ChoiceSelectionLogic.hasAmbiguousImagePlaceholder(answers, picked)) {
+      if (ChoiceSelectionLogic.hasAmbiguousMediaPlaceholder(answers, picked)) {
         return null;
       }
     }

@@ -681,53 +681,70 @@ describe("Choice Question Flow Tests", () => {
     });
   });
 
-  it("persists point aspect through HTTP and scores the image-space circle through sockets", async () => {
-    await suite.scenario(async (scenario) => {
-      utils.packageTransform = (pkg) => {
-        const q = pkg.rounds[0].themes[0].questions.find(
-          (item) => item.type === PackageQuestionType.SIMPLE
-        )!;
-        q.answerType = AnswerType.POINT;
-        q.answerPoint = { x: 0.5, y: 0.5, imageAspectRatio: 2 };
-        q.answerDeviation = 0.1;
-      };
-      const { showmanSocket, playerSockets, spectatorSockets, gameId } =
-        await utils.setupGameTestEnvironment(userRepo, app, 1, 1, true, 0, true);
-      await utils.startGame(showmanSocket);
-      const q = await utils.findQuestionByType(PackageQuestionType.SIMPLE, gameId);
-      const stored = await userRepo.manager
-        .getRepository(PackageQuestion)
-        .findOneByOrFail({ id: q!.id });
-      expect(stored.answer_point).toEqual({ x: 0.5, y: 0.5, imageAspectRatio: 2 });
-      const hostData = scenario.waitForEvent<GameQuestionDataEventPayload>(
-        showmanSocket,
-        SocketIOGameEvents.QUESTION_DATA
-      );
-      const playerData = scenario.waitForEvent<GameQuestionDataEventPayload>(
-        playerSockets[0],
-        SocketIOGameEvents.QUESTION_DATA
-      );
-      const spectatorData = scenario.waitForEvent<GameQuestionDataEventPayload>(
-        spectatorSockets[0],
-        SocketIOGameEvents.QUESTION_DATA
-      );
-      await utils.pickQuestion(showmanSocket, q!.id, playerSockets);
-      const [host, player, spectator] = await Promise.all([hostData, playerData, spectatorData]);
-      expect(host.data).toMatchObject({ answerPoint: { x: 0.5, y: 0.5, imageAspectRatio: 2 } });
-      expect(player.data).not.toHaveProperty("answerPoint");
-      expect(spectator.data).not.toHaveProperty("answerPoint");
-      await utils.answerQuestion(playerSockets[0], showmanSocket);
-      const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_RESULT,
-        () =>
-          scenario
-            .actor(playerSockets[0])
-            .emit(SocketIOGameEvents.ANSWER_SUBMITTED, { answerText: "0.500,0.680" })
-      );
-      expect(result.answerResult.answerType).toBe(AnswerResultType.CORRECT);
-    });
-  });
+  it.each([false, true])(
+    "persists point geometry through HTTP and scores native/SIQ=%s through sockets",
+    async (imported) => {
+      await suite.scenario(async (scenario) => {
+        utils.packageTransform = (pkg) => {
+          const q = pkg.rounds[0].themes[0].questions.find(
+            (item) => item.type === PackageQuestionType.SIMPLE
+          )!;
+          q.answerType = AnswerType.POINT;
+          q.answerPoint = {
+            x: 0.5,
+            y: 0.5,
+            imageAspectRatio: 2,
+            ...(imported ? { sourceGeometry: { kind: "sigame" as const, aspectRatio: 2 } } : {})
+          };
+          q.answerDeviation = imported ? 0.05 : 0.1;
+        };
+        const { showmanSocket, playerSockets, spectatorSockets, gameId } =
+          await utils.setupGameTestEnvironment(userRepo, app, 1, 1, true, 0, true);
+        await utils.startGame(showmanSocket);
+        const q = await utils.findQuestionByType(PackageQuestionType.SIMPLE, gameId);
+        const stored = await userRepo.manager
+          .getRepository(PackageQuestion)
+          .findOneByOrFail({ id: q!.id });
+        expect(stored.answer_point).toEqual({
+          x: 0.5,
+          y: 0.5,
+          imageAspectRatio: 2,
+          ...(imported ? { sourceGeometry: { kind: "sigame", aspectRatio: 2 } } : {})
+        });
+        const hostData = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        const playerData = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          playerSockets[0],
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        const spectatorData = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          spectatorSockets[0],
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        await utils.pickQuestion(showmanSocket, q!.id, playerSockets);
+        const [host, player, spectator] = await Promise.all([hostData, playerData, spectatorData]);
+        expect(host.data).toMatchObject({ answerPoint: { x: 0.5, y: 0.5, imageAspectRatio: 2 } });
+        expect(player.data).not.toHaveProperty("answerPoint");
+        expect(spectator.data).not.toHaveProperty("answerPoint");
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+        const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () =>
+            scenario
+              .actor(playerSockets[0])
+              .emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+                answerText: imported ? "0.540,0.500" : "0.500,0.680"
+              })
+        );
+        expect(result.answerResult.answerType).toBe(
+          imported ? AnswerResultType.WRONG : AnswerResultType.CORRECT
+        );
+      });
+    }
+  );
 
   async function setupChoiceOptions(optionCount: number, answerText?: string) {
     const { socket: showmanSocket, user, cookie } = await utils.createGameClient(app, userRepo);

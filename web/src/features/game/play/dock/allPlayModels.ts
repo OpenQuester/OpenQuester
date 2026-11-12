@@ -1,5 +1,7 @@
+import { answerFormat } from "@/game/answerFormat";
 import { formatScore } from "@/lib/format";
 import { type ActionDockModel, type ActionDockContext } from "./actionDockModel";
+import { scriptScoreHint } from "./questionModels";
 
 import { allPlayMaxStake, allPlayStakes, myAllPlayEntry, pointPicture } from "@/game/selectors";
 
@@ -54,15 +56,23 @@ export function allPlayAnswerModel({
   const done = entries.filter((e) => e.submitted).length;
   const mine = myAllPlayEntry(session, myId);
   const stakes = allPlayStakes(session, mine ?? { stake: null });
-  const auto =
-    session.state.currentQuestion?.answerType === "number" ||
-    session.state.currentQuestion?.answerType === "point";
-  const next =
-    session.state.allPlay?.mode === "stake"
+  const q = session.state.currentQuestion;
+  const select = answerFormat(q) === "select";
+  const auto = q?.answerType === "number" || q?.answerType === "point" || select;
+  const next = session.state.scriptView
+    ? scriptScoreHint(t, session.state.scriptView.scoreEstimate)
+    : session.state.allPlay?.mode === "stake"
       ? t(auto ? "dock.allPlay.answerNextStakeAuto" : "dock.allPlay.answerNextStake")
-      : t(auto ? "dock.allPlay.answerNextNoRiskAuto" : "dock.allPlay.answerNextNoRisk", {
-          points: formatScore(stakes.win),
-        });
+      : session.state.allPlay?.mode === "simple"
+        ? t(
+            session.state.allPlay.wrongAnswerPenalty === "none"
+              ? "allPlay.ruleSimpleFree"
+              : "allPlay.ruleSimple",
+            { points: formatScore(stakes.win) },
+          )
+        : t(auto ? "dock.allPlay.answerNextNoRiskAuto" : "dock.allPlay.answerNextNoRisk", {
+            points: formatScore(stakes.win),
+          });
   if (!mine) {
     return {
       status: t("dock.final.answersIn", { done, total: entries.length }),
@@ -77,7 +87,6 @@ export function allPlayAnswerModel({
       next,
     };
   }
-  const q = session.state.currentQuestion;
   if (q?.answerType === "point" && !pointPicture(q)) {
     const message = t("point.finalPictureUnavailable");
     return { status: message, action: { kind: "info", text: message }, next: "" };
@@ -87,10 +96,12 @@ export function allPlayAnswerModel({
     return { status: message, action: { kind: "info", text: message }, next: "" };
   }
   return {
-    status: t("dock.allPlay.typeAnswer"),
-    action: pointPicture(q)
-      ? { kind: "info", text: t("point.prompt") }
-      : { kind: "timed-answer", event: "all-play-answer", numeric: q?.answerType === "number" },
+    status: t(select ? "dock.allPlay.selectAnswer" : "dock.allPlay.typeAnswer"),
+    action: select
+      ? { kind: "info", text: t("dock.answering.pickOption") }
+      : pointPicture(q)
+        ? { kind: "info", text: t("point.prompt") }
+        : { kind: "timed-answer", event: "all-play-answer", numeric: q?.answerType === "number" },
     next,
   };
 }

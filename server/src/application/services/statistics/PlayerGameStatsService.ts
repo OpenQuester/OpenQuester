@@ -138,6 +138,10 @@ export class PlayerGameStatsService {
    * whose answers were already judged then are skipped), with each player's
    * score after the ruling.
    */
+  public async recordSecretAward(gameId: string, userId: number, newScore: number): Promise<void> {
+    await this.repository.updateStats(gameId, userId, { currentScore: newScore });
+  }
+
   public async recordEveryoneRulings(game: Game, ruledBefore: ReadonlySet<number>): Promise<void> {
     const entries = game.gameState.allPlay?.entries ?? [];
 

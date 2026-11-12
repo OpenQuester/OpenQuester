@@ -21,11 +21,13 @@ export function EditorMediaPlayer({
   type,
   className,
   onDuration,
+  suspended = false,
 }: {
   src: string;
   type: "audio" | "video";
   className?: string;
   onDuration: (seconds: number | null) => void;
+  suspended?: boolean;
 }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLMediaElement>(null);
@@ -53,6 +55,10 @@ export function EditorMediaPlayer({
     document.addEventListener("fullscreenchange", syncFullscreen);
     return () => document.removeEventListener("fullscreenchange", syncFullscreen);
   }, []);
+
+  useEffect(() => {
+    if (suspended) ref.current?.pause();
+  }, [suspended]);
 
   const metadata = (event: SyntheticEvent<HTMLMediaElement>) => {
     const value = event.currentTarget.duration;
@@ -130,6 +136,7 @@ export function EditorMediaPlayer({
             type="button"
             className={buttonClass}
             aria-label={t(playing ? "editor.player.pause" : "editor.player.play")}
+            disabled={suspended}
             onClick={() => {
               const media = ref.current;
               if (!media) return;

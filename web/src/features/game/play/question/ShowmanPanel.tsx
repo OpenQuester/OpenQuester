@@ -33,7 +33,7 @@ export function ShowmanPanel() {
       data-testid="showman-panel"
     >
       <span className={questionStyles.showmanLabel}>{t("showman.onlyYou")}</span>
-      <ShowmanInstruction comment={q?.questionComment} />
+      <ShowmanInstruction comment={q?.showmanComments ?? q?.questionComment} />
       <div className="flex flex-col gap-1">
         <span className="text-sm text-muted">{t("showman.answer")}</span>
         <span className={questionStyles.showmanAnswer} data-testid="showman-answer">

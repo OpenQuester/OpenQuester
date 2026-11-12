@@ -1,8 +1,9 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GameConnection } from "@/game/connection";
+import { buildContentPlan } from "@/game/contentPlan";
 import {
   ALICE,
   BOB,
@@ -16,6 +17,7 @@ import {
 } from "@/game/fixtures";
 import { reduce, type GameSession } from "@/game/reducer";
 import { useGameStore } from "@/game/store";
+import { i18n } from "@/i18n";
 
 import { GameContext } from "../GameContext";
 import { GameActionDock } from "./GameActionDock";
@@ -44,6 +46,73 @@ const showing = (extra = {}) =>
 
 describe("Dock", () => {
   beforeEach(() => useGameStore.setState({ session: null, pending: null }));
+
+  it.each([
+    ["en", "user2 receives 650 points."],
+    ["uk", "user2 отримує 650 балів."],
+    ["ru", "user2 получает 650 баллов."],
+  ])("renders the secret award in the %s dock", async (locale, announcement) => {
+    await i18n.changeLanguage(locale);
+    try {
+      const awarded = reduce(choosing(), {
+        type: "secret-question-awarded",
+        payload: {
+          questionId: 100,
+          recipientPlayerId: ALICE,
+          price: 650,
+          appliedChange: 650,
+          newScore: 1620,
+          reason: "secretAward",
+          timer: timer(),
+        },
+      });
+      expect(awarded.players.find((player) => player.meta.id === ALICE)?.score).toBe(1620);
+      renderDock(awarded, SHOWMAN);
+      const status = screen.getByTestId("dock-status");
+      expect(status.textContent).toBe(announcement);
+      expect(within(status).getByText("user2")).toHaveClass("player-name");
+      expect(within(status).getByText("650")).toHaveClass("text-success");
+      expect(screen.getByRole("button", { name: i18n.t("dock.reveal.continue") })).toBeEnabled();
+    } finally {
+      await act(() => i18n.changeLanguage("en").then(() => undefined));
+    }
+  });
+
+  it("opens direct answer input after presentation without a new timer or server event", () => {
+    vi.useFakeTimers();
+    try {
+      const s = showing({
+        questionState: "answering",
+        answeringPlayer: ALICE,
+        currentQuestion: question(100, {
+          type: "secret",
+          text: "Prompt",
+          textOrder: 0,
+          textDurationMs: 5000,
+          answerDurationMs: 15000,
+        }),
+        timer: timer(20000),
+        questionContentPlan: {
+          totalMs: 5000,
+          steps: [
+            {
+              startMs: 0,
+              durationMs: 5000,
+              items: [{ kind: "text", order: 0, placement: "screen", durationMs: 5000 }],
+            },
+          ],
+        },
+      });
+      s.settings = { falseStart: false, buttonPressMode: "random_within_window" };
+      renderDock(s, ALICE);
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(5001));
+      expect(screen.getByRole("textbox")).toBeInTheDocument();
+      expect(useGameStore.getState().session?.state.timer).toBe(s.state.timer);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it.each([ALICE, SHOWMAN])("randomly picks only unplayed cells for eligible user %s", (id) => {
     const s = choosing();
@@ -485,21 +554,28 @@ describe("Dock", () => {
   it.each(["noRisk", "secret", "stake"] as const)(
     "lets the answerer give up a %s point question",
     async (type) => {
+      const currentQuestion = question(100, {
+        type,
+        answerType: "point",
+        questionFiles: [
+          {
+            order: 0,
+            displayTime: null,
+            file: { md5: "image", type: "image", link: "https://x/map.png" },
+          },
+        ],
+      });
+      const questionContentPlan = buildContentPlan({
+        ...currentQuestion,
+        files: currentQuestion.questionFiles,
+      })!;
       const emit = renderDock(
         showing({
           questionState: "answering",
           answeringPlayer: ALICE,
-          currentQuestion: question(100, {
-            type,
-            answerType: "point",
-            questionFiles: [
-              {
-                order: 0,
-                displayTime: null,
-                file: { md5: "image", type: "image", link: "https://x/map.png" },
-              },
-            ],
-          }),
+          currentQuestion,
+          questionContentPlan,
+          timer: { ...timer(), elapsedMs: questionContentPlan.totalMs },
         }),
         ALICE,
       );
@@ -651,6 +727,47 @@ describe("Dock", () => {
     expect(screen.getByTestId("dock-status")).toHaveTextContent("user3 is answering — judge it");
     await userEvent.click(screen.getByTestId("judge-wrong"));
     expect(emit).toHaveBeenCalledWith("answer-result", { scoreResult: -100, answerType: "wrong" });
+  });
+
+  it("describes continuation while another player answers a direct script step", () => {
+    const s = showing({ questionState: "answering", answeringPlayer: BOB });
+    s.state.scriptView = {
+      questionId: s.state.currentQuestion!.id!,
+      programCounter: 3,
+      waitingFor: "answer",
+      actorId: BOB,
+      answererIds: [BOB],
+      answerMode: "direct",
+    };
+    renderDock(s, ALICE);
+    expect(
+      screen.queryAllByText("The question continues when this answer is resolved.").length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText(/buzzer reopens/)).not.toBeInTheDocument();
+  });
+
+  it("uses the scripted score estimate and omits it when the recipient cannot see the amount", () => {
+    const s = showing({ questionState: "answering", answeringPlayer: BOB });
+    const view = {
+      questionId: s.state.currentQuestion!.id!,
+      programCounter: 3,
+      waitingFor: "answer" as const,
+      actorId: BOB,
+      answererIds: [BOB],
+      answerMode: "direct" as const,
+    };
+    s.state.scriptView = { ...view, scoreEstimate: { win: 200, lose: 0 } };
+    const emit = renderDock(s, SHOWMAN);
+    expect(screen.getByTestId("judge-correct")).toHaveTextContent("+200");
+    expect(screen.getByTestId("judge-wrong")).toHaveTextContent("±0");
+    expect(screen.queryByTestId("judge-correct-double")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("judge-wrong"));
+    expect(emit).toHaveBeenCalledWith("answer-result", { scoreResult: 0, answerType: "wrong" });
+    act(() =>
+      useGameStore.setState({ session: { ...s, state: { ...s.state, scriptView: view } } }),
+    );
+    expect(screen.getByTestId("judge-correct")).toHaveAccessibleName("Correct C");
+    expect(screen.getByTestId("judge-wrong")).toHaveAccessibleName("Wrong W");
   });
 
   it("offers a single neutral zero-point ruling and disables it while pending", async () => {

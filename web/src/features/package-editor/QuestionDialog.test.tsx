@@ -15,10 +15,32 @@ import {
 import { QuestionDialog } from "./QuestionDialog";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { createPackageEditorStore, PackageEditorContext } from "./packageEditorStore";
+// Load the real preview before any test opens the lazy dialog.
+import "./playtest/QuestionPlaytest";
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+it("offers one actual-price field for fixed secret prices and none for price choices", async () => {
+  setup(newQuestion(100, { type: "secret", realPrice: 0 }));
+  const user = userEvent.setup();
+  const mode = screen.getByLabelText("Secret price rule");
+  const label = "Actual price (optional)";
+  expect(screen.getByLabelText(label)).toHaveValue("0");
+
+  await user.selectOptions(mode, "fixed");
+  expect(screen.getByLabelText(label)).toHaveValue("0");
+  await user.selectOptions(mode, "range");
+  expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+  await user.selectOptions(mode, "roundExtremes");
+  expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+
+  await user.selectOptions(mode, "legacy");
+  expect(screen.getByLabelText(label)).toBeEnabled();
+  await user.type(screen.getByPlaceholderText("100, 300, 500"), "100, 300");
+  expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
 });
 
 it("selects the last image when switching to point answers and clears the previous target", async () => {
@@ -494,7 +516,6 @@ it("maps the point slider to the larger image dimension without rewriting a lega
 
 it("keeps the unsaved question mounted when the preview closes and does not save through it", async () => {
   // Load the lazy module before measuring form behavior; browser tests cover opening it.
-  await import("./playtest/QuestionPlaytest");
   const q = newQuestion(100, { text: "Original" });
   const { store } = setup(q);
   const text = screen.getByLabelText("Question text");
@@ -726,6 +747,8 @@ it("keeps alternative accepted answers when switching to choice and back", async
   expect(screen.getByLabelText(/Also accept/)).toHaveValue("Kiev");
   await userEvent.type(screen.getByLabelText(/Hint for the showman/), "Capital city");
   await userEvent.click(screen.getByRole("button", { name: /^Simple/ }));
+  expect(screen.getByLabelText("How players answer")).toHaveValue("select");
+  await userEvent.selectOptions(screen.getByLabelText("How players answer"), "text");
   expect(screen.getByLabelText("Correct answers")).toHaveValue("Kyiv\nKiev");
   expect(screen.getByLabelText(/Hint for the showman/)).toHaveValue("Capital city");
   await userEvent.click(screen.getByTestId("question-save"));
@@ -747,6 +770,8 @@ it("keeps choice correctness and form history when renaming an option and changi
   await user.type(first, ", Ukraine");
   await user.type(screen.getByLabelText("Option B"), "Lviv");
   await user.click(screen.getByRole("button", { name: /^Simple/ }));
+  expect(screen.getByLabelText("How players answer")).toHaveValue("select");
+  await user.selectOptions(screen.getByLabelText("How players answer"), "text");
   expect(screen.getByLabelText("Correct answers")).toHaveValue("Kyiv, Ukraine\nKiev");
   await user.click(screen.getByRole("button", { name: /^Choice/ }));
   expect(screen.getByLabelText("Option A")).toHaveValue("Kyiv, Ukraine");
@@ -892,7 +917,7 @@ it("saves decimal answers and tolerance while keeping prices and bids integral",
   const { store } = setup(
     newQuestion(100, { type: "stake", answerType: "number", answerDelay: 7250 }),
   );
-  expect(screen.queryByLabelText(/Answer window/i)).not.toBeInTheDocument();
+  expect(screen.getByLabelText(/Answer window/i)).toHaveValue("");
   const user = userEvent.setup();
   for (const [label, value] of [
     ["Right number", "3.14"],
@@ -1023,3 +1048,52 @@ it("discarding the question drops accepted staged media without writing the stor
   expect(store.getState().media.size).toBe(0);
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.questionFiles).toEqual([]);
 });
+
+it.each(["text", "radius", "target"] as const)(
+  "preserves source geometry until an explicit %s geometry edit (A17)",
+  async (action) => {
+    const point = {
+      x: 0.25,
+      y: 0.5,
+      imageAspectRatio: 2,
+      sourceGeometry: { kind: "sigame" as const, aspectRatio: 1 },
+    };
+    const { store } = setup(
+      newQuestion(100, {
+        text: "Before",
+        answerType: "point",
+        answerPoint: point,
+        pointImageId: "image",
+        questionFiles: [{ occurrenceId: "image", md5: "image", type: "image", displayTime: 5000 }],
+      }),
+    );
+    act(() =>
+      store.getState().addMedia([
+        {
+          md5: "image",
+          type: "image",
+          name: "image.png",
+          bytes: new Uint8Array(),
+          url: "/image.png",
+        },
+      ]),
+    );
+    const img = screen.getByTestId("point-picker").querySelector("img")!;
+    Object.defineProperty(img, "naturalWidth", { value: 200 });
+    Object.defineProperty(img, "naturalHeight", { value: 100 });
+    fireEvent.load(img);
+    expect(
+      screen.getByText("Imported area radius: 4 px horizontally, 2 px vertically."),
+    ).toBeInTheDocument();
+    if (action === "text")
+      fireEvent.change(screen.getByLabelText("Question text"), { target: { value: "After" } });
+    if (action === "radius")
+      fireEvent.change(screen.getByLabelText("Answer radius"), { target: { value: "20" } });
+    if (action === "target")
+      fireEvent.keyDown(screen.getByTestId("point-picker"), { key: "Enter" });
+    await userEvent.click(screen.getByTestId("question-save"));
+    const saved = store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!;
+    if (action === "text") expect(saved.answerPoint).toEqual(point);
+    else expect(saved.answerPoint?.sourceGeometry).toBeUndefined();
+  },
+);

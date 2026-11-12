@@ -1,3 +1,7 @@
+import { answerFormat } from "@/game/answerFormat";
+import { ImportWarnings } from "@/features/upload/ImportWarnings";
+import { Button } from "@/ui/Button";
+import { QuestionPreview } from "../QuestionPreview";
 import { questionFormStyles } from "./questionFormStyles";
 import { Trans, useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
@@ -12,22 +16,53 @@ import { NumberField, OptionalTextField } from "./QuestionFields";
 import { QuestionChoiceFields } from "./QuestionChoiceFields";
 import { QuestionMediaList } from "./QuestionMediaList";
 import { AnswerCheckFields, AnswerModeField, QuestionTypeSettings } from "./QuestionTypeSettings";
-import { changeQuestionType } from "./questionUpdates";
+import { changeQuestionType, convertImportedQuestionToSimple } from "./questionUpdates";
 import type { QuestionFieldsProps } from "./questionUpdates";
 import type { QuestionFormState } from "./useQuestionForm";
-import { questionSteps } from "./questionTimeline";
+import { answerTimeline, questionSteps } from "./questionTimeline";
 export function QuestionContent({ form }: { form: QuestionFormState }) {
+  return form.q.script ? <ScriptContent form={form} /> : <StandardContent form={form} />;
+}
+
+function ScriptContent({ form: { q, set, final } }: { form: QuestionFormState }) {
   const { t } = useTranslation();
-  const { q, set, setQ, final, applyMedia } = form;
-  const question = toUploadQuestion(q, 0, final);
-  const questionQueues = questionGroupSizes(question, "question").filter(
-    (g) => g.visuals >= VISUAL_QUEUE_THRESHOLD,
-  ).length;
-  const answerQueues = questionGroupSizes(question, "answer").filter(
-    (g) => g.visuals >= VISUAL_QUEUE_THRESHOLD,
-  ).length;
+  return (
+    <div className="grid gap-4">
+      <p className="m-0 text-muted">{t("script.preserved")}</p>
+      {!final && (
+        <NumberField
+          id="qf-price"
+          integer
+          label={t("editor.form.price")}
+          value={q.price}
+          onChange={(price) => set({ price })}
+        />
+      )}
+      <QuestionPreview question={q} final={final} />
+    </div>
+  );
+}
+
+function StandardContent({ form }: { form: QuestionFormState }) {
+  const { t } = useTranslation();
+  const { q, set, final, applyMedia } = form;
   return (
     <>
+      {!!q.compatibilityIssues?.length && (
+        <div id="qf-compatibility" className="flex flex-col gap-2">
+          <ImportWarnings warnings={q.compatibilityIssues} />
+          <p className="m-0 text-sm text-warning">{t("editor.form.convertSimpleLoss")}</p>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              if (window.confirm(t("editor.form.convertSimpleLoss")))
+                set(convertImportedQuestionToSimple());
+            }}
+          >
+            {t("editor.form.convertSimple")}
+          </Button>
+        </div>
+      )}
       {!final && <QuestionTypePicker q={q} set={set} />}
       <div className={cn("grid gap-4", !final && "md:grid-cols-[minmax(0,1fr)_minmax(0,4fr)]")}>
         {!final && (
@@ -55,7 +90,67 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
         />
       </div>
       <QuestionTypeSettings q={q} set={set} final={final} />
+      <NumberField
+        id="qf-answer-duration"
+        integer
+        label={t("editor.form.answerDuration")}
+        value={q.answerDurationMs == null ? null : q.answerDurationMs / 1000}
+        onChange={(seconds) => set({ answerDurationMs: seconds == null ? null : seconds * 1000 })}
+      />
+      <p className="m-0 text-sm text-faint">{t("editor.form.answerDurationHelp")}</p>
+      <NumberField
+        id="qf-text-duration"
+        label={t("editor.form.textDuration")}
+        value={q.textDurationMs == null ? null : q.textDurationMs / 1000}
+        onChange={(seconds) =>
+          set({ textDurationMs: seconds == null ? null : Math.round(seconds * 1000) })
+        }
+      />
+      <Toggle
+        label={t("editor.timeline.waitForFinish")}
+        checked={q.textWaitForFinish !== false}
+        onChange={(textWaitForFinish) => set({ textWaitForFinish })}
+      />
+      <OptionalTextField
+        id="qf-showman-comments"
+        label={t("editor.form.showmanComments")}
+        help={t("showman.onlyYou")}
+        value={q.showmanComments ?? ""}
+        onChange={(showmanComments) => set({ showmanComments })}
+      />
       <QuestionPromptFields q={q} set={set} final={final} />
+      <QuestionContentMedia form={form} />
+      <hr className="m-0 border-0 border-t border-line" />
+      {answerFormat(q) === "select" && (
+        <QuestionChoiceFields q={q} set={set} applyMedia={applyMedia} />
+      )}
+      {q.secretRules?.outcome !== "award" && <QuestionAnswerFields q={q} set={set} final={final} />}
+      <OptionalTextField
+        id="qf-answer-explanation"
+        label={t("editor.form.answerExplanation")}
+        help={t("editor.form.answerExplanationHelp")}
+        value={q.answerExplanation ?? ""}
+        onChange={(answerExplanation) => set({ answerExplanation })}
+      />
+      <AnswerContentMedia form={form} />
+      <hr className="m-0 border-0 border-t border-line" />
+      <QuestionMetadataFields q={q} set={set} />
+    </>
+  );
+}
+
+function QuestionContentMedia({ form }: { form: QuestionFormState }) {
+  const { t } = useTranslation();
+  const { q, set, setQ, final, applyMedia } = form;
+  const question = toUploadQuestion(q, 0, final);
+  const questionQueues = questionGroupSizes(question, "question").filter(
+    (g) => g.visuals >= VISUAL_QUEUE_THRESHOLD,
+  ).length;
+  const answerQueues = questionGroupSizes(question, "answer").filter(
+    (g) => g.visuals >= VISUAL_QUEUE_THRESHOLD,
+  ).length;
+  return (
+    <>
       <div>
         <Toggle
           label={t("editor.form.playMediaSimultaneously")}
@@ -84,27 +179,60 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
           }
         />
       </div>
-      {!q.text.trim() &&
+      {q.secretRules?.outcome !== "award" &&
+        !q.text.trim() &&
         !q.textItems?.some((item) => item.text.trim()) &&
         q.questionFiles.length === 0 && <FieldError>{t("editor.issues.questionEmpty")}</FieldError>}
-      <hr className="m-0 border-0 border-t border-line" />
-      {!final && q.type === "choice" && (
-        <QuestionChoiceFields q={q} set={set} applyMedia={applyMedia} />
-      )}
-      <QuestionAnswerFields q={q} set={set} final={final} />
-      <QuestionMediaList
-        label={t("editor.form.answerMedia")}
-        help={t("editor.form.answerMediaHelp")}
-        files={q.answerFiles}
-        slot="answerFiles"
-        applyMedia={applyMedia}
-        onChange={(update) => setQ((prev) => ({ ...prev, answerFiles: update(prev.answerFiles) }))}
-      >
-        <QuestionTiming form={form} />
-      </QuestionMediaList>
-      <hr className="m-0 border-0 border-t border-line" />
-      <QuestionMetadataFields q={q} set={set} />
     </>
+  );
+}
+
+function AnswerContentMedia({ form }: { form: QuestionFormState }) {
+  const { t } = useTranslation();
+  const { q, setQ, applyMedia } = form;
+  return (
+    <QuestionMediaList
+      label={t("editor.form.answerMedia")}
+      help={t("editor.form.answerMediaHelp")}
+      files={q.answerFiles}
+      slot="answerFiles"
+      timeline={{
+        q: answerTimeline(q),
+        setQ: (update) =>
+          setQ((current) => {
+            const next = typeof update === "function" ? update(answerTimeline(current)) : update;
+            return {
+              ...current,
+              answerFiles: next.questionFiles,
+              answerTextItems: next.textItems,
+            };
+          }),
+        applyTimeline: (change) =>
+          form.applyTimeline((current) => {
+            const moved = change(answerTimeline(current));
+            if (!moved) return null;
+            return {
+              question: {
+                ...current,
+                answerFiles: moved.question.questionFiles,
+                answerTextItems: moved.question.textItems,
+              },
+              undo: (value) => {
+                const restored = moved.undo(answerTimeline(value));
+                return {
+                  ...value,
+                  answerFiles: restored.questionFiles,
+                  answerTextItems: restored.textItems,
+                };
+              },
+            };
+          }),
+      }}
+      applyMedia={applyMedia}
+      onChange={(update) => setQ((prev) => ({ ...prev, answerFiles: update(prev.answerFiles) }))}
+    >
+      <QuestionTiming form={form} />
+    </QuestionMediaList>
   );
 }
 
@@ -179,14 +307,14 @@ function QuestionPromptFields({ q, set, final }: QuestionFieldsProps & { final: 
   );
 }
 
-function QuestionAnswerFields({ q, set, final }: QuestionFieldsProps & { final: boolean }) {
+function QuestionAnswerFields({ q, set }: QuestionFieldsProps & { final: boolean }) {
   const { t } = useTranslation();
-  const numeric = (final || q.type !== "choice") && q.answerType === "number";
+  const numeric = answerFormat(q) === "number";
   return (
     <>
       {!numeric && (
         <div className="grid gap-4 sm:grid-cols-2">
-          {final || q.type !== "choice" ? (
+          {answerFormat(q) !== "select" ? (
             <LinesField
               key="answer"
               id="qf-answer"

@@ -15,16 +15,27 @@ import type { BroadcastEvent } from "domain/types/service/ServiceResult";
 import type { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 
-/** Release the final answer files only after the last ruling. */
+/** Release final answer media, a point target or a keyed option after the last ruling. */
 export class FinalReviewingToShowingAnswerHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.FINAL_REVIEWING;
   public readonly toPhase = GamePhase.SHOWING_ANSWER;
 
   public canTransition(ctx: TransitionContext): boolean {
-    return (
-      getGamePhase(ctx.game) === this.fromPhase &&
-      !!ctx.resources?.finalRoundFullQuestion?.answerFiles?.length &&
-      FinalRoundStateManager.areAllAnswersReviewed(ctx.game)
+    if (
+      getGamePhase(ctx.game) !== this.fromPhase ||
+      !FinalRoundStateManager.areAllAnswersReviewed(ctx.game)
+    ) {
+      return false;
+    }
+
+    const question = ctx.resources?.finalRoundFullQuestion;
+    const { answerPointImage, correctChoice } = ShowAnswerLogic.revealDetails(question);
+    return !!(
+      question?.answerFiles?.length ||
+      (question?.answerPoint && answerPointImage) ||
+      question?.answerTextItems?.length ||
+      question?.answerExplanation?.trim() ||
+      correctChoice
     );
   }
 

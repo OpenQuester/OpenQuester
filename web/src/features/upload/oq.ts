@@ -1,3 +1,7 @@
+import { answerFormat } from "@/game/answerFormat";
+import { readSecretRules } from "@/game/secretRules";
+import { compatibilityMedia, readCompatibilityIssues } from "./siqCompatibility";
+import { readQuestionScript } from "@/game/questionScript";
 import type { Unzipped } from "fflate";
 
 import { assertImportContentLimits } from "./contentLimits";
@@ -10,6 +14,7 @@ import type {
   MediaType,
   ParsedPackage,
   QuestionFile,
+  QuestionTextItem,
   UploadContent,
   UploadQuestion,
   UploadRound,
@@ -33,10 +38,10 @@ export async function parseOq(entries: Unzipped, allowHtmlRemoval = false): Prom
   }
   if (!isObject(json) || !Array.isArray(json.rounds)) throw new Error("badContentJson");
 
-  assertOqContentLimits(json);
   const report = scanOq(json, false);
   requireRemoval(report, allowHtmlRemoval);
   if (report.questions.length) scanOq(json, true);
+  assertOqContentLimits(json);
   const warnings: ImportWarning[] = removalWarnings(report);
   const types = new Map<string, MediaType>();
   const content = toContent(json, types, warnings);
@@ -66,7 +71,7 @@ export async function parseOq(entries: Unzipped, allowHtmlRemoval = false): Prom
 }
 
 export function assertOqContentLimits(json: Json) {
-  assertImportContentLimits(toContent(json, new Map(), []));
+  assertImportContentLimits(toContent(json, new Map(), [], false));
 }
 
 type Json = Record<string, unknown>;
@@ -88,6 +93,7 @@ export function toContent(
   p: Json,
   types: Map<string, MediaType>,
   warnings: ImportWarning[],
+  includeCompatibility = true,
 ): UploadContent {
   const fileRef = (v: unknown): FileRef | null => {
     if (!isObject(v)) return null;
@@ -110,20 +116,47 @@ export function toContent(
     return out.length ? out : null;
   };
   const question = (q: Json, i: number, where: string): UploadQuestion => {
-    let type = (str(q.type) ?? "simple") as UploadQuestion["type"];
-    // The server needs 2–8 options; fewer can still be played as a regular question.
-    const incompleteChoice = type === "choice" && list(q.answers).length < 2;
-    const hasChoiceKey = q.correctChoiceNeedsRepair === true || q.correctChoiceOrder != null;
-    if (incompleteChoice && !hasChoiceKey) {
-      warnings.push({ code: "choiceAsSimple", where });
-      type = "simple";
+    const type = (str(q.type) ?? "simple") as UploadQuestion["type"];
+    let scriptIssue: ImportWarning | undefined;
+    let script: UploadQuestion["script"];
+    try {
+      script = readQuestionScript(q.script);
+    } catch {
+      const issue: ImportWarning = {
+        code: "siqCompatibility",
+        where,
+        severity: "critical",
+        resolution: "needsRepair",
+        detail: "invalid archived script",
+        sourceData: {
+          type: "custom",
+          parameters: [
+            { name: "script", type: "simple", value: JSON.stringify(q.script).slice(0, 16384) },
+          ],
+        },
+      };
+      scriptIssue = issue;
     }
+    const text = str(q.text);
+    const scriptWithoutMain = script != null && !text?.trim();
     const out: UploadQuestion = {
       type,
+      ...(script == null ? {} : { script }),
       order: num(q.order) ?? i,
       price: num(q.price),
-      text: str(q.text),
-      textOrder: num(q.textOrder),
+      ...(q.realPrice == null ? {} : { realPrice: num(q.realPrice) }),
+      ...(includeCompatibility && q.compatibilityIssues != null
+        ? { compatibilityIssues: readCompatibilityIssues(q.compatibilityIssues) }
+        : {}),
+      text,
+      textOrder: scriptWithoutMain ? null : num(q.textOrder),
+      textDurationMs: scriptWithoutMain ? null : num(q.textDurationMs),
+      textWaitForFinish:
+        !scriptWithoutMain && typeof q.textWaitForFinish === "boolean" ? q.textWaitForFinish : null,
+      answerDurationMs: num(q.answerDurationMs),
+      showmanComments: str(q.showmanComments),
+      answerExplanation: str(q.answerExplanation),
+      ...(q.answerTextItems != null ? { answerTextItems: readTextItems(q.answerTextItems) } : {}),
       playMediaSimultaneously: q.playMediaSimultaneously !== false,
       ...(q.textItems != null ? { textItems: readTextItems(q.textItems) } : {}),
       ...(q.pointImageOrder != null ? { pointImageOrder: num(q.pointImageOrder) ?? -1 } : {}),
@@ -140,11 +173,29 @@ export function toContent(
       questionFiles: qFiles(q.questionFiles),
       answerFiles: qFiles(q.answerFiles),
     };
+    if (out.answerTextItems != null) {
+      const orders = [...(out.answerFiles ?? []), ...out.answerTextItems].map((item) => item.order);
+      if (
+        orders.some((order) => !Number.isInteger(order) || order < 0) ||
+        new Set(orders).size !== orders.length
+      ) {
+        const issue: ImportWarning = {
+          code: "contentNeedsRepair",
+          where,
+          severity: "critical",
+          resolution: "needsRepair",
+          feature: "contentOrder",
+          detail: "answer",
+        };
+        (out.compatibilityIssues ??= []).push(issue);
+      }
+    }
     const subType = str(q.subType);
     if (subType) out.subType = subType;
     if (type === "hidden") out.isHidden = true;
     if (type === "stake") out.maxPrice = num(q.maxPrice);
     if (type === "secret") {
+      if (q.secretRules != null) out.secretRules = readSecretRules(q.secretRules);
       out.transferType = str(q.transferType) === "exceptCurrent" ? "exceptCurrent" : "any";
       const prices = list(q.allowedPrices)
         .map(num)
@@ -157,16 +208,46 @@ export function toContent(
       out.subType ??= "simple";
     }
     if (type === "stake") out.subType ??= "simple";
-    if (type === "choice") {
-      out.subType = "simple";
+    if (out.script) {
+      out.answerNumber = num(q.answerNumber);
+      out.answerPoint = answerCheckOf({ ...q, answerType: "point" }).answerPoint;
+      out.answerDeviation = num(q.answerDeviation);
+    }
+    if (answerFormat(out) === "select") {
+      if (type === "choice") out.subType = subType === "forEveryone" ? "forEveryone" : "simple";
       out.showDelay = num(q.showDelay) ?? 0;
+    }
+    if (answerFormat(out) === "select" || out.script) {
       out.answers = list(q.answers).flatMap((a, j) =>
-        isObject(a) ? [{ order: num(a.order) ?? j, text: str(a.text), file: fileRef(a.file) }] : [],
+        isObject(a)
+          ? [
+              {
+                order: num(a.order) ?? j,
+                text: str(a.text),
+                file: fileRef(a.file),
+                ...(typeof a.sourceLabel === "string" && a.sourceLabel.length <= 500
+                  ? { sourceLabel: a.sourceLabel }
+                  : {}),
+              },
+            ]
+          : [],
       );
-      if (q.correctChoiceNeedsRepair === true || q.correctChoiceOrder != null) {
+      const orders = out.answers.map((option) => option.order);
+      const invalidOrders =
+        new Set(orders).size !== orders.length ||
+        orders.some((order) => !Number.isInteger(order) || order < 0);
+      if (
+        !out.script &&
+        (invalidOrders ||
+          (out.answerType === "select" && q.correctChoiceOrder == null) ||
+          out.answers.length < 2 ||
+          q.correctChoiceNeedsRepair === true ||
+          q.correctChoiceOrder != null)
+      ) {
         const order = q.correctChoiceOrder;
         if (
-          incompleteChoice ||
+          invalidOrders ||
+          out.answers.length < 2 ||
           q.correctChoiceNeedsRepair === true ||
           typeof order !== "number" ||
           !Number.isInteger(order) ||
@@ -180,6 +261,16 @@ export function toContent(
         }
       }
     }
+    if (!out.script && isObject(q.selectSource)) {
+      out.selectSource = readSelectSource(q.selectSource);
+    }
+    out.compatibilityIssues = readCompatibilityIssues([
+      ...(out.compatibilityIssues ?? []),
+      ...(scriptIssue ? [scriptIssue] : []),
+    ]);
+    for (const media of compatibilityMedia(out.compatibilityIssues))
+      types.set(media.md5, media.type);
+    warnings.push(...(out.compatibilityIssues ?? []));
     return out;
   };
   const theme = (t: Json, i: number, roundName: string): UploadTheme => {
@@ -226,32 +317,89 @@ export function toContent(
   };
 }
 
-function readTextItems(value: unknown): { order: number; text: string }[] {
+function readTextItems(value: unknown): QuestionTextItem[] {
   if (!Array.isArray(value)) throw new Error("badContentJson");
   return value.map((item) => {
     if (!isObject(item) || typeof item.order !== "number" || typeof item.text !== "string") {
       throw new Error("badContentJson");
     }
-    return { order: item.order, text: item.text };
+    if (item.placement != null && item.placement !== "screen" && item.placement !== "replic")
+      throw new Error("badContentJson");
+    if (
+      item.durationMs != null &&
+      (typeof item.durationMs !== "number" || !Number.isFinite(item.durationMs))
+    )
+      throw new Error("badContentJson");
+    if (item.waitForFinish != null && typeof item.waitForFinish !== "boolean")
+      throw new Error("badContentJson");
+    return {
+      order: item.order,
+      text: item.text,
+      ...(item.durationMs == null ? {} : { durationMs: item.durationMs as number }),
+      ...(typeof item.waitForFinish === "boolean" ? { waitForFinish: item.waitForFinish } : {}),
+      ...(item.placement === "screen" || item.placement === "replic"
+        ? { placement: item.placement }
+        : {}),
+    };
   });
 }
 
 function answerCheckOf(q: Json): Partial<UploadQuestion> {
   const deviation = num(q.answerDeviation);
+  if (q.answerType === "select") return { answerType: "select" };
   if (q.answerType === "number") {
     return { answerType: "number", answerNumber: num(q.answerNumber), answerDeviation: deviation };
   }
   const p = q.answerPoint;
   if (q.answerType === "point") {
     const aspect = isObject(p) ? num(p.imageAspectRatio) : null;
+    const source = isObject(p) ? p.sourceGeometry : undefined;
+    const validSource =
+      source === undefined ||
+      (isObject(source) && source.kind === "sigame" && (num(source.aspectRatio) ?? 0) > 0);
+    const sourceGeometry =
+      isObject(source) && validSource
+        ? { kind: "sigame" as const, aspectRatio: num(source.aspectRatio)! }
+        : undefined;
     return {
       answerType: "point",
       answerPoint:
-        isObject(p) && num(p.x) != null && num(p.y) != null
-          ? { x: num(p.x)!, y: num(p.y)!, ...(aspect != null ? { imageAspectRatio: aspect } : {}) }
+        isObject(p) && validSource && num(p.x) != null && num(p.y) != null
+          ? {
+              x: num(p.x)!,
+              y: num(p.y)!,
+              ...(aspect != null ? { imageAspectRatio: aspect } : {}),
+              ...(sourceGeometry ? { sourceGeometry } : {}),
+            }
           : null,
       answerDeviation: deviation,
     };
   }
   return {};
+}
+
+function readSelectSource(value: Json): UploadQuestion["selectSource"] {
+  const unresolvedOptions = Array.isArray(value.unresolvedOptions)
+    ? value.unresolvedOptions.flatMap((item) =>
+        isObject(item) &&
+        typeof item.order === "number" &&
+        typeof item.sourceLabel === "string" &&
+        typeof item.kind === "string" &&
+        item.kind.trim().toLowerCase() !== "html" &&
+        typeof item.value === "string"
+          ? [
+              {
+                order: item.order,
+                sourceLabel: item.sourceLabel,
+                kind: item.kind,
+                value: item.value,
+              },
+            ]
+          : [],
+      )
+    : undefined;
+  return {
+    rightLabels: list(value.rightLabels).filter((item): item is string => typeof item === "string"),
+    ...(unresolvedOptions === undefined ? {} : { unresolvedOptions }),
+  };
 }

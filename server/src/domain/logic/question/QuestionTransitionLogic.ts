@@ -1,3 +1,4 @@
+import { questionMediaFiles } from "domain/logic/question/questionMediaFiles";
 import { QUESTION_TRANSITION_MS, QUESTION_TRANSITION_FADE_OUT_MS } from "domain/constants/game";
 import { questionTransitionTimerKey } from "domain/constants/redisKeys";
 import { Game } from "domain/entities/game/Game";
@@ -28,7 +29,7 @@ export class QuestionTransitionLogic {
   }
 
   public static hasMedia(game: Game): boolean {
-    return !!game.gameState.currentQuestion?.questionFiles?.length;
+    return questionMediaFiles(game.gameState.currentQuestion).length > 0;
   }
 
   public static mediaReady(game: Game): boolean {

@@ -13,6 +13,7 @@ import {
   initials,
   phaseOf,
   questionValue,
+  stakeInfo,
   standings,
   wrongCostsPoints,
 } from "./selectors";
@@ -219,4 +220,24 @@ describe("game rules", () => {
     expect(roundTimeLeft(s, now)).toBe(60_000);
     expect(roundTimeLeft({ ...s, settings: null }, now)).toBeNull();
   });
+});
+
+it("offers the auction minimum one for actual zero while retaining nominal 100", () => {
+  const s = showing({
+    currentQuestion: null,
+    stakeQuestionData: {
+      pickerPlayerId: ALICE,
+      questionId: 100,
+      questionPrice: 0,
+      maxPrice: null,
+      bids: {},
+      passedPlayers: [],
+      biddingOrder: [ALICE, BOB],
+      currentBidderIndex: 0,
+      highestBid: null,
+      winnerPlayerId: null,
+      biddingPhase: true,
+    },
+  });
+  expect(stakeInfo(s)).toMatchObject({ price: 0, minBid: 1 });
 });

@@ -291,6 +291,16 @@ export class DataMutationProcessor {
             );
             break;
 
+          case MutationAction.SECRET_AWARD:
+            await this.playerGameStatsService.recordSecretAward(
+              mutation.gameId,
+              mutation.userId,
+              mutation.payload.newScore
+            );
+            break;
+          case MutationAction.SCRIPT_ANSWER:
+            await this.playerGameStatsService.updatePlayerAnswerStats(mutation.gameId, mutation.userId, mutation.payload.answerType, mutation.payload.newScore);
+            break;
           case MutationAction.END_SESSION:
             await this.playerGameStatsService.endPlayerSession(
               mutation.gameId,

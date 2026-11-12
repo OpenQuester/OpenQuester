@@ -487,6 +487,8 @@ export class Game {
    * Removes current question, timer and sets question state to 'choosing'
    */
   public resetToChoosingState() {
+    this.gameState.scriptProgress = null;
+    this.gameState.scriptView = null;
     this.gameState.currentQuestion = null;
     this.gameState.timer = null;
     this.gameState.answeredPlayers = null;
@@ -496,6 +498,7 @@ export class Game {
     this.gameState.skippedPlayers = null;
     this.gameState.answerShowData = null;
     this.gameState.secretQuestionData = null;
+    this.gameState.secretAward = null;
     this.gameState.stakeQuestionData = null;
     this.gameState.questionEligiblePlayers = null;
     this._mediaEligiblePlayerIds = null;

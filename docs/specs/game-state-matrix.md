@@ -1,5 +1,44 @@
 # Game state matrix
 
+## Structured question scripts
+
+A script presents one wait at a time. Content uses the authored timeline and
+media readiness; `askAnswer` starts its own button or direct input window.
+Transfer, price and bidding use their existing actions. Before a buzz, Pass is
+neutral. The showman can reveal the current ask and stop the remaining steps;
+if there is no reveal, the control says to stop the script. `accept` awards
+points once without creating an answer result or incrementing answer counters.
+The reveal can display the most recent correct verdict and its actual score
+change across multiple asks. It does not disclose any private submission.
+
+The serialized game executor saves the private cursor, actor, submitted answers,
+resolved price and applied effect identities with game state. `question-script-state`
+and reconnect snapshots expose the active content and safe wait. Before an
+announcement, only the chooser and showman receive the current price bounds.
+A late command for a different question or step cannot advance the wait. Pause
+freezes its timer; reconnect restores the wait without replaying the preamble.
+With single-instance startup recovery enabled, active scripted answer and price
+waits and modern secret price selections resume from their wall-clock remainder.
+The same applies to authored answer windows, select, normal-for-all, modern
+secret answers and SIQ point answers. Recovery restores these games paused. An
+exhausted clock expires immediately after unpause. Already-paused answer and
+price clocks keep their saved time. Legacy clocks recover with their full duration.
+The dock and group review use the same point values as the current script ruling.
+An ordinary script exposes its fixed actual when its ask opens. The board keeps
+the nominal price. Current select options retain their display labels.
+Personal bids appear in estimates for their owner and during review. Estimates
+with unavailable or hidden amounts are omitted. Select option media uses the
+same readiness barrier as authored media. A direct ask waits for its current
+option files when a previous content step did not already prepare them. Only
+authored timeline media contributes to duration reports.
+A disconnect keeps the seat. An explicit departure during pause is remembered
+and resolves the affected wait on unpause. Media acknowledgments received during
+pause are checked when play resumes.
+
+Explicit final programs choose their own preamble. Inherited finals retain native
+personal bids and manual review. An already accepted native bid in a resumed
+context remains private until review and takes precedence over the base price.
+
 This spec helps agents keep gameplay UI and backend state changes aligned. Update it whenever a phase, role permission, CTA, disabled reason, timer, or user-facing state changes.
 
 Status note: this is a product behavior target and maintenance matrix, not a claim that every row is fully implemented today. Verify current code before marking a behavior as done.
@@ -63,6 +102,40 @@ Null/absent `textItems` preserves legacy behavior. See
 
 If a final starts with a single theme, the elimination deadline advances
 straight to bidding and keeps the theme available.
+
+## Secret preamble and award
+
+Secret data carries an explicit optional step (`transfer` or `price`), actor and
+accepted recipient. Absent fields retain legacy OQ behavior. The existing
+transfer and price actions remain queued through GameActionExecutor and use
+secretTransferMs; timeout chooses the lowest admissible price. Large ranges use
+a native number input with min/max/step rather than enumerating buttons.
+
+| Secret rule | Sequence |
+|---|---|
+| Normal | Transfer → announce → receiver price if needed → content |
+| Public price | Announce → transfer → receiver price if needed → content |
+| Historical opener price | Announce → opener price → transfer → content |
+| Award | Transfer → reveal/resolve price → score-only award → existing reveal/round completion |
+
+Only announced amount/bounds enter public state. The package's secretRules,
+private round-extrema snapshot and unresolved price are omitted. Before an
+accepted transfer, award has exactly the same public name, Badge, CTA and
+payload shape as an ordinary secret; outcome is absent. After transfer and
+resolution, typed `secret-question-awarded` supplies recipient, amount, applied
+clamped change and new score. It creates no answer-submitted payload, fake right
+answer or answer counters. Current score statistics update through a declared
+mutation. Saved award state restores the result on reconnect without applying
+it again, and the normal reveal timer completes the round. On timeout with no
+eligible recipient, a question shows its personalized content at the resolved or
+lowest admissible price. An award with no eligible recipient advances without
+scoring, including when it was the last cell.
+
+Nominal `price` remains the board value. Fixed or selected actual amounts use
+`realPrice`, only in this live game for dynamic selections. A dynamic secret
+cannot enter content/scoring before resolution. Pause/reconnect retain the
+current step, actor, timer and already-announced values. Source theme changes
+are deliberately ignored; the cell's theme stays unchanged.
 
 ## Required frontend behavior
 
@@ -277,8 +350,15 @@ When changing gameplay state, make sure:
   number / point goes to the showman. In "everyone answers" questions these
   answers are ruled when the review starts. Final points are judged manually;
   only the showman receives the private target, including after rejoin.
+  A valid point target receives the existing `SHOWING_ANSWER` window after the final
+  ruling, even without answer files; reconnect during that window restores its image,
+  target and source metric before the game finishes. Final points remain manually judged.
   `pointImageOrder` selects the image; absent/null selects the first ordered image.
-  With `answerPoint.imageAspectRatio`, distance is `hypot(dx, dy / aspect)`;
+  Imported `answerPoint.sourceGeometry` uses `hypot(sourceAspect * dx, dy)` with
+  minimum deviation .02 (source aspect 1 for old SIQ x,y); its displayed region has
+  normalized semiaxes `deviation/sourceAspect` and `deviation`. Measured image aspect
+  never changes this metric. Native OQ checking and radius defaults stay unchanged.
+  With `answerPoint.imageAspectRatio` and no source metric, distance is `hypot(dx, dy / aspect)`;
   zero radius compares coordinates at three-decimal wire precision. Legacy
   metadata-free points keep their original distance calculation until republished.
   The browser preserves the image frame through input and marks submitted points
@@ -292,10 +372,27 @@ When changing gameplay state, make sure:
   local display window when the completion timestamp is unavailable.
   Reveal data retains the target image for rejoin; a local selection may be lost.
   Private coordinates/radius are not exposed before reveal.
-- **Showman instruction:** the web UI places `questionComment` before question
-  content for the showman, including final answer and review phases, and omits
-  it from public answer reveal. This UI visibility does not make the field
-  secret in the current protocol.
+- **Showman instruction:** `showmanComments` is private before reveal, with legacy
+  OQ `questionComment` retained as the showman UI fallback. Neither is sent in
+  public question/board projections or public reveal. SIQ `info/comments` uses
+  separate `answerExplanation`, shown only after the answer.
+- **Authored text and speech:** question/answer text occurrences share their
+  phase's file order space. Duration and wait flags use the existing content
+  clock. Empty timed screen text clears the screen; a replic-only step keeps the
+  previous screen. Replic text is delivered only to the showman, including during
+  answer reveal and reconnect. Players see a localized showman-reading cue.
+  Checking answers and future answer content are separate and remain hidden.
+- **Authored answer window:** `answerDurationMs` overrides the pressing window
+  after presentation, a designated answerer's window, or the shared all-play/final
+  window. Missing/null/0 uses room settings. Buzzing still starts the room's
+  `answerSubmitMs` timer. Readiness and presentation consume none of this answer
+  window. The direct, all-play and final inputs open only after the timer's start
+  lead and the stored presentation plan, even when false starts are disabled.
+  Plain legacy captions with no plan add no presentation gate. Pause/reconnect
+  retain the authoritative elapsed/remaining timer. Stake/secret media uses the
+  existing readiness barrier before direct answering;
+  a text-only direct question begins without a media ACK. Final text-only answer
+  timelines/explanations enter reveal before game completion.
 - **Secret, customPrice:** after the transfer, the receiver picks the price
   from `allowedPrices` (`secret-question-price`, 30 s; on timeout the lowest
   price). The question is then shown and answered at that price. On the web, the
@@ -315,15 +412,29 @@ When changing gameplay state, make sure:
   Delayed timer expiration notifications cannot end a newer active timer.
   Give up remains available for point-on-image answers. The regular Pass action
   is not offered before a single-answerer question enters ANSWERING.
-- **Everyone answers** (stake or no-risk with `subType: forEveryone`,
+- **Everyone answers** (simple, legacy choice, stake or no-risk with `subType: forEveryone`,
   `gameState.allPlay`): no buzzer. Stake mode starts with hidden stakes from
   every player (`all-play-stake`, 30 s, at most the player's score or the
   price, capped by `maxPrice`; missing stakes become the price). The question
   then preloads and shows; every player types an answer (`all-play-answer`,
   45 s after the content). The showman rules on each answer in REVIEWING
   (`all-play-review`); a missing answer is wrong. Stake: right +stake, wrong
-  −stake. No-risk: right +price × multiplier, wrong ±0. Answers and stakes
+  −stake. Simple/legacy choice: right +actual price, wrong or missing −actual price
+  for `wrongAnswerPenalty=subtract`, otherwise 0; there is no bidding phase.
+  Actual price and penalty are snapshotted at question start, so later room setting
+  changes affect subsequent questions. No-risk: right +actual price × multiplier, wrong ±0. Answers and stakes
   stay hidden from players until the review.
+- **Nominal and actual price:** `price` is always the board nominal. Optional
+  `realPrice` is the actual base; null/missing falls back to `price`, while zero
+  stays zero. Scoring, give-up, timeout, review and preview use the actual base;
+  winning/personal stakes take precedence. Secret price choice writes only the
+  live question `realPrice`, preserving package/cache/DB and the board. A secret
+  actual price is absent from public pre-transfer views and disclosed with the
+  question after transfer/price selection; reconnect keeps the resolved amount.
+  Legacy fallback with fewer than two players and transfer timeouts resolve
+  the lowest offered custom price on a live copy before content/answering.
+  Empty or invalid offered lists fail rather than scoring the nominal.
+  SIQ secretRules/announcement variants remain separate roadmap work.
 
 ## Showman tools
 
@@ -358,6 +469,10 @@ Update the backend and browser assets together; older browser tabs need a reload
 
 The first accepted bid is immutable, including after reconnect. Until review starts, players, showmen, and spectators see submission readiness through `submittedBidPlayerIds`; only the owner sees the amount in `bids`. This also applies during media preparation and pauses. At review, `final-submit-end` reveals all bids and settles recorded automatic losses exactly once. A score change before review must not reveal a bid.
 
+Question and script updates send the public projection to room sockets whose
+session cannot be verified for that game. A verified showman receives the
+answer key for the current question when its phase allows it.
+
 ## Common disabled reason categories
 
 Use consistent categories in UI copy and server/client logic:
@@ -386,3 +501,28 @@ Update this spec when:
 - changing game-finished summary behavior
 
 Do not update this matrix for purely internal refactors that do not affect visible state.
+
+### Independent select input
+
+`answerFormat` treats legacy choice as select and otherwise reads answerType.
+The input does not change a question's mechanics, auction, transfer or scoring.
+Select uses the same option controls for sequential, all-play and final answers;
+all-play/final commands carry optional choiceOrder alongside the display answer.
+The server validates integer membership, unique orders and canonical display
+payload before storing a selection. New select requires explicit identity.
+The first accepted all-play/final submission remains immutable. Wrong sequential
+choices stay blocked for that question; all-play players may choose the same
+wrong option independently. All-play auto-check uses stored option identity;
+final review remains manual. Before review, role-filtered snapshots hide other
+answers and choiceOrder as well as bids. Correct keys stay private until reveal.
+After the last final ruling a keyed select option gets a timed public reveal even
+when the question has no authored answerFiles. correctChoice carries its text,
+source label and media on the reveal event/snapshot only.
+
+Options wait for their content/showDelay and readiness. Option audio/video has
+local playback controls; playing/previewing media never submits the choice.
+Pause/offline/pending/accepted guards keep controls mounted, and a rejected send
+remains manually retryable. Direct special questions preload option resources
+locally before enabling their input; standard/final preparation includes option
+media in the existing readiness flow. This does not add option media to the
+authored timeline or change its 10/30 limits.

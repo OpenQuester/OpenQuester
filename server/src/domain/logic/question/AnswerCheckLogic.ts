@@ -1,5 +1,5 @@
+import { answerFormat } from "domain/logic/question/answerFormat";
 import { AnswerType } from "domain/enums/package/AnswerType";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ChoiceAnswerLogic } from "domain/logic/question/ChoiceAnswerLogic";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 
@@ -13,14 +13,15 @@ export const DEFAULT_POINT_DEVIATION = 0.05;
 export class AnswerCheckLogic {
   public static check(
     question: PackageQuestionDTO | null | undefined,
-    answer: string | null
+    answer: string | null,
+    choiceOrder: number | null = null
   ): boolean | null {
     if (!question || !answer?.trim()) {
       return null;
     }
 
-    if (question.type === PackageQuestionType.CHOICE) {
-      return ChoiceAnswerLogic.check(question, answer);
+    if (answerFormat(question) === AnswerType.SELECT) {
+      return ChoiceAnswerLogic.check(question, answer, choiceOrder, choiceOrder !== null);
     }
 
     switch (question.answerType) {
@@ -75,8 +76,16 @@ export class AnswerCheckLogic {
       return null;
     }
 
-    const radius = question.answerDeviation ?? DEFAULT_POINT_DEVIATION;
+    if (right.sourceGeometry) {
+      const { kind, aspectRatio } = right.sourceGeometry;
+      if (kind !== "sigame" || !Number.isFinite(aspectRatio) || aspectRatio <= 0) {
+        return null;
+      }
+      const radius = Math.max(0.02, question.answerDeviation ?? 0);
+      return Math.hypot((point.x - right.x) * aspectRatio, point.y - right.y) <= radius;
+    }
 
+    const radius = question.answerDeviation ?? DEFAULT_POINT_DEVIATION;
     const aspect = right.imageAspectRatio;
     if (aspect === undefined) return Math.hypot(point.x - right.x, point.y - right.y) <= radius;
     if (!Number.isFinite(aspect) || aspect <= 0) return null;

@@ -1,3 +1,6 @@
+import { resolveSecretFallbackPrice } from "domain/logic/question/secretQuestionPrices";
+import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
+import { questionMediaFiles } from "domain/logic/question/questionMediaFiles";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
@@ -57,6 +60,10 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
         return false;
       }
 
+      if (question.type === PackageQuestionType.SECRET && question.secretRules) {
+        return false;
+      }
+
       // Fallback when fewer than two eligible players remain
       return !TransitionGuards.hasMultipleEligiblePlayers(game);
     } catch {
@@ -72,6 +79,7 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     const { game, payload } = ctx;
     const { question, theme } = QuestionPickLogic.validateQuestionPick(game, payload!.questionData);
 
+    const resolvedQuestion = resolveSecretFallbackPrice(question);
     const eligiblePlayers = game
       .getInGamePlayers()
       .filter((player) => player.role === PlayerRole.PLAYER);
@@ -81,7 +89,9 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
 
     if (eligiblePlayers.length === 1) {
       // Single player: auto-assign answering player and skip transfer flow
-      questionState = QuestionState.ANSWERING;
+      questionState = questionMediaFiles(question).length
+        ? QuestionState.MEDIA_DOWNLOADING
+        : QuestionState.ANSWERING;
       game.gameState.answeringPlayer = eligiblePlayers[0].meta.id;
       game.gameState.submittedAnswer = null;
       game.gameState.submittedChoiceOrder = null;
@@ -92,7 +102,7 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     game.gameState.secretQuestionData = null;
     game.gameState.stakeQuestionData = null;
     game.setQuestionState(questionState);
-    game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(question);
+    game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(resolvedQuestion, true);
 
     QuestionPickLogic.markQuestionPlayed(game, question.id!, theme.id!);
     QuestionPickLogic.resetMediaDownloadStatus(game);
@@ -109,7 +119,10 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    const durationMs = QuestionContentPlanLogic.questionTimerDuration(game);
+    const durationMs =
+      game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING
+        ? MEDIA_DOWNLOAD_TIMEOUT
+        : QuestionContentPlanLogic.questionTimerDuration(game);
     const timer = new GameStateTimer(durationMs);
     game.gameState.timer = timer.start();
 

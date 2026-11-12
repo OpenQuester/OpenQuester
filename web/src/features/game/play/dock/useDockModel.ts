@@ -3,8 +3,7 @@ import { type GameSession } from "@/game/reducer";
 import { useGameState } from "@/features/game/GameContext";
 import { useSecretTarget } from "../useSecretTarget";
 import { useBuzzer } from "../useBuzzer";
-import { useFinalContent } from "../useFinalContent";
-import { usePointImageReady } from "../question/useQuestionStage";
+import { useAnswerWindowReady, usePointImageReady } from "../question/useQuestionStage";
 import { type ActionDockModel, type ActionDockContext } from "./actionDockModel";
 import { choosingModel, mediaModel, finishedModel } from "./roundModels";
 import { showingModel, answeringModel, revealModel } from "./questionModels";
@@ -24,8 +23,8 @@ export function useDockModel(session: GameSession, myId: number): ActionDockMode
   const [secretTarget] = useSecretTarget();
   const buzzer = useBuzzer(session, myId);
   const phase = phaseOf(session);
-  const finalContent = useFinalContent(session, phase === "final_answering");
   const pointImageReady = usePointImageReady(session);
+  const answerWindowReady = useAnswerWindowReady(session);
   const role = myRole(session, myId);
   const name = (id: number | null | undefined) =>
     findPlayer(session, id)?.meta.username ?? t("chips.someone");
@@ -44,9 +43,31 @@ export function useDockModel(session: GameSession, myId: number): ActionDockMode
     sending,
     reason,
     buzzer,
-    finalContentPlaying: phase === "final_answering" && finalContent.playing,
     pointImageReady,
   };
+  const script = session.state.scriptView;
+  if (script?.waitingFor === "content")
+    return {
+      status: t("script.content"),
+      next: t("script.next"),
+      action:
+        role === "showman" && phase !== "media"
+          ? { kind: "continue", pending: sending("skip-show-answer") }
+          : { kind: "info", text: t("script.waitContent") },
+    };
+  if (script?.waitingFor === "price")
+    return {
+      status: t("script.choosePrice"),
+      next: t("script.next"),
+      action: { kind: "info", text: t("script.waitPrice") },
+    };
+  if (!answerWindowReady) {
+    return {
+      status: t("dock.final.contentPlaying"),
+      action: { kind: "info", text: t("dock.final.contentWait") },
+      next: t("dock.final.contentNext"),
+    };
+  }
   switch (phase) {
     case "choosing":
       return choosingModel(ctx);

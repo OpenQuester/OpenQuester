@@ -18,7 +18,7 @@ import { flattenErrorMessages, getRejectedError } from "tests/e2e/harness/TestPr
 let mockCreatedHttpServer: http.Server | undefined;
 
 jest.mock("http", () => {
-  const actualHttp = jest.requireActual<typeof import("http")>("http");
+  const actualHttp = jest.requireActual<typeof http>("http");
 
   return {
     ...actualHttp,

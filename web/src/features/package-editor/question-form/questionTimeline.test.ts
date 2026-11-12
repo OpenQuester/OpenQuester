@@ -8,7 +8,14 @@ import {
   toUpload,
   toUploadQuestion,
 } from "../packageDraft";
-import { questionSteps, syncQuestionFiles, withQuestionSteps } from "./questionTimeline";
+import {
+  answerSteps,
+  questionSteps,
+  syncAnswerFiles,
+  syncQuestionFiles,
+  withAnswerSteps,
+  withQuestionSteps,
+} from "./questionTimeline";
 import { checkQuestion } from "../validatePackage";
 import { parseOq } from "@/features/upload/oq";
 import { md5Hex } from "@/features/upload/archive";
@@ -33,6 +40,25 @@ const text = (id: string, value: string) => ({
 });
 
 describe("ordered question steps", () => {
+  it("restores answer media between its authored text neighbours on undo", () => {
+    const base = withAnswerSteps(newQuestion(100, { text: "Question" }), [
+      text("a", "Before"),
+      { kind: "media", file: image },
+      text("b", "After"),
+      { kind: "media", file: audio },
+    ]);
+    const removed = syncAnswerFiles(base, { ...base, answerFiles: [audio] });
+    const restored = syncAnswerFiles(
+      removed,
+      { ...removed, answerFiles: [image, audio] },
+      answerSteps(base),
+    );
+    expect(answerSteps(restored)).toEqual(answerSteps(base));
+    expect(toUploadQuestion(restored, 0, false).answerTextItems).toEqual([
+      { order: 0, text: "Before" },
+      { order: 2, text: "After" },
+    ]);
+  });
   it("serializes, imports and restores mixed text and media with the selected point image", () => {
     const question = newQuestion(100, {
       text: "First",

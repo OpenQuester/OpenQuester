@@ -1,3 +1,5 @@
+import { answerFormat } from "@/game/answerFormat";
+import { AnswerChoices } from "./question/AnswerChoices";
 import { layoutStyles } from "@/ui/layoutStyles";
 import { QuestionTypeBadge } from "./question/QuestionTypeBadge";
 import type { FinalAnswer, Question } from "@/game/protocol";
@@ -18,7 +20,7 @@ import {
 import { formatScore, formatSigned } from "@/lib/format";
 
 import { useGame, useSession } from "../GameContext";
-import { AnswerReviewActions, ReviewedCorrectAnswer } from "./stages/AnswerReview";
+import { AnswerReviewActions, ReviewedAnswer } from "./stages/AnswerReview";
 import { stageStyles } from "./stages/stageStyles";
 import { StagePages } from "./stages/StagePages";
 import { PlayerName } from "./PlayerName";
@@ -162,12 +164,17 @@ export function FinalAnswerStage() {
         myId={myId}
         legacy={legacy}
       />
+      {q && answerFormat(q) === "select" && (
+        <AnswerChoices key={`${q.id}:${myId}`} question={q} />
+      )}
       {session.state.finalRoundData?.questionData?.mediaPreparationTimedOut && (
         <p role="alert" className="m-0 text-center text-sm text-accent-strong">
           {t("final.mediaTimedOut")}
         </p>
       )}
-      {myRole(session, myId) === "showman" && <ShowmanInstruction comment={q?.questionComment} />}
+      {myRole(session, myId) === "showman" && (
+        <ShowmanInstruction comment={q?.showmanComments ?? q?.questionComment} />
+      )}
     </section>
   );
 }
@@ -257,11 +264,15 @@ export function FinalReviewStage() {
     <section className={stageStyles.reviewLayout}>
       <div className={stageStyles.questionColumn}>
         <ThemeLine />
-        {isShowman && <ShowmanInstruction comment={q?.questionComment} />}
+        {isShowman && <ShowmanInstruction comment={q?.showmanComments ?? q?.questionComment} />}
         <p className={stageStyles.reviewQuestion}>{q?.text}</p>
-        {(reveal || (isShowman && q?.answerText)) && (
-          <ReviewedCorrectAnswer answer={reveal ?? q?.answerText} />
-        )}
+        <ReviewedAnswer
+          kind="key"
+          answer={reveal ?? (isShowman ? q?.answerText : null)}
+          question={isShowman ? q : null}
+          choiceOrder={q?.correctChoiceOrder}
+          paused={s.isPaused}
+        />
       </div>
       <ul className={stageStyles.answerList} aria-label={t("final.answers")}>
         {(final?.answers ?? []).map((a) => (
@@ -304,9 +315,12 @@ function FinalReviewAnswer({
           <PlayerName>{p?.meta.username}</PlayerName> · {t("final.bid")}{" "}
           <b className="font-mono text-text">{formatScore(bid)}</b>
         </span>
-        <span className="text-lg [overflow-wrap:anywhere]">
-          {answer.answer ? `“${answer.answer}”` : t("final.noAnswer")}
-        </span>
+        <ReviewedAnswer
+          answer={answer.answer ? `“${answer.answer}”` : t("final.noAnswer")}
+          question={question}
+          choiceOrder={answer.choiceOrder}
+          paused={session.state.isPaused}
+        />
         {pointReview && (
           <PointPicker
             src={picture}

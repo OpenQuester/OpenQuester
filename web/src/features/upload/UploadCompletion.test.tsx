@@ -17,9 +17,9 @@ import {
   PackageEditorContext,
 } from "@/features/package-editor/packageEditorStore";
 import { validatePackage } from "@/features/package-editor/validatePackage";
-import type { MediaFile, ParsedPackage } from "./types";
+import type { ImportWarning, MediaFile, ParsedPackage } from "./types";
 import type * as Upload from "./upload";
-import { uploadPackage } from "./upload";
+import { resumeFromFile, uploadPackage } from "./upload";
 import { UploadPackagePage } from "./UploadPackagePage";
 import { draftFromParsed } from "@/features/package-editor/createDraft";
 import { optimizePackage } from "./optimize/index";
@@ -127,21 +127,51 @@ it("keeps an imported package review retryable when creating a local draft fails
   client.clear();
 });
 
-it("requires repair in the editor before uploading an unresolved choice", async () => {
+it.each([
+  ["choiceCorrectUnresolved", "choice"],
+  ["siqCompatibility", "script"],
+  ["contentNeedsRepair", "content"],
+  ["pointInvalid", "point coordinates"],
+  ["pointTargetMissing", "point image"],
+  [undefined, "point fields"],
+] as const)("requires repair for %s (%s) before upload or resume", async (code, feature) => {
   const pkg = emptyPackage("Needs repair");
-  pkg.rounds = [
-    { ...newRound("Round"), themes: [newTheme("Theme", [newQuestion(100, { text: "Q" })])] },
-  ];
-  readFile.mockResolvedValue({
+  const criticalIssue: ImportWarning[] =
+    code === "siqCompatibility" || code === "contentNeedsRepair"
+      ? [{ code, feature, severity: "critical", resolution: "needsRepair", where: "Round › Theme" }]
+      : [];
+  const question = newQuestion(100, { text: "Q", compatibilityIssues: criticalIssue });
+  if (feature === "point fields") {
+    question.answerType = "point";
+    question.answerPoint = { x: 0.5, y: 0.5 };
+  }
+  pkg.rounds = [{ ...newRound("Round"), themes: [newTheme("Theme", [question])] }];
+  const parsed: ParsedPackage = {
     format: "oq",
     content: toUpload(pkg),
     files: new Map(),
-    warnings: [{ code: "choiceCorrectUnresolved", where: "Round › Theme" }],
-  });
-  fetchMock.mockResolvedValue(
-    new Response(JSON.stringify({ data: [], pageInfo: { total: 0 } }), {
-      headers: { "content-type": "application/json" },
-    }),
+    warnings: criticalIssue.length ? criticalIssue : code ? [{ code, where: "Round › Theme" }] : [],
+  };
+
+  readFile.mockResolvedValue(parsed);
+  vi.mocked(draftFromParsed).mockResolvedValue("repair-draft");
+  fetchMock.mockImplementation(
+    async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: 7,
+              title: "Earlier upload",
+              createdAt: "2026-11-10",
+              author: { id: 1, username: "Author" },
+              uploadStatus: "uploading",
+            },
+          ],
+          pageInfo: { total: 1 },
+        }),
+        { headers: { "content-type": "application/json" } },
+      ),
   );
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -153,13 +183,24 @@ it("requires repair in the editor before uploading an unresolved choice", async 
       <UploadPackagePage />
     </QueryClientProvider>,
   );
-  await userEvent.upload(
+  const user = userEvent.setup();
+  await user.upload(
     view.container.querySelector<HTMLInputElement>("input[type=file]")!,
     new File(["archive"], "repair.oq"),
   );
-  expect(await screen.findByText(/correct option needs repair/i)).toBeVisible();
+  expect(await screen.findByTestId("upload-warnings")).toHaveTextContent(/before publishing/i);
+  expect(screen.getByTestId("upload-warnings")).not.toHaveTextContent("The package still uploads");
   expect(screen.getByRole("button", { name: /^upload/i })).toBeDisabled();
-  expect(screen.getByTestId("upload-edit")).toBeEnabled();
+  expect(await screen.findByRole("button", { name: "Finish this upload" })).toBeDisabled();
+  await user.click(screen.getByTestId("upload-edit"));
+  expect(draftFromParsed).toHaveBeenCalledWith(parsed);
+
+  fetchMock.mockClear();
+  const progress = vi.fn();
+  await expect(uploadPackage(parsed, progress)).rejects.toThrow("compatibilityNeedsRepair");
+  await expect(resumeFromFile(7, parsed, progress)).rejects.toThrow("compatibilityNeedsRepair");
+  expect(progress).not.toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
   client.clear();
 });
 
@@ -185,7 +226,10 @@ it.each([
       format: "oq",
       content: toUpload(pkg),
       files: new Map(),
-      warnings: [{ code: "missingFile", where: "", detail: md5 }],
+      warnings: [
+        { code: "missingFile", where: "", detail: md5 },
+        { code: "htmlQuestionRemoved", where: "Round › Theme › 200" },
+      ],
     };
     readFile.mockResolvedValue(parsed);
     fetchMock.mockImplementation(async (input) => {
@@ -256,7 +300,9 @@ it.each([
         container.querySelector<HTMLInputElement>("input[type=file]")!,
         new File(["archive"], "quiz.oq"),
       );
-      await user.click(await screen.findByRole("button", { name: "Upload package" }));
+      const upload = await screen.findByRole("button", { name: "Upload package" });
+      expect(upload).toBeEnabled();
+      await user.click(upload);
       await screen.findByTestId(ready ? "upload-done" : "upload-partial");
     } else {
       await user.click(screen.getByTestId("publish-confirm"));

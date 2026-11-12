@@ -10,6 +10,8 @@ export interface StakeQuestionPickedBroadcastData {
   questionId: number;
   /** Maximum bid allowed for this question (null means no limit) */
   maxPrice: number | null;
+  /** Actual base price disclosed for bidding; absent on legacy snapshots. */
+  questionPrice?: number | null;
   /** Player order for sequential bidding */
   biddingOrder: number[];
   /** Timer for the bidding phase (30 seconds per bid) */

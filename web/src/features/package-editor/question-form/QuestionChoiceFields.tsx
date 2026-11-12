@@ -28,10 +28,12 @@ export function QuestionChoiceFields({
           <div key={o.id} className={questionFormStyles.choice}>
             <div className="flex items-center gap-2">
               <span className="w-5 text-center font-semibold text-muted">
-                {String.fromCharCode(65 + i)}
+                {o.sourceLabel ?? (i < 26 ? String.fromCharCode(65 + i) : String(i + 1))}
               </span>
               <TextInput
-                aria-label={t("editor.form.option", { letter: String.fromCharCode(65 + i) })}
+                aria-label={t("editor.form.option", {
+                  letter: o.sourceLabel ?? (i < 26 ? String.fromCharCode(65 + i) : String(i + 1)),
+                })}
                 value={o.text}
                 onChange={(e) => set(editChoiceText(q, o.id, e.target.value))}
                 className={isCorrect ? "border-success-line" : undefined}
@@ -54,7 +56,9 @@ export function QuestionChoiceFields({
               </label>
               <button
                 type="button"
-                aria-label={t("editor.form.removeOption", { letter: String.fromCharCode(65 + i) })}
+                aria-label={t("editor.form.removeOption", {
+                  letter: o.sourceLabel ?? (i < 26 ? String.fromCharCode(65 + i) : String(i + 1)),
+                })}
                 onClick={() =>
                   set({
                     options: q.options.filter((x) => x.id !== o.id),
@@ -73,14 +77,17 @@ export function QuestionChoiceFields({
             </div>
             <SingleMediaField
               managedUndo
-              label={t("mediaEditor.choiceImage", { letter: String.fromCharCode(65 + i) })}
+              allowMedia
+              label={t("mediaEditor.choiceImage", {
+                letter: o.sourceLabel ?? (i < 26 ? String.fromCharCode(65 + i) : String(i + 1)),
+              })}
               value={o.file}
               onChange={(file) => applyMedia(changeChoiceMedia(o.id, file))}
             />
           </div>
         );
       })}
-      {q.options.length < 8 && (
+      {
         <Button
           id="qf-add-option"
           size="sm"
@@ -90,7 +97,7 @@ export function QuestionChoiceFields({
         >
           {t("editor.form.addOption")}
         </Button>
-      )}
+      }
     </fieldset>
   );
 }

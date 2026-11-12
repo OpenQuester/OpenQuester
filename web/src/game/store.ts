@@ -279,6 +279,7 @@ function resolvesPending(
   after: GameSession,
 ): boolean {
   if (!pending) return false;
+  if (event.type === "question-script-state") return true;
   if (pending.action === "user-leave") {
     return event.type === "user-leave" && event.payload.user === pending.playerId;
   }

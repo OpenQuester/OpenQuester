@@ -1,3 +1,5 @@
+import { AddQuestionRealPrice_0_34_0_1794418572611 } from "infrastructure/database/migrations/0.34.0_AddQuestionRealPrice_1794418572611";
+import { AddOptionSourceLabel_0_34_2_1794418572613 } from "infrastructure/database/migrations/0.34.2_AddOptionSourceLabel_1794418572613";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageQuestion } from "infrastructure/database/models/package/PackageQuestion";
 import { AddMediaPlaybackSetting_0_33_0_1793300000000 } from "infrastructure/database/migrations/0.33.0_AddMediaPlaybackSetting_1793300000000";
@@ -7,6 +9,7 @@ import { Permissions } from "domain/enums/Permissions";
 import { ContentPlacement } from "domain/enums/package/ContentPlacement";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { AnswerCheckLogic } from "domain/logic/question/AnswerCheckLogic";
 import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PackageUploadResponse } from "domain/types/package/PackageUploadResponse";
@@ -187,6 +190,94 @@ describe("PackageRestApiController", () => {
     expect(result.ageRestriction).toBe(packageData.ageRestriction);
   });
 
+  it("round-trips 30 select options with source labels through stake create, read and replacement", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser("select-author");
+    const content = packageUtils.createTestPackageData(user, false);
+    const selected = content.rounds[0].themes
+      .flatMap((theme) => theme.questions)
+      .find((q) => q.type === PackageQuestionType.STAKE)!;
+    selected.answerType = AnswerType.SELECT;
+    selected.showDelay = 0;
+    selected.correctChoiceOrder = 29;
+    selected.selectSource = { rightLabels: ["L29", "L0"] };
+    selected.rightAnswers = null;
+    selected.answers = Array.from({ length: 30 }, (_, order) => ({
+      order,
+      sourceLabel: `L${order}`,
+      text: "Same",
+      file: null
+    }));
+    const created = await http.post("/v1/packages").set("Cookie", cookie).send({ content });
+    expect(created.status).toBe(200);
+    const id = created.body.id;
+    const load = async () => {
+      const response = await http.get(`/v1/packages/${id}`).set("Cookie", cookie).expect(200);
+      return (response.body as PackageDTO).rounds
+        .flatMap((round) => round.themes)
+        .flatMap((theme) => theme.questions)
+        .find((q) => q.type === PackageQuestionType.STAKE)!;
+    };
+    const published = await load();
+    expect(published).toMatchObject({
+      type: PackageQuestionType.STAKE,
+      answerType: AnswerType.SELECT,
+      correctChoiceOrder: 29,
+      rightAnswers: null
+    });
+    expect(published.answers?.slice().sort((a, b) => a.order - b.order)).toMatchObject(
+      selected.answers
+    );
+    expect(published.selectSource).toEqual({ rightLabels: ["L29", "L0"] });
+    expect(AnswerCheckLogic.check(published, "Same", 29)).toBe(true);
+    expect(AnswerCheckLogic.check(published, "Same", 0)).toBe(false);
+    for (const selectSource of [
+      { rightLabels: ["L29", "unknown"] },
+      { rightLabels: ["L29", "L29"] },
+      { rightLabels: ["L29"], unresolvedOptions: [] }
+    ]) {
+      selected.selectSource = selectSource;
+      await http.put(`/v1/packages/${id}`).set("Cookie", cookie).send({ content }).expect(400);
+    }
+    const runner = dataSource.createQueryRunner();
+    const migration = new AddOptionSourceLabel_0_34_2_1794418572613();
+    await runner.startTransaction();
+    try {
+      await migration.down(runner);
+      expect(await runner.hasColumn("package_question_choice_answer", "source_label")).toBe(false);
+      expect(await runner.hasColumn("package_question", "select_source_right_labels")).toBe(false);
+      await migration.up(runner);
+      expect(
+        (await runner.getTable("package_question_choice_answer"))!.findColumnByName("source_label")!
+          .isNullable
+      ).toBe(true);
+      expect(
+        (await runner.getTable("package_question"))!.findColumnByName("select_source_right_labels")
+      ).toMatchObject({ isNullable: true, isArray: true });
+      await runner.commitTransaction();
+    } finally {
+      if (runner.isTransactionActive) await runner.rollbackTransaction();
+      await runner.release();
+    }
+    const migrated = await load();
+    expect(migrated.answers!.every((option) => option.sourceLabel === undefined)).toBe(true);
+    expect(migrated).not.toHaveProperty("selectSource");
+    selected.correctChoiceOrder = 0;
+    selected.answers![0].sourceLabel = "first";
+    selected.selectSource = { rightLabels: ["first", "L29"] };
+    await http.put(`/v1/packages/${id}`).set("Cookie", cookie).send({ content }).expect(200);
+    const replaced = await load();
+    expect(replaced.answers).toHaveLength(30);
+    expect(replaced).toMatchObject({ answerType: AnswerType.SELECT, correctChoiceOrder: 0 });
+    expect(replaced.answers!.find((option) => option.order === 0)).toMatchObject({
+      order: 0,
+      sourceLabel: "first"
+    });
+    expect(replaced.selectSource).toEqual({ rightLabels: ["first", "L29"] });
+    expect(replaced.rightAnswers).toBeNull();
+    expect(AnswerCheckLogic.check(replaced, "Same", 0)).toBe(true);
+    expect(AnswerCheckLogic.check(replaced, "Same", 29)).toBe(false);
+  });
+
   it("round-trips an optional correct choice key through create, read and replace", async () => {
     const { user, cookie } = await testUtils.createAndLoginUser("choice_key");
     const content = packageUtils.createTestPackageData(user, false);
@@ -258,7 +349,12 @@ describe("PackageRestApiController", () => {
     const content = packageUtils.createTestPackageData(user, false);
     const question = content.rounds[0].themes[0].questions[0];
     question.answerType = AnswerType.POINT;
-    question.answerPoint = { x: 0.2, y: 0.4, imageAspectRatio: 1.5 };
+    question.answerPoint = {
+      x: 0.2,
+      y: 0.4,
+      imageAspectRatio: 1.5,
+      sourceGeometry: { kind: "sigame", aspectRatio: 1 }
+    };
     question.text = "Main";
     question.textOrder = 0;
     question.questionFiles = [
@@ -383,6 +479,39 @@ describe("PackageRestApiController", () => {
       })
       .expect(400);
     expect(game.body.error).toContain("31 steps, maximum 30");
+  });
+
+  it("migrates nullable actual price and preserves nominal through create, read and replacement", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser("actual_price");
+    const content = packageUtils.createTestPackageData(user, false);
+    const question = content.rounds[0].themes[0].questions[0];
+    question.price = 100;
+    const created = await http
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content })
+      .expect(200);
+    const url = `/v1/packages/${created.body.id}`;
+    const runner = dataSource.createQueryRunner();
+    const migration = new AddQuestionRealPrice_0_34_0_1794418572611();
+    try {
+      await migration.down(runner);
+      await migration.up(runner);
+    } finally {
+      await runner.release();
+    }
+    const read = async () => {
+      const result = await http.get(url).set("Cookie", cookie).expect(200);
+      return (result.body as PackageDTO).rounds[0].themes[0].questions.find(
+        (q) => q.order === question.order
+      )!;
+    };
+    expect(await read()).toMatchObject({ price: 100, realPrice: null });
+    for (const realPrice of [500, 0, null]) {
+      question.realPrice = realPrice;
+      await http.put(url).set("Cookie", cookie).send({ content }).expect(200);
+      expect(await read()).toMatchObject({ price: 100, realPrice });
+    }
   });
 
   it("backfills the playback switch on migration and round-trips false through replacement", async () => {

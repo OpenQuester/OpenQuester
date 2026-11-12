@@ -1,3 +1,4 @@
+import { isAllowedSecretPrice } from "domain/logic/question/secretQuestionRules";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -37,24 +38,19 @@ export class SecretQuestionValidator {
       throw new ClientError(ClientResponse.SECRET_QUESTION_DATA_NOT_FOUND);
     }
 
-    if (!secretData.transferDecisionPhase) {
+    if (!secretData.transferDecisionPhase || (secretData.step && secretData.step !== "transfer")) {
       throw new ClientError(ClientResponse.CANNOT_TRANSFER_SECRET_QUESTION);
     }
 
-    const isShowmanOverride = currentPlayer.role === PlayerRole.SHOWMAN;
+    const isShowmanOverride = currentPlayer.role === PlayerRole.SHOWMAN && !currentPlayer.isBanned && !currentPlayer.isRestricted;
     const isPickerPlayer = secretData.pickerPlayerId === currentPlayer.meta.id;
 
     if (!isShowmanOverride && !isPickerPlayer) {
       throw new ClientError(ClientResponse.CANNOT_TRANSFER_SECRET_QUESTION);
     }
 
-    if (
-      !isShowmanOverride &&
-      !game.isPlayerEligibleToAnswer(currentPlayer.meta.id)
-    ) {
-      throw new ClientError(
-        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
-      );
+    if (!isShowmanOverride && !game.isPlayerEligibleToAnswer(currentPlayer.meta.id)) {
+      throw new ClientError(ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION);
     }
 
     if (targetPlayerId !== undefined) {
@@ -84,11 +80,18 @@ export class SecretQuestionValidator {
       throw new ClientError(ClientResponse.SECRET_QUESTION_DATA_NOT_FOUND);
     }
 
-    if (selection.playerId !== currentPlayer.meta.id) {
+    if (
+      currentPlayer.role !== PlayerRole.PLAYER ||
+      currentPlayer.isBanned ||
+      currentPlayer.isRestricted ||
+      (secretData?.step && secretData.step !== "price") ||
+      selection.playerId !== currentPlayer.meta.id ||
+      !game.isPlayerEligibleToAnswer(currentPlayer.meta.id)
+    ) {
       throw new ClientError(ClientResponse.CANNOT_PICK_SECRET_QUESTION_PRICE);
     }
 
-    if (!selection.allowedPrices.includes(price)) {
+    if (!isAllowedSecretPrice(selection, price)) {
       throw new ClientError(ClientResponse.INVALID_SECRET_QUESTION_PRICE);
     }
   }
@@ -99,17 +102,15 @@ export class SecretQuestionValidator {
     targetPlayerId: number
   ): void {
     const targetPlayer = game.getPlayer(targetPlayerId, {
-      fetchDisconnected: false,
+      fetchDisconnected: false
     });
 
     if (!targetPlayer || targetPlayer.role !== PlayerRole.PLAYER) {
       throw new ClientError(ClientResponse.INVALID_TRANSFER_TARGET);
     }
 
-    if (!game.isPlayerEligibleToAnswer(targetPlayerId)) {
-      throw new ClientError(
-        ClientResponse.TARGET_PLAYER_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
-      );
+    if (targetPlayer.isBanned || targetPlayer.isRestricted || !game.isPlayerEligibleToAnswer(targetPlayerId)) {
+      throw new ClientError(ClientResponse.TARGET_PLAYER_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION);
     }
 
     if (
