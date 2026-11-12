@@ -1,7 +1,8 @@
 import { answerFormat } from "@/game/answerFormat";
 import { readSecretRules } from "@/game/secretRules";
-import { hasMissingScriptPointImage } from "@/game/questionScript";
+import { scriptReferenceIssue } from "@/game/questionScript";
 import { questionLimitIssues } from "@/features/upload/contentLimits";
+import { invalidSelectSource } from "@/features/upload/siqCompatibility";
 import { draftPointImage, toUploadQuestion } from "./packageDraft";
 import { questionMedia, type DraftPackage, type DraftQuestion } from "./packageDraft";
 
@@ -245,7 +246,8 @@ export function checkQuestion(
     else if (q.price < 0 || q.price > MAX_PRICE) add("critical", "priceRange", { max: MAX_PRICE });
   } else if (q.type !== "simple" && !q.script) add("warning", "finalTypeIgnored");
   const upload = toUploadQuestion(q, 0, final);
-  if (hasMissingScriptPointImage(upload)) add("critical", "pointAnswerMissing");
+  const scriptIssue = scriptReferenceIssue(upload);
+  if (scriptIssue) add("critical", "scriptRepair", { detail: scriptIssue });
   for (const { phase, actual, max, step } of questionLimitIssues(upload)) {
     add("critical", step === undefined ? "contentStepLimit" : "contentFileLimit", {
       context: phase,
@@ -265,6 +267,7 @@ export function checkQuestion(
     if (q.options.length < 2) add("critical", "choiceOptions", { count: q.options.length });
     if (q.options.some((o) => !o.text.trim() && !o.file)) add("critical", "choiceEmptyOption");
     if (
+      invalidSelectSource(q.selectSource, q.options) ||
       (q.answerType === "select" && q.correctChoiceOptionId === undefined) ||
       q.correctChoiceOptionId === null ||
       (q.correctChoiceOptionId !== undefined &&

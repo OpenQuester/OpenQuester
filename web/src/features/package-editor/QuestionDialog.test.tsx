@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { md5Hex } from "@/features/upload/archive";
+import { validatePackage } from "./validatePackage";
 
 import {
   emptyPackage,
@@ -741,6 +742,28 @@ it("edits all accepted answers in one field and preserves them through save and 
   });
 });
 
+it("hides explicit select aliases without deleting them when saving", async () => {
+  const q = newQuestion(100, {
+    text: "Pick one",
+    answerType: "select",
+    rightAnswers: ["Stored alias"],
+    correctChoiceOptionId: "a",
+    options: [
+      { id: "a", text: "First", file: null },
+      { id: "b", text: "Second", file: null },
+    ],
+  });
+  const { store } = setup(q);
+  expect(screen.queryByLabelText(/Also accept/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.rightAnswers).toEqual([
+    "Stored alias",
+  ]);
+  expect(toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]!.rightAnswers).toEqual([
+    "Stored alias",
+  ]);
+});
+
 it("keeps alternative accepted answers when switching to choice and back", async () => {
   const { store } = setup(newQuestion(100, { answerText: "Kyiv", rightAnswers: ["Kiev"] }));
   await userEvent.click(screen.getByRole("button", { name: /^Choice/ }));
@@ -829,6 +852,39 @@ it("does not transfer the correct selection when its option is deleted", async (
   expect(screen.getByRole("radio", { name: "Correct" })).not.toBeChecked();
   await user.click(screen.getByTestId("question-save"));
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.correctChoiceOptionId).toBeNull();
+});
+
+it("requires explicit removal of invalid source rights before a select repair can publish", async () => {
+  const { store } = setup(
+    newQuestion(100, {
+      text: "Question",
+      answerType: "select",
+      correctChoiceOptionId: null,
+      options: [
+        { id: "b", sourceLabel: "B", text: "Other", file: null },
+        { id: "c", sourceLabel: "C", text: "Correct", file: null },
+      ],
+      selectSource: { rightLabels: ["C", "Z"] },
+      compatibilityIssues: [
+        {
+          code: "choiceCorrectUnresolved",
+          where: "source",
+          feature: "select",
+          severity: "critical",
+          resolution: "needsRepair",
+        },
+      ],
+    }),
+  );
+  const user = userEvent.setup();
+  expect(screen.getByText(/Source right labels.*C.*Z/)).toBeInTheDocument();
+  await user.click(screen.getAllByRole("radio", { name: "Correct" })[1]!);
+  expect(screen.getByText(/Source right labels.*C.*Z/)).toBeInTheDocument();
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  await user.click(screen.getByRole("button", { name: "Remove source right labels" }));
+  await user.click(screen.getByTestId("question-save"));
+  expect(validatePackage(store.getState().pkg, () => true).critical).toBe(0);
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.selectSource).toBeUndefined();
 });
 
 function setup(question: DraftQuestion, wide = false, final = false) {

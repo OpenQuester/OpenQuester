@@ -68,30 +68,15 @@ test("new question keeps main text first while additional text moves between med
   const timeline = form.getByTestId("question-media-fields");
   await expect(form.getByRole("region", { name: "Playback order" })).toHaveCount(0);
   await timeline.getByRole("button", { name: "Add text step" }).click();
-  const textarea = timeline.getByRole("textbox", { name: "Additional text 3" });
-  await textarea.fill("Second part");
-  await textarea.scrollIntoViewIfNeeded();
-  const originalBox = (await textarea.boundingBox())!;
-  await page.mouse.move(
-    originalBox.x + originalBox.width - 3,
-    originalBox.y + originalBox.height - 3,
-  );
-  await page.mouse.down();
-  await page.mouse.move(
-    originalBox.x + originalBox.width + 250,
-    originalBox.y + originalBox.height + 500,
-    { steps: 8 },
-  );
-  await page.mouse.up();
-  const resizedBox = (await textarea.boundingBox())!;
-  expect(resizedBox.height).toBeGreaterThan(originalBox.height);
-  expect(resizedBox.height).toBeLessThanOrEqual(240);
-  expect(resizedBox.width).toBeCloseTo(originalBox.width, 0);
+  await timeline.getByRole("textbox", { name: "Additional text 3" }).fill("Second part");
+  await timeline.scrollIntoViewIfNeeded();
   const zone = timeline.getByTestId("attachment-drop-zone");
   const textCard = timeline.getByTestId("text-step-card");
   const imageCard = timeline.getByTestId("attachment-card");
   await textCard.getByRole("button", { name: "Additional text 3" }).dragTo(imageCard, {
     targetPosition: { x: 3, y: 20 },
+    scroll: "none",
+    steps: 8,
   });
   await expect(timeline.getByRole("textbox", { name: "Additional text 2" })).toHaveValue(
     "Second part",
@@ -102,6 +87,8 @@ test("new question keeps main text first while additional text moves between med
   );
   await imageCard.getByRole("button", { name: "Drag file 1 to reorder" }).dragTo(textCard, {
     targetPosition: { x: 3, y: 20 },
+    scroll: "none",
+    steps: 8,
   });
   await expect(zone.locator('[data-testid$="-card"]').first()).toHaveAttribute(
     "data-testid",
@@ -168,6 +155,63 @@ test("new question keeps main text first while additional text moves between med
     .toEqual({ textOrder: 0, textItems: [{ order: 1, text: "Second part" }], imageOrder: 2 });
   await page.getByTestId("question-card").first().press("Control+Enter");
   await expect(form.getByRole("textbox", { name: "Additional text 2" })).toHaveValue("Second part");
+});
+
+test("native drag reorders a resized text step after scrolling the form", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await openDraft(page);
+  const form = page.getByTestId("question-dialog");
+  const body = form.getByTestId("question-form-body");
+  const timeline = form.getByTestId("question-media-fields");
+  await timeline.getByRole("button", { name: "Add text step" }).click();
+  const textarea = timeline.getByRole("textbox", { name: "Additional text 3" });
+  await textarea.fill("Second part");
+  await textarea.scrollIntoViewIfNeeded();
+  const originalBox = (await textarea.boundingBox())!;
+  await page.mouse.move(
+    originalBox.x + originalBox.width - 3,
+    originalBox.y + originalBox.height - 3,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    originalBox.x + originalBox.width + 250,
+    originalBox.y + originalBox.height + 500,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+  const resizedBox = (await textarea.boundingBox())!;
+  expect(resizedBox.height).toBeGreaterThan(originalBox.height);
+  expect(resizedBox.height).toBeLessThanOrEqual(240);
+  expect(resizedBox.width).toBeCloseTo(originalBox.width, 0);
+
+  const textCard = timeline.getByTestId("text-step-card");
+  const imageCard = timeline.getByTestId("attachment-card");
+  const grip = textCard.getByRole("button", { name: "Additional text 3" });
+  await grip.evaluate((button) => button.scrollIntoView({ block: "center" }));
+  await grip.hover({ scroll: "none" });
+  const handle = (await grip.boundingBox())!;
+  const pane = (await body.boundingBox())!;
+  const target = { x: 3, y: 20 };
+  expect((await imageCard.boundingBox())!.y + target.y).toBeLessThan(pane.y);
+
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2 - 10, handle.y + handle.height / 2);
+  await expect(textCard).toHaveAttribute("data-timeline-dragging", "true");
+
+  // Drag at the top edge until Chromium scrolls the image into reach.
+  const centerX = pane.x + pane.width / 2;
+  await page.mouse.move(centerX, pane.y + 4);
+  await expect.poll(async () => (await imageCard.boundingBox())!.y).toBeGreaterThan(pane.y + 60);
+  await page.mouse.move(centerX, pane.y + pane.height / 2);
+
+  // Enter the target, then move again to deliver dragover before releasing.
+  await imageCard.hover({ position: target, scroll: "none" });
+  await imageCard.hover({ position: target, scroll: "none" });
+  await page.mouse.up();
+  await expect(timeline.getByRole("textbox", { name: "Additional text 2" })).toHaveValue(
+    "Second part",
+  );
+  await expect(imageCard).toHaveCount(1);
 });
 
 test("mixed image, audio, video and text cards keep the grip clear of media controls", async ({

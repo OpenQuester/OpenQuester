@@ -523,7 +523,8 @@ export class PreviewRuntime {
           correctChoice?.file?.type === "image"
             ? (correctChoice.file.link ?? null)
             : null,
-        rightAnswers: this.question.rightAnswers ?? null,
+        rightAnswers:
+          this.question.answerType === "select" ? null : (this.question.rightAnswers ?? null),
         answerPoint: this.question.answerPoint ?? null,
         answerDeviation: this.question.answerDeviation ?? null,
         answerContentPlan,

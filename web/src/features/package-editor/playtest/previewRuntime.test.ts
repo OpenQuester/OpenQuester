@@ -184,6 +184,25 @@ describe("local question playtest", () => {
     game.submit("1", 1);
     expect(game.session.lastResult?.answerType).toBe("correct");
   });
+  it.each([
+    ["select" as const, null],
+    ["text" as const, ["Stored alias"]],
+  ])("reveals aliases according to the explicit answer type %s", (answerType, expected) => {
+    const game = setup({
+      type: "choice",
+      answerType,
+      rightAnswers: ["Stored alias"],
+      correctChoiceOptionId: "a",
+      options: [
+        { id: "a", text: "First", file: null },
+        { id: "b", text: "Second", file: null },
+      ],
+    });
+    game.finish();
+    expect(game.session.state.answerShowData?.rightAnswers).toEqual(expected);
+    expect(game.question.rightAnswers).toEqual(["Stored alias"]);
+  });
+
   it("reveals the numeric target rather than hidden draft text or aliases", () => {
     const game = setup({
       answerType: "number",

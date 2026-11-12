@@ -13,7 +13,8 @@ import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { AnswerType } from "domain/enums/package/AnswerType";
 import { ClientError } from "domain/errors/ClientError";
 import { ClientResponse } from "domain/enums/ClientResponse";
-import { AllPlayMode } from "domain/types/dto/game/state/AllPlayDataDTO";
+import { AllPlayMode, type AllPlayDataDTO } from "domain/types/dto/game/state/AllPlayDataDTO";
+import type { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import {
   PackageQuestionDTO,
@@ -33,6 +34,7 @@ import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentP
 import { QuestionTransitionLogic } from "domain/logic/question/QuestionTransitionLogic";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
 import { AnswerCheckLogic } from "domain/logic/question/AnswerCheckLogic";
+import { ChoiceSelectionLogic } from "domain/logic/question/ChoiceSelectionLogic";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { getRealPrice } from "domain/logic/question/questionPrices";
 import { scriptPointImageOrder } from "domain/logic/question/PointImageLogic";
@@ -78,6 +80,7 @@ export class QuestionScriptLogic {
       appliedEffects: [],
       pickerId: picker,
       answererIds: context.eligibleIds ?? [],
+      answerersSet: context.eligibleIds !== undefined,
       actorId: null,
       mode: "button",
       optionOrders: null,
@@ -184,7 +187,7 @@ export class QuestionScriptLogic {
           break;
         case "accept":
           for (const id of progress.answererIds) {
-            const award = this.score(game, id, true, `${identity}:accept:${id}`, true);
+            const award = this.score(game, id, null, `${identity}:accept:${id}`);
             if (award) {
               effects.push(award);
             }
@@ -391,18 +394,27 @@ export class QuestionScriptLogic {
     ) {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
-    progress.submissions.push({
-      playerId,
-      answerText: null,
-      choiceOrder: null,
-      correct: false,
-      scored: false
-    });
-    const entry = game.gameState.allPlay?.entries.find((item) => item.playerId === playerId);
-    if (entry) {
-      entry.submitted = true;
-    }
+    this.markUnanswered(game, playerId);
     return this.finishAnswersIfReady(game, source);
+  }
+
+  /** A permanent departure also closes a pending manual verdict. */
+  public static markUnanswered(game: Game, playerId: number): void {
+    const progress = this.require(game);
+    const entry = progress.submissions.find((item) => item.playerId === playerId);
+    if (!entry) {
+      progress.submissions.push({
+        playerId,
+        answerText: null,
+        choiceOrder: null,
+        correct: false,
+        scored: false,
+        unanswered: true
+      });
+    } else if (entry.correct === null) {
+      entry.correct = false;
+      entry.unanswered = true;
+    }
   }
 
   public static submit(
@@ -421,12 +433,28 @@ export class QuestionScriptLogic {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
     const active = this.activeQuestion(game, source);
+    const options = active.answers ?? [];
     if (
       progress.activeAnswerFormat === "select" &&
-      (!Number.isInteger(choiceOrder) ||
-        !active.answers?.some((option) => option.order === choiceOrder))
+      (choiceOrder === undefined ||
+        !Number.isInteger(choiceOrder) ||
+        choiceOrder < 0 ||
+        !options.some(
+          (option) =>
+            option.order === choiceOrder &&
+            ChoiceSelectionLogic.matchesDisplayAnswer(options, option, text)
+        ))
     ) {
       throw new ClientError(ClientResponse.VALIDATION_ERROR);
+    }
+    if (
+      progress.activeAnswerFormat === "select" &&
+      progress.mode === "button" &&
+      game.gameState.answeredPlayers?.some(
+        (attempt) => this.rejectedChoiceOrder(progress, attempt) === choiceOrder
+      )
+    ) {
+      throw new ClientError(ClientResponse.ALREADY_ANSWERED_QUESTION);
     }
     const correct =
       progress.activeAnswerFormat === "select"
@@ -440,12 +468,6 @@ export class QuestionScriptLogic {
       correct: progress.final ? null : correct,
       scored: false
     });
-    const entry = game.gameState.allPlay?.entries.find((item) => item.playerId === playerId);
-    if (entry) {
-      entry.answer = text;
-      entry.choiceOrder = choiceOrder ?? undefined;
-      entry.submitted = true;
-    }
     if (!game.gameState.allPlay) {
       game.gameState.submittedAnswer = text;
       game.gameState.submittedChoiceOrder = choiceOrder ?? null;
@@ -457,18 +479,62 @@ export class QuestionScriptLogic {
     game: Game,
     source: PackageQuestionDTO,
     playerId: number,
-    correct: boolean
+    answerType: AnswerResultType
   ): QuestionScriptScoreEffect[] {
-    const entry = this.require(game).submissions.find((item) => item.playerId === playerId);
-    if (!entry || entry.correct !== null || entry.scored) {
+    const progress = this.require(game);
+    const entry = progress.submissions.find((item) => item.playerId === playerId);
+    const skip = answerType === AnswerResultType.SKIP;
+    if (
+      progress.waitingFor !== "answer" ||
+      !progress.answererIds.includes(playerId) ||
+      (entry && (entry.correct !== null || entry.scored)) ||
+      (!entry && !skip && progress.activeAnswerFormat !== "text")
+    ) {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
-    entry.correct = correct;
-    const publicEntry = game.gameState.allPlay?.entries.find((item) => item.playerId === playerId);
-    if (publicEntry) {
-      publicEntry.isCorrect = correct;
+    const correct = answerType === AnswerResultType.CORRECT;
+    if (entry) {
+      entry.correct = correct;
+      if (skip) entry.skippedByShowman = true;
+    } else {
+      progress.submissions.push({
+        playerId,
+        answerText: null,
+        choiceOrder: null,
+        correct,
+        scored: false,
+        ...(skip ? { skippedByShowman: true } : {})
+      });
     }
     return this.finishAnswersIfReady(game, source);
+  }
+
+  /** Project the current ask without disclosing automatic verdicts before review. */
+  public static allPlayAnswers(game: Game): AllPlayDataDTO | null {
+    const { allPlay, scriptProgress, questionState } = game.gameState;
+    if (!allPlay || scriptProgress?.waitingFor !== "answer") {
+      return allPlay ?? null;
+    }
+    return {
+      ...allPlay,
+      entries: allPlay.entries.map((entry) => {
+        const submission = scriptProgress.submissions.find(
+          (item) => item.playerId === entry.playerId
+        );
+        return submission
+          ? {
+              ...entry,
+              answer: submission.answerText,
+              choiceOrder: submission.choiceOrder ?? undefined,
+              submitted: true,
+              isCorrect:
+                submission.unanswered || questionState === QuestionState.REVIEWING
+                  ? submission.correct
+                  : null
+            }
+          : entry;
+      })
+    };
   }
 
   public static finishAnswersIfReady(
@@ -477,26 +543,36 @@ export class QuestionScriptLogic {
   ): QuestionScriptScoreEffect[] {
     const effects: QuestionScriptScoreEffect[] = [];
     const progress = this.require(game);
-    if (
-      progress.answererIds.some(
-        (id) => !progress.submissions.some((entry) => entry.playerId === id)
-      )
-    ) {
-      return effects;
-    }
-    if (progress.submissions.some((entry) => entry.correct === null)) {
+    const awaitingSubmission = progress.answererIds.some(
+      (id) => !progress.submissions.some((entry) => entry.playerId === id)
+    );
+    const awaitingVerdict = progress.submissions.some((entry) => entry.correct === null);
+    if (!awaitingSubmission && awaitingVerdict) {
       game.setQuestionState(
         game.gameState.allPlay ? QuestionState.REVIEWING : QuestionState.ANSWERING
       );
       game.gameState.timer = null;
+    }
+    if (awaitingSubmission || awaitingVerdict) {
+      game.gameState.allPlay = this.allPlayAnswers(game);
       return effects;
     }
     for (const entry of progress.submissions.filter((item) => !item.scored)) {
+      const answerType = entry.skippedByShowman
+        ? AnswerResultType.SKIP
+        : entry.correct
+          ? AnswerResultType.CORRECT
+          : AnswerResultType.WRONG;
       const effect = this.score(
         game,
         entry.playerId,
-        entry.correct === true,
-        `${progress.programCounter - 1}:answer:${entry.playerId}`
+        answerType,
+        this.answerEffectIdentity(progress, entry.playerId),
+        (progress.mode === "button" || entry.skippedByShowman) &&
+          progress.activeAnswerFormat === "select" &&
+          !entry.unanswered
+          ? entry.choiceOrder
+          : null
       );
       if (effect) {
         effects.push(effect);
@@ -515,7 +591,10 @@ export class QuestionScriptLogic {
         )
       ) {
         progress.answererIds = [];
+        progress.actorId = null;
         game.gameState.answeringPlayer = null;
+        game.gameState.submittedAnswer = null;
+        game.gameState.submittedChoiceOrder = null;
         game.setQuestionState(QuestionState.SHOWING);
         this.timer(game, progress.answerWindowRemainingMs ?? game.settings.timers.answerMs);
         return effects;
@@ -527,13 +606,34 @@ export class QuestionScriptLogic {
     return [...effects, ...this.resume(game, source)];
   }
 
+  public static rejectedChoiceOrder(
+    progress: QuestionScriptProgress,
+    attempt: GameStateAnsweredPlayerData
+  ): number | null {
+    const submission = progress.submissions.find((entry) => entry.playerId === attempt.player);
+    if (
+      attempt.answerType !== AnswerResultType.WRONG ||
+      submission?.correct !== false ||
+      submission.unanswered
+    ) {
+      return null;
+    }
+
+    // Older final attempts did not record whether a submitted option was ruled wrong or forfeited.
+    return attempt.choiceOrder ?? (progress.final ? null : submission.choiceOrder);
+  }
+
+  public static answerEffectIdentity(progress: QuestionScriptProgress, playerId: number): string {
+    return `${progress.programCounter - 1}:answer:${playerId}`;
+  }
+
   /** Source awards change only score. A ruling records an answer verdict for the current ask. */
   public static score(
     game: Game,
     id: number,
-    correct: boolean,
+    answerType: AnswerResultType | null,
     identity: string,
-    award = false
+    choiceOrder: number | null = null
   ): QuestionScriptScoreEffect | null {
     const progress = this.require(game);
     if (progress.appliedEffects.includes(identity)) {
@@ -544,19 +644,32 @@ export class QuestionScriptLogic {
       return null;
     }
     const { win, lose } = this.answerPrice(game, id);
-    const delta = correct ? win : lose;
+    const delta =
+      answerType === AnswerResultType.SKIP ? 0 : answerType === AnswerResultType.WRONG ? lose : win;
     const oldScore = player.score;
-    const score = PlayerScoreChangeLogic.applyScore(game, id, oldScore + delta);
-    const answerType = award ? null : correct ? AnswerResultType.CORRECT : AnswerResultType.WRONG;
-    if (answerType === AnswerResultType.WRONG) {
+    const score =
+      answerType === AnswerResultType.SKIP
+        ? oldScore
+        : PlayerScoreChangeLogic.applyScore(game, id, oldScore + delta);
+    if (answerType === AnswerResultType.WRONG || answerType === AnswerResultType.SKIP) {
       game.gameState.answeredPlayers = [
         ...(game.gameState.answeredPlayers ?? []),
-        { player: id, result: delta, score, answerType, appliedChange: score - oldScore }
+        {
+          player: id,
+          result: delta,
+          score,
+          answerType,
+          appliedChange: score - oldScore,
+          ...(choiceOrder === null ? {} : { choiceOrder })
+        }
       ];
     } else if (answerType === AnswerResultType.CORRECT) {
       progress.lastCorrectResult = { player: id, result: score - oldScore, score, answerType };
     }
-    if (correct && progress.answererIds.length === 1) {
+    if (
+      (answerType === null || answerType === AnswerResultType.CORRECT) &&
+      progress.answererIds.length === 1
+    ) {
       game.gameState.currentTurnPlayerId = id;
       progress.pickerId = id;
     }
@@ -658,6 +771,27 @@ export class QuestionScriptLogic {
     instruction: Extract<QuestionScriptStep, { op: "askAnswer" }>
   ): void {
     const progress = this.require(game);
+    if (instruction.mode === "direct") {
+      const eligible = game
+        .getInGamePlayers()
+        .filter((player) => game.isPlayerEligibleToAnswer(player.meta.id));
+      progress.answererIds = progress.answererIds.filter((id) =>
+        eligible.some((player) => player.meta.id === id)
+      );
+      if (!progress.answererIds.length && !progress.answerersSet) {
+        const picker = eligible.find((player) => player.meta.id === progress.pickerId);
+        if (picker) {
+          progress.answererIds = [picker.meta.id];
+        }
+      }
+      if (!progress.answererIds.length) {
+        progress.waitingFor = null;
+        progress.actorId = null;
+        game.gameState.answeringPlayer = null;
+        game.gameState.allPlay = null;
+        return;
+      }
+    }
     const active = this.activeQuestion(game, source);
     const needsMedia = this.optionMediaOrders(active).some(
       (order) => !progress.preparedOptionOrders?.includes(order)
@@ -681,6 +815,7 @@ export class QuestionScriptLogic {
     progress.canReveal = !!this.currentReveal(source, progress);
     progress.mode = instruction.mode;
     progress.submissions = [];
+    progress.answerWindowRemainingMs = undefined;
     progress.actorId = null;
     game.gameState.answeredPlayers = null;
     game.gameState.skippedPlayers = null;
@@ -688,23 +823,10 @@ export class QuestionScriptLogic {
     game.gameState.buzzerOpensAtMs = 0;
     if (instruction.mode === "button") {
       progress.answererIds = [];
+      progress.answerersSet = false;
       game.gameState.answeringPlayer = null;
       game.setQuestionState(QuestionState.SHOWING);
     } else {
-      const eligible = game
-        .getInGamePlayers()
-        .filter((player) => game.isPlayerEligibleToAnswer(player.meta.id));
-      progress.answererIds = progress.answererIds.filter((id) =>
-        eligible.some((player) => player.meta.id === id)
-      );
-      if (!progress.answererIds.length) {
-        const picker = eligible.find((player) => player.meta.id === progress.pickerId);
-        if (!picker) {
-          progress.waitingFor = null;
-          return;
-        }
-        progress.answererIds = [picker.meta.id];
-      }
       progress.actorId = progress.answererIds.length === 1 ? progress.answererIds[0] : null;
       game.gameState.answeringPlayer = progress.actorId;
       game.setQuestionState(
@@ -815,6 +937,7 @@ export class QuestionScriptLogic {
     step: Extract<QuestionScriptStep, { op: "setAnswerer" }>
   ): void {
     const progress = this.require(game);
+    progress.answerersSet = true;
     const eligible = game
       .getInGamePlayers()
       .filter(

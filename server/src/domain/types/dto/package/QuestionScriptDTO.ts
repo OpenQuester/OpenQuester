@@ -53,6 +53,7 @@ export interface QuestionScriptProgress {
   appliedEffects: string[];
   pickerId: number;
   answererIds: number[];
+  answerersSet?: boolean;
   actorId: number | null;
   mode: "button" | "direct";
   answerWindowRemainingMs?: number;
@@ -76,6 +77,8 @@ export interface QuestionScriptProgress {
     choiceOrder: number | null;
     correct: boolean | null;
     scored: boolean;
+    unanswered?: true;
+    skippedByShowman?: true;
   }[];
   final: boolean;
   lastCorrectResult?: Pick<

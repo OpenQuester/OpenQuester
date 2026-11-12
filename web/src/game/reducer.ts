@@ -886,7 +886,9 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       const { playerId, newScore } = event.payload;
       const answered = s.answeredPlayers ?? [];
       // The last ruling for this player is the one taken back.
-      const at = answered.map((a) => a.player).lastIndexOf(playerId);
+      const undoingScriptCorrect =
+        s.scriptView && s.answerShowData?.answerResult?.answerType === "correct";
+      const at = undoingScriptCorrect ? -1 : answered.map((a) => a.player).lastIndexOf(playerId);
       const next = patchState(session, {
         answeredPlayers: at >= 0 ? answered.filter((_, i) => i !== at) : answered,
         answerShowData: s.answerShowData

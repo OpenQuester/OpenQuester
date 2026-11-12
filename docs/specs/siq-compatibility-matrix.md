@@ -73,14 +73,14 @@ This matrix should be updated as parser/editor/game support evolves.
 | Select / legacy choice | SupportedWithConversion | Select is independent of mechanics. Unique source labels map to option orders; unresolved identities stay in repair drafts. See [Select answer format](#select-answer-format). |
 | Stake/bidding question | SupportedWithConversion | Standard stake uses the auction. Stake-all gives each eligible player a private personal stake and grades against it. |
 | Secret/transfer question | SupportedWithConversion | Modern and legacy cat/bagcat normalize to secretRules without a separate theme. Fixed actual prices use realPrice; dynamic ranges retain endpoints/step and explicit opener/receiver order. Award is private until accepted transfer. See the implementation note below. |
-| No Risk question | Supported | Preserve no-negative-score behavior. |
+| No Risk question | Supported | Native No Risk preserves zero loss on a wrong answer. An explicit modern multiply template retains the room's wrong-answer policy. |
 | Hidden/unknown price modes | Partial or UnsupportedWithFallback | Use safe fallback and warn; do not silently change strategy. |
 | Final round | Partial | React importer converts a non-last final round to a simple round before parsing questions, preserving all its questions and warning `finalAsSimple`. The valid last final keeps one question per theme and reports the number omitted with `extraFinalQuestions`; creators must review the source for additional questions. Other final metadata remains partial. |
 | Authors/sources/comments | Partial | Package and question authors and sources are kept (`authors`, `sources`) and shown with the answer and on the package page; round and theme authors/sources are dropped. Comments go to descriptions / `questionComment`. |
 | Multiple right answers / wrong answers | Supported | The first right answer is `answerText`, the rest go to `rightAnswers`; wrong answers go to `wrongAnswers`. The showman sees both; extra right answers are revealed with the answer and count for native choice auto-check. SIQ select keeps resolved source right labels as authoring metadata through publication and export. |
 | Point-answer geometry | SupportedWithConversion | Standard SIQ point questions target the last source content occurrence only when it is an image. `pointImageOrder` survives repeated hashes. `answerPoint.sourceGeometry` preserves the independent SIGame aspect (1 for old x,y answers), with minimum deviation .02. Web publication measures the selected final image without replacing the source metric. Missing targets/invalid points remain point mode, with repair warnings and critical publication/playtest validation. Native OQ geometry and legacy first-image fallback are unchanged. A script point ask targets the last authored occurrence in its active presentation when that occurrence is an image. |
 | HTML questions (React SIQ/OQ import) | UnsupportedWithFallback | Requires [explicit removal consent](package-validation-spec.md#editor-ux-requirements); no HTML execution. Ambiguous manifest aliases are rejected. |
-| Structured non-HTML question script | Supported with limits | Exact standard templates compile to native mechanics; other validated scripts keep their ordered typed operations. Unsupported operations, references, and client input require repair. HTML follows existing removal consent. |
+| Structured non-HTML question script | Supported with limits | Exact standard templates with equivalent native mechanics compile to complete native questions for direct upload. Other validated scripts, including modern `setPrice/multiply`, keep their ordered typed operations. Unsupported operations, references, and client input require repair. HTML follows existing removal consent. |
 | Unsupported media reference | UnsupportedCritical | Critical validation error. |
 | Unknown XML node/attribute with gameplay impact | Unknown | Add to unsupported feature accumulator. |
 
@@ -118,16 +118,20 @@ the current question, including redirected standard type parameters. The `right`
 fallback reveals the applicable text, option content, or point. `setTheme` is a
 no-op and the board theme remains. The interpreter does not run code or fetch
 remote media. Historical `setPrice/noRisk` doubles the right amount with zero
-loss on a wrong answer. Modern `multiply` doubles the current amount and keeps
-its wrong-answer policy. Historical `withButton` and `forAll` apply the OQ room
-wrong-answer penalty. The reserved `setPrice/forYourself` requires repair.
+loss on a wrong answer and can compile to native No Risk when the template
+matches. Modern `multiply` stays scripted, doubles the current amount, and
+keeps its wrong-answer policy. Historical `withButton` and `forAll` apply the OQ
+room wrong-answer penalty. The reserved `setPrice/forYourself` requires repair.
 
 An explicit final script or modern explicit button question uses its authored
 order and participation. Missing/default type and upgraded legacy `simple`
 retain native final bids and manual review. Scripted final prices start from
 the source question's nominal price. The zero NumberSet uses the range of
 positive source nominals across all final themes, with 1–1 for an unpriced
-round. Each point ask requires the active presentation's last authored
+round. A visible scripted auction publishes its base price through
+`stakeQuestionData.questionPrice` while bidding is open. The auction's
+`currentBidderIndex` determines who can bid after a manual bid or timeout.
+Each point ask requires the active presentation's last authored
 occurrence to be an image. Missing targets and unsupported playback placements
 or wait flags require repair. Point asks use a 2% default tolerance in the source
 geometry, including when a later script step switches the answer format.
@@ -207,11 +211,14 @@ Legacy `type=choice` still selects options. Modern SIQ answerOptions reads only
 its first content item per option. Exact, unique source labels map to integer
 orders; the first source right label identifies the key. Additional right labels
 are authoring metadata. Texts and media hashes do not identify options.
-Invalid/duplicate option labels, an unresolved key or unsupported option content
+Invalid/duplicate option labels, an unresolved or duplicate source right label, or unsupported option content
 keep the options in a repair draft and block publication/playtest until explicitly
 repaired. Publication and package reads retain `selectSource.rightLabels` for
 reopening and export. Each label must identify exactly one option. The list keeps
-source order, with at most 1,000 distinct labels of 500 characters each.
+source order, with at most 1,000 distinct labels of 500 characters each. Invalid
+source rights remain in the repair draft; the editor can explicitly discard the
+source right list before the correct option is selected again, provided there are
+no unresolved raw option contents that would also be discarded.
 `correctChoiceOrder` controls judging. Raw unresolved option content and
 `compatibilityIssues` stay in drafts and archives, and gameplay omits the source
 right list. HTML anywhere in options still requires whole-question removal

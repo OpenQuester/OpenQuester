@@ -1,5 +1,6 @@
 import type { Game } from "domain/entities/game/Game";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { getRealPrice } from "domain/logic/question/questionPrices";
 import { projectSecretQuestion } from "domain/logic/question/secretQuestionRules";
 import { projectAnswerReveal } from "domain/mappers/projectAnswerReveal";
 import { projectFinalRoundData } from "domain/mappers/projectFinalRoundData";
@@ -52,6 +53,17 @@ export function projectScriptState(game: Game, viewerId?: number, host = false):
   visible.currentQuestion = state.currentQuestion
     ? projectScriptQuestion(state, state.currentQuestion, host)
     : null;
+  const stake = state.stakeQuestionData;
+  if (
+    stake?.biddingPhase &&
+    scriptProgress.waitingFor === "answerer" &&
+    scriptProgress.questionId === stake.questionId
+  ) {
+    visible.stakeQuestionData = {
+      ...stake,
+      questionPrice: getRealPrice(state.currentQuestion) ?? 1
+    };
+  }
   if (scriptProgress.waitingFor === "price" && (host || viewerId === scriptProgress.actorId)) {
     visible.scriptView = { ...state.scriptView!, priceRange: scriptProgress.priceRange };
   }
@@ -59,8 +71,24 @@ export function projectScriptState(game: Game, viewerId?: number, host = false):
     visible.submittedAnswer = null;
     visible.submittedChoiceOrder = null;
   }
+  if (
+    scriptProgress.waitingFor === "answer" &&
+    scriptProgress.mode === "button" &&
+    scriptProgress.activeAnswerFormat === "select"
+  ) {
+    visible.answeredPlayers =
+      state.answeredPlayers?.map((attempt) => {
+        const choiceOrder = QuestionScriptLogic.rejectedChoiceOrder(scriptProgress, attempt);
+        return choiceOrder === null || choiceOrder === attempt.choiceOrder
+          ? attempt
+          : { ...attempt, choiceOrder };
+      }) ?? null;
+  }
   if (visible.allPlay) {
-    const original = visible.allPlay;
+    const original =
+      state.questionState === QuestionState.REVIEWING
+        ? (QuestionScriptLogic.allPlayAnswers(game) ?? visible.allPlay)
+        : visible.allPlay;
     const projected = AllPlayLogic.hideFromPlayers(original, state.questionState);
     visible.allPlay = {
       ...projected,

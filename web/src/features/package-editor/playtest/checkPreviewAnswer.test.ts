@@ -2,6 +2,23 @@ import { expect, it } from "vitest";
 import { question } from "@/game/fixtures";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
 
+it("uses the select key despite matching option text and aliases, retaining legacy aliases", () => {
+  const q = question(1, {
+    type: "choice",
+    answerType: "select",
+    correctChoiceOrder: 0,
+    rightAnswers: ["Green"],
+    answers: [
+      { order: 0, text: "Green", file: null },
+      { order: 1, text: "Green", file: null },
+    ],
+  });
+  expect(checkPreviewAnswer(q, "Green", 1, true)).toBe(false);
+  expect(checkPreviewAnswer(q, "Green", 0, true)).toBe(true);
+  expect(checkPreviewAnswer({ ...q, answerType: "text" }, "Green", 1, true)).toBe(true);
+  expect(checkPreviewAnswer({ ...q, answerType: undefined }, "Green", 1, true)).toBe(true);
+});
+
 it.each([
   [2, 2, 0.05, "0.540,0.500", false],
   [1, 2, 0.05, "0.540,0.500", true],

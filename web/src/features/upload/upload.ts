@@ -229,14 +229,7 @@ function publicationQuestion({
 }: UploadQuestion): UploadQuestion {
   if (question.script || !selectSource || answerFormat(question) !== "select") return question;
 
-  const counts = new Map<string, number>();
-  for (const { sourceLabel } of question.answers ?? []) {
-    if (sourceLabel) counts.set(sourceLabel, (counts.get(sourceLabel) ?? 0) + 1);
-  }
-  const rightLabels = [...new Set(selectSource.rightLabels)].filter(
-    (label) => counts.get(label) === 1,
-  );
-  return rightLabels.length ? { ...question, selectSource: { rightLabels } } : question;
+  return { ...question, selectSource: { rightLabels: selectSource.rightLabels } };
 }
 
 /** Resume can already have encoded bytes; keep their hashes instead of encoding twice. */

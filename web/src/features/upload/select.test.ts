@@ -102,6 +102,23 @@ describe("SIQ select", () => {
     expect(first(archive.content).correctChoiceNeedsRepair).toBe(true);
   });
 
+  it.each(["Z", "C", ""])(
+    "blocks an invalid additional source right %s without losing it",
+    async (extra) => {
+      const parsed = await read(fixture.replace("<answer>B</answer>", `<answer>${extra}</answer>`));
+      const q = first(parsed.content);
+      expect(q.selectSource?.rightLabels).toEqual(["C", extra]);
+      expect(parsed.warnings).toContainEqual(
+        expect.objectContaining({ code: "choiceCorrectUnresolved", severity: "critical" }),
+      );
+      const draft = fromUpload(parsed.content);
+      expect(validatePackage(draft, () => true).critical).toBeGreaterThan(0);
+      const archive = await parseOq({ "content.json": bytes(JSON.stringify(toUpload(draft))) });
+      expect(first(archive.content).selectSource?.rightLabels).toEqual(["C", extra]);
+      expect(first(archive.content).correctChoiceNeedsRepair).toBe(true);
+    },
+  );
+
   it.each([9, 30])(
     "imports %i media options without applying authored-group limits to them",
     async (count) => {
@@ -115,7 +132,8 @@ describe("SIQ select", () => {
           /<param name="answerOptions"[\s\S]*?<\/param>\s*<\/params>/,
           `<param name="answerOptions" type="group">${options}</param></params>`,
         )
-        .replace("<answer>C</answer>", "<answer>L2</answer>");
+        .replace("<answer>C</answer>", "<answer>L2</answer>")
+        .replace("<answer>B</answer>", "<answer>L1</answer>");
       const parsed = await read(xml, {
         "Images/same": bytes("image"),
         "Audio/same": bytes("audio"),

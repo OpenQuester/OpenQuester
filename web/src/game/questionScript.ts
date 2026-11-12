@@ -1,4 +1,5 @@
 import { scriptPointImageOrder } from "@/lib/pointImage";
+import type { UploadQuestion } from "@/features/upload/types";
 
 /** Normalized SI data only. References are resolved by the importer, never executed as code. */
 export interface ScriptNumberSet {
@@ -186,36 +187,79 @@ export function readQuestionScript(value: unknown): QuestionScriptDTO | null {
   return structuredClone(value) as unknown as QuestionScriptDTO;
 }
 
+type ScriptContentSource = Pick<
+  UploadQuestion,
+  "script" | "questionFiles" | "answerFiles" | "textItems" | "answerTextItems"
+>;
+
+export function scriptContent(
+  question: ScriptContentSource,
+  { phase, orders }: Extract<QuestionScriptStep, { op: "showContent" }>,
+) {
+  const selected = new Set(orders);
+  const files = phase === "question" ? question.questionFiles : question.answerFiles;
+  const textItems =
+    phase === "question"
+      ? question.textItems
+      : (question.answerTextItems ?? question.script?.answerTextItems);
+  return {
+    files: files?.filter((item) => selected.has(item.order)),
+    textItems: textItems?.filter((item) => selected.has(item.order)),
+  };
+}
+
 /** Check each point ask against the last authored occurrence of its active presentation. */
-export function hasMissingScriptPointImage(question: {
-  script?: QuestionScriptDTO | null;
-  questionFiles?: Parameters<typeof scriptPointImageOrder>[0];
-  answerFiles?: Parameters<typeof scriptPointImageOrder>[0];
-  textItems?: Parameters<typeof scriptPointImageOrder>[1];
-  answerTextItems?: Parameters<typeof scriptPointImageOrder>[1];
-}): boolean {
+export function missingScriptPointImageStep(question: ScriptContentSource): number {
   let format: ScriptAnswerFormat = "text";
   let target = -1;
-  for (const step of question.script?.steps ?? []) {
+  return (question.script?.steps ?? []).findIndex((step) => {
     if (step.op === "setAnswerType") format = step.answerType;
     if (step.op === "showContent") {
       if (step.revealRight) {
         if (format !== "point") target = -1;
-        continue;
+      } else {
+        const { files, textItems } = scriptContent(question, step);
+        target = scriptPointImageOrder(files, textItems, step.orders);
       }
-      const files = step.phase === "question" ? question.questionFiles : question.answerFiles;
-      const texts =
-        step.phase === "question"
-          ? question.textItems
-          : (question.answerTextItems ?? question.script?.answerTextItems);
-      const orders = new Set(step.orders);
-      target = scriptPointImageOrder(
-        files?.filter((item) => orders.has(item.order)),
-        texts?.filter((item) => orders.has(item.order)),
-        step.orders,
-      );
     }
-    if (step.op === "askAnswer" && format === "point" && target === -1) return true;
+    return step.op === "askAnswer" && format === "point" && target === -1;
+  });
+}
+
+/** Mirror the server's validateQuestionScript cross-field checks after structural parsing. */
+export function scriptReferenceIssue(question: UploadQuestion): string | undefined {
+  const steps = question.script?.steps ?? [];
+  for (const [index, step] of steps.entries()) {
+    const where = `step ${index + 1} (${step.op})`;
+    if (step.op === "showContent" && !step.revealRight) {
+      const { files, textItems } = scriptContent(question, step);
+      const available = [...(files ?? []), ...(textItems ?? [])];
+      if (!step.orders.length) return `${where}: missing ${step.phase} content orders`;
+      if (new Set(step.orders).size !== step.orders.length)
+        return `${where}: duplicate ${step.phase} content orders`;
+      for (const order of step.orders) {
+        const count = available.filter((item) => item.order === order).length;
+        if (count !== 1)
+          return `${where}: ${step.phase} content order ${order} matches ${count} items`;
+      }
+    }
+    if (step.op !== "setAnswerType") continue;
+    if (step.answerType === "number" && !Number.isFinite(question.answerNumber))
+      return `${where}: missing or invalid answerNumber`;
+    if (step.answerType === "point" && !question.answerPoint)
+      return `${where}: missing answerPoint`;
+    if (step.answerType === "select") {
+      const orders = step.optionOrders ?? [];
+      if (orders.length < 2 || new Set(orders).size !== orders.length)
+        return `${where}: optionOrders needs at least two distinct orders`;
+      if (step.correctChoiceOrder == null || !orders.includes(step.correctChoiceOrder))
+        return `${where}: correctChoiceOrder must be in optionOrders`;
+      for (const order of orders) {
+        const count = question.answers?.filter((option) => option.order === order).length ?? 0;
+        if (count !== 1) return `${where}: option order ${order} matches ${count} choices`;
+      }
+    }
   }
-  return false;
+  const ask = missingScriptPointImageStep(question);
+  if (ask >= 0) return `step ${ask + 1} (askAnswer): active content must end with an image`;
 }

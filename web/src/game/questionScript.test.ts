@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  hasMissingScriptPointImage,
+  missingScriptPointImageStep,
   readQuestionScript,
   type QuestionScriptDTO,
 } from "./questionScript";
@@ -47,9 +47,11 @@ describe("archived question scripts", () => {
       ],
       answerTextItems: [{ order: 0, text: "Conflicting order" }],
     };
-    const answerFiles = [{ order: 0, file: { type: "image" } }];
-    expect(hasMissingScriptPointImage({ script, answerFiles })).toBe(true);
-    expect(hasMissingScriptPointImage({ script, answerFiles, answerTextItems: [] })).toBe(false);
+    const answerFiles = [
+      { order: 0, displayTime: null, file: { type: "image" as const, md5: "map" } },
+    ];
+    expect(missingScriptPointImageStep({ script, answerFiles })).toBe(2);
+    expect(missingScriptPointImageStep({ script, answerFiles, answerTextItems: [] })).toBe(-1);
   });
 
   it.each([

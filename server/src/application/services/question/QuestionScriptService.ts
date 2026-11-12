@@ -30,6 +30,7 @@ import { PackageQuestionTransferType } from "domain/types/package/PackageQuestio
 import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { BuzzerLogic } from "domain/logic/question/BuzzerLogic";
 import { QuestionTransitionLogic } from "domain/logic/question/QuestionTransitionLogic";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 
 const SCRIPT_ACTIONS = new Set<GameActionType>([
   GameActionType.QUESTION_ANSWER,
@@ -224,22 +225,22 @@ export class QuestionScriptService {
       ) {
         throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
       }
-      const id = (input.playerId as number | undefined) ?? game.gameState.answeringPlayer;
+      const single = action.type === GameActionType.ANSWER_RESULT;
+      const id = single
+        ? game.gameState.answeringPlayer
+        : ((input.playerId as number | undefined) ?? game.gameState.answeringPlayer);
       if (id == null) {
         throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
-      }
-      // Oral answers are deliberately reviewable without inventing a typed submission.
-      if (!progress.submissions.some((entry) => entry.playerId === id)) {
-        if (progress.activeAnswerFormat !== "text") {
-          throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
-        }
-        QuestionScriptLogic.submit(game, source, id, null);
       }
       effects = QuestionScriptLogic.judge(
         game,
         source,
         id,
-        (input.isCorrect as boolean | undefined) ?? input.answerType === "correct"
+        single
+          ? (input.answerType as AnswerResultType)
+          : input.isCorrect === true
+            ? AnswerResultType.CORRECT
+            : AnswerResultType.WRONG
       );
     } else if (action.type === GameActionType.SECRET_QUESTION_TRANSFER) {
       if (
@@ -417,18 +418,7 @@ export class QuestionScriptService {
           const left = progress.answererIds.filter((id) => departed.has(id));
           if (progress.waitingFor === "answer" && left.length) {
             for (const id of left) {
-              const entry = progress.submissions.find((submission) => submission.playerId === id);
-              if (!entry) {
-                progress.submissions.push({
-                  playerId: id,
-                  answerText: null,
-                  choiceOrder: null,
-                  correct: false,
-                  scored: false
-                });
-              } else if (entry.correct === null) {
-                entry.correct = false;
-              }
+              QuestionScriptLogic.markUnanswered(game, id);
             }
             effects = QuestionScriptLogic.finishAnswersIfReady(game, found.question);
           } else if (progress.actorId != null && departed.has(progress.actorId)) {
@@ -592,13 +582,7 @@ export class QuestionScriptService {
       }
       for (const id of progress.answererIds) {
         if (!progress.submissions.some((entry) => entry.playerId === id)) {
-          progress.submissions.push({
-            playerId: id,
-            answerText: null,
-            choiceOrder: null,
-            correct: false,
-            scored: false
-          });
+          QuestionScriptLogic.markUnanswered(game, id);
         }
       }
       return QuestionScriptLogic.finishAnswersIfReady(game, source);

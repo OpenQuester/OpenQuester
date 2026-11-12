@@ -273,16 +273,22 @@ export function hasFinalBid(session: GameSession, id: number): boolean {
 
 /** Stake auction: who bids now and what the minimum next bid is. */
 export function stakeInfo(session: GameSession) {
-  const stake = session.state.stakeQuestionData;
+  const { state } = session;
+  const stake = state.stakeQuestionData;
   if (!stake) return null;
+  const script = state.scriptView;
+  const scripted =
+    stake.biddingPhase &&
+    script?.waitingFor === "answerer" &&
+    script.questionId === stake.questionId;
   const order = stake.biddingOrder;
   const bidderId =
-    session.state.currentTurnPlayerId != null && order.includes(session.state.currentTurnPlayerId)
-      ? session.state.currentTurnPlayerId
+    !scripted && state.currentTurnPlayerId != null && order.includes(state.currentTurnPlayerId)
+      ? state.currentTurnPlayerId
       : (order[stake.currentBidderIndex] ?? null);
+  const currentPrice = getRealPrice(state.currentQuestion);
   const price =
-    getRealPrice(session.state.currentQuestion) ??
-    stake.questionPrice ??
+    (scripted ? (stake.questionPrice ?? currentPrice) : (currentPrice ?? stake.questionPrice)) ??
     stakePriceFromBoard(session, stake.questionId);
   const minBid = stake.highestBid != null ? stake.highestBid + 1 : Math.max(price ?? 1, 1);
   return { stake, bidderId, minBid, price };

@@ -1,23 +1,35 @@
 import { expect, it } from "vitest";
 import fixture from "@/features/upload/fixtures/siq/script-two-asks.xml?raw";
 import { parseSiq } from "@/features/upload/siq";
-import { fromUpload, newQuestion, newRound, newTheme } from "../packageDraft";
+import {
+  fromUpload,
+  newQuestion,
+  newRound,
+  newTheme,
+  type DraftChoiceOption,
+} from "../packageDraft";
 import { checkQuestion } from "../validatePackage";
 import { finalPreviewRoundPrices, initialPreview, previewQuestion } from "./previewModel";
 import { PreviewRuntime } from "./previewRuntime";
+import { canBuzz } from "@/game/selectors";
 import type { QuestionScriptStep } from "@/game/questionScript";
 
 const direct: QuestionScriptStep = { op: "askAnswer", mode: "direct", durationMs: 15000 };
 const numeric: QuestionScriptStep = { op: "setAnswerType", answerType: "number" };
 
-function scriptedPreview(steps: QuestionScriptStep[], final = false) {
+function scriptedPreview(
+  steps: QuestionScriptStep[],
+  final = false,
+  setup: { solo?: boolean; options?: DraftChoiceOption[] } = {},
+) {
+  const options = setup.options ?? [
+    { id: "a", text: "First", file: null, scriptOrder: 0 },
+    { id: "b", text: "Second", file: null, scriptOrder: 1 },
+  ];
   const draft = newQuestion(100, {
     ...(final ? { realPrice: 100 } : {}),
     answerText: "42",
-    options: [
-      { id: "a", text: "First", file: null, scriptOrder: 0 },
-      { id: "b", text: "Second", file: null, scriptOrder: 1 },
-    ],
+    options,
     script: { version: 1, steps },
   });
   const question = previewQuestion(draft, final, new Map());
@@ -38,6 +50,7 @@ function scriptedPreview(steps: QuestionScriptStep[], final = false) {
     ),
     { ...question, answerNumber: 42 },
   );
+  if (setup.solo) runtime.session.players.splice(2, 2);
   if (final) {
     runtime.command({ type: "theme-eliminate", payload: { themeId: 10 } }, 1);
     runtime.command({ type: "theme-eliminate", payload: { themeId: 11 } }, 1);
@@ -47,20 +60,172 @@ function scriptedPreview(steps: QuestionScriptStep[], final = false) {
   return runtime;
 }
 
-it("rejects a missing or inactive select option and scores the later valid choice", () => {
-  const game = scriptedPreview([
-    { op: "setAnswerType", answerType: "select", optionOrders: [0, 1], correctChoiceOrder: 1 },
-    { op: "setAnswerer", mode: "current" },
-    direct,
-  ]);
-  for (const choiceOrder of [undefined, 9, 1.5]) {
-    game.command({ type: "answer-submitted", payload: { answerText: null, choiceOrder } }, 2);
+it("skips an empty transfer in preview and retains the ordinary picker fallback", () => {
+  const skipped = scriptedPreview(
+    [{ op: "setAnswerer", mode: "byCurrent", select: "exceptCurrent" }, direct, { op: "accept" }],
+    false,
+    { solo: true },
+  );
+  expect(skipped.session.state.questionState).toBe("showing_answer");
+  expect(skipped.session.state.answeringPlayer).toBeNull();
+  expect(skipped.session.players.find((player) => player.meta.id === 2)?.score).toBe(1000);
+  skipped.dispose();
+  const fallback = scriptedPreview([direct], false, { solo: true });
+  expect(fallback.session.state.answeringPlayer).toBe(2);
+  fallback.dispose();
+});
+
+it("requires the active select option and its canonical media placeholder", () => {
+  const game = scriptedPreview(
+    [
+      { op: "setAnswerType", answerType: "select", optionOrders: [2, 1], correctChoiceOrder: 1 },
+      { op: "setAnswerer", mode: "current" },
+      direct,
+    ],
+    false,
+    {
+      options: [
+        { id: "a", text: "#1", file: null, scriptOrder: 0 },
+        { id: "b", text: "", file: { md5: "image", type: "image" }, scriptOrder: 1 },
+        { id: "c", text: "1", file: null, scriptOrder: 2 },
+      ],
+    },
+  );
+  for (const payload of [
+    { answerText: "#1" },
+    { answerText: "#1", choiceOrder: 0 },
+    { answerText: "#1", choiceOrder: 1.5 },
+    { answerText: "1", choiceOrder: 1 },
+  ]) {
+    game.command({ type: "answer-submitted", payload }, 2);
     expect(game.session.state.scriptView?.waitingFor).toBe("answer");
     expect(game.session.players.find((p) => p.meta.id === 2)?.score).toBe(1000);
   }
-  game.command({ type: "answer-submitted", payload: { answerText: null, choiceOrder: 1 } }, 2);
+  game.command({ type: "answer-submitted", payload: { answerText: "#1", choiceOrder: 1 } }, 2);
   expect(game.session.state.questionState).toBe("showing_answer");
   expect(game.session.players.find((p) => p.meta.id === 2)?.score).toBe(1100);
+  game.dispose();
+});
+
+it("skips typed input for zero, advances a direct ask and undoes the skip once at reveal", () => {
+  const game = scriptedPreview([numeric, direct, direct]);
+  const skip = {
+    type: "answer-result",
+    payload: { answerType: "skip", scoreResult: -100 },
+  } as const;
+  const step = game.session.state.scriptView!.programCounter;
+  for (const answerType of ["correct", "wrong"] as const) {
+    game.command({ type: "answer-result", payload: { answerType, scoreResult: 0 } }, 1);
+  }
+  game.command(skip, 3);
+  expect(game.session.state.scriptView?.programCounter).toBe(step);
+  game.command(skip, 1);
+  expect(game.session.state.scriptView?.programCounter).toBe(step + 1);
+  expect(game.session.lastResult).toMatchObject({ player: 2, answerType: "skip", result: 0 });
+  game.command(skip, 1);
+  expect(game.session.state.questionState).toBe("showing_answer");
+  expect(game.session.players.find((p) => p.meta.id === 2)?.score).toBe(1000);
+  game.command({ type: "answer-result-undo", payload: undefined }, 1);
+  expect(game.session.state.answeredPlayers).toHaveLength(0);
+  expect(game.session.lastResult).toBeNull();
+  expect(game.session.state.questionState).toBe("showing_answer");
+  const afterUndo = game.session;
+  game.command({ type: "answer-result-undo", payload: undefined }, 1);
+  expect(game.session).toBe(afterUndo);
+  game.dispose();
+});
+
+it("reopens a scripted button ask after a neutral skip and lets the player buzz again after undo", () => {
+  const game = scriptedPreview(
+    [
+      { op: "setAnswerType", answerType: "select", optionOrders: [0, 1], correctChoiceOrder: 1 },
+      { op: "askAnswer", mode: "button", durationMs: 15000 },
+    ],
+    true,
+  );
+  const buzz = { type: "question-answer", payload: undefined } as const;
+  const selection = {
+    type: "answer-submitted",
+    payload: { answerText: "Second", choiceOrder: 1 },
+  } as const;
+  game.command(buzz, 2);
+  game.command(selection, 2);
+  game.command({ type: "answer-result", payload: { answerType: "skip", scoreResult: 0 } }, 1);
+  expect(game.session.state.questionState).toBe("showing");
+  expect(game.session.state.answeredPlayers).toMatchObject([
+    { player: 2, answerType: "skip", result: 0, choiceOrder: 1 },
+  ]);
+  expect(game.session.state.timer?.durationMs).toBeLessThanOrEqual(15_000);
+  game.command(buzz, 2);
+  expect(game.session.state.answeringPlayer).toBeNull();
+  game.command({ type: "answer-result-undo", payload: undefined }, 1);
+  game.command(buzz, 2);
+  expect(game.session.state.answeringPlayer).toBe(2);
+  game.command(selection, 2);
+  game.command({ type: "answer-result", payload: { answerType: "skip", scoreResult: 0 } }, 1);
+  game.command(buzz, 3);
+  game.command(selection, 3);
+  game.command({ type: "answer-result", payload: { answerType: "correct", scoreResult: 100 } }, 1);
+  expect(game.session.players.find((p) => p.meta.id === 2)?.score).toBe(1000);
+  expect(game.session.players.find((p) => p.meta.id === 3)?.score).toBe(1100);
+  game.dispose();
+});
+
+it("reopens the same button ask and rejected option after undo", () => {
+  const game = scriptedPreview([
+    { op: "setAnswerType", answerType: "select", optionOrders: [0, 1], correctChoiceOrder: 1 },
+    { op: "askAnswer", mode: "button", durationMs: 15000 },
+  ]);
+  const buzz = { type: "question-answer", payload: undefined } as const;
+  const undo = { type: "answer-result-undo", payload: undefined } as const;
+  const wrong = {
+    type: "answer-submitted",
+    payload: { answerText: "First", choiceOrder: 0 },
+  } as const;
+  game.command(buzz, 2);
+  game.command(wrong, 2);
+  expect(game.session.state.answeredPlayers).toMatchObject([{ player: 2, choiceOrder: 0 }]);
+  expect(canBuzz(game.session, 2).ok).toBe(false);
+  game.command(undo, 1);
+  expect(game.session.players.find((p) => p.meta.id === 2)?.score).toBe(1000);
+  expect(canBuzz(game.session, 2).ok).toBe(true);
+  game.command(buzz, 2);
+  expect(game.session.state.answeringPlayer).toBe(2);
+  game.command(wrong, 2);
+  expect(game.session.players.find((p) => p.meta.id === 2)?.score).toBe(900);
+  game.command(buzz, 3);
+  game.command(wrong, 3);
+  expect(game.session.state.answeringPlayer).toBe(3);
+  game.dispose();
+});
+
+it("accepts identical group choices and marks only the missing answer as terminal", () => {
+  const game = scriptedPreview(
+    [
+      { op: "setAnswerer", mode: "all" },
+      { op: "setAnswerType", answerType: "select", optionOrders: [0, 1], correctChoiceOrder: 1 },
+      direct,
+    ],
+    true,
+  );
+  for (const sender of [2, 3]) {
+    game.command(
+      {
+        type: "all-play-answer",
+        payload: { answerText: "First", choiceOrder: 0 },
+      },
+      sender,
+    );
+  }
+  game.timeout();
+  expect(game.session.state.questionState).toBe("reviewing");
+  expect(game.session.state.allPlay?.entries).toMatchObject([
+    { playerId: 2, choiceOrder: 0, submitted: true, isCorrect: null },
+    { playerId: 3, choiceOrder: 0, submitted: true, isCorrect: null },
+    { playerId: 4, submitted: true, isCorrect: false },
+  ]);
+  game.command({ type: "all-play-review", payload: { playerId: 4, isCorrect: true } }, 1);
+  expect(game.session.state.allPlay?.entries[2]?.isCorrect).toBe(false);
   game.dispose();
 });
 
@@ -219,11 +384,21 @@ it("waits for all final selections and lets only the showman score the submitted
   expect(game.session.state.timer?.durationMs).toBe(75_000);
   game.command({ type: "all-play-review", payload: { playerId: 2, isCorrect: true } }, 1);
   expect(game.session.state.questionState).toBe("showing");
+  game.command(
+    { type: "final-answer-submit", payload: { answerText: "Second", choiceOrder: 0 } },
+    2,
+  );
+  expect(game.session.state.allPlay?.entries.find((entry) => entry.playerId === 2)?.submitted).toBe(
+    false,
+  );
   for (const sender of [2, 3, 4]) {
     game.command(
       {
         type: "final-answer-submit",
-        payload: { answerText: "", choiceOrder: sender === 2 ? 1 : 0 },
+        payload: {
+          answerText: sender === 2 ? "Second" : "First",
+          choiceOrder: sender === 2 ? 1 : 0,
+        },
       },
       sender,
     );
@@ -295,7 +470,7 @@ it("uses the last authored occurrence for a point ask and blocks a broken draft 
     },
     () => true,
   );
-  expect(issues).toContain("pointAnswerMissing");
+  expect(issues).toContain("scriptRepair");
 });
 
 it("uses source nominals from eliminated themes for final script ranges in playtest", () => {

@@ -86,7 +86,10 @@ export function useAnswerChoices(q: Question) {
 
   const answers = [...(q.answers ?? [])].sort((a, b) => a.order - b.order);
   const rejected = new Set(
-    (s.allPlay || s.currentRound?.type === "final" ? [] : (s.answeredPlayers ?? []))
+    (s.allPlay || (s.currentRound?.type === "final" && !s.scriptView)
+      ? []
+      : (s.answeredPlayers ?? [])
+    )
       .filter((attempt) => attempt.answerType === "wrong" && attempt.choiceOrder != null)
       .map((attempt) => attempt.choiceOrder),
   );

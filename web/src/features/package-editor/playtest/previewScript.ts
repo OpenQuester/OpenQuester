@@ -1,14 +1,22 @@
-import type { AnsweredPlayer, GameState, Question, StakeQuestionData } from "@/game/protocol";
+import type {
+  AnsweredPlayer,
+  AnswerResultType,
+  GameState,
+  Question,
+  ServerEvents,
+  StakeQuestionData,
+} from "@/game/protocol";
 import type {
   QuestionScriptStep,
   ScriptAnswerFormat,
   ScriptNumberSet,
   QuestionScriptView,
 } from "@/game/questionScript";
-import { buildContentPlan, textDuration } from "@/game/contentPlan";
+import { buildContentPlan, textDuration, timerElapsed } from "@/game/contentPlan";
 import { scriptPointImageOrder } from "@/lib/pointImage";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
 import { nextAuctionTurn } from "./previewAuction";
+import { previewChoiceSelection } from "./previewChoiceSelection";
 import {
   clampPreviewScore,
   PREVIEW_PLAYERS,
@@ -23,9 +31,11 @@ export class PreviewScript {
   private waiting: "content" | "answerer" | "price" | "answer" | null = null;
   private format: ScriptAnswerFormat = "text";
   private answerers: number[] = [];
+  private answerersSet = false;
   private picker: number = PREVIEW_PLAYERS[0];
   private actor: number | null = null;
   private mode: "button" | "direct" = "button";
+  private answerWindowRemainingMs = 1;
   private price: number | null;
   private priceRevealed = false;
   private wrongPricePolicy?: "room" | "none";
@@ -37,7 +47,13 @@ export class PreviewScript {
   private active: Question;
   private submissions = new Map<
     number,
-    { text: string | null; order?: number; correct: boolean | null }
+    {
+      text: string | null;
+      order?: number;
+      correct: boolean | null;
+      unanswered?: true;
+      skippedByShowman?: true;
+    }
   >();
   private stakes = new Map<number, number>();
   private finalBids = new Map<number, number>();
@@ -122,6 +138,7 @@ export class PreviewScript {
         Object.entries(final.bids).map(([id, amount]) => [Number(id), amount]),
       );
       this.answerers = [...final.turnOrder];
+      this.answerersSet = true;
     }
     this.started = true;
     this.patch({ finalRoundData: null, questionTransition: null });
@@ -131,6 +148,7 @@ export class PreviewScript {
   private patch(
     patch: Partial<GameState> = {},
     scores: { playerId: number; score: number }[] = [],
+    outcomes?: ServerEvents["question-script-state"]["outcomes"],
   ) {
     const realPrice =
       this.revealsPrice() && (this.priceRevealed || this.game.question.realPrice != null)
@@ -157,6 +175,7 @@ export class PreviewScript {
           },
         },
         scores,
+        outcomes,
       },
     });
   }
@@ -197,11 +216,21 @@ export class PreviewScript {
           }
         }
       } else if (step.op === "setAnswerer") {
+        this.answerersSet = true;
         this.stakes.clear();
         this.patch({ stakeQuestionData: null, allPlay: null });
         if (step.mode === "current") this.answerers = [this.picker];
         else if (step.mode === "all") this.answerers = [...PREVIEW_PLAYERS];
         else if (step.mode === "byCurrent") {
+          const targets = this.game.session.players
+            .filter((player) => player.role === "player" && player.status === "in-game")
+            .map((player) => player.meta.id)
+            .filter((id) => step.select === "any" || id !== this.picker);
+          this.answerers = targets.length <= 1 ? targets : [];
+          if (targets.length <= 1) {
+            if (targets[0] != null) this.picker = targets[0];
+            continue;
+          }
           this.waiting = "answerer";
           this.actor = this.picker;
           this.patch({
@@ -245,6 +274,7 @@ export class PreviewScript {
         }
       } else if (step.op === "showContent") this.content(step);
       else if (step.op === "askAnswer") {
+        if (step.mode === "direct" && !this.answerers.length && this.answerersSet) continue;
         this.waiting = "answer";
         this.mode = step.mode;
         this.submissions.clear();
@@ -256,8 +286,10 @@ export class PreviewScript {
           ),
           correctChoiceOrder: this.key,
         };
-        if (step.mode === "button") this.answerers = [];
-        else if (!this.answerers.length) this.answerers = [this.picker];
+        if (step.mode === "button") {
+          this.answerers = [];
+          this.answerersSet = false;
+        } else if (!this.answerers.length) this.answerers = [this.picker];
         this.actor = this.answerers.length === 1 ? this.answerers[0]! : null;
         const timers = this.game.session.settings?.timers;
         const duration =
@@ -284,8 +316,7 @@ export class PreviewScript {
           answerShowData: null,
         });
       } else if (step.op === "accept") {
-        for (const player of this.answerers)
-          this.score(player, true, `${id}:accept:${player}`, true);
+        for (const player of this.answerers) this.score(player, null, `${id}:accept:${player}`);
         this.pc = program.steps.length;
       }
     }
@@ -395,7 +426,7 @@ export class PreviewScript {
       else {
         for (const player of this.answerers)
           if (!this.submissions.has(player))
-            this.submissions.set(player, { text: null, correct: false });
+            this.submissions.set(player, { text: null, correct: false, unanswered: true });
         this.finishAnswers();
       }
     } else if (this.waiting === "price") {
@@ -424,8 +455,12 @@ export class PreviewScript {
     return true;
   }
   handle(command: PreviewCommand, sender: number): boolean {
-    if (!this.started) return false;
     const host = sender === PREVIEW_SHOWMAN;
+    if (command.type === "answer-result-undo" && this.game.session.state.scriptView) {
+      if (host) this.undoAnswer();
+      return true;
+    }
+    if (!this.started) return false;
     if (
       command.type === "question-answer" &&
       this.waiting === "answer" &&
@@ -434,6 +469,10 @@ export class PreviewScript {
       PREVIEW_PLAYERS.includes(sender as 2 | 3 | 4) &&
       this.canStillBuzz(sender)
     ) {
+      const timer = this.game.session.state.timer;
+      this.answerWindowRemainingMs = timer
+        ? Math.max(1, timer.durationMs - timerElapsed(timer, false))
+        : 1;
       this.answerers = [sender];
       this.patch({
         questionState: "answering",
@@ -451,7 +490,16 @@ export class PreviewScript {
       ) {
         if (
           this.format === "select" &&
-          (input.choiceOrder == null || !this.options.includes(input.choiceOrder))
+          (previewChoiceSelection(this.active, input.answerText ?? "", input.choiceOrder)
+            ?.choiceOrder === undefined ||
+            (this.mode === "button" &&
+              [...this.submissions.values()].some(
+                (entry) =>
+                  !entry.unanswered &&
+                  !entry.skippedByShowman &&
+                  entry.correct === false &&
+                  entry.order === input.choiceOrder,
+              )))
         )
           return true;
         const final = this.game.session.state.currentRound?.type === "final";
@@ -474,19 +522,17 @@ export class PreviewScript {
         this.game.session.state.questionState === "reviewing") ||
         (command.type === "answer-result" && this.game.session.state.questionState === "answering"))
     ) {
-      const input = command.payload as {
-        playerId?: number;
-        isCorrect?: boolean;
-        answerType?: string;
-      };
-      const id = input.playerId ?? this.game.session.state.answeringPlayer;
+      const single = command.type === "answer-result";
+      const id = single ? this.game.session.state.answeringPlayer : command.payload.playerId;
+      const skip = single && command.payload.answerType === "skip";
       if (id != null && this.answerers.includes(id)) {
         const submission = this.submissions.get(id);
-        if (submission?.correct === null || (!submission && this.format === "text")) {
+        if (submission?.correct === null || (!submission && (skip || this.format === "text"))) {
           this.submissions.set(id, {
             text: submission?.text ?? null,
             order: submission?.order,
-            correct: input.isCorrect ?? input.answerType === "correct",
+            correct: single ? command.payload.answerType === "correct" : command.payload.isCorrect,
+            ...(skip ? { skippedByShowman: true } : {}),
           });
           this.finishAnswers();
         }
@@ -585,7 +631,7 @@ export class PreviewScript {
       this.answerers.includes(sender) &&
       !this.submissions.has(sender)
     ) {
-      this.submit(sender, null, undefined, false);
+      this.submit(sender, null, undefined, false, true);
     }
     return true;
   }
@@ -594,23 +640,12 @@ export class PreviewScript {
     text: string | null,
     order: number | undefined,
     correct: boolean | null,
+    unanswered?: true,
   ) {
-    this.submissions.set(sender, { text, order, correct });
-    const all = this.game.session.state.allPlay;
-    this.patch({
-      submittedAnswer: all ? null : text,
-      submittedChoiceOrder: all ? null : (order ?? null),
-      allPlay: all
-        ? {
-            ...all,
-            entries: all.entries.map((entry) =>
-              entry.playerId === sender
-                ? { ...entry, answer: text, choiceOrder: order, submitted: true }
-                : entry,
-            ),
-          }
-        : null,
-    });
+    this.submissions.set(sender, { text, order, correct, unanswered });
+    if (!this.game.session.state.allPlay) {
+      this.patch({ submittedAnswer: text, submittedChoiceOrder: order ?? null });
+    }
     this.finishAnswers();
   }
   private bid(
@@ -660,31 +695,85 @@ export class PreviewScript {
     }
   }
   private finishAnswers() {
-    if (this.answerers.some((id) => !this.submissions.has(id))) return;
-    if ([...this.submissions.values()].some((entry) => entry.correct === null)) {
+    const awaitingSubmission = this.answerers.some((id) => !this.submissions.has(id));
+    const awaitingVerdict = [...this.submissions.values()].some((entry) => entry.correct === null);
+    const reviewing = !awaitingSubmission && awaitingVerdict;
+    const all = this.game.session.state.allPlay;
+    if (awaitingSubmission || awaitingVerdict) {
       this.patch({
-        questionState: this.answerers.length > 1 ? "reviewing" : "answering",
-        timer: null,
+        ...(reviewing ? { questionState: all ? "reviewing" : "answering", timer: null } : {}),
+        allPlay: all && {
+          ...all,
+          entries: all.entries.map((entry) => {
+            const answer = this.submissions.get(entry.playerId);
+            return answer
+              ? {
+                  ...entry,
+                  answer: answer.text,
+                  choiceOrder: answer.order,
+                  submitted: true,
+                  isCorrect: reviewing || answer.unanswered ? answer.correct : null,
+                }
+              : entry;
+          }),
+        },
       });
       return;
     }
-    for (const [id, answer] of this.submissions)
-      this.score(id, answer.correct === true, `${this.pc - 1}:answer:${id}`);
+    for (const [id, answer] of this.submissions) {
+      const answerType = answer.skippedByShowman ? "skip" : answer.correct ? "correct" : "wrong";
+      this.score(id, answerType, this.answerEffectIdentity(id));
+    }
     if (
       this.mode === "button" &&
       ![...this.submissions.values()].some((entry) => entry.correct) &&
       PREVIEW_PLAYERS.some((id) => this.canStillBuzz(id))
     ) {
       this.answerers = [];
+      this.actor = null;
       this.patch({
         answeringPlayer: null,
         questionState: "showing",
         submittedAnswer: null,
-        timer: previewTimer(20_500),
+        submittedChoiceOrder: null,
+        timer: previewTimer(this.answerWindowRemainingMs),
       });
       return;
     }
     this.resume();
+  }
+  private answerEffectIdentity(id: number) {
+    return `${this.pc - 1}:answer:${id}`;
+  }
+  private undoAnswer() {
+    const state = this.game.session.state;
+    const reveal = state.questionState === "showing_answer" ? state.answerShowData : null;
+    const last = reveal?.answerResult ?? state.answeredPlayers?.at(-1);
+    const open =
+      this.waiting === "answer" &&
+      this.mode === "button" &&
+      state.questionState === "showing" &&
+      state.answeringPlayer == null &&
+      !!last &&
+      last.answerType !== "correct";
+    if (!last || (!open && !reveal)) return;
+    const player = this.game.session.players.find((item) => item.meta.id === last.player);
+    if (!player) return;
+    if (open) {
+      if (!this.effects.delete(this.answerEffectIdentity(last.player))) return;
+      this.submissions.delete(last.player);
+    } else if (last.answerType === "correct") {
+      this.lastCorrectResult = undefined;
+    }
+    this.game.dispatch({
+      type: "answer-result-undo",
+      payload: {
+        playerId: last.player,
+        revertedResult: last.result,
+        newScore: clampPreviewScore(player.score - last.result),
+        canAnswerAgain: open && !state.skippedPlayers?.includes(last.player),
+      },
+    });
   }
   private canStillBuzz(playerId: number) {
     return (
@@ -712,21 +801,42 @@ export class PreviewScript {
       known: price != null,
     };
   }
-  private score(id: number, correct: boolean, identity: string, award = false) {
+  private score(id: number, answerType: AnswerResultType | null, identity: string) {
     if (this.effects.has(identity)) return;
     const { win, lose } = this.answerPrice(id);
     const previous = this.game.session.players.find((player) => player.meta.id === id)?.score ?? 0;
-    const score = clampPreviewScore(previous + (correct ? win : lose));
-    if (award) this.awards = [...this.awards, { playerId: id, points: score - previous }];
-    else if (correct)
+    const score =
+      answerType === "skip"
+        ? previous
+        : clampPreviewScore(previous + (answerType === "wrong" ? lose : win));
+    const change = score - previous;
+    if (answerType === null) this.awards = [...this.awards, { playerId: id, points: change }];
+    else if (answerType === "correct")
       this.lastCorrectResult = {
         player: id,
-        result: score - previous,
+        result: change,
         score,
         answerType: "correct",
       };
+    const state = this.game.session.state;
+    const attempt =
+      answerType === "wrong" || answerType === "skip"
+        ? {
+            player: id,
+            result: change,
+            score,
+            answerType,
+            ...(this.format === "select" && !this.submissions.get(id)?.unanswered
+              ? { choiceOrder: this.submissions.get(id)?.order }
+              : {}),
+          }
+        : null;
     this.effects.add(identity);
-    this.patch({}, [{ playerId: id, score }]);
+    this.patch(
+      attempt ? { answeredPlayers: [...(state.answeredPlayers ?? []), attempt] } : {},
+      [{ playerId: id, score }],
+      answerType === "skip" ? [{ playerId: id, answerType, change, score }] : undefined,
+    );
   }
   private currentReveal(): Extract<QuestionScriptStep, { op: "showContent" }> | null {
     for (const step of this.game.question.script!.steps.slice(this.pc)) {

@@ -1,4 +1,4 @@
-import { readCompatibilityIssues, sourceFromSiq } from "./siqCompatibility";
+import { invalidSelectSource, readCompatibilityIssues, sourceFromSiq } from "./siqCompatibility";
 import { type SiqQuestionCoordinates, normalizeSiqQuestion } from "./normalizeSiqQuestion";
 import { readSiqScript, resolveSiqQuestionParameters } from "./siqScript";
 import { VISUAL_QUEUE_THRESHOLD } from "@/game/authoredContentGroups";
@@ -337,14 +337,16 @@ class SiqReader {
         if (!supported) unresolvedOptions.push({ order, sourceLabel, kind, value });
       }
       base.answers = options;
-      base.selectSource = { rightLabels: right, unresolvedOptions };
+      const sourceRights = Array.from(children(child(q, "right"), "answer"), text);
+      base.selectSource = { rightLabels: sourceRights, unresolvedOptions };
       const labels = options.map((option) => option.sourceLabel);
-      const matches = options.filter((option) => option.sourceLabel === right[0]);
+      const matches = options.filter((option) => option.sourceLabel === sourceRights[0]);
       if (
         options.length < 2 ||
         labels.some((label) => !label) ||
         new Set(labels).size !== labels.length ||
         matches.length !== 1 ||
+        invalidSelectSource(base.selectSource, options) ||
         unresolvedOptions.length
       ) {
         base.correctChoiceNeedsRepair = true;
@@ -399,6 +401,8 @@ class SiqReader {
         base.answerType = currentFormat?.answerType ?? "text";
         const ask = script.script.steps.find((step) => step.op === "askAnswer");
         if (ask?.op === "askAnswer") base.answerDurationMs = ask.durationMs;
+        if (type === "stake" || type === "secret" || type === "noRisk") base.subType = "simple";
+        if (type === "stake") base.maxPrice = null;
         if (native === "stakeAll" || native === "forAll") base.subType = "forEveryone";
         if (native === "noRisk") base.priceMultiplier = 2;
         if (native.startsWith("secret")) {
@@ -433,6 +437,10 @@ class SiqReader {
         }
         base.script = null;
         if (base.answerType !== "select") delete base.answers;
+      } else if (normalized.fields.type !== "simple") {
+        // The upload schema still requires fields for the declared type of a scripted question.
+        const { secretRules: _rules, realPrice: _price, ...typeFields } = normalized.fields;
+        Object.assign(base, { subType: "simple", ...typeFields });
       }
     }
     return base;

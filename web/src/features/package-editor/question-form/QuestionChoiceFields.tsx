@@ -11,6 +11,7 @@ import { newId } from "../packageDraft";
 import { editChoiceText, selectChoice } from "./questionUpdates";
 import { changeChoiceMedia, type ApplyMediaChange } from "./questionMediaHistory";
 import { correctChoice } from "../choiceCorrectness";
+import { invalidSelectSource } from "@/features/upload/siqCompatibility";
 export function QuestionChoiceFields({
   q,
   set,
@@ -22,6 +23,26 @@ export function QuestionChoiceFields({
     <fieldset className={layoutStyles.optionGroup} data-testid="choice-fields">
       <legend className="mb-1 text-[15px] font-semibold">{t("editor.form.options")}</legend>
       <span className="text-sm text-faint">{t("editor.form.optionsHelp")}</span>
+      {q.selectSource &&
+        !q.selectSource.unresolvedOptions?.length &&
+        invalidSelectSource(q.selectSource, q.options) && (
+          <div className="flex flex-col items-start gap-2">
+            <p className="m-0 text-sm text-warning">
+              {t("editor.form.selectSourceInvalid", {
+                labels: JSON.stringify(q.selectSource.rightLabels),
+              })}
+            </p>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (window.confirm(t("editor.form.selectSourceDiscardConfirm")))
+                  set({ selectSource: undefined });
+              }}
+            >
+              {t("editor.form.selectSourceDiscard")}
+            </Button>
+          </div>
+        )}
       {q.options.map((o, i) => {
         const isCorrect = correct?.id === o.id;
         return (

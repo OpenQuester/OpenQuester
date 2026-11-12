@@ -310,6 +310,73 @@ describe("Choice Question Flow Tests", () => {
         expect(right.answerResult.answerType).toBe(AnswerResultType.CORRECT);
       });
     });
+    it("grades explicit select by key when an alias matches both options", async () => {
+      await suite.scenario(async (scenario) => {
+        utils.packageTransform = (pkg) => {
+          const q = pkg.rounds[0].themes
+            .flatMap(({ questions }) => questions)
+            .find((item) => item.type === PackageQuestionType.CHOICE)!;
+          q.answerType = AnswerType.SELECT;
+          q.answerText = "Green";
+          q.rightAnswers = ["Green"];
+          q.correctChoiceOrder = 0;
+          q.answers = [
+            { order: 0, text: "Green", file: null },
+            { order: 1, text: "Green", file: null }
+          ];
+        };
+        const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          2,
+          0,
+          true,
+          0,
+          true
+        );
+        await utils.startGame(showmanSocket);
+        const question = await utils.findQuestionByType(PackageQuestionType.CHOICE, gameId);
+        await utils.pickQuestion(showmanSocket, question!.id, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+        const accepted = scenario
+          .createAcceptedActionProbe({ gameId, actionType: GameActionType.ANSWER_SUBMITTED })
+          .waitForCount(1);
+        const result = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () =>
+            scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+              answerText: "Green",
+              choiceOrder: 1
+            })
+        );
+        await accepted;
+        await scenario.assert.waitForActionsComplete({ gameId });
+        expect(result.answerResult).toMatchObject({
+          answerType: AnswerResultType.WRONG,
+          choiceOrder: 1
+        });
+        await utils.answerQuestion(playerSockets[1], showmanSocket);
+        const acceptedRight = scenario
+          .createAcceptedActionProbe({ gameId, actionType: GameActionType.ANSWER_SUBMITTED })
+          .waitForCount(1);
+        const reveal = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_FINISH);
+        const right = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT,
+          () =>
+            scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+              answerText: "Green",
+              choiceOrder: 0
+            })
+        );
+        await acceptedRight;
+        expect(right.answerResult.answerType).toBe(AnswerResultType.CORRECT);
+        expect((await reveal).rightAnswers).toBeNull();
+        await scenario.assert.waitForActionsComplete({ gameId });
+      });
+    });
+
     it("grades an authored image choice and reveals its image without exposing the key first", async () => {
       await suite.scenario(async (scenario) => {
         utils.packageTransform = (pkg) => {

@@ -12,6 +12,15 @@ Archived script operations and modes use exact string values. The local playtest
 uses the same answer window defaults, valid select orders, pass rules, and
 bidding timeouts as the server.
 
+For a structurally valid script, the `.oq` reader resolves content orders
+against files and text in each phase, and select orders against the question's
+options. It checks the answer key and required number or point data. A point
+ask requires an image as the last occurrence of the active presentation. The
+editor retains invalid references and operands in the draft and reports the
+affected script step. Publication and playtest require a valid script. The
+creator can repair the source archive or explicitly convert the question to a
+regular question in the editor.
+
 Expanded occurrences, including repeated references, count against the existing
 30 steps per question or answer phase and 10 files per authored group. Five or
 more visuals in one group use the existing sequential adaptation. Script command
@@ -264,3 +273,8 @@ an explicit repair. The editor still blocks publication and playtest for empty
 or missing-media options. Switching the legacy choice mechanism to another type retains the
 select format. Option media supports image/audio/video through the existing
 local playback controls, separately from selecting an answer.
+
+For explicit `answerType=select`, the editor hides the legacy “Also accept”
+field: only the keyed option is correct. Existing `rightAnswers` remain in
+drafts and archives, but are not presented as correct answers during gameplay
+or playtest. Legacy choice keeps its text aliases.

@@ -23,6 +23,7 @@ export function checkPreviewAnswer(
       const correct = answers.filter((option) => option.order === q.correctChoiceOrder);
       const selected = answers.filter((option) => option.order === choiceOrder);
       if (correct.length !== 1 || selected.length !== 1) return null;
+      if (q.answerType === "select") return selected[0]!.order === q.correctChoiceOrder;
       const alias = normalize(selected[0]!.text);
       return (
         selected[0]!.order === q.correctChoiceOrder ||

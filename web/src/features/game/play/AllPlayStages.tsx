@@ -191,8 +191,8 @@ function AllPlayVerdict({
       <span
         className={cn("text-sm font-semibold", entry.isCorrect ? "text-success" : "text-danger")}
       >
-        {entry.isCorrect ? t("judge.correct") : t("judge.wrong")} ·{" "}
-        {formatSigned(entry.scoreChange ?? 0)}
+        {entry.isCorrect ? t("judge.correct") : t("judge.wrong")}
+        {entry.scoreChange != null ? ` · ${formatSigned(entry.scoreChange)}` : ""}
       </span>
     );
   if (!isShowman)

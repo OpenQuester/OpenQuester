@@ -29,6 +29,7 @@ type Issue = {
 const fieldFor: Partial<Record<Issue["code"], string>> = {
   questionEmpty: "#qf-text",
   compatibilityNeedsRepair: "#qf-compatibility button",
+  scriptRepair: "#qf-compatibility button",
   secretRulesInvalid: "#qf-secret-kind",
   realPriceRange: "#qf-real-price",
   noPrice: "#qf-price",
@@ -192,7 +193,14 @@ export function QuestionPlaytest({
             <li key={`${issue.code}-${index}`}>{issueMessage(issue, t)}</li>
           ))}
         </ul>
-        <Button onClick={() => onFix(fieldFor[issues[0]!.code] ?? "#qf-text")}>
+        <Button
+          onClick={() =>
+            onFix(
+              fieldFor[issues[0]!.code] ??
+                (question.script ? "#qf-compatibility button" : "#qf-text"),
+            )
+          }
+        >
           {t("editor.playtest.fix")}
         </Button>
       </div>

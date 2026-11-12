@@ -51,6 +51,7 @@ describe("exporting a draft opened from a published package", () => {
     const question = newQuestion(100, {
       text: "Pick one",
       answerType: "select",
+      rightAnswers: ["Stored alias"],
       correctChoiceOptionId: "C",
       options: [
         { id: "A", sourceLabel: "A", text: "B", file: null },
@@ -58,7 +59,7 @@ describe("exporting a draft opened from a published package", () => {
         { id: "C", sourceLabel: "C", text: "Same", file: null },
       ],
       selectSource: {
-        rightLabels: ["C", "B", "unknown", "B"],
+        rightLabels: ["C", "B"],
         unresolvedOptions: [{ order: 0, sourceLabel: "A", kind: "unknown", value: "raw" }],
       },
       compatibilityIssues: [
@@ -108,11 +109,15 @@ describe("exporting a draft opened from a published package", () => {
         id,
       );
 
+    const invalid = structuredClone(pkg);
+    invalid.rounds[0]!.themes[0]!.questions[0]!.selectSource!.rightLabels.push("Z");
+    await expect(upload(invalid)).rejects.toThrow("compatibilityNeedsRepair");
+    expect(writes).toEqual([]);
     await upload(pkg);
     const published = saved!.rounds[0]!.themes[0]!.questions[0]!;
     expect(published.selectSource).toEqual({ rightLabels: ["C", "B"] });
     expect(published).not.toHaveProperty("compatibilityIssues");
-    expect(published.rightAnswers).toBeNull();
+    expect(published.rightAnswers).toEqual(["Stored alias"]);
 
     const reopened = await loadServerPackage(7);
     await upload(reopened.pkg, 7);
@@ -123,8 +128,8 @@ describe("exporting a draft opened from a published package", () => {
     expect(writes).toEqual(["POST", "PUT"]);
     expect(restored.selectSource).toEqual({ rightLabels: ["C", "B"] });
     expect(restored.correctChoiceOrder).toBe(2);
-    expect(restored.rightAnswers).toBeNull();
-    expect(question.selectSource?.rightLabels).toEqual(["C", "B", "unknown", "B"]);
+    expect(restored.rightAnswers).toEqual(["Stored alias"]);
+    expect(question.selectSource?.rightLabels).toEqual(["C", "B"]);
   });
 
   it("round-trips published scripts without inventing a main text step", async () => {

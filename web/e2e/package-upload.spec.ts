@@ -1,15 +1,34 @@
+/// <reference lib="dom.iterable" />
+
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { expect, test, type Page } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
+import { SI_SCRIPT_TEMPLATES } from "../src/features/upload/siqScript";
 
 import { expectNoHorizontalScroll, shot, signInAsGuest } from "./support/game";
 import { makePng } from "./support/seed.mjs";
 import { mixedHtmlPack } from "./support/htmlRemoval";
 
-/** A SIGame format 5 pack: a picture question, a cat in a bag, a broken reference and a final. */
+/** A SIGame format 5 pack with media, explicit scripts, a broken reference and a final. */
 function siqFile(title: string): Buffer {
+  const legacyNoRisk = SI_SCRIPT_TEMPLATES.noRisk!.replace(">multiply<", ">noRisk<").replace(
+    '<param name="duration" isRef="true">answerDuration</param>',
+    "",
+  );
+  const scriptedQuestions = [
+    { price: 400, type: "auction", script: SI_SCRIPT_TEMPLATES.stake },
+    { price: 500, type: "noRisk", script: SI_SCRIPT_TEMPLATES.noRisk },
+    { price: 600, type: "sponsored", script: legacyNoRisk },
+  ].map(
+    ({ price, type, script }) => `
+            <question price="${price}" type="${type}">
+              <params><param name="question" type="content"><item>Name a primary colour.</item></param></params>
+              <script>${script}</script>
+              <right><answer>Red</answer></right>
+            </question>`,
+  );
   const xml = `<?xml version="1.0" encoding="utf-8"?>
 <package name="${title}" version="5" language="en" xmlns="https://github.com/VladimirKhil/SI/blob/master/assets/siq_5.xsd">
   <rounds>
@@ -27,13 +46,18 @@ function siqFile(title: string): Buffer {
               <right><answer>Amber</answer></right>
             </question>
             <question price="200" type="secret">
-              <params><param name="question" type="content"><item>Cat in a bag: name a primary colour.</item></param></params>
+              <params>
+                <param name="question" type="content"><item>Cat in a bag: name a primary colour.</item></param>
+                <param name="price" type="numberSet"><numberSet minimum="250" maximum="250"/></param>
+              </params>
+              <script>${SI_SCRIPT_TEMPLATES.secret}</script>
               <right><answer>Red</answer></right>
             </question>
             <question price="300">
               <params><param name="question" type="content"><item type="image" isRef="True">lost.png</item></param></params>
               <right><answer>Nothing</answer></right>
             </question>
+            ${scriptedQuestions.join("")}
           </questions>
         </theme>
       </themes>
@@ -88,7 +112,7 @@ test.describe("package upload", () => {
     const review = page.getByTestId("upload-review");
     await expect(review.getByRole("heading", { name: title })).toBeVisible();
     // The question whose only picture is missing is skipped, and the page says why.
-    await expect(review.getByText("3 questions")).toBeVisible();
+    await expect(review.getByText("6 questions")).toBeVisible();
     await expect(review.getByText(/^1 media file/)).toBeVisible();
     const warnings = page.getByTestId("upload-warnings");
     await expect(warnings.getByText("Import report (2)", { exact: true })).toBeVisible();
@@ -111,17 +135,40 @@ test.describe("package upload", () => {
     await expect(details).toContainText("Has images");
     const id = Number(new URL(page.url()).searchParams.get("id"));
     const pkg = await (await page.request.get(`/v1/packages/${id}`)).json();
-    const question = pkg.rounds[0].themes[0].questions.find(
-      (q: { price: number }) => q.price === 100,
-    );
+    const questions = pkg.rounds[0].themes[0].questions;
+    const question = questions.find((q: { price: number }) => q.price === 100);
     const link: string = question.questionFiles[0].file.link;
     const media = await page.request.get(link);
     expect(media.status(), "uploaded picture is downloadable").toBe(200);
-    expect(
-      pkg.rounds[0].themes[0].questions.find((q: { price: number }) => q.price === 200),
-    ).toMatchObject({
-      type: "secret",
-    });
+    expect(questions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          price: 200,
+          type: "secret",
+          subType: "simple",
+          transferType: "exceptCurrent",
+          realPrice: 250,
+          script: null,
+        }),
+        expect.objectContaining({
+          price: 400,
+          type: "stake",
+          subType: "simple",
+          maxPrice: null,
+          script: null,
+        }),
+        expect.objectContaining({
+          price: 500,
+          type: "noRisk",
+          script: expect.objectContaining({
+            steps: expect.arrayContaining([{ op: "setPrice", mode: "multiply" }]),
+          }),
+        }),
+      ]),
+    );
+    const legacyNoRisk = questions.find((q: { price: number }) => q.price === 600);
+    expect(legacyNoRisk).toMatchObject({ type: "noRisk", subType: "simple", script: null });
+    expect(Number(legacyNoRisk.priceMultiplier)).toBe(2);
     expect(pkg.rounds[1].type).toBe("final");
 
     await details.getByRole("link", { name: "Host a game with this" }).click();

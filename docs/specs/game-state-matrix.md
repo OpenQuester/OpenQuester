@@ -3,13 +3,35 @@
 ## Structured question scripts
 
 A script presents one wait at a time. Content uses the authored timeline and
-media readiness; `askAnswer` starts its own button or direct input window.
+media readiness; `askAnswer` starts its own button or direct input window. A direct
+ask with an explicitly empty eligible recipient set continues without an answer
+window or award; without a recipient selection it falls back to the picker.
 Transfer, price and bidding use their existing actions. Before a buzz, Pass is
 neutral. The showman can reveal the current ask and stop the remaining steps;
 if there is no reveal, the control says to stop the script. `accept` awards
 points once without creating an answer result or incrementing answer counters.
 The reveal can display the most recent correct verdict and its actual score
 change across multiple asks. It does not disclose any private submission.
+During an active single-player ask, the showman's **Skip ±0** closes the current
+attempt even before typed input arrives. Correct and wrong rulings on typed
+answers require a submission. The result is a public skip for zero points and
+counts as an attempt without adding a correct or wrong answer. Any submitted
+option stays in the attempt history and remains available to other players.
+Button asks reopen for remaining eligible players using the remaining buzzer
+time. Direct asks and exhausted button asks continue to the next script step.
+The editor playtest follows the same ruling. Player give-up and timeout still
+use the wrong-answer policy.
+During a group ask, skipped, expired and forfeited answers have a terminal
+wrong verdict. The showman reviews pending submissions, then scoring and
+statistics apply once when all verdicts are known.
+A select option ruled wrong is unavailable for the rest of the current button
+ask. A forfeited attempt leaves its option available.
+Each group member can still choose independently, and a later ask starts with
+no rejected options. While the same button ask is open and awaiting a buzz,
+the showman can undo its last wrong or neutral skip ruling. This restores the
+applied score change and answer counters, lets the player buzz again if otherwise eligible,
+and makes their rejected option available again. Undo during the answer reveal
+restores the score and counters without reopening a resolved ask.
 
 The serialized game executor saves the private cursor, actor, submitted answers,
 resolved price and applied effect identities with game state. `question-script-state`
@@ -25,7 +47,9 @@ exhausted clock expires immediately after unpause. Already-paused answer and
 price clocks keep their saved time. Legacy clocks recover with their full duration.
 The dock and group review use the same point values as the current script ruling.
 An ordinary script exposes its fixed actual when its ask opens. The board keeps
-the nominal price. Current select options retain their display labels.
+the nominal price. Current select options retain their display labels. Scripted
+select and editor playtest validate the submitted order and display text against
+the active ask's options, including numeric placeholders for media-only options.
 Personal bids appear in estimates for their owner and during review. Estimates
 with unavailable or hidden amounts are omitted. Select option media uses the
 same readiness barrier as authored media. A direct ask waits for its current
@@ -510,6 +534,8 @@ Select uses the same option controls for sequential, all-play and final answers;
 all-play/final commands carry optional choiceOrder alongside the display answer.
 The server validates integer membership, unique orders and canonical display
 payload before storing a selection. New select requires explicit identity.
+For an explicit select, automatic judging uses only the correct option order;
+legacy choice retains its text aliases and manual handling of ambiguous answers.
 The first accepted all-play/final submission remains immutable. Wrong sequential
 choices stay blocked for that question; all-play players may choose the same
 wrong option independently. All-play auto-check uses stored option identity;

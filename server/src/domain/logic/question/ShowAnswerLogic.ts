@@ -94,7 +94,8 @@ export class ShowAnswerLogic {
           : null,
       answerTextItems: question?.answerTextItems ?? null,
       answerExplanation: question?.answerExplanation ?? null,
-      rightAnswers: question?.rightAnswers ?? null,
+      rightAnswers:
+        question?.answerType === AnswerType.SELECT ? null : (question?.rightAnswers ?? null),
       authors: question?.authors ?? null,
       sources: question?.sources ?? null
     };

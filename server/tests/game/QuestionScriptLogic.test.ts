@@ -1,4 +1,7 @@
 import { describe, expect, it } from "@jest/globals";
+import { SCORE_ABS_LIMIT } from "domain/constants/game";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { ShowmanToolsLogic } from "domain/logic/game/ShowmanToolsLogic";
 import { QuestionScriptLogic } from "domain/logic/question/QuestionScriptLogic";
 import { validateQuestionScript } from "domain/logic/question/validateQuestionScript";
 import { projectScriptState, projectScriptQuestion } from "domain/mappers/projectScriptState";
@@ -12,6 +15,7 @@ import {
 import type { QuestionScriptStep } from "domain/types/dto/package/QuestionScriptDTO";
 import { buildGame } from "tests/integration/recovery/SingleInstanceRestartRecoveryFixtures";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { AllPlayMode } from "domain/types/dto/game/state/AllPlayDataDTO";
 import { questionScriptScheme } from "presentation/schemes/package/questionScriptScheme";
 import { secretRoundPrices } from "domain/logic/question/secretQuestionRules";
@@ -19,6 +23,7 @@ import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { BuzzerLogic } from "domain/logic/question/BuzzerLogic";
 import { ButtonPressMode, WrongAnswerPenalty } from "domain/enums/game/GameSettings";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 
 function question(
   steps: QuestionScriptStep[],
@@ -44,6 +49,54 @@ const numeric: QuestionScriptStep = { op: "setAnswerType", answerType: "number" 
 const ask: QuestionScriptStep = { op: "askAnswer", mode: "direct", durationMs: 15000 };
 
 describe("QuestionScriptLogic", () => {
+  it("skips an explicitly empty direct recipient set without fallback or award", () => {
+    const game = buildGame("EMPTY", null);
+    game.getPlayer(3, { fetchDisconnected: false })!.role = PlayerRole.SPECTATOR;
+    const source = question(
+      [
+        { op: "setAnswerer", mode: "byCurrent", select: "exceptCurrent" },
+        { op: "setAnswerType", answerType: "select", optionOrders: [0], correctChoiceOrder: 0 },
+        ask,
+        { op: "accept" }
+      ],
+      { answers: [{ order: 0, text: null, file: { type: PackageFileType.IMAGE, md5: "image" } }] }
+    );
+    expect(QuestionScriptLogic.start(game, source, 1, 2)).toEqual([]);
+    expect(game.gameState.questionState).toBe(QuestionState.SHOWING_ANSWER);
+    expect(game.gameState.scriptProgress).toBeNull();
+    expect(game.getPlayer(2, { fetchDisconnected: true })?.score).toBe(200);
+  });
+
+  it("continues when the selected recipient leaves while option media is preparing", () => {
+    const game = buildGame("MEDIA-LEAVE", null);
+    const source = question(
+      [
+        current,
+        { op: "setAnswerType", answerType: "select", optionOrders: [0], correctChoiceOrder: 0 },
+        ask,
+        { op: "accept" }
+      ],
+      {
+        answers: [{ order: 0, text: null, file: { type: PackageFileType.IMAGE, md5: "image" } }]
+      }
+    );
+    QuestionScriptLogic.start(game, source, 1, 2);
+    expect(game.gameState.scriptProgress?.waitingFor).toBe("content");
+    game.removePlayer(2);
+    expect(QuestionScriptLogic.releaseMedia(game, source)).toEqual([]);
+    expect(game.gameState.scriptProgress).toBeNull();
+    expect(game.gameState.questionState).toBe(QuestionState.SHOWING_ANSWER);
+    expect(game.getPlayer(2, { fetchDisconnected: true })?.score).toBe(200);
+  });
+
+  it("falls back to the picker when a direct ask has no recipient selection", () => {
+    const game = buildGame("FALLBACK", null);
+    const source = question([ask]);
+    QuestionScriptLogic.start(game, source, 1, 2);
+    expect(game.gameState.scriptProgress).toMatchObject({ waitingFor: "answer", answererIds: [2] });
+    expect(game.gameState.answeringPlayer).toBe(2);
+  });
+
   it("filters native all-play stakes and answers in the room fallback", () => {
     const game = buildGame("NATIVE", null);
     game.gameState.questionState = QuestionState.SHOWING;
@@ -91,7 +144,7 @@ describe("QuestionScriptLogic", () => {
     expect(game.gameState.timer?.durationMs).toBe(2000);
     expect(projectScriptState(game, 3).answerShowData).toBeNull();
     game = GameMapper.deserializeGameHash(GameMapper.serializeGameToHash(game));
-    QuestionScriptLogic.score(game, 2, true, "2:answer:2");
+    QuestionScriptLogic.score(game, 2, AnswerResultType.CORRECT, "2:answer:2");
     expect(game.getPlayer(2, { fetchDisconnected: true })?.score).toBe(300);
     QuestionScriptLogic.submit(game, source, 2, "42");
     expect(game.getPlayer(2, { fetchDisconnected: true })?.score).toBe(400);
@@ -326,8 +379,39 @@ describe("QuestionScriptLogic", () => {
     ).toEqual({ min: 1, max: 1 });
     QuestionScriptLogic.start(game, source, 1, 2);
     QuestionScriptLogic.submit(game, source, 2, "42");
-    expect(QuestionScriptLogic.judge(game, source, 2, true)).toEqual([
+    expect(QuestionScriptLogic.judge(game, source, 2, AnswerResultType.CORRECT)).toEqual([
       { playerId: 2, answerType: "correct", change: 200, score: 400 }
+    ]);
+  });
+
+  it("preserves the explicit option order when display labels are identical", () => {
+    const game = buildGame("FINALSELECT", null);
+    game.gameState.currentRound!.type = PackageRoundType.FINAL;
+    const source = question(
+      [
+        current,
+        { op: "setAnswerType", answerType: "select", optionOrders: [0, 1], correctChoiceOrder: 1 },
+        ask
+      ],
+      {
+        answers: [
+          { order: 0, text: "Same", file: null },
+          { order: 1, text: "Same", file: null }
+        ]
+      }
+    );
+    QuestionScriptLogic.start(game, source, 1, 2);
+    expect(() => QuestionScriptLogic.submit(game, source, 2, "Other", 1)).toThrow(
+      ClientResponse.VALIDATION_ERROR
+    );
+    expect(game.gameState.scriptProgress?.submissions).toEqual([]);
+    expect(QuestionScriptLogic.submit(game, source, 2, "Same", 1)).toEqual([]);
+    expect(projectScriptState(game, 1, true)).toMatchObject({
+      submittedAnswer: "Same",
+      submittedChoiceOrder: 1
+    });
+    expect(game.gameState.scriptProgress?.submissions).toMatchObject([
+      { choiceOrder: 1, correct: null }
     ]);
   });
 
@@ -350,7 +434,7 @@ describe("QuestionScriptLogic", () => {
     expect(projectScriptState(game, 1, true).scriptFinalBids).toEqual({});
     expect(QuestionScriptLogic.submit(game, source, 2, "42")).toEqual([]);
     expect(game.getPlayer(2, { fetchDisconnected: true })?.score).toBe(200);
-    const effects = QuestionScriptLogic.judge(game, source, 2, false);
+    const effects = QuestionScriptLogic.judge(game, source, 2, AnswerResultType.WRONG);
     expect(effects).toEqual([{ playerId: 2, answerType: "wrong", change: -120, score: 80 }]);
   });
 
@@ -412,6 +496,64 @@ describe("QuestionScriptLogic", () => {
     expect(() => QuestionScriptLogic.skipAnswer(game, source, 2)).toThrow();
     expect(() => QuestionScriptLogic.submit(game, source, 2, "42")).toThrow();
     expect(game.gameState.scriptProgress?.submissions).toHaveLength(1);
+  });
+
+  it("undoes only the applied change and effect of a wrong button selection", () => {
+    const game = buildGame("UNDO", null);
+    const player = game.getPlayer(2, { fetchDisconnected: false })!;
+    player.score = -SCORE_ABS_LIMIT + 25;
+    const source = question(
+      [
+        { op: "setPrice", mode: "multiply" },
+        { op: "setAnswerType", answerType: "select", optionOrders: [0, 1], correctChoiceOrder: 1 },
+        { ...ask, mode: "button" },
+        { ...ask, mode: "button" }
+      ],
+      {
+        answers: [
+          { order: 0, text: "First", file: null },
+          { order: 1, text: "Second", file: null }
+        ]
+      }
+    );
+    const state = game.gameState;
+    QuestionScriptLogic.start(game, source, 1, 2);
+    const answer = (id: number, order: number) => {
+      state.scriptProgress!.answererIds = [id];
+      state.answeringPlayer = id;
+      game.setQuestionState(QuestionState.ANSWERING);
+      const text = source.answers?.find((option) => option.order === order)?.text ?? null;
+      return QuestionScriptLogic.submit(game, source, id, text, order);
+    };
+    expect(answer(2, 0)).toMatchObject([{ change: -25, score: -SCORE_ABS_LIMIT }]);
+    expect(projectScriptState(game, 3).answeredPlayers).toMatchObject([{ choiceOrder: 0 }]);
+    expect(ShowmanToolsLogic.undoLastRuling(game).result).toEqual({
+      playerId: 2,
+      revertedResult: -25,
+      newScore: -SCORE_ABS_LIMIT + 25,
+      canAnswerAgain: true
+    });
+    expect(state.scriptProgress?.appliedEffects).toEqual(["0:price"]);
+    expect(state.scriptProgress?.submissions).toEqual([]);
+    expect(() => ShowmanToolsLogic.undoLastRuling(game)).toThrow(ClientResponse.NOTHING_TO_UNDO);
+    expect(answer(2, 0)).toMatchObject([{ change: -25, score: -SCORE_ABS_LIMIT }]);
+    expect(() => answer(3, 0)).toThrow(ClientResponse.ALREADY_ANSWERED_QUESTION);
+    expect(() => ShowmanToolsLogic.undoLastRuling(game)).toThrow(ClientResponse.NOTHING_TO_UNDO);
+    answer(3, 1);
+    expect(state.answeredPlayers).toBeNull();
+    expect(answer(2, 0)).toMatchObject([{ change: 0, score: -SCORE_ABS_LIMIT }]);
+    QuestionScriptLogic.revealAndStop(game, source);
+    expect(ShowmanToolsLogic.undoLastRuling(game).result).toMatchObject({
+      playerId: 3,
+      canAnswerAgain: false
+    });
+    expect(state.scriptProgress?.lastCorrectResult).toBeUndefined();
+    expect(state.answeredPlayers).toMatchObject([{ player: 2, choiceOrder: 0 }]);
+    expect(ShowmanToolsLogic.undoLastRuling(game).result).toMatchObject({
+      playerId: 2,
+      canAnswerAgain: false
+    });
+    expect(() => ShowmanToolsLogic.undoLastRuling(game)).toThrow(ClientResponse.NOTHING_TO_UNDO);
   });
 
   it("fallback right reveals the selected option content, not its private source key", () => {

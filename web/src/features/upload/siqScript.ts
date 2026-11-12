@@ -1,4 +1,4 @@
-import { hasMissingScriptPointImage } from "@/game/questionScript";
+import { missingScriptPointImageStep } from "@/game/questionScript";
 import type { QuestionScriptDTO, QuestionScriptStep, ScriptNumberSet } from "@/game/questionScript";
 import { scriptPointImageOrder } from "@/lib/pointImage";
 import { parseSiqPoint } from "./siqPoint";
@@ -105,7 +105,8 @@ let templateSignatures: { kind: string; value: string }[] | undefined;
 
 function matchingTemplate(script: Element): string | null {
   templateSignatures ??= [
-    ...Object.entries(SI_SCRIPT_TEMPLATES),
+    // Modern multiply keeps the room's wrong-answer penalty. Native noRisk drops it.
+    ...Object.entries(SI_SCRIPT_TEMPLATES).filter(([kind]) => kind !== "noRisk"),
     ...historicalPriceTemplates,
     ...historicalTemplates,
   ].map(([kind, xml]) => ({ kind, value: signature(scriptElement(xml)) }));
@@ -474,7 +475,7 @@ export function readSiqScript(
       steps,
       ...(answerTexts.length ? { answerTextItems: answerTexts } : {}),
     };
-    needsPointTarget = hasMissingScriptPointImage({ ...fields, script: program });
+    needsPointTarget = missingScriptPointImageStep({ ...fields, script: program }) >= 0;
     if (needsPointTarget) fail("point ask needs an image as the last item of its active content");
     if (nativeKind && !final && fields.answerPoint)
       fields.pointImageOrder = scriptPointImageOrder(fields.questionFiles, fields.textItems);

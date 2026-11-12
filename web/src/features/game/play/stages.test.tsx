@@ -27,6 +27,8 @@ import { QuestionStage } from "./QuestionStage";
 import { GameStage } from "./GameStage";
 import { GameActionDock } from "./GameActionDock";
 import { AnswerReveal } from "./question/AnswerReveal";
+import { HostGameControls } from "./host/HostGameControls";
+import { useHostTools } from "./host/useHostTools";
 
 function renderStage(s: GameSession, ui: ReactNode, myId = ALICE) {
   const emit = vi.fn((action: string) => useGameStore.getState().setPending(action));
@@ -786,6 +788,101 @@ function scriptedSelectFinal() {
     },
   });
 }
+
+it("offers a scripted group verdict only for the pending submission", () => {
+  const state = scriptedSelectFinal().gameState;
+  const allPlay = state.allPlay!;
+  const game = session({
+    ...state,
+    questionState: "reviewing",
+    allPlay: {
+      ...allPlay,
+      entries: allPlay.entries.map((entry) => ({
+        ...entry,
+        submitted: true,
+        isCorrect: entry.playerId === ALICE ? null : false,
+      })),
+    },
+  });
+  const emit = renderStage(game, <GameStage />, SHOWMAN);
+  fireEvent.click(screen.getByTestId("all-play-correct"));
+  expect(emit).toHaveBeenCalledExactlyOnceWith("all-play-review", {
+    playerId: ALICE,
+    isCorrect: true,
+  });
+});
+
+it("disables a rejected scripted button option by order even in a final", () => {
+  const { gameState } = scriptedSelectFinal();
+  const game = session({
+    ...gameState,
+    questionState: "answering",
+    answeringPlayer: ALICE,
+    allPlay: null,
+    answeredPlayers: [{ player: BOB, answerType: "wrong", result: -100, score: 0, choiceOrder: 0 }],
+    scriptView: {
+      ...gameState.scriptView!,
+      answerMode: "button",
+      actorId: ALICE,
+      answererIds: [ALICE],
+    },
+  });
+  const emit = renderStage(game, <GameStage />, ALICE);
+  expect(screen.getByRole("button", { name: /^Mirror, / })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Mirror" }));
+  expect(emit).toHaveBeenCalledWith("answer-submitted", { answerText: "Mirror", choiceOrder: 1 });
+});
+
+it.each(["wrong", "skip"] as const)(
+  "offers undo for %s in an open button ask and reveal",
+  (answerType) => {
+    function Controls() {
+      return <HostGameControls tools={useHostTools()} />;
+    }
+
+    const { gameState } = scriptedSelectFinal();
+    const game = session({
+      ...gameState,
+      allPlay: null,
+      answeredPlayers: [
+        {
+          player: BOB,
+          answerType,
+          result: answerType === "wrong" ? -100 : 0,
+          score: 0,
+          choiceOrder: 0,
+        },
+      ],
+      scriptView: { ...gameState.scriptView!, answerMode: "button" },
+    });
+    const emit = renderStage(game, <Controls />, SHOWMAN);
+    fireEvent.click(screen.getByTestId("undo-ruling"));
+    expect(emit).toHaveBeenCalledWith("answer-result-undo");
+
+    act(() =>
+      useGameStore.setState({
+        session: {
+          ...game,
+          state: { ...game.state, questionState: "answering", answeringPlayer: ALICE },
+        },
+      }),
+    );
+    expect(screen.queryByTestId("undo-ruling")).not.toBeInTheDocument();
+    act(() =>
+      useGameStore.setState({
+        session: {
+          ...game,
+          state: {
+            ...game.state,
+            questionState: "showing_answer",
+            answerShowData: { answerText: null, answerFiles: null, nextTurnPlayerId: ALICE },
+          },
+        },
+      }),
+    );
+    expect(screen.getByTestId("undo-ruling")).toBeEnabled();
+  },
+);
 
 it.each(["scripted all-play", "native final"])(
   "shows authored labels and media for duplicate-text choices in %s review",

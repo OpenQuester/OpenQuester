@@ -43,7 +43,7 @@ export function ShowmanPanel() {
           <span className="text-sm text-soft">{t("showman.hint", { hint: q.answerHint })}</span>
         )}
         {q && <StructuredAnswer question={q} />}
-        {!!q?.rightAnswers?.length && (
+        {q?.answerType !== "select" && !!q?.rightAnswers?.length && (
           <span className="text-sm text-success" data-testid="showman-right-answers">
             {t("showman.alsoRight", { answers: q.rightAnswers.join(" · ") })}
           </span>

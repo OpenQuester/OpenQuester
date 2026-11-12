@@ -18,6 +18,8 @@ import {
 } from "@/features/package-editor/packageEditorStore";
 import { validatePackage } from "@/features/package-editor/validatePackage";
 import type { ImportWarning, MediaFile, ParsedPackage } from "./types";
+import { parseSiq } from "./siq";
+import { SI_SCRIPT_TEMPLATES } from "./siqScript";
 import type * as Upload from "./upload";
 import { resumeFromFile, uploadPackage } from "./upload";
 import { UploadPackagePage } from "./UploadPackagePage";
@@ -61,6 +63,125 @@ afterEach(() => {
   readFile.mockReset();
   vi.mocked(draftFromParsed).mockReset();
 });
+
+const promptParam = '<param name="question" type="content"><item>Prompt</item></param>';
+const secretParams =
+  promptParam +
+  '<param name="selectionMode">any</param>' +
+  '<param name="price" type="numberSet"><numberSet minimum="100" maximum="500" step="50"/></param>';
+const legacyNoRisk = SI_SCRIPT_TEMPLATES.noRisk!.replace(">multiply<", ">noRisk<").replace(
+  '<param name="duration" isRef="true">answerDuration</param>',
+  "",
+);
+const selectParams =
+  promptParam +
+  '<param name="answerType">select</param>' +
+  '<param name="answerOptions" type="group"><param name="42"><item>Right</item></param><param name="B"><item>Wrong</item></param></param>';
+
+it.each([
+  [
+    "auction",
+    SI_SCRIPT_TEMPLATES.stake!,
+    promptParam,
+    { type: "stake", subType: "simple", maxPrice: null, script: null },
+  ],
+  [
+    "custom",
+    SI_SCRIPT_TEMPLATES.stakeAll!,
+    promptParam,
+    { type: "stake", subType: "forEveryone", maxPrice: null, script: null },
+  ],
+  [
+    "custom",
+    SI_SCRIPT_TEMPLATES.forAll!,
+    promptParam,
+    { type: "simple", subType: "forEveryone", script: null },
+  ],
+  ...(["secret", "secretPublicPrice", "secretOpenerPrice", "secretNoQuestion"] as const).map(
+    (kind) =>
+      [
+        kind === "secret" ? "custom" : kind,
+        SI_SCRIPT_TEMPLATES[kind]!,
+        secretParams,
+        {
+          type: "secret",
+          subType: "simple",
+          transferType: "any",
+          script: null,
+          secretRules: {
+            outcome: kind === "secretNoQuestion" ? "award" : "question",
+            priceAnnouncement: ["secret", "secretNoQuestion"].includes(kind)
+              ? "afterTransfer"
+              : "beforeTransfer",
+            priceChooser: kind === "secretOpenerPrice" ? "opener" : "receiver",
+            priceRule: { kind: "range", min: 100, max: 500, step: 50 },
+          },
+        },
+      ] as const,
+  ),
+  [
+    "sponsored",
+    legacyNoRisk,
+    promptParam,
+    { type: "noRisk", subType: "simple", priceMultiplier: 2, script: null },
+  ],
+  ...["noRisk", "forYourself", "sponsored", "custom"].map(
+    (kind) =>
+      [
+        kind,
+        SI_SCRIPT_TEMPLATES.noRisk!,
+        promptParam,
+        {
+          ...(kind === "custom"
+            ? { type: "simple" }
+            : { type: "noRisk", subType: "simple", priceMultiplier: 2 }),
+          script: expect.objectContaining({
+            steps: expect.arrayContaining([{ op: "setPrice", mode: "multiply" }]),
+          }),
+        },
+      ] as const,
+  ),
+  [
+    "stake",
+    SI_SCRIPT_TEMPLATES.stake!,
+    selectParams,
+    {
+      type: "stake",
+      subType: "simple",
+      maxPrice: null,
+      script: expect.objectContaining({
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            op: "setAnswerType",
+            answerType: "select",
+            correctChoiceOrder: 0,
+          }),
+        ]),
+      }),
+    },
+  ],
+] as const)(
+  "posts valid SIQ question fields for source type %s",
+  async (kind, script, params, expected) => {
+    const xml = `<package name="SIQ"><rounds><round name="R"><themes><theme name="T"><questions><question type="${kind}" price="100"><params>${params}</params><script>${script}</script><right><answer>42</answer></right></question></questions></theme></themes></round></rounds></package>`;
+    const parsed = await parseSiq({ "content.xml": new TextEncoder().encode(xml) });
+    fetchMock.mockImplementation(async (request) =>
+      Response.json(
+        (request as Request).method === "POST"
+          ? { id: 7, uploadStatus: "ready", uploadLinks: {} }
+          : { id: 7, status: "ready", missing: [], uploadLinks: {} },
+      ),
+    );
+
+    await uploadPackage(parsed, vi.fn());
+
+    const [post] = fetchMock.mock.calls[0]!;
+    expect(post).toMatchObject({ method: "POST", url: "http://api.test/v1/packages" });
+    const body = await (post as Request).json();
+    const question = body.content.rounds[0].themes[0].questions[0];
+    expect(question).toMatchObject(expected);
+  },
+);
 
 it("reports a busy upload synchronously before loading or running the encoders", async () => {
   vi.mocked(optimizePackage).mockRejectedValueOnce(new Error("encoder failed"));

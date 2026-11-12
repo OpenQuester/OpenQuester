@@ -67,8 +67,8 @@ export class ChoiceSelectionLogic {
       return null;
     }
 
-    if (order !== undefined) {
-      this.validateExplicitAnswer(options, selected, answer);
+    if (order !== undefined && !this.matchesDisplayAnswer(options, selected, answer)) {
+      throw new ClientError(ClientResponse.INVALID_INPUT);
     }
     if (!game.gameState.allPlay && !final) {
       this.rejectPreviouslyWrongOption(game, selected.order);
@@ -100,20 +100,23 @@ export class ChoiceSelectionLogic {
   }
 
   /** Media-only options use their displayed position, prefixed when it conflicts with text. */
-  private static validateExplicitAnswer(
-    options: PackageAnswerDTO[],
+  public static matchesDisplayAnswer(
+    options: readonly PackageAnswerDTO[],
     selected: PackageAnswerDTO,
     answer: string | null
-  ): void {
+  ): boolean {
+    const text = normalize(selected.text);
+    if (text) {
+      return normalize(answer) === text;
+    }
+
     const sorted = [...options].sort((a, b) => a.order - b.order);
     const texts = new Set(options.map((option) => normalize(option.text)));
     let placeholder = String(sorted.indexOf(selected) + 1);
     while (texts.has(placeholder)) {
       placeholder = `#${placeholder}`;
     }
-    if (normalize(answer) !== (normalize(selected.text) || normalize(placeholder))) {
-      throw new ClientError(ClientResponse.INVALID_INPUT);
-    }
+    return normalize(answer) === placeholder;
   }
 
   private static rejectPreviouslyWrongOption(game: Game, order: number): void {

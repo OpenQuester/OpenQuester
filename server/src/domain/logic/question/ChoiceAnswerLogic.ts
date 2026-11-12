@@ -7,8 +7,7 @@ const normalize = (text: string | null | undefined) =>
   (text ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
 
 /**
- * Checks a selected choice against its explicit correct order and optional
- * text aliases. Legacy questions use the main answer and aliases as text;
+ * Checks an explicit select by order. Legacy choices also accept text aliases;
  * ambiguous or unrecognized selections remain for the showman to judge.
  */
 export class ChoiceAnswerLogic {
@@ -40,6 +39,9 @@ export class ChoiceAnswerLogic {
       const selected = answers.filter((answer) => answer.order === choiceOrder);
       if (correct.length !== 1 || selected.length !== 1) {
         return null;
+      }
+      if (question.answerType === AnswerType.SELECT) {
+        return selected[0].order === question.correctChoiceOrder;
       }
       const alias = normalize(selected[0].text);
       return (

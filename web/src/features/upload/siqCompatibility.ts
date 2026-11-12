@@ -1,6 +1,7 @@
 import { answerFormat } from "@/game/answerFormat";
-import { hasMissingScriptPointImage } from "@/game/questionScript";
+import { scriptReferenceIssue } from "@/game/questionScript";
 import { pointImage } from "@/lib/pointImage";
+import { questionLimitIssues } from "./contentLimits";
 import type { FileRef, ImportWarning, MediaType, UploadContent, UploadQuestion } from "./types";
 
 export interface SiqSourceItem {
@@ -297,13 +298,47 @@ export function compatibilityMedia(issues: ImportWarning[] | undefined): FileRef
 
 export const COMPATIBILITY_NEEDS_REPAIR = "compatibilityNeedsRepair";
 
+export function invalidSelectSource(
+  source: UploadQuestion["selectSource"],
+  options: readonly { sourceLabel?: string | null }[],
+): boolean {
+  if (!source) return false;
+  const rights = source.rightLabels;
+  return (
+    rights.length === 0 ||
+    rights.length > 1000 ||
+    new Set(rights).size !== rights.length ||
+    rights.some(
+      (label) =>
+        !label ||
+        label.length > 500 ||
+        options.filter((option) => option.sourceLabel === label).length !== 1,
+    )
+  );
+}
+
+export function scriptRepairDetail(question: UploadQuestion): string | undefined {
+  if (!question.script) return undefined;
+  const referenceIssue = scriptReferenceIssue(question);
+  if (referenceIssue) return referenceIssue;
+  const limit = questionLimitIssues(question)[0];
+  if (limit?.step != null)
+    return `${limit.phase} group ${limit.step}: ${limit.actual} files (maximum ${limit.max})`;
+  if (limit) return `${limit.phase}: ${limit.actual} groups (maximum ${limit.max})`;
+}
+
 function questionNeedsRepair(question: UploadQuestion): boolean {
   if (
     question.correctChoiceNeedsRepair ||
     question.compatibilityIssues?.some((i) => i.severity === "critical")
   )
     return true;
-  if (question.script) return hasMissingScriptPointImage(question);
+  if (question.script) return !!scriptRepairDetail(question);
+  if (
+    answerFormat(question) === "select" &&
+    invalidSelectSource(question.selectSource, question.answers ?? [])
+  )
+    return true;
   if (answerFormat(question) !== "point" || question.secretRules?.outcome === "award") return false;
 
   const point = question.answerPoint;

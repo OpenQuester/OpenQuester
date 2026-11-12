@@ -1,6 +1,10 @@
 import { answerFormat } from "@/game/answerFormat";
 import { readSecretRules } from "@/game/secretRules";
-import { compatibilityMedia, readCompatibilityIssues } from "./siqCompatibility";
+import {
+  compatibilityMedia,
+  readCompatibilityIssues,
+  scriptRepairDetail,
+} from "./siqCompatibility";
 import { readQuestionScript } from "@/game/questionScript";
 import type { Unzipped } from "fflate";
 
@@ -271,6 +275,15 @@ export function toContent(
     for (const media of compatibilityMedia(out.compatibilityIssues))
       types.set(media.md5, media.type);
     warnings.push(...(out.compatibilityIssues ?? []));
+    const detail = includeCompatibility ? scriptRepairDetail(out) : undefined;
+    if (detail)
+      warnings.push({
+        code: "siqCompatibility",
+        where,
+        severity: "critical",
+        resolution: "needsRepair",
+        detail,
+      });
     return out;
   };
   const theme = (t: Json, i: number, roundName: string): UploadTheme => {

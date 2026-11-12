@@ -164,9 +164,7 @@ export function FinalAnswerStage() {
         myId={myId}
         legacy={legacy}
       />
-      {q && answerFormat(q) === "select" && (
-        <AnswerChoices key={`${q.id}:${myId}`} question={q} />
-      )}
+      {q && answerFormat(q) === "select" && <AnswerChoices key={`${q.id}:${myId}`} question={q} />}
       {session.state.finalRoundData?.questionData?.mediaPreparationTimedOut && (
         <p role="alert" className="m-0 text-center text-sm text-accent-strong">
           {t("final.mediaTimedOut")}

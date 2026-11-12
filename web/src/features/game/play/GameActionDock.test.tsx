@@ -8,6 +8,7 @@ import {
   ALICE,
   BOB,
   choosing,
+  player,
   question,
   round,
   SAM,
@@ -796,14 +797,23 @@ describe("Dock", () => {
       currentQuestion: question(100, { type: "stake", price: 100 }),
       currentTurnPlayerId: ALICE,
       questionState: "bidding",
+      scriptView: {
+        questionId: 99,
+        programCounter: 2,
+        waitingFor: null,
+        actorId: null,
+        answererIds: [],
+        answerMode: "direct",
+      },
       stakeQuestionData: {
         pickerPlayerId: ALICE,
         questionId: 100,
+        questionPrice: 300,
         maxPrice: null,
         bids: { [BOB]: 100 },
         passedPlayers: [],
         biddingOrder: [ALICE, BOB],
-        currentBidderIndex: 0,
+        currentBidderIndex: 1, // Native snapshots prefer currentTurnPlayerId.
         highestBid: 100,
         winnerPlayerId: null,
         biddingPhase: true,
@@ -812,6 +822,7 @@ describe("Dock", () => {
     s.players = s.players.map((p) => ({ ...p, score: p.meta.id === ALICE ? 600 : 500 }));
     const emit = renderDock(s, ALICE);
     const slider = screen.getByRole("slider", { name: "Bid amount slider" });
+    expect(slider).toHaveAttribute("min", "101");
     fireEvent.change(slider, { target: { value: "250" } });
     expect(screen.getByRole("textbox", { name: "Your bid" })).toHaveValue("250");
     await userEvent.click(screen.getByTestId("bid-submit"));
@@ -833,6 +844,96 @@ describe("Dock", () => {
     await userEvent.click(screen.getByTestId("bid-pass"));
     expect(emit).toHaveBeenLastCalledWith("stake-bid-submit", { bidType: "pass", bidAmount: null });
   });
+
+  const thirdBidder = 5;
+  const finalAuction = { roundType: "final", nominal: null, minimum: 100 } as const;
+  it.each([
+    { myId: ALICE, ...finalAuction },
+    { myId: BOB, ...finalAuction },
+    { myId: thirdBidder, ...finalAuction },
+    { myId: ALICE, roundType: "simple", nominal: 100, minimum: 500 },
+  ] as const)(
+    "updates scripted $roundType auction controls from server snapshots for player $myId",
+    async ({ myId, roundType, nominal, minimum }) => {
+      const currentRound = round(roundType);
+      if (roundType === "final") {
+        currentRound.themes = currentRound.themes.map((theme) => ({ ...theme, questions: [] }));
+      }
+      let s = session(
+        {
+          currentRound,
+          currentQuestion: question(100, { type: "stake", price: nominal }),
+          currentTurnPlayerId: ALICE,
+          questionState: "bidding",
+          scriptView: {
+            questionId: 100,
+            programCounter: 1,
+            waitingFor: "answerer",
+            actorId: ALICE,
+            answererIds: [ALICE, BOB, thirdBidder],
+            answerMode: "button",
+          },
+          stakeQuestionData: {
+            pickerPlayerId: ALICE,
+            questionId: 100,
+            questionPrice: minimum,
+            maxPrice: null,
+            bids: {},
+            passedPlayers: [],
+            biddingOrder: [ALICE, BOB, thirdBidder],
+            currentBidderIndex: 0,
+            highestBid: null,
+            winnerPlayerId: null,
+            biddingPhase: true,
+          },
+        },
+        [ALICE, BOB, thirdBidder].map((id) => player(id, "player", { score: 600 })),
+      );
+      const emit = renderDock(s, myId);
+      const expectControls = async (bidderId: number, amount: number, canPass: boolean) => {
+        if (myId !== bidderId) {
+          expect(screen.queryByTestId("bid-submit")).not.toBeInTheDocument();
+          expect(screen.queryByTestId("bid-pass")).not.toBeInTheDocument();
+          return;
+        }
+        expect(screen.getByRole("textbox", { name: "Your bid" })).toHaveValue(String(amount));
+        expect(screen.getByRole("button", { name: /All-in/ })).toBeEnabled();
+        if (canPass) expect(screen.getByTestId("bid-pass")).toBeEnabled();
+        else expect(screen.queryByTestId("bid-pass")).not.toBeInTheDocument();
+        const submit = screen.getByTestId("bid-submit");
+        expect(submit).toBeEnabled();
+        await userEvent.click(submit);
+        expect(emit).toHaveBeenCalledExactlyOnceWith("stake-bid-submit", {
+          bidType: "normal",
+          bidAmount: amount,
+        });
+      };
+      const update = (currentBidderIndex: number, passedPlayers: number[]) => {
+        const gameState: GameSession["state"] = {
+          ...s.state,
+          scriptView: {
+            ...s.state.scriptView!,
+            actorId: s.state.stakeQuestionData!.biddingOrder[currentBidderIndex] ?? null,
+          },
+          stakeQuestionData: {
+            ...s.state.stakeQuestionData!,
+            currentBidderIndex,
+            highestBid: minimum,
+            bids: passedPlayers.length ? { [ALICE]: minimum, [BOB]: null } : { [ALICE]: minimum },
+            passedPlayers,
+          },
+        };
+        s = reduce(s, { type: "question-script-state", payload: { gameState, scores: [] } });
+        act(() => useGameStore.setState({ session: s }));
+      };
+
+      await expectControls(ALICE, minimum, false);
+      update(1, []);
+      await expectControls(BOB, minimum + 1, true);
+      update(2, [BOB]);
+      await expectControls(thirdBidder, minimum + 1, true);
+    },
+  );
 
   it.each(["all-play", "final"] as const)(
     "submits the slider value in %s bidding",

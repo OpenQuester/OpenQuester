@@ -51,7 +51,9 @@ function QuestionContent({ stage }: { stage: ReturnType<typeof useQuestionStage>
   if (gated) return <MediaWait />;
   if (reveal) return <AnswerReveal />;
   const wrapBody =
-    q && answerFormat(q) === "select" && q.answers &&
+    q &&
+    answerFormat(q) === "select" &&
+    q.answers &&
     (!s.scriptView || s.scriptView.waitingFor === "answer")
       ? (body: ReactNode) => (
           <ChoiceLayout prompt={body} count={q.answers!.length}>

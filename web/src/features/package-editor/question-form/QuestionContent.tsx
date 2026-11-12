@@ -9,6 +9,7 @@ import { FieldError, inputClass, Label } from "@/ui/Field";
 import { LinesField } from "../LinesField";
 import { VISUAL_QUEUE_THRESHOLD } from "@/game/authoredContentGroups";
 import { questionGroupSizes } from "@/features/upload/contentLimits";
+import { scriptRepairDetail } from "@/features/upload/siqCompatibility";
 import { Toggle } from "@/ui/Toggle";
 import { QUESTION_TYPES, toUploadQuestion } from "../packageDraft";
 import { MAX_PRICE } from "../validatePackage";
@@ -26,9 +27,18 @@ export function QuestionContent({ form }: { form: QuestionFormState }) {
 
 function ScriptContent({ form: { q, set, final } }: { form: QuestionFormState }) {
   const { t } = useTranslation();
+  const issue = scriptRepairDetail(toUploadQuestion(q, 0, final));
   return (
     <div className="grid gap-4">
       <p className="m-0 text-muted">{t("script.preserved")}</p>
+      {issue && (
+        <div id="qf-compatibility" className="flex flex-col gap-2">
+          <p className="m-0 text-sm text-danger">
+            {t("editor.issues.scriptRepair", { detail: issue })}
+          </p>
+          <ConvertImportedQuestion set={set} />
+        </div>
+      )}
       {!final && (
         <NumberField
           id="qf-price"
@@ -51,16 +61,7 @@ function StandardContent({ form }: { form: QuestionFormState }) {
       {!!q.compatibilityIssues?.length && (
         <div id="qf-compatibility" className="flex flex-col gap-2">
           <ImportWarnings warnings={q.compatibilityIssues} />
-          <p className="m-0 text-sm text-warning">{t("editor.form.convertSimpleLoss")}</p>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              if (window.confirm(t("editor.form.convertSimpleLoss")))
-                set(convertImportedQuestionToSimple());
-            }}
-          >
-            {t("editor.form.convertSimple")}
-          </Button>
+          <ConvertImportedQuestion set={set} />
         </div>
       )}
       {!final && <QuestionTypePicker q={q} set={set} />}
@@ -135,6 +136,24 @@ function StandardContent({ form }: { form: QuestionFormState }) {
       <AnswerContentMedia form={form} />
       <hr className="m-0 border-0 border-t border-line" />
       <QuestionMetadataFields q={q} set={set} />
+    </>
+  );
+}
+
+function ConvertImportedQuestion({ set }: Pick<QuestionFieldsProps, "set">) {
+  const { t } = useTranslation();
+  const warning = t("editor.form.convertSimpleLoss");
+  return (
+    <>
+      <p className="m-0 text-sm text-warning">{warning}</p>
+      <Button
+        variant="secondary"
+        onClick={() => {
+          if (window.confirm(warning)) set(convertImportedQuestionToSimple());
+        }}
+      >
+        {t("editor.form.convertSimple")}
+      </Button>
     </>
   );
 }
@@ -329,7 +348,7 @@ function QuestionAnswerFields({ q, set }: QuestionFieldsProps & { final: boolean
               value={[q.answerText, ...q.rightAnswers].filter(Boolean)}
               onChange={([answerText = "", ...rightAnswers]) => set({ answerText, rightAnswers })}
             />
-          ) : (
+          ) : q.answerType !== "select" ? (
             <LinesField
               key="right"
               id="qf-right"
@@ -343,7 +362,7 @@ function QuestionAnswerFields({ q, set }: QuestionFieldsProps & { final: boolean
               value={q.rightAnswers}
               onChange={(rightAnswers) => set({ rightAnswers })}
             />
-          )}
+          ) : null}
           <LinesField
             id="qf-wrong"
             label={t("editor.form.wrongAnswers")}

@@ -78,6 +78,15 @@ export class RevertLastAnswerRulingUseCase implements GameActionHandler<
     ctx: ActionExecutionContext<EmptyInputData>
   ): Promise<ActionHandlerResult<AnswerResultUndoEventPayload>> {
     const game = requireShowman(ctx);
+    const progress = game.gameState.scriptProgress;
+    const { scriptStep, scriptQuestionId } = ctx.action;
+    if (
+      (progress &&
+        (scriptStep !== progress.programCounter || scriptQuestionId !== progress.questionId)) ||
+      (!progress && scriptStep !== undefined)
+    ) {
+      throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
+    }
     const undone = ShowmanToolsLogic.undoLastRuling(game);
     const data: AnswerResultUndoEventPayload = undone.result;
 

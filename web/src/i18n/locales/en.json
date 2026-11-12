@@ -1240,6 +1240,9 @@
       "commentHelp": "Instruction for the showman before reading the question.",
       "options": "Options",
       "optionsHelp": "At least two options. Mark the correct one.",
+      "selectSourceInvalid": "Source right labels {{labels}} do not uniquely match the options. Remove the source labels, then choose the correct option.",
+      "selectSourceDiscard": "Remove source right labels",
+      "selectSourceDiscardConfirm": "Remove all source right labels? The option contents will stay.",
       "option": "Option {{letter}}",
       "correct": "Correct",
       "removeOption": "Remove option {{letter}}",
@@ -1328,7 +1331,7 @@
         "opener": "Announce → opener chooses → transfer"
       },
       "convertSimple": "Convert to a regular question",
-      "convertSimpleLoss": "This discards unsupported source behavior, secret rules and imported answer modes. The visible prompt, media and reveal remain. Review the question before publishing.",
+      "convertSimpleLoss": "This discards the imported script, unsupported behavior, secret rules and answer modes, including choice options. The question and answer text and their timeline media remain. Review the question before publishing.",
       "answerDuration": "Answer window (seconds; blank uses room default)",
       "answerDurationHelp": "Starts after presentation. Button mode keeps the room’s separate submit time after buzzing.",
       "textDuration": "Prompt duration (seconds; blank uses reading time)",
