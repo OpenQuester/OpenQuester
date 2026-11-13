@@ -226,7 +226,7 @@ test.describe("everyone answers", () => {
       await host.page.getByTestId("question-card").dblclick();
       await host.page
         .getByTestId("question-dialog")
-        .getByLabel("Actual price (optional)")
+        .getByRole("textbox", { name: "Actual price" })
         .fill("500");
       await host.page.getByTestId("question-save").click();
 
