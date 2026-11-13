@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import type { QuestionFieldsProps } from "./questionUpdates";
 import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
+import { ChoiceInput } from "@/ui/ChoiceInput";
+import { RequiredMark } from "./QuestionFields";
 import { TextInput } from "@/ui/Field";
 import { PlusIcon, TrashIcon } from "@/ui/icons";
 import { SingleMediaField } from "../media-editor/SingleMediaField";
@@ -11,6 +13,7 @@ import { newId } from "../packageDraft";
 import { editChoiceText, selectChoice } from "./questionUpdates";
 import { changeChoiceMedia, type ApplyMediaChange } from "./questionMediaHistory";
 import { correctChoice } from "../choiceCorrectness";
+import { invalidSelectSource } from "@/features/upload/siqCompatibility";
 export function QuestionChoiceFields({
   q,
   set,
@@ -20,18 +23,43 @@ export function QuestionChoiceFields({
   const correct = correctChoice(q);
   return (
     <fieldset className={layoutStyles.optionGroup} data-testid="choice-fields">
-      <legend className="mb-1 text-[15px] font-semibold">{t("editor.form.options")}</legend>
+      <legend className="mb-1 text-[15px] font-semibold">
+        {t("editor.form.options")}
+        <RequiredMark />
+      </legend>
       <span className="text-sm text-faint">{t("editor.form.optionsHelp")}</span>
+      {q.selectSource &&
+        !q.selectSource.unresolvedOptions?.length &&
+        invalidSelectSource(q.selectSource, q.options) && (
+          <div className="flex flex-col items-start gap-2">
+            <p className="m-0 text-sm text-warning">
+              {t("editor.form.selectSourceInvalid", {
+                labels: JSON.stringify(q.selectSource.rightLabels),
+              })}
+            </p>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (window.confirm(t("editor.form.selectSourceDiscardConfirm")))
+                  set({ selectSource: undefined });
+              }}
+            >
+              {t("editor.form.selectSourceDiscard")}
+            </Button>
+          </div>
+        )}
       {q.options.map((o, i) => {
         const isCorrect = correct?.id === o.id;
         return (
           <div key={o.id} className={questionFormStyles.choice}>
             <div className="flex items-center gap-2">
               <span className="w-5 text-center font-semibold text-muted">
-                {String.fromCharCode(65 + i)}
+                {o.sourceLabel ?? (i < 26 ? String.fromCharCode(65 + i) : String(i + 1))}
               </span>
               <TextInput
-                aria-label={t("editor.form.option", { letter: String.fromCharCode(65 + i) })}
+                aria-label={t("editor.form.option", {
+                  letter: o.sourceLabel ?? (i < 26 ? String.fromCharCode(65 + i) : String(i + 1)),
+                })}
                 value={o.text}
                 onChange={(e) => set(editChoiceText(q, o.id, e.target.value))}
                 className={isCorrect ? "border-success-line" : undefined}
@@ -44,7 +72,7 @@ export function QuestionChoiceFields({
                     : "border-line-strong text-muted",
                 )}
               >
-                <input
+                <ChoiceInput
                   type="radio"
                   name="qf-correct"
                   checked={isCorrect}
@@ -54,7 +82,9 @@ export function QuestionChoiceFields({
               </label>
               <button
                 type="button"
-                aria-label={t("editor.form.removeOption", { letter: String.fromCharCode(65 + i) })}
+                aria-label={t("editor.form.removeOption", {
+                  letter: o.sourceLabel ?? (i < 26 ? String.fromCharCode(65 + i) : String(i + 1)),
+                })}
                 onClick={() =>
                   set({
                     options: q.options.filter((x) => x.id !== o.id),
@@ -73,14 +103,17 @@ export function QuestionChoiceFields({
             </div>
             <SingleMediaField
               managedUndo
-              label={t("mediaEditor.choiceImage", { letter: String.fromCharCode(65 + i) })}
+              allowMedia
+              label={t("mediaEditor.choiceImage", {
+                letter: o.sourceLabel ?? (i < 26 ? String.fromCharCode(65 + i) : String(i + 1)),
+              })}
               value={o.file}
               onChange={(file) => applyMedia(changeChoiceMedia(o.id, file))}
             />
           </div>
         );
       })}
-      {q.options.length < 8 && (
+      {
         <Button
           id="qf-add-option"
           size="sm"
@@ -90,7 +123,7 @@ export function QuestionChoiceFields({
         >
           {t("editor.form.addOption")}
         </Button>
-      )}
+      }
     </fieldset>
   );
 }

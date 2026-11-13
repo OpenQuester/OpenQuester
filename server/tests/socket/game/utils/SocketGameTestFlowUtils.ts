@@ -8,6 +8,7 @@ import {
   QUESTION_CONTENT_START_LEAD_MS
 } from "domain/constants/game";
 import { GameActionType } from "domain/enums/GameActionType";
+import { questionMediaFiles } from "domain/logic/question/questionMediaFiles";
 import { withTimeout } from "tests/e2e/harness/TestPromiseUtils";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
@@ -198,7 +199,7 @@ export class SocketGameTestFlowUtils {
     );
     void released.catch(() => undefined);
     try {
-      if (state.currentQuestion?.questionFiles?.length) {
+      if (questionMediaFiles(state.currentQuestion).length) {
         const loaders = players.length ? players : [showman];
         for (const [index, player] of loaders.entries()) {
           const id = await withTimeout(
@@ -465,7 +466,7 @@ export class SocketGameTestFlowUtils {
     if (
       expectedState === QuestionState.MEDIA_DOWNLOADING &&
       gameState.questionTransition &&
-      !gameState.currentQuestion?.questionFiles?.length
+      !questionMediaFiles(gameState.currentQuestion).length
     ) {
       if (gameState.timer !== null)
         throw new Error("Text preparation must use only the transition timer");

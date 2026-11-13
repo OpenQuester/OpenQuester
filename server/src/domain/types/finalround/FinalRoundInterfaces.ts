@@ -29,6 +29,7 @@ export interface ResolvedFinalRoundQuestion {
  * Interface for player answer in final round
  */
 export interface FinalRoundAnswer {
+  choiceOrder?: number;
   id: string;
   playerId: number;
   answer: string;

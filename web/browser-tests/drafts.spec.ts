@@ -1,3 +1,8 @@
+import { readFileSync } from "node:fs";
+import type * as Siq from "../src/features/upload/siq";
+import type * as Oq from "../src/features/upload/oq";
+import type * as Media from "../src/features/package-editor/packageMedia";
+import type * as Archive from "../src/features/upload/archive";
 import { expect, test, type Page } from "@playwright/test";
 import type * as Drafts from "../src/features/package-editor/draftStorage";
 import type * as CreateDraft from "../src/features/package-editor/createDraft";
@@ -226,4 +231,123 @@ test("collection preserves shared files and a later save restores collected undo
   expect(result.afterRemoval).toBe(0);
   expect(result.restoredBytes).toEqual([1, 2, 3]);
   expect(result.afterDelete).toBe(0);
+});
+
+test("IndexedDB and OQ preserve select identity, mechanics and unresolved source", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const result = await page.evaluate(async () => {
+    const createPath = "/src/features/package-editor/createDraft.ts";
+    const modelPath = "/src/features/package-editor/packageDraft.ts";
+    const storagePath = "/src/features/package-editor/draftStorage.ts";
+    const { draftFromParsed } = (await import(createPath)) as typeof CreateDraft;
+    const { toUpload } = (await import(modelPath)) as typeof Model;
+    const { loadDraft } = (await import(storagePath)) as typeof Drafts;
+    const id = await draftFromParsed({
+      format: "siq",
+      files: new Map(),
+      warnings: [],
+      content: {
+        title: "Select",
+        ageRestriction: "NONE",
+        tags: [],
+        rounds: [
+          {
+            name: "R",
+            order: 0,
+            type: "simple",
+            themes: [
+              {
+                name: "T",
+                order: 0,
+                questions: [
+                  {
+                    type: "stake",
+                    subType: "forEveryone",
+                    order: 0,
+                    price: 100,
+                    text: "Q",
+                    answerType: "select",
+                    maxPrice: null,
+                    showAnswerDuration: 5000,
+                    correctChoiceNeedsRepair: true,
+                    answers: [
+                      { order: 0, text: "Same", sourceLabel: "A", file: null },
+                      { order: 1, text: "Same", sourceLabel: "B", file: null },
+                    ],
+                    selectSource: { rightLabels: ["unknown"], unresolvedOptions: [] },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const saved = (await loadDraft(id))!;
+    return toUpload(saved.pkg).rounds[0]!.themes[0]!.questions[0]!;
+  });
+  expect(result).toMatchObject({
+    type: "stake",
+    subType: "forEveryone",
+    answerType: "select",
+    correctChoiceNeedsRepair: true,
+    answers: [
+      { order: 0, text: "Same", sourceLabel: "A" },
+      { order: 1, text: "Same", sourceLabel: "B" },
+    ],
+    selectSource: { rightLabels: ["unknown"], unresolvedOptions: [] },
+  });
+});
+
+test("unresolved SIQ True reference survives native IndexedDB and OQ export", async ({ page }) => {
+  const xml = readFileSync(
+    new URL("../src/features/upload/fixtures/siq/unresolved-script.xml", import.meta.url),
+    "utf8",
+  );
+  await page.goto("/");
+  const original = await page.evaluate(async (xml) => {
+    const siqPath = "/src/features/upload/siq.ts";
+    const modelPath = "/src/features/package-editor/packageDraft.ts";
+    const storagePath = "/src/features/package-editor/draftStorage.ts";
+    const { parseSiq } = (await import(siqPath)) as typeof Siq;
+    const { fromUpload, reachableMedia } = (await import(modelPath)) as typeof Model;
+    const { saveDraft } = (await import(storagePath)) as typeof Drafts;
+    const parsed = await parseSiq({
+      "content.xml": new TextEncoder().encode(xml),
+      "Images/only.png": new Uint8Array([1, 2, 3]),
+    });
+    const pkg = fromUpload(parsed.content);
+    await saveDraft({ id: "siq-source-retention", pkg, updatedAt: 1 }, parsed.files.values());
+    const question = pkg.rounds[0]!.themes[0]!.questions[0]!;
+    return {
+      id: question.id,
+      source: question.compatibilityIssues![0]!.sourceData,
+      hash: [...reachableMedia(pkg)][0]!,
+    };
+  }, xml);
+  await page.reload();
+  const restored = await page.evaluate(async (hash) => {
+    const storagePath = "/src/features/package-editor/draftStorage.ts";
+    const mediaPath = "/src/features/package-editor/packageMedia.ts";
+    const archivePath = "/src/features/upload/archive.ts";
+    const oqPath = "/src/features/upload/oq.ts";
+    const { loadDraft, loadMedia, collectMedia } = (await import(storagePath)) as typeof Drafts;
+    const { exportOq } = (await import(mediaPath)) as typeof Media;
+    const { readZip } = (await import(archivePath)) as typeof Archive;
+    const { parseOq } = (await import(oqPath)) as typeof Oq;
+    await collectMedia();
+    const draft = (await loadDraft("siq-source-retention"))!;
+    const media = await loadMedia([hash]);
+    const blob = await exportOq(draft.pkg, media);
+    const parsed = await parseOq(await readZip(new Uint8Array(await blob.arrayBuffer())));
+    return {
+      id: draft.pkg.rounds[0]!.themes[0]!.questions[0]!.id,
+      source:
+        parsed.content.rounds[0]!.themes[0]!.questions[0]!.compatibilityIssues![0]!.sourceData,
+      bytes: [...parsed.files.get(hash)!.bytes],
+    };
+  }, original.hash);
+  expect(restored).toEqual({ id: original.id, source: original.source, bytes: [1, 2, 3] });
 });

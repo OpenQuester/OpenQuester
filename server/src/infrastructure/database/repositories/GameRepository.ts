@@ -16,6 +16,9 @@ import { TIMER_NSP } from "domain/constants/timer";
 import { SECOND_MS } from "domain/constants/time";
 import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { AnswerType } from "domain/enums/package/AnswerType";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { validatePackageContentLimits } from "domain/validators/validatePackageContentLimits";
 import { ClientError } from "domain/errors/ClientError";
@@ -25,7 +28,9 @@ import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import { GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
+import { AllPlayMode } from "domain/types/dto/game/state/AllPlayDataDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { type PackageMetaDTO } from "domain/types/dto/package/PackageMetaDTO";
 import { asUserId } from "domain/types/ids";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
@@ -425,7 +430,7 @@ export class GameRepository {
    * Recovers timer state for a game after server restart.
    *
    * 1. Clears any existing timer keys (may have expired during downtime)
-   * 2. Recreates the timer starting from 0 (elapsedMs=0)
+   * 2. Saves remaining compatibility answer/price time or resets a legacy clock
    * 3. Saves it as a paused timer restore point
    * 4. Pauses the game
    */
@@ -438,9 +443,13 @@ export class GameRepository {
 
     // Recovery stays paused, following the existing single-instance policy.
     if (timer) {
-      timer.elapsedMs = 0;
-      timer.startedAt = new Date();
-      timer.resumedAt = null;
+      if (await this._preserveCompatibilityTimer(game)) {
+        timer.elapsedMs = Math.min(timer.durationMs, GamePauseLogic.calculateElapsedTime(timer));
+      } else {
+        timer.elapsedMs = 0;
+        timer.startedAt = new Date();
+        timer.resumedAt = null;
+      }
       await this.saveTimer(
         timer,
         game.id,
@@ -462,6 +471,48 @@ export class GameRepository {
     this.logger.debug(`Timer recovered for game ${game.id}: state=${questionState}`, {
       prefix: LogPrefix.GAME
     });
+  }
+
+  private async _preserveCompatibilityTimer(game: Game): Promise<boolean> {
+    const {
+      allPlay,
+      currentQuestion,
+      finalRoundData,
+      questionState,
+      scriptProgress,
+      secretQuestionData
+    } = game.gameState;
+    if (questionState === QuestionState.SECRET_TRANSFER) {
+      return (
+        scriptProgress?.waitingFor === "price" ||
+        (secretQuestionData?.step === "price" &&
+          (secretQuestionData.priceSelection?.range != null ||
+            secretQuestionData.roundPrices != null))
+      );
+    }
+    if (questionState !== QuestionState.SHOWING && questionState !== QuestionState.ANSWERING) {
+      return false;
+    }
+
+    const question = currentQuestion ?? finalRoundData?.questionData?.question;
+    if (
+      scriptProgress?.waitingFor === "answer" ||
+      allPlay?.mode === AllPlayMode.SIMPLE ||
+      (question?.answerDurationMs ?? 0) > 0 ||
+      question?.answerType === AnswerType.SELECT
+    ) {
+      return true;
+    }
+    if (
+      question?.id == null ||
+      (question.answerType !== AnswerType.POINT && question.type !== PackageQuestionType.SECRET)
+    ) {
+      return false;
+    }
+
+    // The active snapshot omits the compatibility metadata for these two formats.
+    const source = await this.packageStore.getQuestion(game.id, question.id);
+    return !!(source?.secretRules || source?.answerPoint?.sourceGeometry);
   }
 
   public async cleanOrphanedGames() {

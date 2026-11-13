@@ -4,15 +4,14 @@ import { phaseOf, seatedPlayers, showman } from "@/game/selectors";
 import { useSession } from "../GameContext";
 import { PlayerChip } from "./players/PlayerChip";
 import { PlayerCard } from "./players/PlayerCard";
-import { useFinalContent } from "./useFinalContent";
-import { usePointImageReady } from "./question/useQuestionStage";
+import { useAnswerWindowReady, usePointImageReady } from "./question/useQuestionStage";
 import { useQuestionOutcomes } from "./players/useQuestionOutcomes";
 
 /** Score bar: every seated player, their score, and what they are doing now. */
 export function PlayerChips({ onManage }: { onManage?: (playerId: number) => void }) {
   const { t } = useTranslation();
   const session = useSession();
-  const content = useFinalContent(session, phaseOf(session) === "final_answering");
+  const answerWindowReady = useAnswerWindowReady(session);
   const pointImageReady = usePointImageReady(session);
   const pointWaiting =
     phaseOf(session) === "all_play_answering" &&
@@ -35,8 +34,7 @@ export function PlayerChips({ onManage }: { onManage?: (playerId: number) => voi
             key={player.meta.id}
             player={player}
             onManage={onManage}
-            finalContentPlaying={content.playing}
-            pointWaiting={pointWaiting}
+            answerWaiting={!answerWindowReady || pointWaiting}
             outcome={outcomes[player.meta.id]}
           />
         ))}

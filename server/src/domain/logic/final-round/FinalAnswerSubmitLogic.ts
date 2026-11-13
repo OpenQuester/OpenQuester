@@ -1,9 +1,10 @@
+import { ChoiceSelectionLogic } from "domain/logic/question/ChoiceSelectionLogic";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { TransitionResult } from "domain/state-machine/types";
 import {
   AnswerReviewData,
-  FinalAnswerSubmitResult,
+  FinalAnswerSubmitResult
 } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
@@ -64,16 +65,24 @@ export class FinalAnswerSubmitLogic {
   public static addAnswer(
     game: Game,
     playerId: number,
-    answerText: string
+    answerText: string,
+    choiceOrder?: number
   ): AnswerSubmitMutationResult {
     const trimmedAnswer = FinalAnswerSubmitLogic.normalizeAnswer(answerText);
     const isAutoLoss = trimmedAnswer.length === 0;
 
-    FinalRoundStateManager.addAnswer(game, playerId, trimmedAnswer, isAutoLoss);
+    const selected = ChoiceSelectionLogic.resolve(game, trimmedAnswer, choiceOrder);
+    FinalRoundStateManager.addAnswer(
+      game,
+      playerId,
+      trimmedAnswer,
+      isAutoLoss,
+      selected ?? undefined
+    );
 
     return {
       answerText: trimmedAnswer,
-      isAutoLoss,
+      isAutoLoss
     };
   }
 
@@ -88,18 +97,15 @@ export class FinalAnswerSubmitLogic {
 
     return {
       isPhaseComplete,
-      allReviews,
+      allReviews
     };
   }
 
   /**
    * Builds the result object from submission data.
    */
-  public static buildResult(
-    input: FinalAnswerSubmitInput
-  ): FinalAnswerSubmitResult {
-    const { game, player, mutationResult, completionResult, transitionResult } =
-      input;
+  public static buildResult(input: FinalAnswerSubmitInput): FinalAnswerSubmitResult {
+    const { game, player, mutationResult, completionResult, transitionResult } = input;
 
     return {
       game,
@@ -107,7 +113,7 @@ export class FinalAnswerSubmitLogic {
       isPhaseComplete: completionResult.isPhaseComplete,
       isAutoLoss: mutationResult.isAutoLoss,
       allReviews: completionResult.allReviews,
-      transitionResult: transitionResult ?? undefined,
+      transitionResult: transitionResult ?? undefined
     };
   }
 }

@@ -13,6 +13,7 @@ export const GAME_PASSWORD_LENGTH = 4;
 export const GAME_TITLE_MAX_CHARS = 70;
 export const GAME_TITLE_MIN_CHARS = 3;
 export const GAME_MAX_PLAYERS = 15;
+export const LOBBY_MIN_PLAYER_SLOTS = 2;
 export const SYSTEM_PLAYER_ID = -1;
 export const SYSTEM_SOCKET_ID = "SYSTEM";
 /** 2 hours (updates with almost every action) */

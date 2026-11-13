@@ -60,6 +60,14 @@ it("explains an unreadable final media duration and allows retry", async () => {
 });
 
 it("keeps a running preview's image alive across language changes and releases it on close", async () => {
+  vi.spyOn(window, "Image").mockImplementation(function () {
+    const image = document.createElement("img");
+    image.decode = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(image, "src", {
+      set: () => queueMicrotask(() => image.onload?.call(image, new Event("load"))),
+    });
+    return image;
+  });
   const create = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:choice-image");
   const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
   const q = newQuestion(100, {
@@ -181,20 +189,13 @@ it("shows delayed choices only after advancing their real content clock", async 
     />,
   );
   await waitForPreview();
-  vi.useFakeTimers({
-    toFake: ["Date", "setTimeout", "clearTimeout", "setInterval", "clearInterval"],
-  });
-  await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  });
-  await act(async () => {
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  });
   expect(screen.queryByRole("button", { name: "Blue" })).toBeNull();
-  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-  await act(async () => {
-    vi.advanceTimersByTime(0);
-  });
+  const advance = screen.getByRole("button", { name: "Continue" });
+  expect(advance).toBeEnabled();
+  fireEvent.click(advance);
+  expect(screen.queryByRole("button", { name: "Blue" })).toBeNull();
+  expect(advance).toBeEnabled();
+  fireEvent.click(advance);
   expect(screen.getByRole("button", { name: "Blue" })).toBeInTheDocument();
 });
 
@@ -227,3 +228,34 @@ it("explains manual judging according to the selected perspective", async () => 
     screen.getByText("Judge the submitted answers using the controls below."),
   ).toBeInTheDocument();
 });
+
+it.each([
+  { price: 1000, realPrice: 100, blocked: false },
+  { price: 100, realPrice: 1000, blocked: true },
+])(
+  "uses actual $realPrice for preview auction cap at nominal $price",
+  async ({ price, realPrice, blocked }) => {
+    const q = newQuestion(price, {
+      type: "stake",
+      text: "Question",
+      answerText: "Answer",
+      realPrice,
+      maxPrice: 500,
+    });
+    render(
+      <QuestionPlaytest
+        question={q}
+        final={false}
+        themeName="Theme"
+        media={new Map()}
+        canSave
+        onFix={() => {}}
+      />,
+    );
+    if (blocked)
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        i18n.t("editor.playtest.stakeLimit"),
+      );
+    else expect(await screen.findByTestId("question-playtest")).toBeInTheDocument();
+  },
+);

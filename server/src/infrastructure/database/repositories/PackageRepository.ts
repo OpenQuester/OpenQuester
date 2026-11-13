@@ -31,12 +31,7 @@ import { PackageTagRepository } from "infrastructure/database/repositories/Packa
 import { FileRepository } from "infrastructure/database/repositories/FileRepository";
 
 type OrderMapEntry =
-  | "rounds"
-  | "themes"
-  | "questions"
-  | "questionFiles"
-  | "answerFiles"
-  | "answers";
+  "rounds" | "themes" | "questions" | "questionFiles" | "answerFiles" | "answers";
 
 /**
  * Repository for Package entity operations.
@@ -350,13 +345,22 @@ export class PackageRepository {
             // Import and save question data
             question.import({
               theme: theme,
+              script: questionData.script,
               order: questionData.order,
               price: questionData.price,
+              realPrice: questionData.realPrice,
+              secretRules: questionData.secretRules,
               type: questionData.type,
               isHidden: questionData.isHidden,
               text: questionData.text,
               textOrder: questionData.textOrder,
               textItems: questionData.textItems,
+              textDurationMs: questionData.textDurationMs,
+              textWaitForFinish: questionData.textWaitForFinish,
+              answerDurationMs: questionData.answerDurationMs,
+              answerTextItems: questionData.answerTextItems,
+              showmanComments: questionData.showmanComments,
+              answerExplanation: questionData.answerExplanation,
               playMediaSimultaneously: questionData.playMediaSimultaneously,
               answerHint: questionData.answerHint,
               answerText: questionData.answerText,
@@ -378,6 +382,7 @@ export class PackageRepository {
               priceMultiplier: questionData.priceMultiplier,
               showDelay: questionData.showDelay,
               correctChoiceOrder: questionData.correctChoiceOrder,
+              selectSource: questionData.selectSource,
               showAnswerDuration: questionData.showAnswerDuration
             });
             questionsToSave.push(question);
@@ -529,6 +534,7 @@ export class PackageRepository {
                 question: question,
                 order: answerData.order,
                 text: answerData.text,
+                sourceLabel: answerData.sourceLabel,
                 fileData: file && type ? { file, type } : null
               });
               orders.add(answerData.order);

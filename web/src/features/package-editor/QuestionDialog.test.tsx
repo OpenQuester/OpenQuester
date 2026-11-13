@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { md5Hex } from "@/features/upload/archive";
+import { validatePackage } from "./validatePackage";
 
 import {
   emptyPackage,
@@ -15,10 +16,32 @@ import {
 import { QuestionDialog } from "./QuestionDialog";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { createPackageEditorStore, PackageEditorContext } from "./packageEditorStore";
+// Load the real preview before any test opens the lazy dialog.
+import "./playtest/QuestionPlaytest";
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+it("offers one actual-price field for fixed secret prices and none for price choices", async () => {
+  setup(newQuestion(100, { type: "secret", realPrice: 0 }));
+  const user = userEvent.setup();
+  const mode = screen.getByLabelText("Secret price rule");
+  const label = "Actual price";
+  expect(screen.getByLabelText(label)).toHaveValue("0");
+
+  await user.selectOptions(mode, "fixed");
+  expect(screen.getByLabelText(label)).toHaveValue("0");
+  await user.selectOptions(mode, "range");
+  expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+  await user.selectOptions(mode, "roundExtremes");
+  expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+
+  await user.selectOptions(mode, "legacy");
+  expect(screen.getByLabelText(label)).toBeEnabled();
+  await user.type(screen.getByPlaceholderText("100, 300, 500"), "100, 300");
+  expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
 });
 
 it("selects the last image when switching to point answers and clears the previous target", async () => {
@@ -389,7 +412,7 @@ it("keeps a fractional media duration while typing and clears the point target w
 
 it("keeps incomplete reveal input and permits only durations from 2 to 30 seconds", async () => {
   const { store } = setup(newQuestion(100));
-  const input = screen.getByLabelText("Answer reveal duration");
+  const input = screen.getByRole("textbox", { name: "Answer reveal duration" });
   const save = screen.getByTestId("question-save");
   input.focus();
   fireEvent.change(input, { target: { value: "" } });
@@ -406,11 +429,8 @@ it("keeps incomplete reveal input and permits only durations from 2 to 30 second
   expect(input).toHaveAccessibleDescription("Enter a duration from 2 to 30 seconds.");
   fireEvent.change(input, { target: { value: "2" } });
   expect(save).toBeEnabled();
-  expect(screen.getByText("Enter a duration from 2 to 30 seconds.")).not.toHaveAttribute(
-    "role",
-    "alert",
-  );
-  expect(input).toHaveAccessibleDescription("Enter a duration from 2 to 30 seconds.");
+  expect(screen.queryByText("Enter a duration from 2 to 30 seconds.")).toBeNull();
+  expect(input).not.toHaveAccessibleDescription();
   fireEvent.change(input, { target: { value: "30" } });
   expect(save).toBeEnabled();
   fireEvent.change(input, { target: { value: "30.1" } });
@@ -444,7 +464,7 @@ it("hides numeric text fields while retaining their draft values across save and
   expect(document.querySelector("#qf-answer")).toBeNull();
   expect(document.querySelector("#qf-wrong")).toBeNull();
   expect(document.querySelector("#qf-hint")).toHaveValue("Hint");
-  await user.type(screen.getByLabelText("Right number"), "0");
+  await user.type(screen.getByRole("textbox", { name: "Right number" }), "0");
   await user.click(screen.getByTestId("question-save"));
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]).toMatchObject({
     answerType: "number",
@@ -459,7 +479,7 @@ it("hides numeric text fields while retaining their draft values across save and
   expect(document.querySelector("#qf-answer")).toHaveValue("Original\nAnother");
   expect(document.querySelector("#qf-wrong")).toHaveValue("Wrong");
   await user.selectOptions(screen.getByLabelText("How players answer"), "number");
-  expect(screen.getByLabelText("Right number")).toHaveValue("0");
+  expect(screen.getByRole("textbox", { name: "Right number" })).toHaveValue("0");
 });
 
 it("maps the point slider to the larger image dimension without rewriting a legacy radius", async () => {
@@ -494,7 +514,6 @@ it("maps the point slider to the larger image dimension without rewriting a lega
 
 it("keeps the unsaved question mounted when the preview closes and does not save through it", async () => {
   // Load the lazy module before measuring form behavior; browser tests cover opening it.
-  await import("./playtest/QuestionPlaytest");
   const q = newQuestion(100, { text: "Original" });
   const { store } = setup(q);
   const text = screen.getByLabelText("Question text");
@@ -535,7 +554,7 @@ it("returns focus to the invalid number target when the preview cannot run", asy
   const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
   expect(await within(preview).findByRole("alert")).toHaveTextContent(/number/i);
   await userEvent.click(within(preview).getByRole("button", { name: "Return to editing" }));
-  await waitFor(() => expect(screen.getByLabelText("Right number")).toHaveFocus());
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "Right number" })).toHaveFocus());
 });
 
 it("returns focus to a correct-choice radio after deleting the selected option", async () => {
@@ -584,7 +603,7 @@ it("returns focus to Add option when a choice repair has no options", async () =
 
 it("does not rewrite an imported reveal duration merely by opening the question", () => {
   const { store } = setup(newQuestion(100, { showAnswerDuration: 1234 }));
-  expect(screen.getByLabelText("Answer reveal duration")).toHaveValue("1.234");
+  expect(screen.getByRole("textbox", { name: "Answer reveal duration" })).toHaveValue("1.234");
   expect(screen.getByTestId("question-save")).toBeDisabled();
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.showAnswerDuration).toBe(1234);
 });
@@ -595,7 +614,7 @@ it("keeps a legacy reveal duration while answer media controls the timeline, the
     answerFiles: [{ md5: "missing", type: "image", displayTime: 5000 }],
   });
   const { store } = setup(q);
-  const duration = screen.getByLabelText("Answer reveal duration");
+  const duration = screen.getByRole("textbox", { name: "Answer reveal duration" });
   expect(duration).toBeDisabled();
   expect(duration).not.toHaveAttribute("aria-invalid", "true");
   expect(duration).toHaveAccessibleDescription(
@@ -607,8 +626,11 @@ it("keeps a legacy reveal duration while answer media controls the timeline, the
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.showAnswerDuration).toBe(60_000);
   act(() => store.getState().edit(q.id));
   await userEvent.click(screen.getByRole("button", { name: "Remove file" }));
-  expect(screen.getByLabelText("Answer reveal duration")).toBeEnabled();
-  expect(screen.getByLabelText("Answer reveal duration")).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByRole("textbox", { name: "Answer reveal duration" })).toBeEnabled();
+  expect(screen.getByRole("textbox", { name: "Answer reveal duration" })).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
   expect(screen.getByTestId("question-save")).toBeDisabled();
   expect(screen.getByRole("alert")).toHaveTextContent("2 to 30 seconds");
 });
@@ -720,12 +742,36 @@ it("edits all accepted answers in one field and preserves them through save and 
   });
 });
 
+it("hides explicit select aliases without deleting them when saving", async () => {
+  const q = newQuestion(100, {
+    text: "Pick one",
+    answerType: "select",
+    rightAnswers: ["Stored alias"],
+    correctChoiceOptionId: "a",
+    options: [
+      { id: "a", text: "First", file: null },
+      { id: "b", text: "Second", file: null },
+    ],
+  });
+  const { store } = setup(q);
+  expect(screen.queryByLabelText(/Also accept/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByTestId("question-save"));
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.rightAnswers).toEqual([
+    "Stored alias",
+  ]);
+  expect(toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]!.rightAnswers).toEqual([
+    "Stored alias",
+  ]);
+});
+
 it("keeps alternative accepted answers when switching to choice and back", async () => {
   const { store } = setup(newQuestion(100, { answerText: "Kyiv", rightAnswers: ["Kiev"] }));
   await userEvent.click(screen.getByRole("button", { name: /^Choice/ }));
   expect(screen.getByLabelText(/Also accept/)).toHaveValue("Kiev");
   await userEvent.type(screen.getByLabelText(/Hint for the showman/), "Capital city");
   await userEvent.click(screen.getByRole("button", { name: /^Simple/ }));
+  expect(screen.getByLabelText("How players answer")).toHaveValue("select");
+  await userEvent.selectOptions(screen.getByLabelText("How players answer"), "text");
   expect(screen.getByLabelText("Correct answers")).toHaveValue("Kyiv\nKiev");
   expect(screen.getByLabelText(/Hint for the showman/)).toHaveValue("Capital city");
   await userEvent.click(screen.getByTestId("question-save"));
@@ -747,6 +793,8 @@ it("keeps choice correctness and form history when renaming an option and changi
   await user.type(first, ", Ukraine");
   await user.type(screen.getByLabelText("Option B"), "Lviv");
   await user.click(screen.getByRole("button", { name: /^Simple/ }));
+  expect(screen.getByLabelText("How players answer")).toHaveValue("select");
+  await user.selectOptions(screen.getByLabelText("How players answer"), "text");
   expect(screen.getByLabelText("Correct answers")).toHaveValue("Kyiv, Ukraine\nKiev");
   await user.click(screen.getByRole("button", { name: /^Choice/ }));
   expect(screen.getByLabelText("Option A")).toHaveValue("Kyiv, Ukraine");
@@ -804,6 +852,39 @@ it("does not transfer the correct selection when its option is deleted", async (
   expect(screen.getByRole("radio", { name: "Correct" })).not.toBeChecked();
   await user.click(screen.getByTestId("question-save"));
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.correctChoiceOptionId).toBeNull();
+});
+
+it("requires explicit removal of invalid source rights before a select repair can publish", async () => {
+  const { store } = setup(
+    newQuestion(100, {
+      text: "Question",
+      answerType: "select",
+      correctChoiceOptionId: null,
+      options: [
+        { id: "b", sourceLabel: "B", text: "Other", file: null },
+        { id: "c", sourceLabel: "C", text: "Correct", file: null },
+      ],
+      selectSource: { rightLabels: ["C", "Z"] },
+      compatibilityIssues: [
+        {
+          code: "choiceCorrectUnresolved",
+          where: "source",
+          feature: "select",
+          severity: "critical",
+          resolution: "needsRepair",
+        },
+      ],
+    }),
+  );
+  const user = userEvent.setup();
+  expect(screen.getByText(/Source right labels.*C.*Z/)).toBeInTheDocument();
+  await user.click(screen.getAllByRole("radio", { name: "Correct" })[1]!);
+  expect(screen.getByText(/Source right labels.*C.*Z/)).toBeInTheDocument();
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  await user.click(screen.getByRole("button", { name: "Remove source right labels" }));
+  await user.click(screen.getByTestId("question-save"));
+  expect(validatePackage(store.getState().pkg, () => true).critical).toBe(0);
+  expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.selectSource).toBeUndefined();
 });
 
 function setup(question: DraftQuestion, wide = false, final = false) {
@@ -888,11 +969,64 @@ it("saves an added main prompt before media in a legacy media-only final", async
   expect(saved.questionFiles?.[0]?.order).toBe(1);
 });
 
+it("saves an explicit display duration for a legacy caption and leaves final price controls absent", async () => {
+  const { store } = setup(
+    newQuestion(null, {
+      text: "Legacy caption",
+      textPosition: null,
+      mainTextFirst: undefined,
+      textItems: [{ id: "clue", order: 0, text: "Second clue" }],
+      questionFiles: [{ md5: "image", type: "image", displayTime: 5000 }],
+    }),
+    true,
+    true,
+  );
+  expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull();
+  expect(screen.queryByRole("checkbox", { name: "Everyone answers" })).toBeNull();
+  await userEvent.type(screen.getByLabelText("Text display time"), "2.5");
+  await userEvent.type(screen.getByLabelText("Time to answer"), "12,5");
+  await userEvent.click(screen.getByTestId("question-save"));
+  const saved = toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]!;
+  expect(saved).toMatchObject({ textOrder: 0, textDurationMs: 2500, answerDurationMs: 12500 });
+  expect(saved.textItems?.[0]?.order).toBe(1);
+  expect(saved.questionFiles?.[0]?.order).toBe(2);
+});
+
+it("keeps an imported script intact when editing its board price", async () => {
+  const script = {
+    version: 1,
+    steps: [
+      { op: "showContent", phase: "question", orders: [0] },
+      { op: "setAnswerType", answerType: "number" },
+      { op: "askAnswer", mode: "direct", durationMs: 15000 },
+    ],
+  } satisfies NonNullable<DraftQuestion["script"]>;
+  const { store } = setup(
+    newQuestion(100, {
+      script,
+      textItems: [
+        { id: "prompt", order: 0, scriptOrder: 0, text: "First number", durationMs: 1000 },
+      ],
+      answerNumber: 42,
+    }),
+  );
+  expect(screen.queryByLabelText("Time to answer")).toBeNull();
+  expect(screen.queryByRole("checkbox")).toBeNull();
+  const price = screen.getByRole("textbox", { name: "Price" });
+  await userEvent.clear(price);
+  await userEvent.type(price, "200");
+  await userEvent.click(screen.getByTestId("question-save"));
+  expect(toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]).toMatchObject({
+    price: 200,
+    script,
+  });
+});
+
 it("saves decimal answers and tolerance while keeping prices and bids integral", async () => {
   const { store } = setup(
     newQuestion(100, { type: "stake", answerType: "number", answerDelay: 7250 }),
   );
-  expect(screen.queryByLabelText(/Answer window/i)).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Time to answer")).toHaveValue("");
   const user = userEvent.setup();
   for (const [label, value] of [
     ["Right number", "3.14"],
@@ -900,7 +1034,7 @@ it("saves decimal answers and tolerance while keeping prices and bids integral",
     ["Price", "100.4"],
     ["Highest bid", "500.4"],
   ]) {
-    const input = screen.getByLabelText(label!);
+    const input = screen.getByRole("textbox", { name: label! });
     await user.clear(input);
     await user.type(input, value!);
   }
@@ -960,10 +1094,10 @@ it.each([false, true])(
 
 it("preserves incomplete numeric input across responsive breakpoints", async () => {
   const { resize } = setup(newQuestion(100, { answerType: "number" }), true);
-  const number = screen.getByLabelText("Right number");
+  const number = screen.getByRole("textbox", { name: "Right number" });
   await userEvent.type(number, "1.");
   resize(false);
-  expect(screen.getByLabelText("Right number")).toBe(number);
+  expect(screen.getByRole("textbox", { name: "Right number" })).toBe(number);
   expect(number).toHaveValue("1.");
   expect(number).toHaveFocus();
 });
@@ -1023,3 +1157,52 @@ it("discarding the question drops accepted staged media without writing the stor
   expect(store.getState().media.size).toBe(0);
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.questionFiles).toEqual([]);
 });
+
+it.each(["text", "radius", "target"] as const)(
+  "preserves source geometry until an explicit %s geometry edit (A17)",
+  async (action) => {
+    const point = {
+      x: 0.25,
+      y: 0.5,
+      imageAspectRatio: 2,
+      sourceGeometry: { kind: "sigame" as const, aspectRatio: 1 },
+    };
+    const { store } = setup(
+      newQuestion(100, {
+        text: "Before",
+        answerType: "point",
+        answerPoint: point,
+        pointImageId: "image",
+        questionFiles: [{ occurrenceId: "image", md5: "image", type: "image", displayTime: 5000 }],
+      }),
+    );
+    act(() =>
+      store.getState().addMedia([
+        {
+          md5: "image",
+          type: "image",
+          name: "image.png",
+          bytes: new Uint8Array(),
+          url: "/image.png",
+        },
+      ]),
+    );
+    const img = screen.getByTestId("point-picker").querySelector("img")!;
+    Object.defineProperty(img, "naturalWidth", { value: 200 });
+    Object.defineProperty(img, "naturalHeight", { value: 100 });
+    fireEvent.load(img);
+    expect(
+      screen.getByText("Imported area radius: 4 px horizontally, 2 px vertically."),
+    ).toBeInTheDocument();
+    if (action === "text")
+      fireEvent.change(screen.getByLabelText("Question text"), { target: { value: "After" } });
+    if (action === "radius")
+      fireEvent.change(screen.getByLabelText("Answer radius"), { target: { value: "20" } });
+    if (action === "target")
+      fireEvent.keyDown(screen.getByTestId("point-picker"), { key: "Enter" });
+    await userEvent.click(screen.getByTestId("question-save"));
+    const saved = store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!;
+    if (action === "text") expect(saved.answerPoint).toEqual(point);
+    else expect(saved.answerPoint?.sourceGeometry).toBeUndefined();
+  },
+);

@@ -33,7 +33,7 @@ export function ShowmanPanel() {
       data-testid="showman-panel"
     >
       <span className={questionStyles.showmanLabel}>{t("showman.onlyYou")}</span>
-      <ShowmanInstruction comment={q?.questionComment} />
+      <ShowmanInstruction comment={q?.showmanComments ?? q?.questionComment} />
       <div className="flex flex-col gap-1">
         <span className="text-sm text-muted">{t("showman.answer")}</span>
         <span className={questionStyles.showmanAnswer} data-testid="showman-answer">
@@ -43,7 +43,7 @@ export function ShowmanPanel() {
           <span className="text-sm text-soft">{t("showman.hint", { hint: q.answerHint })}</span>
         )}
         {q && <StructuredAnswer question={q} />}
-        {!!q?.rightAnswers?.length && (
+        {q?.answerType !== "select" && !!q?.rightAnswers?.length && (
           <span className="text-sm text-success" data-testid="showman-right-answers">
             {t("showman.alsoRight", { answers: q.rightAnswers.join(" · ") })}
           </span>

@@ -9,14 +9,18 @@ export const questionFormStyles = {
   footer: `${layoutStyles.spacedActions} border-t border-line ${formSpacing}`,
   body: "min-h-0 flex-1 overflow-y-auto",
   content: `${layoutStyles.contentColumn} gap-5 px-4 py-5 sm:px-6`,
+  fieldPair: "grid min-w-0 items-start gap-4 sm:grid-cols-2",
+  divider: "m-0 border-0 border-t border-line",
   title: "m-0 font-display text-xl font-extrabold sm:text-2xl",
   actions: "flex flex-1 justify-end gap-3 sm:flex-none",
   previewLabel: "text-xs font-bold tracking-[0.08em] text-faint uppercase",
   attachment:
     "flex w-full min-w-0 flex-col gap-2 self-start rounded-sm border border-line bg-surface-2 p-2 sm:w-[220px]",
-  attachmentTime: "min-h-8 w-14 rounded-[8px] border border-line-strong bg-bg px-2 text-text",
+  attachmentActions: "flex flex-wrap items-center justify-end gap-x-1",
+  attachmentTime:
+    "min-h-8 w-12 rounded-[8px] border border-line-strong bg-bg px-1.5 text-sm text-text",
   attachmentRemove:
-    "inline-flex size-11 shrink-0 items-center justify-center rounded-sm text-muted hover:bg-surface-3 hover:text-danger disabled:opacity-40",
+    "inline-flex size-9 shrink-0 items-center justify-center rounded-sm text-muted hover:bg-surface-3 hover:text-danger disabled:opacity-40",
   attachmentHint:
     "flex min-h-12 flex-1 items-center justify-center px-2 text-center text-sm text-faint",
   choiceRemove:

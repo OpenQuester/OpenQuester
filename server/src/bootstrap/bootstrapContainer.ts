@@ -1,3 +1,4 @@
+import { QuestionScriptService } from "application/services/question/QuestionScriptService";
 /**
  * Dependency Injection Container Bootstrap
  *
@@ -230,6 +231,7 @@ export async function bootstrapContainer(context: DIBootstrapContext): Promise<v
     timerExpirationService: container.resolve(TimerExpirationService),
     phaseTransitionRouter,
     packageStore,
+    questionScriptService: container.resolve(QuestionScriptService),
     logger
   };
   configureActionHandlers(actionHandlerDeps);

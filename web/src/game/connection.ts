@@ -6,6 +6,7 @@ import { i18n } from "@/i18n/index";
 import { formatScore } from "@/lib/format";
 
 import { preloadQuestionMedia } from "./media";
+import { questionMediaFiles } from "./questionMediaFiles";
 import {
   SERVER_EVENT_NAMES,
   type ClientEventName,
@@ -63,7 +64,6 @@ export class GameConnection {
   }
 
   connect(): void {
-    forgetLeftGame(this.gameId);
     // React StrictMode mounts, unmounts and remounts: a closed connection must
     // be able to start over.
     this.closed = false;
@@ -199,7 +199,14 @@ export class GameConnection {
       },
       name === "question-answer" ? BUZZ_PENDING_TIMEOUT_MS : PENDING_TIMEOUT_MS,
     );
-    if (args.length > 0) this.socket.emit(name, args[0]);
+    const script = store.session?.state.scriptView;
+    if (script?.waitingFor)
+      this.socket.emit(name, {
+        ...((args[0] as object) ?? {}),
+        scriptStep: script.programCounter,
+        scriptQuestionId: script.questionId,
+      });
+    else if (args.length > 0) this.socket.emit(name, args[0]);
     else this.socket.emit(name);
   }
 
@@ -257,7 +264,10 @@ export class GameConnection {
 
   private onServerEvent(event: ServerEvent): void {
     const store = useGameStore.getState();
-    if (event.type === "game-data") store.setConnection("connected");
+    if (event.type === "game-data") {
+      forgetLeftGame(this.gameId);
+      store.setConnection("connected");
+    }
 
     const before = store.session;
     store.dispatch(event);
@@ -287,6 +297,14 @@ export class GameConnection {
           store.markLeft("kicked");
           this.close();
         }
+        break;
+      case "question-script-state":
+        if (
+          before?.state.questionState !== "media_downloading" ||
+          before.state.scriptView?.programCounter !== current?.state.scriptView?.programCounter ||
+          before.state.scriptView?.questionId !== current?.state.scriptView?.questionId
+        )
+          this.maybeReportMedia();
         break;
       case "question-data":
       case "final-question-data":
@@ -378,7 +396,7 @@ export class GameConnection {
     return (
       role === "player" ||
       (role === "showman" &&
-        session.state.currentRound?.type === "simple" &&
+        (session.state.currentRound?.type === "simple" || !!session.state.scriptView) &&
         !session.players.some((p) => p.role === "player" && p.status === "in-game"))
     );
   }
@@ -389,12 +407,17 @@ export class GameConnection {
     this.mediaAbort = null;
     const session = useGameStore.getState().session;
     if (!session || !this.canReportMedia(session)) return;
+    const script = session.state.scriptView;
     const preparation =
       session.state.currentRound?.type === "final"
         ? session.state.finalRoundData?.questionData?.mediaPreparationId
         : undefined;
-    if (session.state.currentRound?.type === "final" && !preparation) return;
-    if (session.state.questionTransition && !session.state.currentQuestion?.questionFiles?.length)
+    if (session.state.currentRound?.type === "final" && !preparation && !session.state.scriptView)
+      return;
+    if (
+      session.state.questionTransition &&
+      questionMediaFiles(session.state.currentQuestion).length === 0
+    )
       return;
     const controller = new AbortController();
     this.mediaAbort = controller;
@@ -405,7 +428,13 @@ export class GameConnection {
       if (mediaDurations === null) return;
       if (controller.signal.aborted || this.closed) return;
       const latest = useGameStore.getState().session;
-      if (!latest || !this.canReportMedia(latest)) return;
+      if (
+        !latest ||
+        !this.canReportMedia(latest) ||
+        latest.state.scriptView?.programCounter !== script?.programCounter ||
+        latest.state.scriptView?.questionId !== script?.questionId
+      )
+        return;
       if (
         preparation &&
         latest.state.finalRoundData?.questionData?.mediaPreparationId !== preparation
@@ -415,6 +444,12 @@ export class GameConnection {
         this.socket?.emit("media-downloaded", {
           mediaPreparationId: preparation,
           ...(mediaDurations.length ? { mediaDurations } : {}),
+        });
+      else if (latest.state.scriptView)
+        this.socket?.emit("media-downloaded", {
+          mediaDurations,
+          scriptStep: latest.state.scriptView.programCounter,
+          scriptQuestionId: latest.state.scriptView.questionId,
         });
       else if (mediaDurations.length > 0) this.socket?.emit("media-downloaded", { mediaDurations });
       else this.socket?.emit("media-downloaded");

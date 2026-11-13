@@ -3897,7 +3897,7 @@ export interface components {
          */
         QuestionAllowedPrices: number[] | null;
         /**
-         * @description Multiple choice options; minimum 2, maximum 8 answers
+         * @description A selectable text/image/audio/video option; at least two options per select question, without an arbitrary maximum of eight.
          * @example {
          *       "text": "Option 1",
          *       "file": null
@@ -3928,6 +3928,8 @@ export interface components {
             text?: string | null;
             /** @description File associated with the answer option */
             file?: components["schemas"]["FileItem"] | null;
+            /** @description Authored source label for display and package round trips. Scripted questions expose labels for their current options. Selection identity is order. */
+            sourceLabel?: string | null;
         };
         /**
          * @description Correct answer text
@@ -4018,7 +4020,8 @@ export interface components {
              * @example 1
              */
             order: number;
-            placement: components["schemas"]["ContentPlacement"];
+            /** @enum {string} */
+            placement: "screen" | "background" | "replic";
             /**
              * @description Scheduled start within the authored step in milliseconds. Omitted means the step start.
              * @default 0
@@ -4060,6 +4063,14 @@ export interface components {
                 durationMs: number;
             }[];
         };
+        QuestionTextItem: {
+            order: number;
+            text: string;
+            durationMs?: number | null;
+            waitForFinish?: boolean;
+            /** @enum {string} */
+            placement?: "screen" | "replic";
+        };
         /** @description Base properties for all question types */
         PackageQuestion: {
             /** @example 187 */
@@ -4094,11 +4105,8 @@ export interface components {
              * @default true
              */
             playMediaSimultaneously: boolean | null;
-            /** @description Additional sequential screen-text steps. Each order must be unique and must not equal textOrder or a question file order. The legacy text and textOrder retain their existing meaning. For final questions with a non-null array, every question audio/video requires an integer displayTime from 1 to 120000 milliseconds. */
-            textItems?: {
-                order: number;
-                text: string;
-            }[] | null;
+            /** @description Authored text steps. Each order must be unique and cannot equal textOrder or a question file order. Replic text is private to the showman. For final questions with a non-null array, audio/video requires an integer displayTime from 1 to 120000 milliseconds. */
+            textItems?: components["schemas"]["QuestionTextItem"][] | null;
             /**
              * @description Hint for the answer
              * @example It's in Europe
@@ -4140,16 +4148,35 @@ export interface components {
             questionComment?: string | null;
             questionFiles?: components["schemas"]["PackageQuestionFile"][] | null;
             answerFiles?: components["schemas"]["PackageQuestionFile"][] | null;
-        };
+            /** @description Actual base price. Missing/null uses nominal price; zero stays zero. Hidden from public board and secret views until price disclosure. */
+            realPrice?: number | null;
+            showDelay?: components["schemas"]["QuestionShowDelay"];
+            /** @description Optional unique order of the authored correct choice; omitted for legacy questions and hidden from players before reveal */
+            correctChoiceOrder?: number | null;
+            /** @description Resolved source rights for select authoring and export. The labels are absent from gameplay and do not affect judging. */
+            selectSource?: {
+                /** @description Distinct labels that each identify exactly one option, in source order. */
+                rightLabels: string[];
+            };
+            /** @description Native select options or the combined option groups of a typed script. Each nonnegative integer order must be unique. */
+            answers?: components["schemas"]["QuestionChoiceAnswers"][];
+            /** @description Reveal content, separate from checking answers; private until reveal. Replic text stays private. */
+            answerTextItems?: components["schemas"]["QuestionTextItem"][] | null;
+            textDurationMs?: number | null;
+            textWaitForFinish?: boolean | null;
+            /** @description Authored answer window in milliseconds; null/zero uses room default. Button mode overrides pressing after presentation, never post-buzz submit time; direct/all-play/final overrides their answer window. */
+            answerDurationMs?: number | null;
+            /** @description Private showman instructions, never included in public question or reveal. */
+            showmanComments?: string | null;
+            /** @description Explanation from SIQ info/comments, revealed only after the answer. */
+            answerExplanation?: string | null;
+            script?: components["schemas"]["QuestionScript"] | null;
+        } & unknown;
         ChoiceQuestion: components["schemas"]["PackageQuestion"] & {
             /** @enum {string} */
             type?: "choice";
-            /** @constant */
-            subType?: "simple";
-            showDelay: components["schemas"]["QuestionShowDelay"];
-            /** @description Optional unique order of the authored correct choice; omitted for legacy questions and hidden from players before reveal */
-            correctChoiceOrder?: number | null;
-            answers: components["schemas"]["QuestionChoiceAnswers"][];
+            /** @enum {string} */
+            subType?: "simple" | "forEveryone";
         } & {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -4168,6 +4195,7 @@ export interface components {
             subType: "simple" | "customPrice";
             allowedPrices?: components["schemas"]["QuestionAllowedPrices"];
             transferType: components["schemas"]["QuestionTransferType"];
+            secretRules?: components["schemas"]["SecretRules"] | null;
         } & {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -4195,6 +4223,8 @@ export interface components {
         SimpleQuestion: components["schemas"]["PackageQuestion"] & {
             /** @enum {string} */
             type?: "simple";
+            /** @enum {string} */
+            subType?: "simple" | "forEveryone";
         } & {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -4498,13 +4528,15 @@ export interface components {
             /** @example Game title */
             title: string;
             settings: components["schemas"]["GameSettings"];
+            /** @description Current player slot count when joining or reconnecting. */
+            maxPlayers?: number;
         };
         GameState: {
             /**
              * @example choosing
              * @enum {string|null}
              */
-            questionState?: "choosing" | "theme_elimination" | "bidding" | "answering" | "reviewing" | "showing" | null;
+            questionState?: "choosing" | "theme_elimination" | "bidding" | "answering" | "reviewing" | "showing" | null | "secret_transfer" | "showing_answer" | "media_downloading";
             /** @example false */
             isPaused: boolean;
             currentRound?: components["schemas"]["SocketIOGameStateRoundData"] | null;
@@ -4575,6 +4607,12 @@ export interface components {
              */
             password?: string | null;
             questionTransition?: components["schemas"]["QuestionTransition"] | null;
+            secretAward?: components["schemas"]["SecretQuestionAward"] | null;
+            scriptView?: components["schemas"]["QuestionScriptView"] | null;
+            /** @description Accepted final bids visible to the current recipient. Others' bids stay private until review. */
+            scriptFinalBids?: {
+                [key: string]: number;
+            };
         };
         GameStateTimer: {
             /**
@@ -4730,7 +4768,7 @@ export interface components {
          * @example join
          * @enum {string}
          */
-        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-remove-restore" | "answer-result-undo" | "buzzer-open" | "game-join-mode-change" | "game-settings-change" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "all-play-start" | "all-play-stake" | "all-play-answer" | "all-play-reviewing" | "all-play-review" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications";
+        SocketIOGameReceiveEvents: "join" | "start" | "user-leave" | "game-data" | "question-answer" | "buzzer-false-start" | "question-data" | "question-finish" | "answer-submitted" | "answer-result" | "answer-show-start" | "answer-show-end" | "next-round" | "game-finished" | "game-closed" | "game-pause" | "game-unpause" | "theme-eliminate" | "question-skip" | "question-unskip" | "player-ready" | "player-unready" | "player-kicked" | "player-restricted" | "player-role-change" | "score-changed" | "question-remove-restore" | "answer-result-undo" | "buzzer-open" | "game-join-mode-change" | "game-settings-change" | "player-slot-change" | "turn-player-changed" | "final-bid-submit" | "final-answer-submit" | "final-answer-review" | "final-phase-complete" | "final-question-data" | "final-submit-end" | "final-auto-loss" | "secret-question-picked" | "secret-question-transfer" | "secret-question-price" | "all-play-start" | "all-play-stake" | "all-play-answer" | "all-play-reviewing" | "all-play-review" | "stake-question-picked" | "stake-bid-submit" | "stake-question-winner" | "media-download-status" | "notifications" | "secret-question-awarded" | "question-script-state";
         /** @description Data sent to all players when player skips a question */
         SocketIOGameSkipEventPayload: {
             /**
@@ -4971,6 +5009,11 @@ export interface components {
             /** @description Position on this payload's timer (ms) when the buzzer opens; 0 or null: open right away */
             buzzerOpensAtMs?: number | null;
             questionTransition?: components["schemas"]["QuestionTransition"] | null;
+            /**
+             * @description Actual phase, including readiness before a designated answerer starts.
+             * @enum {string|null}
+             */
+            questionState?: "choosing" | "theme_elimination" | "bidding" | "answering" | "reviewing" | "showing" | null;
         };
         /** @description Data sent to all players when a player starts answering a question */
         SocketIOQuestionAnswerEventPayload: {
@@ -4990,6 +5033,10 @@ export interface components {
             answerText?: string | null;
             /** @description Optional selected choice order for a regular choice question */
             choiceOrder?: number;
+            /** @description Required while acting on a script wait. */
+            scriptStep?: number;
+            /** @description Question ID for the observed script step. */
+            scriptQuestionId?: number;
         };
         /** @description Data sent to all players when the showman evaluates an answer */
         SocketIOAnswerResultEventPayload: {
@@ -5028,6 +5075,8 @@ export interface components {
              */
             questionId: number;
             questionEligiblePlayers?: components["schemas"]["QuestionEligiblePlayers"];
+            secretQuestionData?: components["schemas"]["SecretQuestionGameData"] | null;
+            timer?: components["schemas"]["GameStateTimer"] | null;
         };
         /** @description Data sent by a player to transfer a secret question to another player */
         SocketIOSecretQuestionTransferInputData: {
@@ -5036,6 +5085,10 @@ export interface components {
              * @example 789
              */
             targetPlayerId: number;
+            /** @description Required while acting on a script wait. */
+            scriptStep?: number;
+            /** @description Question ID for the observed script step. */
+            scriptQuestionId?: number;
         };
         /** @description Data sent to all players when a secret question is transferred */
         SocketIOSecretQuestionTransferEventPayload: {
@@ -5056,8 +5109,8 @@ export interface components {
             questionId: number;
             /** @description customPrice questions: the receiver now picks one of these prices (secret-question-price); the question data follows the pick */
             allowedPrices?: number[] | null;
-            /** @description customPrice questions: the timer of the price pick */
             timer?: components["schemas"]["GameStateTimer"] | null;
+            secretQuestionData?: components["schemas"]["SecretQuestionGameData"] | null;
         };
         /** @description Data sent to eliminate a theme in final round */
         SocketIOThemeEliminateInput: {
@@ -5092,6 +5145,12 @@ export interface components {
              * @example This is my final answer
              */
             answerText: string;
+            /** @description Selected option identity. Hidden from other clients until review. */
+            choiceOrder?: number;
+            /** @description Required while acting on a script wait. */
+            scriptStep?: number;
+            /** @description Question ID for the observed script step. */
+            scriptQuestionId?: number;
         };
         /** @description Data sent to all players when a final answer is submitted */
         SocketIOFinalAnswerSubmitPayload: {
@@ -5221,6 +5280,8 @@ export interface components {
              * @example 2024-01-01T00:01:00Z
              */
             reviewedAt?: string | null;
+            /** @description Selected option identity. Hidden from other clients until review. */
+            choiceOrder?: number;
         };
         /**
          * @example {
@@ -5307,6 +5368,12 @@ export interface components {
             /** @description Image-only correct choice for the answer reveal, retained on rejoin */
             correctChoiceImage?: string | null;
             answerDeviation?: number | null;
+            /** @description Correct select option, including its media. Present only at answer reveal. */
+            correctChoice?: components["schemas"]["QuestionChoiceAnswers"] | null;
+            /** @description Reveal content, separate from checking answers; private until reveal. Replic text stays private. */
+            answerTextItems?: components["schemas"]["QuestionTextItem"][] | null;
+            /** @description Explanation revealed with the answer. */
+            answerExplanation?: string | null;
         };
         /** @description Data sent when a player automatically loses in final round */
         SocketIOFinalAutoLossEventPayload: {
@@ -5378,6 +5445,8 @@ export interface components {
              * @example null
              */
             isCorrect: boolean | null;
+            /** @description Selected option identity, revealed at review. */
+            choiceOrder?: number;
         };
         /**
          * @description Type of final round answer result: correct (reviewed as correct), wrong (reviewed as wrong), auto_loss (empty answer, auto-marked wrong), pending (needs showman review)
@@ -5422,6 +5491,8 @@ export interface components {
             /** @description Timer for the bidding phase (30 seconds per bid) */
             timer: components["schemas"]["GameStateTimer"];
             questionEligiblePlayers?: components["schemas"]["QuestionEligiblePlayers"];
+            /** @description Actual base price disclosed for auction minimum. Optional for legacy snapshots. */
+            questionPrice?: number | null;
         };
         /** @description Data for stake question bid submission */
         StakeBidSubmitInputData: {
@@ -5475,7 +5546,7 @@ export interface components {
              */
             finalBid: number | null;
         };
-        /** @description Data saved to game state in order to understand current secret question state */
+        /** @description Public current preamble. No outcome/rules or unannounced amount/bounds. Optional fields retain legacy defaults. Pause/reconnect does not replay effects. */
         SecretQuestionGameData: {
             /**
              * @description The player who originally picked the secret question
@@ -5496,6 +5567,14 @@ export interface components {
             transferDecisionPhase: boolean;
             /** @description customPrice questions: after the transfer, the receiving player picks one of allowedPrices before the question shows */
             priceSelection?: components["schemas"]["SecretPriceSelection"] | null;
+            /** @enum {string} */
+            step?: "transfer" | "price";
+            actorPlayerId?: number | null;
+            recipientPlayerId?: number | null;
+            priceRevealed?: boolean;
+            announcedPrice?: number | null;
+            announcedRange?: components["schemas"]["SecretPriceRange"] | null;
+            announcedPrices?: number[] | null;
         };
         /** @description Data saved to game state in order to understand current stake question state */
         StakeQuestionGameData: {
@@ -5565,6 +5644,8 @@ export interface components {
              * @example true
              */
             biddingPhase: boolean;
+            /** @description Actual base price disclosed for auction minimum. Optional for legacy snapshots. */
+            questionPrice?: number | null;
         };
         /** @description Data sent to all players when a player submitted a bid */
         SocketIOStakeQuestionSubmittedEventPayload: components["schemas"]["StakeBidSubmitOutputData"];
@@ -5835,28 +5916,37 @@ export interface components {
             wrongAnswerPenalty?: components["schemas"]["WrongAnswerPenalty"];
             timers?: components["schemas"]["GameTimerSettingsInput"];
         };
+        /** @description Current price chooser: opener or receiver, using a list/endpoints or compact range. */
         SecretPriceSelection: {
             /** @description The player who received the question and picks its price */
             playerId: number;
+            /** @description Empty with a range. Legacy OQ lists remain 2–5; round extrema has one or two endpoints. */
             allowedPrices: number[];
+            range?: components["schemas"]["SecretPriceRange"] | null;
         };
         /** @description The receiver of a customPrice secret question picks its price */
         SocketIOSecretQuestionPriceInput: {
             /** @description One of the question's allowedPrices */
             price: number;
+            /** @description Required while acting on a script wait. */
+            scriptStep?: number;
+            /** @description Question ID for the observed script step. */
+            scriptQuestionId?: number;
         };
         /** @description The receiver picked the price (or the 30 s ran out and the lowest price was taken); question-data follows */
         SocketIOSecretQuestionPriceEventPayload: {
             playerId: number;
             price: number;
             questionId: number;
+            secretQuestionData?: components["schemas"]["SecretQuestionGameData"] | null;
+            timer?: components["schemas"]["GameStateTimer"] | null;
         };
         /**
-         * @description noRisk: right wins price × multiplier, wrong costs nothing. stake: each player stakes; right wins the stake, wrong loses it
+         * @description simple: right wins actual price; wrong follows the snapshotted room penalty. noRisk: right wins actual price times multiplier, wrong costs nothing. stake: each player wins or loses their personal stake.
          * @example stake
          * @enum {string}
          */
-        AllPlayMode: "noRisk" | "stake";
+        AllPlayMode: "noRisk" | "stake" | "simple";
         AllPlayEntry: {
             playerId: number;
             /** @description Stake mode: the amount staked; null until staked. Shown to players as 0 until the review */
@@ -5867,26 +5957,40 @@ export interface components {
             /** @description The showman's ruling; null until reviewed */
             isCorrect: boolean | null;
             scoreChange: number | null;
+            /** @description Selected option identity. Hidden from other clients until review. */
+            choiceOrder?: number;
         };
-        /** @description "Everyone answers" question (stake / no-risk with subType forEveryone). Phases follow questionState: bidding (stake mode) → media_downloading → showing (players type answers) → reviewing (showman rules on each) → showing_answer */
+        /** @description Everyone answers: simple (+actual / room penalty), stake (+/- personal stake), noRisk (+actual times multiplier / 0). Bidding only for stake; answers and stakes hidden until review. */
         AllPlayData: {
             mode: components["schemas"]["AllPlayMode"];
             questionId: number;
             themeId: number;
+            /** @description Resolved actual base price fixed at question start; board nominal is unchanged. */
             price: number;
             maxStake: number | null;
             priceMultiplier: number | null;
             entries: components["schemas"]["AllPlayEntry"][];
+            /**
+             * @description Simple mode penalty fixed at question start. Absent legacy snapshots subtract.
+             * @enum {string}
+             */
+            wrongAnswerPenalty?: "subtract" | "none";
         };
         /** @description An "everyone answers" question started: the stake phase (stake mode, with its timer) or straight to the question (timer null) */
         SocketIOAllPlayStartEventPayload: {
             mode: components["schemas"]["AllPlayMode"];
             questionId: number;
             players: number[];
+            /** @description Resolved actual base price fixed at question start; board nominal is unchanged. */
             price: number;
             maxStake: number | null;
             priceMultiplier: number | null;
             timer: components["schemas"]["GameStateTimer"] | null;
+            /**
+             * @description Simple mode penalty fixed at question start. Absent legacy snapshots subtract.
+             * @enum {string}
+             */
+            wrongAnswerPenalty?: "subtract" | "none";
         };
         /** @description all-play-stake / all-play-answer broadcast: a player sent their stake or answer (the value stays hidden until the review) */
         SocketIOAllPlaySubmittedEventPayload: {
@@ -5909,6 +6013,8 @@ export interface components {
         };
         SocketIOAllPlayAnswerInput: {
             answerText: string;
+            /** @description Selected option identity. Hidden from other clients until review. */
+            choiceOrder?: number;
         };
         SocketIOAllPlayReviewInput: {
             playerId: number;
@@ -5998,18 +6104,24 @@ export interface components {
             roundMs: number;
         };
         /**
-         * @description How the answer is given and checked. text: the showman judges. number: checked against answerNumber within answerDeviation. point: the player clicks the question's picture; the answer is sent as "x,y" fractions of its width and height and checked against answerPoint within answerDeviation (a fraction of the width, 0.05 by default)
+         * @description How the answer is given and checked. text: the showman judges. number: checked against answerNumber within answerDeviation. point: the player clicks the question's picture; the answer is sent as "x,y" fractions of its width and height and checked against answerPoint within answerDeviation (a fraction of the width, 0.05 by default) select: choose an option by unique integer choiceOrder, independently of mechanics. Legacy type=choice also uses select.
          * @default text
          * @example number
          * @enum {string}
          */
-        AnswerType: "text" | "number" | "point";
+        AnswerType: "text" | "number" | "point" | "select";
         /** @description A spot on a picture, as fractions (0–1) of its width and height */
         AnswerPoint: {
             x: number;
             y: number;
-            /** @description Oriented first image width divided by height; absent for legacy questions. */
+            /** @description Measured oriented target image width divided by height; absent for legacy questions. */
             imageAspectRatio?: number;
+            /** @description Private SIQ checking metric, independent of measured image geometry. Absent preserves native OQ checking. */
+            sourceGeometry?: {
+                /** @enum {string} */
+                kind: "sigame";
+                aspectRatio: number;
+            };
         };
         /**
          * @description Who may join right now: everyone, spectators only, or nobody new. People already in the game can always come back
@@ -6155,9 +6267,19 @@ export interface components {
                 [key: string]: string | number | boolean | null;
             };
         };
-        /** @description game-settings-change: the game's rules after the showman changed them */
+        SocketIOGameSettingsChangeInput: components["schemas"]["GameSettingsInput"] & {
+            /** @description New player slot count, accepted in the lobby only. Occupied seats are kept. */
+            maxPlayers?: number;
+        };
+        /** @description game-settings-change: rules and any updated lobby slot count and seating */
         SocketIOGameSettingsChangeEventPayload: {
             settings: components["schemas"]["GameSettings"];
+            maxPlayers?: number;
+            /** @description Players moved into earlier empty seats. */
+            playerSlots?: {
+                playerId: number;
+                slot: number;
+            }[];
         };
         /** @description buzzer-open (showman only, no input, SHOWING phase): opens the buzzer now instead of when the question finishes. Presses from here on are not false starts and running false-start locks are lifted. Broadcast to everyone with the new opening moment. */
         SocketIOBuzzerOpenEventPayload: {
@@ -6204,6 +6326,169 @@ export interface components {
             mediaReady: boolean;
             /** @description The media timeout forced readiness; reconnect during the closing fade cannot restart preparation. */
             timedOut?: boolean;
+        };
+        /** @description Dynamic secret rule. roundExtremes snapshots the full nominal playable round. A range admits min+n*step, or every integer for step=0; min<max. Fixed amounts live only in realPrice. */
+        SecretPriceRule: {
+            /** @enum {string} */
+            kind: "roundExtremes";
+        } | {
+            /** @enum {string} */
+            kind: "range";
+            min: number;
+            max: number;
+            step: number;
+        };
+        /** @description Only type=secret. award requires afterTransfer+receiver and permits empty prompt/right answer. Opener requires beforeTransfer. Incompatible with allowedPrices; dynamic rule conflicts with authored realPrice. */
+        SecretRules: {
+            /** @enum {string} */
+            outcome: "question" | "award";
+            /** @enum {string} */
+            priceAnnouncement: "beforeTransfer" | "afterTransfer";
+            /** @enum {string} */
+            priceChooser: "opener" | "receiver";
+            priceRule: components["schemas"]["SecretPriceRule"] | null;
+        } & (unknown & unknown);
+        SecretPriceRange: {
+            min: number;
+            max: number;
+            step: number;
+        };
+        /** @description Revealed only after accepted transfer and price resolution. Score-only effect; no answer submission or correctness counters. */
+        SecretQuestionAward: {
+            questionId: number;
+            recipientPlayerId: number;
+            price: number;
+            appliedChange: number;
+            newScore: number;
+            /** @enum {string} */
+            reason: "secretAward";
+        };
+        SocketIOSecretQuestionAwardedPayload: components["schemas"]["SecretQuestionAward"] & {
+            timer: components["schemas"]["GameStateTimer"] | null;
+        };
+        ScriptNumberSet: {
+            min: number;
+            max: number;
+            step: number;
+        };
+        /** @description Allowlisted SI data operations. setTheme is an intentional no-op. No code, HTML, network operations, jumps or client input engines. */
+        QuestionScriptStep: {
+            /** @constant */
+            op: "setTheme";
+        } | {
+            /** @constant */
+            op: "accept";
+        } | {
+            /** @constant */
+            op: "setAnswerType";
+            /** @enum {string} */
+            answerType: "text" | "number" | "point" | "select";
+            optionOrders?: number[];
+            correctChoiceOrder?: number | null;
+        } | {
+            /** @constant */
+            op: "showContent";
+            /** @enum {string} */
+            phase: "question" | "answer";
+            orders: number[];
+            revealRight?: boolean;
+        } | {
+            /** @constant */
+            op: "askAnswer";
+            /** @enum {string} */
+            mode: "button" | "direct";
+            durationMs: number | null;
+        } | {
+            /** @constant */
+            op: "setAnswerer";
+            /** @enum {string} */
+            mode: "current" | "byCurrent" | "all";
+            /** @enum {string} */
+            select?: "any" | "exceptCurrent";
+        } | {
+            /** @constant */
+            op: "setAnswerer";
+            /** @constant */
+            mode: "stake";
+            /** @enum {string} */
+            select: "highest" | "allPossible";
+            /** @enum {string} */
+            stakeVisibility: "visible" | "hidden";
+        } | {
+            /** @constant */
+            op: "announcePrice";
+            range: components["schemas"]["ScriptNumberSet"];
+        } | {
+            /** @constant */
+            op: "setPrice";
+            /** @constant */
+            mode: "select";
+            range: components["schemas"]["ScriptNumberSet"];
+        } | {
+            /** @constant */
+            op: "setPrice";
+            /**
+             * @description Modern multiply keeps the existing wrong-answer policy. Historical noRisk doubles the right amount with zero loss. Historical withButton and forAll apply the room wrong-answer penalty.
+             * @enum {string}
+             */
+            mode: "multiply" | "noRisk" | "withButton" | "forAll";
+        };
+        /** @description Private normalized authored program. Current-question references resolve on import. Package data only; never included in player or spectator game snapshots. Content references count every occurrence toward 30 steps per phase and 10 files per authored group. */
+        QuestionScript: {
+            /** @constant */
+            version: 1;
+            steps: components["schemas"]["QuestionScriptStep"][];
+            answerTextItems?: {
+                order: number;
+                text: string;
+                durationMs?: number | null;
+                waitForFinish?: boolean;
+                /** @enum {string} */
+                placement?: "screen" | "replic";
+            }[];
+        };
+        /** @description Current safe wait only. Contains no source program, future content, keys, point target, hidden price or private submissions. */
+        QuestionScriptView: {
+            questionId: number;
+            programCounter: number;
+            /** @enum {string|null} */
+            waitingFor: "content" | "answerer" | "price" | "answer" | null;
+            actorId: number | null;
+            answererIds: number[];
+            /** @enum {string} */
+            answerMode: "button" | "direct";
+            priceRange?: components["schemas"]["ScriptNumberSet"] | null;
+            /** @description The showman can stop the script and show the current authored answer. */
+            canReveal?: boolean;
+            awards?: {
+                playerId: number;
+                points: number;
+            }[];
+            /** @description Current answer amounts visible to this recipient. Omitted when the amount is unknown or private. */
+            scoreEstimate?: components["schemas"]["ScriptScoreEstimate"];
+            /** @description Amounts by player ID during group review only. */
+            reviewScoreEstimates?: {
+                [key: string]: components["schemas"]["ScriptScoreEstimate"];
+            };
+        };
+        /** @description Role-filtered state after a script action. Only the current content is present. Showman sees current answer fields; players and spectators do not receive program/progress or future answers. */
+        QuestionScriptStatePayload: {
+            gameState: components["schemas"]["GameState"];
+            scores: {
+                playerId: number;
+                score: number;
+            }[];
+            outcomes: {
+                playerId: number;
+                /** @enum {string|null} */
+                answerType: "correct" | "wrong" | "skip" | null;
+                change: number;
+                score: number;
+            }[];
+        };
+        ScriptScoreEstimate: {
+            win: number;
+            lose: number;
         };
     };
     responses: never;

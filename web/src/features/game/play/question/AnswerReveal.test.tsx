@@ -47,6 +47,34 @@ it("shows the projected numeric answer from a rejoined reveal snapshot without o
   expect(screen.queryByText(/Old answer|Old alias/)).not.toBeInTheDocument();
 });
 
+it("shows a successful scripted verdict and the canonical reveal without a submission", () => {
+  const store = createGameStore();
+  store.setState({
+    session: session({
+      currentRound: round(),
+      questionState: "showing_answer",
+      currentQuestion: question(600),
+      answerShowData: {
+        answerText: "42",
+        answerFiles: null,
+        nextTurnPlayerId: ALICE,
+        answerResult: { player: ALICE, answerType: "correct", result: 600, score: 2720 },
+      },
+    }),
+  });
+  render(
+    <GameContext.Provider
+      value={{ store, myId: ALICE, connection: { connected: true, emit: () => {} } }}
+    >
+      <AnswerReveal />
+    </GameContext.Provider>,
+  );
+  expect(screen.getByText("42")).toBeVisible();
+  expect(screen.getByText(/answers correctly/)).toHaveTextContent("+600");
+  expect(screen.queryByText("No one answered correctly.")).not.toBeInTheDocument();
+  expect(screen.queryByTestId("submitted-answer")).not.toBeInTheDocument();
+});
+
 it.each(["0", "A different response"])(
   "shows actual player text %s separately from the authored answer after rejoin",
   (text) => {

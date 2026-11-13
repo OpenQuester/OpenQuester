@@ -1,8 +1,8 @@
+import { answerFormat } from "domain/logic/question/answerFormat";
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
 import { AnswerResultUseCase } from "application/usecases/question/AnswerResultUseCase";
 import { type Game } from "domain/entities/game/Game";
 import { AnswerType } from "domain/enums/package/AnswerType";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { AnswerCheckLogic } from "domain/logic/question/AnswerCheckLogic";
 import { AnswerSubmittedLogic } from "domain/logic/question/AnswerSubmittedLogic";
 import { ChoiceSelectionLogic } from "domain/logic/question/ChoiceSelectionLogic";
@@ -93,7 +93,7 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
   ): Promise<boolean | null> {
     const current = game.gameState.currentQuestion;
     const checkable =
-      current?.type === PackageQuestionType.CHOICE ||
+      answerFormat(current) === AnswerType.SELECT ||
       (!!current?.answerType && current.answerType !== AnswerType.TEXT);
     if (!checkable) {
       return null;
@@ -102,7 +102,7 @@ export class AnswerSubmittedUseCase implements GameActionHandler<
     const resources = await this.transitionResourceService.getCurrentQuestionWithTheme(game);
 
     const question = resources?.questionWithTheme?.question;
-    return current?.type === PackageQuestionType.CHOICE
+    return answerFormat(current) === AnswerType.SELECT
       ? ChoiceAnswerLogic.check(question, answerText, choiceOrder, explicitSelection)
       : AnswerCheckLogic.check(question, answerText);
   }

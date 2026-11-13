@@ -1,5 +1,8 @@
-import { phaseOf, remainingFinalThemes } from "@/game/selectors";
-import { buildContentPlan, timerElapsed } from "@/game/contentPlan";
+import { previewChoiceSelection } from "./previewChoiceSelection";
+import { answerFormat } from "@/game/answerFormat";
+import { answerWindowDuration } from "@/game/answerWindowDuration";
+import { answerWindowOpensIn, phaseOf, remainingFinalThemes } from "@/game/selectors";
+import { buildContentPlan } from "@/game/contentPlan";
 import type { AnswerReview } from "@/game/protocol";
 import {
   clampPreviewScore,
@@ -48,10 +51,8 @@ export function handleFinal(
     return true;
   }
   if (phase === "final_answering" && command.type === "final-answer-submit") {
-    const plan = final.questionData?.contentPlan;
-    if (plan && timerElapsed(game.session.state.timer, game.session.state.isPaused) < plan.totalMs)
-      return true;
-    answer(game, sender, command.payload.answerText);
+    if (answerWindowOpensIn(game.session) > 0) return true;
+    answer(game, sender, command.payload.answerText, "empty_answer", command.payload.choiceOrder);
     return true;
   }
   if (phase === "final_reviewing" && command.type === "final-answer-review") {
@@ -87,8 +88,11 @@ function bid(game: PreviewRuntime, id: number, value: number) {
     const q = game.question;
     const plan = buildContentPlan({
       text: q.text,
+      answerDurationMs: q.answerDurationMs,
       textOrder: q.textOrder,
       textItems: q.textItems,
+      textDurationMs: q.textDurationMs,
+      textWaitForFinish: q.textWaitForFinish,
       files: q.questionFiles,
       playMediaSimultaneously: q.playMediaSimultaneously,
     });
@@ -108,7 +112,11 @@ function bid(game: PreviewRuntime, id: number, value: number) {
       payload: {
         phase: "bidding",
         nextPhase: "answering",
-        timer: previewTimer(75_000 + (plan?.totalMs ?? 0)),
+        timer: previewTimer(
+          answerWindowDuration(q, 75_000) +
+            (plan?.totalMs ?? 0) +
+            (answerFormat(q) === "select" ? (q.showDelay ?? 0) : 0),
+        ),
       },
     });
   }
@@ -119,9 +127,13 @@ function answer(
   id: number,
   value: string,
   reason: "empty_answer" | "timeout" = "empty_answer",
+  order?: number,
 ) {
   const final = game.session.state.finalRoundData;
   if (!final || game.session.finalSubmitted.includes(id)) return;
+  const selection = previewChoiceSelection(game.question, value, order);
+  if (!selection) return;
+  if (selection.choiceOrder !== undefined) game.choices.set(id, selection.choiceOrder);
   const text = value.trim();
   game.answers.set(id, text);
   game.dispatch({ type: "final-answer-submit", payload: { playerId: id } });
@@ -137,6 +149,7 @@ function answer(
         playerId,
         answerId: `preview-${playerId}`,
         answerText: text,
+        choiceOrder: game.choices.get(playerId),
         scoreChange: text ? 0 : -bidAmount,
         ...(text ? {} : { scoreAfter: clampPreviewScore(score - bidAmount) }),
         answerType: text ? "pending" : "auto_loss",
@@ -180,7 +193,14 @@ function review(game: PreviewRuntime, id: string, correct: boolean) {
 
 function finishFinal(game: PreviewRuntime) {
   game.finish(null);
-  if (!game.question.answerFiles?.length) game.dispatch({ type: "game-finished", payload: {} });
+  if (
+    !game.question.answerFiles?.length &&
+    !game.question.answerTextItems?.length &&
+    !game.question.answerExplanation?.trim() &&
+    !game.session.state.answerShowData?.answerPointImage &&
+    !game.session.state.answerShowData?.correctChoice
+  )
+    game.dispatch({ type: "game-finished", payload: {} });
 }
 
 export function timeoutFinal(game: PreviewRuntime): boolean {

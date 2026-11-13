@@ -32,3 +32,20 @@ describe("QuestionValueLogic.effectiveValue", () => {
     expect(QuestionValueLogic.effectiveValue(game)).toBe(1200);
   });
 });
+
+it.each([undefined, null, 0, 500])(
+  "scores actual price %s and keeps stake priority",
+  (realPrice) => {
+    const game = buildGame("VAL4", null);
+    Object.assign(game.gameState.currentQuestion!, { price: 100, realPrice });
+    expect(QuestionValueLogic.effectiveValue(game)).toBe(realPrice ?? 100);
+    Object.assign(game.gameState.currentQuestion!, {
+      type: PackageQuestionType.NO_RISK,
+      priceMultiplier: 2
+    });
+    expect(QuestionValueLogic.effectiveValue(game)).toBe((realPrice ?? 100) * 2);
+    game.gameState.currentQuestion!.type = PackageQuestionType.STAKE;
+    game.gameState.stakeQuestionData = { highestBid: 750 } as StakeQuestionGameData;
+    expect(QuestionValueLogic.effectiveValue(game)).toBe(750);
+  }
+);

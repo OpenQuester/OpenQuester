@@ -1,3 +1,6 @@
+import { FinalQuestionPlaybackLogic } from "domain/logic/final-round/FinalQuestionPlaybackLogic";
+import { questionMediaFiles } from "domain/logic/question/questionMediaFiles";
+import { answerWindowDuration } from "domain/logic/question/answerWindowDuration";
 import { timerKey } from "domain/constants/redisKeys";
 import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
 import { randomUUID } from "node:crypto";
@@ -98,14 +101,17 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
       ...originalQuestionData,
       contentPlan: QuestionContentPlanLogic.build({
         text: question.text,
+        answerDurationMs: question.answerDurationMs,
         textOrder: question.textOrder,
         textItems: question.textItems,
+        textDurationMs: question.textDurationMs,
+        textWaitForFinish: question.textWaitForFinish,
         files: question.questionFiles,
         playMediaSimultaneously: question.playMediaSimultaneously
       })
     };
 
-    if (question.questionFiles?.length) {
+    if (questionMediaFiles(question).length) {
       game.gameState.mediaDurations = null;
       questionData.mediaPreparationId = randomUUID();
       MediaDownloadLogic.resetAllPlayerStatus(game);
@@ -132,8 +138,10 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     const durationMs =
       game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING
         ? MEDIA_DOWNLOAD_TIMEOUT
-        : game.settings.timers.finalAnswerMs +
-          (game.gameState.finalRoundData?.questionData?.contentPlan?.totalMs ?? 0);
+        : answerWindowDuration(
+            game.gameState.finalRoundData?.questionData?.question,
+            game.settings.timers.finalAnswerMs
+          ) + FinalQuestionPlaybackLogic.presentationDuration(game);
     const timer = new GameStateTimer(durationMs);
     game.gameState.timer = timer.start();
 

@@ -1,3 +1,5 @@
+import { WrongAnswerPenalty } from "domain/enums/game/GameSettings";
+import { SCORE_ABS_LIMIT } from "domain/constants/game";
 import { describe, expect, it } from "@jest/globals";
 
 import { Game } from "domain/entities/game/Game";
@@ -38,7 +40,7 @@ function question(
 }
 
 describe("AllPlayLogic", () => {
-  it("recognises only the for-everyone stake and no-risk questions", () => {
+  it("recognises all supported for-everyone mechanics", () => {
     expect(AllPlayLogic.modeOf(question(PackageQuestionType.STAKE))).toBe(AllPlayMode.STAKE);
     expect(AllPlayLogic.modeOf(question(PackageQuestionType.NO_RISK))).toBe(AllPlayMode.NO_RISK);
     expect(
@@ -46,7 +48,8 @@ describe("AllPlayLogic", () => {
         question(PackageQuestionType.STAKE, { subType: PackageQuestionSubType.SIMPLE })
       )
     ).toBeNull();
-    expect(AllPlayLogic.modeOf(question(PackageQuestionType.SIMPLE))).toBeNull();
+    expect(AllPlayLogic.modeOf(question(PackageQuestionType.SIMPLE))).toBe(AllPlayMode.SIMPLE);
+    expect(AllPlayLogic.modeOf(question(PackageQuestionType.CHOICE))).toBe(AllPlayMode.SIMPLE);
   });
 
   it("caps a stake at the player's score, at least the price, and the package limit", () => {
@@ -112,5 +115,55 @@ describe("AllPlayLogic", () => {
     const hidden = AllPlayLogic.hideFromPlayers(data, QuestionState.SHOWING);
     expect(hidden.entries[0]).toMatchObject({ stake: 0, answer: "" });
     expect(AllPlayLogic.hideFromPlayers(data, QuestionState.REVIEWING)).toBe(data);
+  });
+});
+
+describe("normal for everyone scoring", () => {
+  it.each([WrongAnswerPenalty.SUBTRACT, WrongAnswerPenalty.NONE])(
+    "snapshots actual price and %s, preserving the first answer and ruling once",
+    (penalty) => {
+      const g = game();
+      g.settings = { ...g.settings, wrongAnswerPenalty: penalty };
+      const q = question(PackageQuestionType.SIMPLE, { realPrice: 500 });
+      const data = AllPlayLogic.start(g, q, 1, AllPlayMode.SIMPLE);
+      g.settings = {
+        ...g.settings,
+        wrongAnswerPenalty:
+          penalty === WrongAnswerPenalty.NONE
+            ? WrongAnswerPenalty.SUBTRACT
+            : WrongAnswerPenalty.NONE
+      };
+      q.realPrice = 900;
+      g.setQuestionState(QuestionState.SHOWING);
+      AllPlayLogic.submitAnswer(g, 2, "first");
+      expect(() => AllPlayLogic.submitAnswer(g, 2, "second")).toThrow();
+      expect(data.entries[0].answer).toBe("first");
+      AllPlayLogic.startReview(g, q);
+      AllPlayLogic.startReview(g, q);
+      expect(data.entries[1].scoreChange).toBe(penalty === WrongAnswerPenalty.NONE ? 0 : -500);
+      expect(g.getPlayer(3, { fetchDisconnected: true })!.score).toBe(
+        penalty === WrongAnswerPenalty.NONE ? 300 : -200
+      );
+      g.setQuestionState(QuestionState.REVIEWING);
+      expect(AllPlayLogic.review(g, 2, true).scoreChange).toBe(500);
+      expect(() => AllPlayLogic.review(g, 2, true)).toThrow();
+    }
+  );
+
+  it("preserves actual zero and the score clamp", () => {
+    const g = game();
+    const data = AllPlayLogic.start(
+      g,
+      question(PackageQuestionType.SIMPLE, { realPrice: 0 }),
+      1,
+      AllPlayMode.SIMPLE
+    );
+    expect(AllPlayLogic.scoreChange(data, data.entries[0], true)).toBe(0);
+    expect(AllPlayLogic.scoreChange(data, data.entries[0], false)).toBe(0);
+    data.price = 100;
+    g.getPlayer(2, { fetchDisconnected: true })!.score = SCORE_ABS_LIMIT - 1;
+    g.setQuestionState(QuestionState.REVIEWING);
+    AllPlayLogic.review(g, 2, true);
+    expect(g.getPlayer(2, { fetchDisconnected: true })!.score).toBe(SCORE_ABS_LIMIT);
   });
 });

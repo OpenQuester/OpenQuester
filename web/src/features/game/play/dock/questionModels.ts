@@ -1,6 +1,12 @@
+import { answerFormat } from "@/game/answerFormat";
 import { formatScore, formatSigned } from "@/lib/format";
 
-import { type ActionDockModel, type ActionDockContext } from "./actionDockModel";
+import type { ScriptScoreEstimate } from "@/game/questionScript";
+import {
+  type ActionDockModel,
+  type ActionDockContext,
+  type TranslateAction,
+} from "./actionDockModel";
 import { allPlayRevealStatus } from "../allPlayRevealText";
 
 import {
@@ -11,6 +17,15 @@ import {
   pointPicture,
   wrongCostsPoints,
 } from "@/game/selectors";
+
+export function scriptScoreHint(t: TranslateAction, estimate?: ScriptScoreEstimate): string {
+  return estimate
+    ? t("script.scoreHint", {
+        win: formatSigned(estimate.win),
+        lose: estimate.lose === 0 ? "±0" : formatSigned(estimate.lose),
+      })
+    : t("script.next");
+}
 
 export function showingModel({
   t,
@@ -26,12 +41,14 @@ export function showingModel({
   const wrongPart = wrongCostsPoints(session)
     ? t("dock.showing.wrongCost", { points: formatScore(value) })
     : t("dock.showing.wrongFree");
-  const next = t(
-    session.settings?.buttonPressMode === "random_within_window"
-      ? "dock.showing.nextWindow"
-      : "dock.showing.next",
-    { points: formatScore(value), wrong: wrongPart },
-  );
+  const next = s.scriptView
+    ? scriptScoreHint(t, s.scriptView.scoreEstimate)
+    : t(
+        session.settings?.buttonPressMode === "random_within_window"
+          ? "dock.showing.nextWindow"
+          : "dock.showing.next",
+        { points: formatScore(value), wrong: wrongPart },
+      );
   if (role === "showman") {
     const early = !buzzer.open;
     return {
@@ -41,6 +58,7 @@ export function showingModel({
         early,
         opening: sending("buzzer-open"),
         revealing: sending("skip-question-force"),
+        scriptStop: s.scriptView?.canReveal === false,
       },
       next: early ? t("dock.showing.showmanNextEarly") : t("dock.showing.showmanNext"),
     };
@@ -130,13 +148,23 @@ export function answeringModel({
         next: q && !session.hasAnswerSubmission ? t("dock.answering.autoWaitNext") : "",
       };
     }
-    const wrong = wrongCostsPoints(session) ? -value : 0;
+    const script = s.scriptView;
+    const score = script?.scoreEstimate;
+    const win = script ? (score?.win ?? null) : value;
+    const wrong = script ? (score?.lose ?? null) : wrongCostsPoints(session) ? -value : 0;
     return {
       statusPlayer: { key: "dock.answering.judge", name: name(answerer) },
       status: t("dock.answering.judge", { name: name(answerer) }),
-      action: { kind: "judge", value, wrong, pending: sending("answer-result") },
-      next:
-        q?.type === "choice"
+      action: {
+        kind: "judge",
+        value: win,
+        wrong,
+        pending: sending("answer-result"),
+        ...(script ? { scripted: true } : {}),
+      },
+      next: script
+        ? t("script.next")
+        : answerFormat(q) === "select"
           ? t("dock.answering.showmanChoice", { name: name(answerer) })
           : single
             ? t("dock.answering.showmanNextSingle", { name: name(answerer) })
@@ -164,7 +192,7 @@ export function answeringModel({
       action: {
         kind: "answer",
         mode:
-          q?.type === "choice"
+          answerFormat(q) === "select"
             ? "choice"
             : pointPicture(q)
               ? "point"
@@ -174,8 +202,9 @@ export function answeringModel({
         canGiveUp: single,
         pending: sending("question-skip"),
       },
-      next:
-        q?.type === "choice"
+      next: s.scriptView
+        ? scriptScoreHint(t, s.scriptView.scoreEstimate)
+        : answerFormat(q) === "select"
           ? t("dock.answering.choiceNext")
           : q?.answerType === "number" || q?.answerType === "point"
             ? t("dock.answering.autoNext")
@@ -191,9 +220,12 @@ export function answeringModel({
       kind: "info",
       text: role === "spectator" ? t("reasons.wrong_role_watch") : t("dock.answering.wait"),
     },
-    next: single
-      ? t("dock.answering.otherNextSingle", { name: name(answerer) })
-      : t("dock.answering.otherNext", { name: name(answerer) }),
+    next:
+      s.scriptView?.answerMode === "direct"
+        ? t("script.answerNext")
+        : single
+          ? t("dock.answering.otherNextSingle", { name: name(answerer) })
+          : t("dock.answering.otherNext", { name: name(answerer) }),
   };
 }
 
@@ -205,6 +237,23 @@ export function revealModel({
   session,
 }: ActionDockContext): ActionDockModel {
   const s = session.state;
+  const award = s.secretAward;
+  if (award) {
+    const recipient = name(award.recipientPlayerId);
+    return {
+      statusPlayer: {
+        key: "secret.awarded",
+        name: recipient,
+        values: { price: formatScore(award.price) },
+      },
+      status: t("secret.awardTitle"),
+      action:
+        role === "showman"
+          ? { kind: "continue", pending: sending("skip-show-answer") }
+          : { kind: "info", text: t("secret.awardTitle") },
+      next: t("dock.reveal.next", { name: recipient }),
+    };
+  }
   const result = s.answerShowData?.answerResult ?? (s.answeredPlayers ?? []).at(-1);
   const correct = result?.answerType === "correct";
   const allPlaySummary = allPlayRevealStatus(session, t);

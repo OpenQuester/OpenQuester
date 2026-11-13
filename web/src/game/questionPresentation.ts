@@ -44,7 +44,8 @@ function roundKey(session: GameSession) {
 export function currentQuestionId(session: GameSession): number | undefined {
   const phase = phaseOf(session);
   if (phase === "choosing") return undefined;
-  if (phase === "secret_transfer") return session.state.secretQuestionData?.questionId;
+  if (phase === "secret_transfer")
+    return session.state.secretQuestionData?.questionId ?? session.state.scriptView?.questionId;
   if (phase === "stake_bidding") return session.state.stakeQuestionData?.questionId;
   return session.state.allPlay?.questionId ?? session.state.currentQuestion?.id;
 }
@@ -65,6 +66,7 @@ export function newQuestionPresentation(
     !before ||
     !event ||
     (!restoring && event.type === "game-data") ||
+    (event.type === "question-script-state" && !after.state.questionTransition) ||
     before.state.currentRound?.type !== "simple" ||
     roundKey(before) !== roundKey(after) ||
     (!restoring && phaseOf(before) !== "choosing") ||
@@ -75,11 +77,13 @@ export function newQuestionPresentation(
     ? after.state.currentQuestion?.id
     : event.type === "question-data"
       ? event.payload.data.id
-      : event.type === "secret-question-picked" ||
-          event.type === "stake-question-picked" ||
-          event.type === "all-play-start"
-        ? event.payload.questionId
-        : undefined;
+      : event.type === "question-script-state"
+        ? after.state.currentQuestion?.id
+        : event.type === "secret-question-picked" ||
+            event.type === "stake-question-picked" ||
+            event.type === "all-play-start"
+          ? event.payload.questionId
+          : undefined;
   for (const theme of before.state.currentRound.themes) {
     const question = theme.questions.find((q) => q.id === questionId);
     if (question)
@@ -91,15 +95,17 @@ export function newQuestionPresentation(
         theme: theme.name,
         type: restoring
           ? after.state.currentQuestion!.type
-          : event.type === "question-data"
-            ? event.payload.data.type
-            : event.type === "secret-question-picked"
-              ? "secret"
-              : event.type === "stake-question-picked"
-                ? "stake"
-                : after.state.allPlay?.mode === "stake"
+          : event.type === "question-script-state"
+            ? (after.state.currentQuestion?.type ?? "simple")
+            : event.type === "question-data"
+              ? event.payload.data.type
+              : event.type === "secret-question-picked"
+                ? "secret"
+                : event.type === "stake-question-picked"
                   ? "stake"
-                  : "noRisk",
+                  : after.state.allPlay?.mode === "stake"
+                    ? "stake"
+                    : "noRisk",
         price: question.price ?? null,
         previousSession: restoring ? null : before,
         boardEdit,

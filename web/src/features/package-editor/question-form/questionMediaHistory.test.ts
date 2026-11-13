@@ -9,7 +9,12 @@ describe("question media history", () => {
     const question = newQuestion(100, {
       text: "before",
       answerType: "point",
-      answerPoint: { x: 0.2, y: 0.4 },
+      answerPoint: {
+        x: 0.2,
+        y: 0.4,
+        imageAspectRatio: 2,
+        sourceGeometry: { kind: "sigame", aspectRatio: 1 },
+      },
       questionFiles: [image, { ...image, displayTime: 7000 }],
     });
     const changed = changeMedia("questionFiles", { kind: "remove", index: 0 })(question)!;
@@ -43,7 +48,12 @@ describe("question media history", () => {
   it("keeps the first image's point when undoing an operation on a later image", () => {
     const question = newQuestion(100, {
       answerType: "point",
-      answerPoint: { x: 0.2, y: 0.4 },
+      answerPoint: {
+        x: 0.2,
+        y: 0.4,
+        imageAspectRatio: 2,
+        sourceGeometry: { kind: "sigame", aspectRatio: 1 },
+      },
       questionFiles: [image, { ...image, md5: "second" }],
     });
     const removed = changeMedia("questionFiles", { kind: "remove", index: 1 })(question)!;
@@ -94,7 +104,12 @@ describe("question media history", () => {
       textPosition: 1,
       mainTextFirst: undefined,
       questionFiles: [first, sound, second],
-      answerPoint: { x: 0.2, y: 0.4 },
+      answerPoint: {
+        x: 0.2,
+        y: 0.4,
+        imageAspectRatio: 2,
+        sourceGeometry: { kind: "sigame", aspectRatio: 1 },
+      },
     });
     const moved = changeMedia("questionFiles", {
       kind: "move",
@@ -132,7 +147,12 @@ describe("question media history", () => {
     const second = { ...image, md5: "b", occurrenceId: "b" };
     const question = newQuestion(100, {
       answerType: "point",
-      answerPoint: { x: 0.2, y: 0.4 },
+      answerPoint: {
+        x: 0.2,
+        y: 0.4,
+        imageAspectRatio: 2,
+        sourceGeometry: { kind: "sigame", aspectRatio: 1 },
+      },
       questionFiles: [first, second],
     });
     const moved = changeMedia("questionFiles", { kind: "move", occurrenceId: "a", destination: 1 })(
@@ -211,7 +231,12 @@ describe("question media history", () => {
     const second = { ...image, md5: "other", occurrenceId: "two" };
     const question = newQuestion(100, {
       answerType: "point",
-      answerPoint: { x: 0.2, y: 0.4 },
+      answerPoint: {
+        x: 0.2,
+        y: 0.4,
+        imageAspectRatio: 2,
+        sourceGeometry: { kind: "sigame", aspectRatio: 1 },
+      },
       answerFiles: [first, second],
     });
     const moved = changeMedia("answerFiles", {

@@ -72,3 +72,96 @@ describe("Package OpenAPI contract", () => {
     );
   });
 });
+
+it.each([undefined, null, 0, 500, -1, 0.5, 1000001])(
+  "validates actual price %s at the package boundary",
+  (realPrice) => {
+    const valid =
+      realPrice == null || (Number.isInteger(realPrice) && realPrice >= 0 && realPrice <= 1000000);
+    if (realPrice !== undefined)
+      expect(field("PackageQuestion", "realPrice")(realPrice)).toBe(valid);
+    const { error } = upload.validate({
+      content: {
+        title: "Actual price",
+        ageRestriction: "NONE",
+        rounds: [
+          {
+            name: "Round",
+            order: 0,
+            type: "simple",
+            themes: [
+              {
+                name: "Theme",
+                order: 0,
+                questions: [
+                  {
+                    type: "simple",
+                    subType: "forEveryone",
+                    order: 0,
+                    price: 100,
+                    realPrice,
+                    isHidden: false,
+                    showAnswerDuration: 5000
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    });
+    expect(!error).toBe(valid);
+  }
+);
+
+it.each([undefined, null, 0, 500])(
+  "keeps fixed actual %s exclusive with a legacy secret price choice",
+  (realPrice) => {
+    const question = {
+      type: "secret",
+      subType: "customPrice",
+      transferType: "any",
+      allowedPrices: [100, 200],
+      order: 0,
+      price: 100,
+      realPrice,
+      isHidden: false,
+      showAnswerDuration: 5000
+    };
+    const validate = ajv.compile({ $ref: "package-contract#/components/schemas/SecretQuestion" });
+    expect(validate(question)).toBe(realPrice == null);
+    const { error } = upload.validate({
+      content: {
+        title: "Secret price",
+        ageRestriction: "NONE",
+        rounds: [
+          {
+            name: "Round",
+            order: 0,
+            type: "simple",
+            themes: [{ name: "Theme", order: 0, questions: [question] }]
+          }
+        ]
+      }
+    });
+    expect(!error).toBe(realPrice == null);
+  }
+);
+
+it.each([
+  [{ x: 0.5, y: 0.5 }, true],
+  [
+    { x: 0.5, y: 0.5, imageAspectRatio: 2, sourceGeometry: { kind: "sigame", aspectRatio: 1 } },
+    true
+  ],
+  [{ x: 0.5, y: 0.5, sourceGeometry: { kind: "sigame", aspectRatio: 0 } }, false],
+  [{ x: 0.5, y: 0.5, sourceGeometry: { kind: "sigame", aspectRatio: -1 } }, false],
+  [{ x: 0.5, y: 0.5, sourceGeometry: { kind: "other", aspectRatio: 1 } }, false],
+  [{ x: 0.5, y: 0.5, sourceGeometry: { kind: "sigame" } }, false]
+])(
+  "validates source point geometry against the generated REST contract: %j",
+  (target, expected) => {
+    const validate = ajv.compile({ $ref: "package-contract#/components/schemas/AnswerPoint" });
+    expect(validate(target)).toBe(expected);
+  }
+);

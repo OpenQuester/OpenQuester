@@ -1,9 +1,16 @@
+import type { SiqSourceQuestion } from "./siqCompatibility";
+import type { SecretRules } from "@/game/secretRules";
+
+import type { QuestionScriptDTO } from "@/game/questionScript";
+
 /**
  * What POST /v1/packages accepts (server/src/presentation/schemes/package/packageSchemes.ts).
  * Kept loose on purpose: the generated union types are stricter than the
  * server's Joi scheme. Readers preserve incomplete answer targets for repair
  * in drafts; editor validation blocks publishing them until they are complete.
  */
+import type { PointTarget } from "@/lib/pointGeometry";
+
 export type MediaType = "image" | "audio" | "video";
 
 export interface FileRef {
@@ -21,23 +28,40 @@ export interface QuestionFile {
   waitForFinish?: boolean;
 }
 
+export interface QuestionTextItem {
+  order: number;
+  text: string;
+  durationMs?: number | null;
+  waitForFinish?: boolean;
+  placement?: "screen" | "replic";
+}
+
 export interface UploadQuestion {
+  script?: QuestionScriptDTO | null;
   type: "simple" | "stake" | "secret" | "noRisk" | "hidden" | "choice";
   subType?: string;
   order: number;
   price: number | null;
+  realPrice?: number | null;
+  secretRules?: SecretRules | null;
   text?: string | null;
   /** Position of the text among the question files; null keeps it as a caption. */
   textOrder?: number | null;
+  textDurationMs?: number | null;
+  textWaitForFinish?: boolean | null;
   /** Additional text steps in the same order space as question files. */
-  textItems?: { order: number; text: string }[] | null;
+  textItems?: QuestionTextItem[] | null;
+  answerTextItems?: QuestionTextItem[] | null;
+  answerDurationMs?: number | null;
+  showmanComments?: string | null;
+  answerExplanation?: string | null;
   playMediaSimultaneously?: boolean | null;
   questionComment?: string | null;
   answerText?: string | null;
   answerHint?: string | null;
-  answerType?: "text" | "number" | "point" | null;
+  answerType?: "text" | "number" | "point" | "select" | null;
   answerNumber?: number | null;
-  answerPoint?: { x: number; y: number; imageAspectRatio?: number } | null;
+  answerPoint?: PointTarget | null;
   /** Order of the target image; omitted on legacy questions. */
   pointImageOrder?: number | null;
   answerDeviation?: number | null;
@@ -57,7 +81,20 @@ export interface UploadQuestion {
   allowedPrices?: number[] | null;
   priceMultiplier?: number;
   showDelay?: number;
-  answers?: { order: number; text: string | null; file: FileRef | null }[];
+  answers?: {
+    order: number;
+    text: string | null;
+    file: FileRef | null;
+    sourceLabel?: string | null;
+  }[];
+  /** Archive/draft only. */
+  compatibilityIssues?: ImportWarning[];
+  /** Source rights for authoring and export; never text aliases or selection payloads. */
+  selectSource?: {
+    rightLabels: string[];
+    /** Archive/draft only. */
+    unresolvedOptions?: { order: number; sourceLabel: string; kind: string; value: string }[];
+  };
   /** Correct option order; missing or null means legacy. */
   correctChoiceOrder?: number | null;
   /** Editor archive only: the author must repair an invalid or removed selection. */
@@ -111,6 +148,8 @@ export interface MediaFile {
 /** Something the reader fixed or skipped, shown before upload so nothing is a surprise. */
 export interface ImportWarning {
   code:
+    | "siqCompatibility"
+    | "contentNeedsRepair"
     | "htmlQuestionRemoved"
     | "missingFile"
     | "externalMedia"
@@ -122,11 +161,28 @@ export interface ImportWarning {
     | "finalAsSimple"
     | "extraFinalQuestions"
     | "hashMismatch"
-    | "visualGroupSequential";
+    | "visualGroupSequential"
+    | "pointTargetMissing"
+    | "pointInvalid"
+    | "contentNeedsRepair";
   /** Round › theme › price, or empty for package-level warnings. */
   where: string;
   detail?: string;
   phase?: "question" | "answer";
+  feature?: string;
+  severity?: "info" | "warning" | "critical";
+  resolution?: "converted" | "needsRepair";
+  source?: { round: number; theme: number; question: number; parameter?: string };
+  /** Bounded non-HTML source values retained for repair and archive round-trip. */
+  sourceData?: SiqSourceQuestion;
+  contentSource?: {
+    type: string;
+    text: string;
+    placement?: string | null;
+    duration?: string | null;
+    waitForFinish?: string | null;
+    time?: string | null;
+  };
 }
 
 export interface ParsedPackage {

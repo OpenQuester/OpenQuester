@@ -1,4 +1,8 @@
+import { answerFormat } from "@/game/answerFormat";
+import { readSecretRules } from "@/game/secretRules";
+import { scriptReferenceIssue } from "@/game/questionScript";
 import { questionLimitIssues } from "@/features/upload/contentLimits";
+import { invalidSelectSource } from "@/features/upload/siqCompatibility";
 import { draftPointImage, toUploadQuestion } from "./packageDraft";
 import { questionMedia, type DraftPackage, type DraftQuestion } from "./packageDraft";
 
@@ -29,6 +33,13 @@ export interface PackageValidationIssue {
 }
 
 export type PackageIssueCode =
+  | "compatibilityNeedsRepair"
+  | "secretRulesInvalid"
+  | "realPriceRange"
+  | "contentNeedsRepair"
+  | "answerDurationInvalid"
+  | "contentTimingInvalid"
+  | "scriptRepair"
   | "noTitle"
   | "noRounds"
   | "roundNoName"
@@ -46,6 +57,7 @@ export type PackageIssueCode =
   | "choiceNoCorrect"
   | "choiceCorrectUnresolved"
   | "secretPrices"
+  | "realPriceConflict"
   | "multipleFinals"
   | "finalNotLast"
   | "finalOneQuestion"
@@ -178,7 +190,52 @@ export function checkQuestion(
   ) => void,
   hasMedia: (md5: string) => boolean,
 ) {
+  const award = q.type === "secret" && q.secretRules?.outcome === "award";
+  const repairs = q.compatibilityIssues?.filter(
+    (issue) => issue.severity === "critical" || issue.resolution === "needsRepair",
+  );
+  if (repairs?.some((issue) => issue.code === "contentNeedsRepair"))
+    add("critical", "contentNeedsRepair");
+  if (repairs?.some((issue) => issue.code !== "contentNeedsRepair"))
+    add("critical", "compatibilityNeedsRepair");
   if (
+    q.answerDurationMs != null &&
+    (!Number.isInteger(q.answerDurationMs) ||
+      q.answerDurationMs < 0 ||
+      q.answerDurationMs > 2147483647)
+  )
+    add("critical", "answerDurationInvalid");
+  const textItems = [...(q.textItems ?? []), ...(q.answerTextItems ?? [])];
+  if (
+    [...textItems, ...(q.script?.answerTextItems ?? [])].some(
+      (item) => !item.text.trim() && (item.durationMs == null || item.durationMs === 0),
+    ) ||
+    [...textItems, { durationMs: q.textDurationMs }].some(
+      (item) =>
+        item.durationMs != null &&
+        (!Number.isInteger(item.durationMs) || item.durationMs <= 0 || item.durationMs > 120_000),
+    )
+  )
+    add("critical", "contentTimingInvalid");
+  if (
+    q.realPrice != null &&
+    (!Number.isSafeInteger(q.realPrice) || q.realPrice < 0 || q.realPrice > MAX_PRICE)
+  )
+    add("critical", "realPriceRange");
+  try {
+    if (q.type === "secret") readSecretRules(q.secretRules);
+    if (
+      q.type === "secret" &&
+      ((q.secretRules && q.allowedPrices.length) ||
+        (q.realPrice != null && q.secretRules?.priceRule))
+    )
+      throw new Error();
+  } catch {
+    add("critical", "secretRulesInvalid");
+  }
+  if (
+    !award &&
+    !q.script &&
     !q.text.trim() &&
     !q.textItems?.some((item) => item.text.trim()) &&
     q.questionFiles.length === 0
@@ -187,8 +244,11 @@ export function checkQuestion(
   if (!final) {
     if (q.price == null) add("critical", "noPrice");
     else if (q.price < 0 || q.price > MAX_PRICE) add("critical", "priceRange", { max: MAX_PRICE });
-  } else if (q.type !== "simple") add("warning", "finalTypeIgnored");
-  for (const { phase, actual, max, step } of questionLimitIssues(toUploadQuestion(q, 0, final))) {
+  } else if (q.type !== "simple" && !q.script) add("warning", "finalTypeIgnored");
+  const upload = toUploadQuestion(q, 0, final);
+  const scriptIssue = scriptReferenceIssue(upload);
+  if (scriptIssue) add("critical", "scriptRepair", { detail: scriptIssue });
+  for (const { phase, actual, max, step } of questionLimitIssues(upload)) {
     add("critical", step === undefined ? "contentStepLimit" : "contentFileLimit", {
       context: phase,
       actual,
@@ -200,12 +260,15 @@ export function checkQuestion(
   if (missing) add("critical", "missingMedia", { count: missing });
 
   const type = final ? "simple" : q.type;
-  const numeric = type !== "choice" && q.answerType === "number";
-  if (type === "choice") {
-    if (q.options.length < 2 || q.options.length > 8)
-      add("critical", "choiceOptions", { count: q.options.length });
+  if (type === "secret" && q.allowedPrices.length > 0 && q.realPrice != null)
+    add("critical", "realPriceConflict");
+  const numeric = answerFormat(q) !== "select" && q.answerType === "number";
+  if (!q.script && answerFormat(q) === "select") {
+    if (q.options.length < 2) add("critical", "choiceOptions", { count: q.options.length });
     if (q.options.some((o) => !o.text.trim() && !o.file)) add("critical", "choiceEmptyOption");
     if (
+      invalidSelectSource(q.selectSource, q.options) ||
+      (q.answerType === "select" && q.correctChoiceOptionId === undefined) ||
       q.correctChoiceOptionId === null ||
       (q.correctChoiceOptionId !== undefined &&
         !q.options.some((o) => o.id === q.correctChoiceOptionId))
@@ -217,27 +280,43 @@ export function checkQuestion(
     )
       add("warning", "choiceNoCorrect");
   } else if (
+    !q.script &&
+    !award &&
     (numeric ? !Number.isFinite(q.answerNumber) : !q.answerText.trim()) &&
     q.answerFiles.length === 0
   )
     add("warning", "noAnswer");
 
   // A number or point answer needs its target, or the server couldn't judge it
-  if (type !== "choice" && q.answerType === "number" && !Number.isFinite(q.answerNumber))
+  if (
+    !q.script &&
+    !award &&
+    answerFormat(q) !== "select" &&
+    q.answerType === "number" &&
+    !Number.isFinite(q.answerNumber)
+  )
     add("critical", "numberAnswerMissing");
-  if (type !== "choice" && q.answerType === "point") {
+  if (!q.script && !award && answerFormat(q) !== "select" && q.answerType === "point") {
     const hasPicture = !!draftPointImage(q);
     const validPoint =
       q.answerPoint &&
       [q.answerPoint.x, q.answerPoint.y].every(
         (coordinate) => Number.isFinite(coordinate) && coordinate >= 0 && coordinate <= 1,
       );
-    if (!validPoint || !hasPicture) add("critical", "pointAnswerMissing");
+    const source = q.answerPoint?.sourceGeometry;
+    const validSource =
+      !source ||
+      (source.kind === "sigame" && Number.isFinite(source.aspectRatio) && source.aspectRatio > 0);
+    if (!validPoint || !hasPicture || !validSource) add("critical", "pointAnswerMissing");
   }
   if (
     type === "secret" &&
     q.allowedPrices.length > 0 &&
-    (q.allowedPrices.length < 2 || q.allowedPrices.length > 5)
+    (q.allowedPrices.length < 2 ||
+      q.allowedPrices.length > 5 ||
+      q.allowedPrices.some(
+        (price) => !Number.isSafeInteger(price) || price < 0 || price > MAX_PRICE,
+      ))
   )
     add("critical", "secretPrices", { count: q.allowedPrices.length });
   if (q.text.length > LONG_TEXT || (!numeric && q.answerText.length > LONG_TEXT))

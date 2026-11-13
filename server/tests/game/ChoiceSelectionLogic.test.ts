@@ -16,7 +16,7 @@ function gameWithChoices() {
     type: PackageQuestionType.CHOICE,
     answers: [
       { order: 0, text: "Wrong", file: null },
-      { order: 2.5, text: "Correct", file: null },
+      { order: 2, text: "Correct", file: null },
       { order: 7, text: null, file: null }
     ]
   };
@@ -35,7 +35,7 @@ describe("choice selection identity", () => {
     const rejoined = GameMapper.deserializeGameHash(GameMapper.serializeGameToHash(game));
     expect(() => ChoiceSelectionLogic.resolve(rejoined, "Wrong", 0)).toThrow();
     expect(() => ChoiceSelectionLogic.resolve(rejoined, "Wrong")).toThrow();
-    expect(ChoiceSelectionLogic.resolve(rejoined, "Correct", 2.5)).toBe(2.5);
+    expect(ChoiceSelectionLogic.resolve(rejoined, "Correct", 2)).toBe(2);
     ShowmanToolsLogic.undoLastRuling(rejoined);
     expect(ChoiceSelectionLogic.resolve(rejoined, "Wrong", 0)).toBe(0);
   });
@@ -58,7 +58,7 @@ describe("choice selection identity", () => {
     expect(ChoiceSelectionLogic.resolve(game, "3")).toBeNull();
     game.gameState.currentQuestion!.answers![1].order = 0;
     expect(() => ChoiceSelectionLogic.resolve(game, "Wrong", 0)).toThrow();
-    expect(ChoiceSelectionLogic.resolve(game, "Wrong")).toBeNull();
+    expect(() => ChoiceSelectionLogic.resolve(game, "Wrong")).toThrow();
   });
 
   it("does not attach a text option identity to a legacy image-placeholder collision", () => {

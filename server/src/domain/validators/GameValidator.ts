@@ -1,3 +1,4 @@
+import { MAX_QUESTION_PRICE_UPLOAD } from "domain/constants/game";
 import { MAX_CONTENT_FILES } from "domain/constants/game";
 import { GameJoinMode } from "domain/types/dto/game/state/GameStateDTO";
 import {
@@ -20,6 +21,8 @@ import Joi from "joi";
 import {
   FINAL_ROUND_ANSWER_MAX_LENGTH,
   GAME_ID_CHARACTERS_LENGTH,
+  GAME_MAX_PLAYERS,
+  LOBBY_MIN_PLAYER_SLOTS,
   STAKE_QUESTION_MIN_BID
 } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -174,8 +177,15 @@ export class GameValidator {
   public static validateGameSettingsChange(data: GameSettingsChangeInputData) {
     return this._validate<GameSettingsChangeInputData>(
       data,
-      gameSettingsScheme()
-        .keys({ timers: gameTimerSettingsScheme().min(1).optional() })
+      (gameSettingsScheme() as Joi.ObjectSchema<GameSettingsChangeInputData>)
+        .keys({
+          timers: gameTimerSettingsScheme().min(1).optional(),
+          maxPlayers: Joi.number()
+            .integer()
+            .min(LOBBY_MIN_PLAYER_SLOTS)
+            .max(GAME_MAX_PLAYERS)
+            .optional()
+        })
         .min(1)
         .required()
     );
@@ -192,7 +202,8 @@ export class GameValidator {
     return this._validate<AllPlayAnswerInputData>(
       data,
       Joi.object<AllPlayAnswerInputData>({
-        answerText: Joi.string().allow("").max(ALL_PLAY_ANSWER_MAX_LENGTH).required()
+        answerText: Joi.string().allow("").max(ALL_PLAY_ANSWER_MAX_LENGTH).required(),
+        choiceOrder: Joi.number().integer().min(0).strict()
       })
     );
   }
@@ -209,7 +220,7 @@ export class GameValidator {
 
   public static validateSecretQuestionPrice(data: SecretQuestionPriceInputData) {
     const schema = Joi.object<SecretQuestionPriceInputData>({
-      price: Joi.number().integer().min(0).required()
+      price: Joi.number().integer().min(0).max(MAX_QUESTION_PRICE_UPLOAD).required()
     });
 
     return this._validate<SecretQuestionPriceInputData>(data, schema);
@@ -218,7 +229,7 @@ export class GameValidator {
   public static validateAnswerSubmitted(data: AnswerSubmittedData) {
     const schema = Joi.object<AnswerSubmittedData>({
       answerText: Joi.string().max(255).allow(null),
-      choiceOrder: Joi.number()
+      choiceOrder: Joi.number().integer().min(0).strict()
     });
 
     return this._validate<AnswerSubmittedData>(data, schema);
@@ -266,7 +277,8 @@ export class GameValidator {
 
   public static validateFinalAnswerSubmit(data: FinalAnswerSubmitInputData) {
     const schema = Joi.object<FinalAnswerSubmitInputData>({
-      answerText: Joi.string().max(FINAL_ROUND_ANSWER_MAX_LENGTH).allow("", null)
+      answerText: Joi.string().max(FINAL_ROUND_ANSWER_MAX_LENGTH).allow("").required(),
+      choiceOrder: Joi.number().integer().min(0).strict()
     });
 
     return this._validate<FinalAnswerSubmitInputData>(data, schema);

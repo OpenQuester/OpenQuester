@@ -1,6 +1,7 @@
 import { describe, expect, it } from "@jest/globals";
 
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { AnswerType } from "domain/enums/package/AnswerType";
 import { ChoiceAnswerLogic } from "domain/logic/question/ChoiceAnswerLogic";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
@@ -52,6 +53,30 @@ describe("ChoiceAnswerLogic", () => {
     q.correctChoiceOrder = 0.5;
     q.answers![0].order = 0.5;
     expect(ChoiceAnswerLogic.check(q, "Green", 0.5, true)).toBeNull();
+  });
+
+  it("grades explicit select by key even when options and aliases have the same text", () => {
+    const q = choice("Green", ["Green"]);
+    q.answerType = AnswerType.SELECT;
+    q.answers![0].text = "Green";
+    q.correctChoiceOrder = 0;
+    expect(ChoiceAnswerLogic.check(q, "Green", 1, true)).toBe(false);
+    expect(ChoiceAnswerLogic.check(q, "Green", 0, true)).toBe(true);
+    q.answerType = AnswerType.TEXT;
+    expect(ChoiceAnswerLogic.check(q, "Green", 1, true)).toBe(true);
+    delete q.answerType;
+    expect(ChoiceAnswerLogic.check(q, "Green", 1, true)).toBe(true);
+  });
+
+  it("omits explicit select aliases from reveal while preserving legacy and source data", () => {
+    const q = choice("Green", ["Blue"]);
+    q.answerType = AnswerType.SELECT;
+    expect(ShowAnswerLogic.revealDetails(q).rightAnswers).toBeNull();
+    expect(q.rightAnswers).toEqual(["Blue"]);
+    q.answerType = AnswerType.TEXT;
+    expect(ShowAnswerLogic.revealDetails(q).rightAnswers).toEqual(["Blue"]);
+    delete q.answerType;
+    expect(ShowAnswerLogic.revealDetails(q).rightAnswers).toEqual(["Blue"]);
   });
 
   it("checks keyed image choices and narrowly guards legacy numeric collisions", () => {

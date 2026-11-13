@@ -1,3 +1,6 @@
+import { ChoiceMedia } from "./ChoiceMedia";
+import { useSession } from "../../GameContext";
+import type { Question } from "@/game/protocol";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { useAnswerChoices } from "./useAnswerChoices";
@@ -6,18 +9,45 @@ import { Dialog } from "@/ui/Dialog";
 import { ChoiceOption } from "./ChoiceOption";
 import { mapUrl } from "@/lib/urlMappings";
 
-export function AnswerChoices() {
+export function AnswerChoices({ question }: { question: Question }) {
   const { t } = useTranslation();
-  const { visible, answers, correct, correctOrder, answering, locked, picked, pick, rejected } =
-    useAnswerChoices();
+  const session = useSession();
+  const {
+    visible,
+    mediaReady,
+    preloadFailed,
+    retryMedia,
+    answers,
+    correct,
+    correctOrder,
+    answering,
+    locked,
+    picked,
+    pick,
+    rejected,
+  } = useAnswerChoices(question);
   const [expanded, setExpanded] = useState<number | null>(null);
   const detail = expanded == null ? null : answers[expanded];
+  if (!mediaReady)
+    return (
+      <div className="text-muted" role="status">
+        <p>{t(preloadFailed ? "editor.player.error" : "point.pictureWaiting")}</p>
+        {preloadFailed && (
+          <button type="button" onClick={retryMedia}>
+            {t("editor.playtest.retry")}
+          </button>
+        )}
+      </div>
+    );
   if (!visible) return <p className="m-0 text-muted">{t("question.optionsSoon")}</p>;
 
   return (
     <>
       <ol
         className="answer-choices"
+        data-media={answers.some(
+          (answer) => answer.file?.type === "audio" || answer.file?.type === "video",
+        )}
         aria-label={t("question.options")}
         data-compact={answers.every(
           (answer) => !answer.file?.link && (answer.text?.length ?? 0) <= 80,
@@ -36,7 +66,13 @@ export function AnswerChoices() {
               key={a.id ?? a.order}
               index={i}
               text={text}
-              image={a.file?.link ? mapUrl(a.file.link) : undefined}
+              label={a.sourceLabel}
+              image={a.file?.type === "image" && a.file.link ? mapUrl(a.file.link) : undefined}
+              media={
+                a.file?.link && (a.file.type === "audio" || a.file.type === "video") ? (
+                  <ChoiceMedia file={a.file} label={text} paused={session.state.isPaused} />
+                ) : undefined
+              }
               disabled={!answering || locked || isRejected}
               onPick={() => pick(a, i)}
               onPreview={() => setExpanded(i)}

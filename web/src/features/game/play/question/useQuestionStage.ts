@@ -1,9 +1,18 @@
+import { getRealPrice } from "@/game/questionPrices";
 import { useEffect, useState } from "react";
 import { isMainTextItem, itemStart } from "@/game/contentPlan";
 import { pointImage } from "@/lib/pointImage";
 import { timerStartDelay } from "@/lib/timer";
 import type { GameSession } from "@/game/reducer";
-import { canAnswerNow, pointPicture, boardQuestionMeta, myRole, phaseOf } from "@/game/selectors";
+import {
+  canAnswerNow,
+  answerWindowOpensIn,
+  pointPicture,
+  myAllPlayEntry,
+  boardQuestionMeta,
+  myRole,
+  phaseOf,
+} from "@/game/selectors";
 import { useGame, useGameState, useSession } from "../../GameContext";
 import {
   contentElapsed,
@@ -33,17 +42,8 @@ export function useQuestionStage() {
     content.plan.steps.some((step) =>
       step.items.some((item) => isMainTextItem(item, q?.textOrder, q?.textItems)),
     );
-  const price = s.stakeQuestionData?.highestBid ?? q?.price ?? meta?.question.price ?? null;
-  // Point answers: the player who answers now clicks the spot on the picture.
-  const picture = pointPicture(q);
-  const pointReady = usePointImageReady(session);
-  const picking =
-    !!picture &&
-    pointReady &&
-    (canAnswerNow(session, myId) ||
-      (phase === "all_play_answering" &&
-        role === "player" &&
-        !!s.allPlay?.entries.some((entry) => entry.playerId === myId && entry.submitted)));
+  const price = s.stakeQuestionData?.highestBid ?? getRealPrice(q) ?? meta?.question.price ?? null;
+  const { picture, picking } = usePointPicking(session, myId);
 
   return {
     myId,
@@ -62,6 +62,23 @@ export function useQuestionStage() {
     picture,
     picking,
   };
+}
+
+function usePointPicking(session: GameSession, playerId: number) {
+  const picture = pointPicture(session.state.currentQuestion);
+  const imageReady = usePointImageReady(session);
+  const answerWindowReady = useAnswerWindowReady(session);
+  // Keep the submitted marker visible until everyone has finished answering.
+  const submittedPoint =
+    phaseOf(session) === "all_play_answering" &&
+    myRole(session, playerId) === "player" &&
+    myAllPlayEntry(session, playerId)?.submitted === true;
+  const picking =
+    !!picture &&
+    imageReady &&
+    answerWindowReady &&
+    (canAnswerNow(session, playerId) || submittedPoint);
+  return { picture, picking };
 }
 
 /** Do not show a later answer image ahead of the running question timeline. */
@@ -99,4 +116,15 @@ function useQuestionContent(session: GameSession) {
     playing:
       phaseOf(session) === "showing" && !session.state.isPaused && !questionOpening(presentation),
   };
+}
+
+export function useAnswerWindowReady(session: GameSession): boolean {
+  const [, tick] = useState(0);
+  const wait = answerWindowOpensIn(session);
+  useEffect(() => {
+    if (!Number.isFinite(wait) || wait <= 0 || session.state.isPaused) return;
+    const id = window.setTimeout(() => tick((value) => value + 1), wait + 1);
+    return () => window.clearTimeout(id);
+  }, [wait, session.state.isPaused]);
+  return wait <= 0;
 }

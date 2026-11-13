@@ -1,3 +1,4 @@
+import type { QuestionTextItem } from "@/features/upload/types";
 import type { QuestionFile } from "./protocol";
 
 export const VISUAL_QUEUE_THRESHOLD = 5;
@@ -6,24 +7,32 @@ export interface AuthoredContentSource<T> {
   files?: readonly T[] | null;
   text?: string | null;
   textOrder?: number | null;
-  textItems?: readonly { order: number; text: string }[] | null;
+  textItems?: readonly QuestionTextItem[] | null;
+  textDurationMs?: number | null;
+  textWaitForFinish?: boolean | null;
 }
 
 export function isVisual({ file }: Pick<QuestionFile, "file">) {
   return file.type === "image" || file.type === "video";
 }
 
-/** The same order and wait flags determine authored groups in the editor and game. */
+/** Text always closes a group. Only media can opt out of waiting. */
 export function authoredContentGroups<T extends Pick<QuestionFile, "order" | "waitForFinish">>(
   source: AuthoredContentSource<T>,
 ) {
   const texts = [
-    ...(source.textOrder != null && source.text?.trim()
-      ? [{ order: source.textOrder, text: source.text.trim() }]
+    ...(source.textOrder != null && (source.text?.trim() || source.textDurationMs != null)
+      ? [
+          {
+            order: source.textOrder,
+            text: source.text ?? "",
+            durationMs: source.textDurationMs,
+          },
+        ]
       : []),
-    ...(source.textItems ?? []).flatMap(({ order, text }) =>
-      text.trim() ? [{ order, text: text.trim() }] : [],
-    ),
+    ...(source.textItems ?? [])
+      .filter((item) => item.text.trim() || item.durationMs != null || item.placement === "replic")
+      .map((item) => ({ ...item })),
   ];
   const entries = [
     ...texts,

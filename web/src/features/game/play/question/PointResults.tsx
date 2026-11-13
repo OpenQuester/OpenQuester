@@ -1,5 +1,6 @@
 import { cn } from "@/lib/cn";
-import { PointPicker, type PointMarker, type Spot } from "../PointPicker";
+import type { PointTarget } from "@/lib/pointGeometry";
+import { PointPicker, type PointMarker } from "../PointPicker";
 
 /** The target and every player's point share the same image coordinates. */
 export function PointResults({
@@ -10,7 +11,7 @@ export function PointResults({
   compact = false,
 }: {
   src: string;
-  target: Spot;
+  target: PointTarget;
   radius?: number | null;
   markers: PointMarker[];
   compact?: boolean;

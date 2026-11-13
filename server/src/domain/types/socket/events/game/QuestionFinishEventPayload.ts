@@ -1,5 +1,6 @@
+import type { PackageAnswerDTO } from "domain/types/dto/package/PackageAnswerDTO";
 import type { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import { AnswerPointDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { AnswerPointDTO, QuestionTextItemDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import { PackageAnswerFileDTO } from "domain/types/dto/package/PackageAnswerFileDTO";
@@ -7,6 +8,8 @@ import { PackageAnswerFileDTO } from "domain/types/dto/package/PackageAnswerFile
 export interface QuestionFinishEventPayload {
   answerFiles: PackageAnswerFileDTO[] | null;
   answerText: string | null;
+  answerTextItems?: QuestionTextItemDTO[] | null;
+  answerExplanation?: string | null;
   nextTurnPlayerId: number | null;
   /** Authoritative reveal timer when the answer has media. */
   timer?: GameStateTimerDTO;
@@ -25,10 +28,13 @@ export interface QuestionFinishEventPayload {
   answerPointImage?: string | null;
   /** Correct image-only choice, shown only after reveal. */
   correctChoiceImage?: string | null;
+  correctChoice?: PackageAnswerDTO | null;
 }
 
 export interface QuestionFinishWithAnswerEventPayload extends Pick<
   QuestionFinishEventPayload,
+  | "answerTextItems"
+  | "answerExplanation"
   | "answerFiles"
   | "answerText"
   | "nextTurnPlayerId"
@@ -41,6 +47,7 @@ export interface QuestionFinishWithAnswerEventPayload extends Pick<
   | "answerDeviation"
   | "answerPointImage"
   | "correctChoiceImage"
+  | "correctChoice"
 > {
   answerResult: GameStateAnsweredPlayerData;
 }

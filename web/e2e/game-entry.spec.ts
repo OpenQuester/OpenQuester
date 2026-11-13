@@ -15,6 +15,17 @@ test("private game retries stay in the form and game start introduces the first 
     await signInAsGuest(host, "Password host");
     await host.goto(`/games/new?packageId=${packageId()}`);
     await host.getByLabel("Game name").fill(`Password check ${Date.now()}`);
+    if (process.env.OQ_SCREENSHOT_DIR) {
+      await expectNoHorizontalScroll(host);
+      await host.screenshot({
+        path: `${process.env.OQ_SCREENSHOT_DIR}/create-${testInfo.project.name}.png`,
+      });
+      await host.getByRole("tab", { name: "Timers" }).click();
+      await host.screenshot({
+        path: `${process.env.OQ_SCREENSHOT_DIR}/timers-${testInfo.project.name}.png`,
+      });
+      await host.getByRole("tab", { name: "General" }).click();
+    }
     await host.getByRole("radio", { name: "Password", exact: true }).click();
     const hostPassword = host.getByLabel("Password", { exact: true });
     await expect(hostPassword).toHaveAttribute("type", "password");

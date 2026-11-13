@@ -1,4 +1,5 @@
 import { authoredContentGroups, isVisual } from "@/game/authoredContentGroups";
+import { scriptContent } from "@/game/questionScript";
 import type { UploadContent, UploadQuestion } from "./types";
 
 export const MAX_CONTENT_STEPS = 30;
@@ -31,10 +32,20 @@ export class PackageContentLimitError extends Error {
 }
 
 export function questionGroupSizes(question: UploadQuestion, phase: TimelinePhase) {
+  if (question.script) {
+    return question.script.steps.flatMap((step) => {
+      if (step.op !== "showContent" || step.phase !== phase) return [];
+      if (step.revealRight) return [{ files: 0, visuals: 0 }];
+      return authoredContentGroups(scriptContent(question, step)).map((group) => {
+        const media = group.flatMap((entry) => ("media" in entry ? [entry.media] : []));
+        return { files: media.length, visuals: media.filter(isVisual).length };
+      });
+    });
+  }
   const groups =
     phase === "question"
       ? authoredContentGroups({ ...question, files: question.questionFiles })
-      : authoredContentGroups({ files: question.answerFiles });
+      : authoredContentGroups({ files: question.answerFiles, textItems: question.answerTextItems });
   return groups.map((group) => {
     const files = group.flatMap((entry) => ("media" in entry ? [entry.media] : []));
     return { files: files.length, visuals: files.filter(isVisual).length };

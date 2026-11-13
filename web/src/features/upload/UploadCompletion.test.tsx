@@ -17,9 +17,11 @@ import {
   PackageEditorContext,
 } from "@/features/package-editor/packageEditorStore";
 import { validatePackage } from "@/features/package-editor/validatePackage";
-import type { MediaFile, ParsedPackage } from "./types";
+import type { ImportWarning, MediaFile, ParsedPackage } from "./types";
+import { parseSiq } from "./siq";
+import { SI_SCRIPT_TEMPLATES } from "./siqScript";
 import type * as Upload from "./upload";
-import { uploadPackage } from "./upload";
+import { resumeFromFile, uploadPackage } from "./upload";
 import { UploadPackagePage } from "./UploadPackagePage";
 import { draftFromParsed } from "@/features/package-editor/createDraft";
 import { optimizePackage } from "./optimize/index";
@@ -61,6 +63,125 @@ afterEach(() => {
   readFile.mockReset();
   vi.mocked(draftFromParsed).mockReset();
 });
+
+const promptParam = '<param name="question" type="content"><item>Prompt</item></param>';
+const secretParams =
+  promptParam +
+  '<param name="selectionMode">any</param>' +
+  '<param name="price" type="numberSet"><numberSet minimum="100" maximum="500" step="50"/></param>';
+const legacyNoRisk = SI_SCRIPT_TEMPLATES.noRisk!.replace(">multiply<", ">noRisk<").replace(
+  '<param name="duration" isRef="true">answerDuration</param>',
+  "",
+);
+const selectParams =
+  promptParam +
+  '<param name="answerType">select</param>' +
+  '<param name="answerOptions" type="group"><param name="42"><item>Right</item></param><param name="B"><item>Wrong</item></param></param>';
+
+it.each([
+  [
+    "auction",
+    SI_SCRIPT_TEMPLATES.stake!,
+    promptParam,
+    { type: "stake", subType: "simple", maxPrice: null, script: null },
+  ],
+  [
+    "custom",
+    SI_SCRIPT_TEMPLATES.stakeAll!,
+    promptParam,
+    { type: "stake", subType: "forEveryone", maxPrice: null, script: null },
+  ],
+  [
+    "custom",
+    SI_SCRIPT_TEMPLATES.forAll!,
+    promptParam,
+    { type: "simple", subType: "forEveryone", script: null },
+  ],
+  ...(["secret", "secretPublicPrice", "secretOpenerPrice", "secretNoQuestion"] as const).map(
+    (kind) =>
+      [
+        kind === "secret" ? "custom" : kind,
+        SI_SCRIPT_TEMPLATES[kind]!,
+        secretParams,
+        {
+          type: "secret",
+          subType: "simple",
+          transferType: "any",
+          script: null,
+          secretRules: {
+            outcome: kind === "secretNoQuestion" ? "award" : "question",
+            priceAnnouncement: ["secret", "secretNoQuestion"].includes(kind)
+              ? "afterTransfer"
+              : "beforeTransfer",
+            priceChooser: kind === "secretOpenerPrice" ? "opener" : "receiver",
+            priceRule: { kind: "range", min: 100, max: 500, step: 50 },
+          },
+        },
+      ] as const,
+  ),
+  [
+    "sponsored",
+    legacyNoRisk,
+    promptParam,
+    { type: "noRisk", subType: "simple", priceMultiplier: 2, script: null },
+  ],
+  ...["noRisk", "forYourself", "sponsored", "custom"].map(
+    (kind) =>
+      [
+        kind,
+        SI_SCRIPT_TEMPLATES.noRisk!,
+        promptParam,
+        {
+          ...(kind === "custom"
+            ? { type: "simple" }
+            : { type: "noRisk", subType: "simple", priceMultiplier: 2 }),
+          script: expect.objectContaining({
+            steps: expect.arrayContaining([{ op: "setPrice", mode: "multiply" }]),
+          }),
+        },
+      ] as const,
+  ),
+  [
+    "stake",
+    SI_SCRIPT_TEMPLATES.stake!,
+    selectParams,
+    {
+      type: "stake",
+      subType: "simple",
+      maxPrice: null,
+      script: expect.objectContaining({
+        steps: expect.arrayContaining([
+          expect.objectContaining({
+            op: "setAnswerType",
+            answerType: "select",
+            correctChoiceOrder: 0,
+          }),
+        ]),
+      }),
+    },
+  ],
+] as const)(
+  "posts valid SIQ question fields for source type %s",
+  async (kind, script, params, expected) => {
+    const xml = `<package name="SIQ"><rounds><round name="R"><themes><theme name="T"><questions><question type="${kind}" price="100"><params>${params}</params><script>${script}</script><right><answer>42</answer></right></question></questions></theme></themes></round></rounds></package>`;
+    const parsed = await parseSiq({ "content.xml": new TextEncoder().encode(xml) });
+    fetchMock.mockImplementation(async (request) =>
+      Response.json(
+        (request as Request).method === "POST"
+          ? { id: 7, uploadStatus: "ready", uploadLinks: {} }
+          : { id: 7, status: "ready", missing: [], uploadLinks: {} },
+      ),
+    );
+
+    await uploadPackage(parsed, vi.fn());
+
+    const [post] = fetchMock.mock.calls[0]!;
+    expect(post).toMatchObject({ method: "POST", url: "http://api.test/v1/packages" });
+    const body = await (post as Request).json();
+    const question = body.content.rounds[0].themes[0].questions[0];
+    expect(question).toMatchObject(expected);
+  },
+);
 
 it("reports a busy upload synchronously before loading or running the encoders", async () => {
   vi.mocked(optimizePackage).mockRejectedValueOnce(new Error("encoder failed"));
@@ -127,21 +248,51 @@ it("keeps an imported package review retryable when creating a local draft fails
   client.clear();
 });
 
-it("requires repair in the editor before uploading an unresolved choice", async () => {
+it.each([
+  ["choiceCorrectUnresolved", "choice"],
+  ["siqCompatibility", "script"],
+  ["contentNeedsRepair", "content"],
+  ["pointInvalid", "point coordinates"],
+  ["pointTargetMissing", "point image"],
+  [undefined, "point fields"],
+] as const)("requires repair for %s (%s) before upload or resume", async (code, feature) => {
   const pkg = emptyPackage("Needs repair");
-  pkg.rounds = [
-    { ...newRound("Round"), themes: [newTheme("Theme", [newQuestion(100, { text: "Q" })])] },
-  ];
-  readFile.mockResolvedValue({
+  const criticalIssue: ImportWarning[] =
+    code === "siqCompatibility" || code === "contentNeedsRepair"
+      ? [{ code, feature, severity: "critical", resolution: "needsRepair", where: "Round › Theme" }]
+      : [];
+  const question = newQuestion(100, { text: "Q", compatibilityIssues: criticalIssue });
+  if (feature === "point fields") {
+    question.answerType = "point";
+    question.answerPoint = { x: 0.5, y: 0.5 };
+  }
+  pkg.rounds = [{ ...newRound("Round"), themes: [newTheme("Theme", [question])] }];
+  const parsed: ParsedPackage = {
     format: "oq",
     content: toUpload(pkg),
     files: new Map(),
-    warnings: [{ code: "choiceCorrectUnresolved", where: "Round › Theme" }],
-  });
-  fetchMock.mockResolvedValue(
-    new Response(JSON.stringify({ data: [], pageInfo: { total: 0 } }), {
-      headers: { "content-type": "application/json" },
-    }),
+    warnings: criticalIssue.length ? criticalIssue : code ? [{ code, where: "Round › Theme" }] : [],
+  };
+
+  readFile.mockResolvedValue(parsed);
+  vi.mocked(draftFromParsed).mockResolvedValue("repair-draft");
+  fetchMock.mockImplementation(
+    async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: 7,
+              title: "Earlier upload",
+              createdAt: "2026-11-10",
+              author: { id: 1, username: "Author" },
+              uploadStatus: "uploading",
+            },
+          ],
+          pageInfo: { total: 1 },
+        }),
+        { headers: { "content-type": "application/json" } },
+      ),
   );
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -153,13 +304,24 @@ it("requires repair in the editor before uploading an unresolved choice", async 
       <UploadPackagePage />
     </QueryClientProvider>,
   );
-  await userEvent.upload(
+  const user = userEvent.setup();
+  await user.upload(
     view.container.querySelector<HTMLInputElement>("input[type=file]")!,
     new File(["archive"], "repair.oq"),
   );
-  expect(await screen.findByText(/correct option needs repair/i)).toBeVisible();
+  expect(await screen.findByTestId("upload-warnings")).toHaveTextContent(/before publishing/i);
+  expect(screen.getByTestId("upload-warnings")).not.toHaveTextContent("The package still uploads");
   expect(screen.getByRole("button", { name: /^upload/i })).toBeDisabled();
-  expect(screen.getByTestId("upload-edit")).toBeEnabled();
+  expect(await screen.findByRole("button", { name: "Finish this upload" })).toBeDisabled();
+  await user.click(screen.getByTestId("upload-edit"));
+  expect(draftFromParsed).toHaveBeenCalledWith(parsed);
+
+  fetchMock.mockClear();
+  const progress = vi.fn();
+  await expect(uploadPackage(parsed, progress)).rejects.toThrow("compatibilityNeedsRepair");
+  await expect(resumeFromFile(7, parsed, progress)).rejects.toThrow("compatibilityNeedsRepair");
+  expect(progress).not.toHaveBeenCalled();
+  expect(fetchMock).not.toHaveBeenCalled();
   client.clear();
 });
 
@@ -185,7 +347,10 @@ it.each([
       format: "oq",
       content: toUpload(pkg),
       files: new Map(),
-      warnings: [{ code: "missingFile", where: "", detail: md5 }],
+      warnings: [
+        { code: "missingFile", where: "", detail: md5 },
+        { code: "htmlQuestionRemoved", where: "Round › Theme › 200" },
+      ],
     };
     readFile.mockResolvedValue(parsed);
     fetchMock.mockImplementation(async (input) => {
@@ -256,7 +421,9 @@ it.each([
         container.querySelector<HTMLInputElement>("input[type=file]")!,
         new File(["archive"], "quiz.oq"),
       );
-      await user.click(await screen.findByRole("button", { name: "Upload package" }));
+      const upload = await screen.findByRole("button", { name: "Upload package" });
+      expect(upload).toBeEnabled();
+      await user.click(upload);
       await screen.findByTestId(ready ? "upload-done" : "upload-partial");
     } else {
       await user.click(screen.getByTestId("publish-confirm"));

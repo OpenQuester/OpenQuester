@@ -207,6 +207,16 @@ export class PackageStore {
   /**
    * Retrieve a single question by ID.
    */
+  public async getQuestions(gameId: string, questionIds: number[]): Promise<PackageQuestionDTO[]> {
+    const values = await this.redisRepository.hmget(
+      this.getPackageKey(gameId),
+      questionIds.map((id) => `q:${id}`)
+    );
+    return values
+      .filter((value): value is string => value !== null)
+      .map((value) => JSON.parse(value) as PackageQuestionDTO);
+  }
+
   public async getQuestion(gameId: string, questionId: number): Promise<PackageQuestionDTO | null> {
     const key = this.getPackageKey(gameId);
     const results = await this.redisRepository.hmget(key, [`q:${questionId}`]);
@@ -314,7 +324,7 @@ export class PackageStore {
           id: question.id!,
           order: question.order,
           price: question.isHidden ? null : question.price,
-          questionComment: question.questionComment ?? null,
+          questionComment: null,
           isPlayed: false
         }))
       }))
@@ -341,7 +351,7 @@ export class PackageStore {
             id: question.id!,
             order: question.order,
             price: question.isHidden ? null : question.price,
-            questionComment: question.questionComment ?? null,
+            questionComment: null,
             isPlayed: false
           };
         })

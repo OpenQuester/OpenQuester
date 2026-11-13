@@ -7,6 +7,9 @@ import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
  */
 export interface GameAction<TPayload = unknown> {
   id: string;
+  /** Current SI wait identity, required for script commands so retries cannot answer a later step. */
+  scriptStep?: number;
+  scriptQuestionId?: number;
   type: GameActionType;
   gameId: string;
   playerId: number;
@@ -21,6 +24,9 @@ export interface GameAction<TPayload = unknown> {
  */
 export interface SerializedGameAction {
   id: string;
+  /** Current SI wait identity, required for script commands so retries cannot answer a later step. */
+  scriptStep?: number;
+  scriptQuestionId?: number;
   type: GameActionType;
   gameId: string;
   playerId: number;

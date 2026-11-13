@@ -11,11 +11,13 @@ export function SingleMediaField({
   onChange,
   label,
   managedUndo = false,
+  allowMedia = false,
 }: {
   value: FileRef | null;
   onChange: (file: FileRef | null) => void;
   label: string;
   managedUndo?: boolean;
+  allowMedia?: boolean;
 }) {
   const { t } = useTranslation();
   const file = useMediaFile(value?.md5);
@@ -26,7 +28,7 @@ export function SingleMediaField({
   const [error, setError] = useState(false);
   const edit = (sources: (File | MediaFile)[]) =>
     open(sources, label, ({ file: result }) => {
-      if (result.type !== "image") {
+      if (!allowMedia && result.type !== "image") {
         setError(true);
         return;
       }
@@ -43,13 +45,13 @@ export function SingleMediaField({
       <input
         ref={input}
         type="file"
-        accept="image/*"
+        accept={allowMedia ? "image/*,audio/*,video/*" : "image/*"}
         className="hidden"
         onChange={(e) => {
           const picked = e.target.files?.[0];
           e.target.value = "";
           if (picked) {
-            if (mediaTypeOf(picked) === "image") {
+            if (allowMedia ? mediaTypeOf(picked) != null : mediaTypeOf(picked) === "image") {
               setError(false);
               edit([picked]);
             } else setError(true);

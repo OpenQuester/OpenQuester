@@ -1,3 +1,4 @@
+import { answerFormat } from "@/game/answerFormat";
 import { formatScore } from "@/lib/format";
 import { type ActionDockModel, type ActionDockContext } from "./actionDockModel";
 
@@ -101,13 +102,7 @@ export function finalBidModel({
   };
 }
 
-export function finalAnswerModel({
-  t,
-  session,
-  myId,
-  reason,
-  finalContentPlaying,
-}: ActionDockContext): ActionDockModel {
+export function finalAnswerModel({ t, session, myId, reason }: ActionDockContext): ActionDockModel {
   const role = myRole(session, myId);
   const players = seatedPlayers(session).filter(
     (p) => isEligible(session, p.meta.id) && hasFinalBid(session, p.meta.id),
@@ -117,13 +112,6 @@ export function finalAnswerModel({
   const q = session.state.finalRoundData?.questionData?.question ?? session.state.currentQuestion;
   const point = !!pointPicture(q);
   const next = t(point ? "dock.final.pointNext" : "dock.final.answerNext");
-  if (finalContentPlaying) {
-    return {
-      status: t("dock.final.contentPlaying"),
-      action: { kind: "info", text: t("dock.final.contentWait") },
-      next: t("dock.final.contentNext"),
-    };
-  }
   if (role !== "player") {
     return {
       status: t("dock.final.answersIn", { done, total: players.length }),
@@ -153,11 +141,21 @@ export function finalAnswerModel({
     };
   }
   const myBid = finalBid(session, myId);
+  const select = answerFormat(q) === "select";
+  const statusKey = select
+    ? "dock.final.selectAnswer"
+    : point
+      ? "dock.final.pointAnswer"
+      : "dock.final.typeAnswer";
   return {
-    status: t(point ? "dock.final.pointAnswer" : "dock.final.typeAnswer", {
+    status: t(statusKey, {
       amount: myBid == null ? "—" : formatScore(myBid),
     }),
-    action: point ? { kind: "info", text: t("point.prompt") } : { kind: "timed-answer" },
+    action: select
+      ? { kind: "info", text: t("dock.answering.pickOption") }
+      : point
+        ? { kind: "info", text: t("point.prompt") }
+        : { kind: "timed-answer" },
     next,
   };
 }

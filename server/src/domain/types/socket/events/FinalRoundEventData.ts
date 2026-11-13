@@ -1,7 +1,10 @@
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import { FinalBidsByPlayerId, FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
+import {
+  FinalBidsByPlayerId,
+  FinalRoundQuestionData
+} from "domain/types/finalround/FinalRoundInterfaces";
 import { AnswerReviewData } from "domain/types/socket/finalround/FinalRoundResults";
 
 /**
@@ -35,6 +38,7 @@ export interface FinalBidSubmitOutputData {
  * Data for final round answer submission (text-based with 75-second timer)
  */
 export interface FinalAnswerSubmitInputData {
+  choiceOrder?: number;
   answerText: string;
 }
 

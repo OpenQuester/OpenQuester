@@ -34,6 +34,17 @@ export const CloseIcon = (p: { size?: number }) => (
     <path d="M6 6l12 12M18 6L6 18" />
   </Icon>
 );
+export const DoorExitIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <path d="M11 20H4V4h7M8 12h13m-4-4 4 4-4 4" />
+  </Icon>
+);
+export const MoveToSpectatorsIcon = (p: { size?: number }) => (
+  <Icon {...p}>
+    <circle cx="8" cy="7" r="3" />
+    <path d="M2 20v-2a5 5 0 0 1 5-5h2m3 3h9m-3-3 3 3-3 3" />
+  </Icon>
+);
 export const ChatIcon = (p: { size?: number }) => (
   <Icon {...p}>
     <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" />

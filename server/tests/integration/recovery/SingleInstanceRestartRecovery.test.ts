@@ -7,9 +7,12 @@ import { SingleInstanceRestartRecoveryService } from "application/services/recov
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { questionTransitionTimerKey, timerKey } from "domain/constants/redisKeys";
 import { SOCKET_GAME_NAMESPACE, SOCKET_USER_PREFIX } from "domain/constants/socket";
+import { MIN_TIMER_TTL_MS } from "domain/constants/timer";
+import { QuestionScriptLogic } from "domain/logic/question/QuestionScriptLogic";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
+import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { SocketIORealtimeGateway } from "presentation/realtime/SocketIORealtimeGateway";
 import { RedisConfig } from "shared/config/RedisConfig";
 import { Environment } from "shared/config/Environment";
@@ -150,6 +153,96 @@ describe("SingleInstanceRestartRecovery real Redis integration", () => {
     expect(resume.result.data.timer?.elapsedMs).toBe(0);
   });
 
+  it("preserves a scripted answer and rearms an exhausted secret price for immediate expiry", async () => {
+    const now = Date.now();
+    const scriptGame = buildGame("RCVS", null);
+    QuestionScriptLogic.start(
+      scriptGame,
+      {
+        ...scriptGame.gameState.currentQuestion!,
+        script: {
+          version: 1,
+          steps: [
+            { op: "setAnswerer", mode: "current" },
+            { op: "askAnswer", mode: "direct", durationMs: recoveryTimerDurationMs }
+          ]
+        }
+      },
+      10,
+      2
+    );
+    scriptGame.setTimer({
+      ...buildTimer(),
+      elapsedMs: 6000,
+      resumedAt: new Date(now - 2000)
+    });
+    await gameRepository.updateGame(scriptGame);
+    await gameRepository.saveTimer(
+      scriptGame.gameState.timer!,
+      scriptGame.id,
+      undefined,
+      activeTimerTtlMs
+    );
+
+    const priceGame = buildGame("RCVP", { ...buildTimer(), startedAt: new Date(now - 31_000) });
+    priceGame.setQuestionState(QuestionState.SECRET_TRANSFER);
+    priceGame.gameState.currentQuestion = null;
+    priceGame.gameState.secretQuestionData = {
+      questionId: 20,
+      pickerPlayerId: 2,
+      transferDecisionPhase: false,
+      transferType: PackageQuestionTransferType.ANY,
+      step: "price",
+      actorPlayerId: 3,
+      recipientPlayerId: 3,
+      priceSelection: { playerId: 3, allowedPrices: [], range: { min: 200, max: 600, step: 200 } }
+    };
+    await gameRepository.updateGame(priceGame);
+
+    await recoveryService.recoverIfEnabled();
+
+    const restoredScript = await gameRepository.getGameEntity(scriptGame.id);
+    expect(restoredScript.gameState).toMatchObject({
+      questionState: QuestionState.ANSWERING,
+      isPaused: true,
+      timer: null,
+      answeringPlayer: 2,
+      scriptProgress: { programCounter: 2, waitingFor: "answer", actorId: 2 }
+    });
+    expect(await gameRepository.getTimer(scriptGame.id)).toBeNull();
+    const scriptTimer = (await gameRepository.getTimer(scriptGame.id, QuestionState.ANSWERING))!;
+    expect(scriptTimer.elapsedMs).toBeGreaterThanOrEqual(8000);
+    expect(scriptTimer.elapsedMs).toBeLessThan(recoveryTimerDurationMs);
+    const timerService = new SocketGameTimerService();
+    expect(
+      timerService.buildUnpauseTimerMutations(restoredScript, scriptTimer).timerMutations
+    ).toContainEqual(
+      expect.objectContaining({
+        op: "set",
+        key: timerKey(scriptGame.id),
+        pxTtl: recoveryTimerDurationMs - scriptTimer.elapsedMs
+      })
+    );
+
+    const restoredPrice = await gameRepository.getGameEntity(priceGame.id);
+    expect(restoredPrice.gameState).toMatchObject({
+      questionState: QuestionState.SECRET_TRANSFER,
+      isPaused: true,
+      timer: null,
+      secretQuestionData: priceGame.gameState.secretQuestionData
+    });
+    const priceTimer = await gameRepository.getTimer(priceGame.id, QuestionState.SECRET_TRANSFER);
+    expect(priceTimer).toMatchObject({
+      durationMs: recoveryTimerDurationMs,
+      elapsedMs: recoveryTimerDurationMs
+    });
+    expect(
+      timerService.buildUnpauseTimerMutations(restoredPrice, priceTimer).timerMutations
+    ).toContainEqual(
+      expect.objectContaining({ op: "set", key: timerKey(priceGame.id), pxTtl: MIN_TIMER_TTL_MS })
+    );
+  });
+
   it("recovers a transition-only text question into a paused restore point", async () => {
     const game = buildGame("RCVT", null);
     game.setQuestionState(QuestionState.MEDIA_DOWNLOADING);
@@ -221,22 +314,40 @@ describe("SingleInstanceRestartRecovery real Redis integration", () => {
     await expect(redis.get("unrelated:single-instance-recovery")).resolves.toBe("preserved");
   });
 
-  it("resets to full duration instead of subtracting downtime", async () => {
-    const game = buildGame("RCV3", {
-      ...buildTimer(),
-      elapsedMs: recoveryTimerDurationMs - 1
-    });
-    await gameRepository.updateGame(game);
-    await gameRepository.saveTimer(game.gameState.timer!, game.id, undefined, 1);
+  it.each([false, true])(
+    "resets to full duration instead of subtracting downtime (legacy price=%s)",
+    async (legacyPrice) => {
+      const game = buildGame("RCV3", {
+        ...buildTimer(),
+        elapsedMs: recoveryTimerDurationMs - 1
+      });
+      const state = legacyPrice ? QuestionState.SECRET_TRANSFER : QuestionState.SHOWING;
+      if (legacyPrice) {
+        game.setQuestionState(state);
+        game.gameState.currentQuestion = null;
+        game.gameState.secretQuestionData = {
+          questionId: 20,
+          pickerPlayerId: 2,
+          transferDecisionPhase: false,
+          transferType: PackageQuestionTransferType.ANY,
+          step: "price",
+          actorPlayerId: 3,
+          recipientPlayerId: 3,
+          priceSelection: { playerId: 3, allowedPrices: [100, 300] }
+        };
+      }
+      await gameRepository.updateGame(game);
+      await gameRepository.saveTimer(game.gameState.timer!, game.id, undefined, 1);
 
-    await recoveryService.recoverIfEnabled();
+      await recoveryService.recoverIfEnabled();
 
-    const pausedTimer = await gameRepository.getTimer(game.id, QuestionState.SHOWING);
-    expect(pausedTimer).toMatchObject({
-      durationMs: recoveryTimerDurationMs,
-      elapsedMs: 0
-    });
-  });
+      const pausedTimer = await gameRepository.getTimer(game.id, state);
+      expect(pausedTimer).toMatchObject({
+        durationMs: recoveryTimerDurationMs,
+        elapsedMs: 0
+      });
+    }
+  );
 });
 
 async function closeSocketIoServer(ioServer: IOServer | undefined): Promise<void> {

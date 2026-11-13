@@ -1,10 +1,15 @@
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import type { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import type { BroadcastEvent } from "domain/types/service/ServiceResult";
 import type { AllPlayStartEventPayload } from "domain/types/socket/events/game/AllPlayEventPayloads";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
-import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import {
+  type QuestionTextItemDTO,
+  PackageQuestionDTO
+} from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 
@@ -24,6 +29,7 @@ export class GameQuestionMapper {
         price: data.price,
         maxStake: data.maxStake,
         priceMultiplier: data.priceMultiplier,
+        wrongAnswerPenalty: data.wrongAnswerPenalty,
         timer
       },
       room: game.id
@@ -53,32 +59,55 @@ export class GameQuestionMapper {
   }
 
   /** Excludes answerText, answerFiles, and answerHint */
-  public static mapToSimpleQuestion(question: PackageQuestionDTO): SimplePackageQuestionDTO {
+  public static mapToSimpleQuestion(
+    question: PackageQuestionDTO,
+    revealPrice = question.type !== PackageQuestionType.SECRET
+  ): SimplePackageQuestionDTO {
     return {
       id: question.id,
       answerDelay: question.answerDelay,
+      answerDurationMs: question.answerDurationMs ?? null,
       // Players receive the answer format. Correct values stay in the full server-side question.
       answerType: question.answerType ?? null,
       pointImageOrder: question.pointImageOrder ?? null,
       isHidden: question.isHidden,
       order: question.order,
       price: question.price,
+      ...(revealPrice && question.realPrice != null ? { realPrice: question.realPrice } : {}),
       subType: question.subType,
       type: question.type,
       allowedPrices: question.allowedPrices,
       answers: question.answers,
       maxPrice: question.maxPrice,
       priceMultiplier: question.priceMultiplier,
-      questionComment: question.questionComment,
+
       questionFiles: question.questionFiles,
       showAnswerDuration: question.showAnswerDuration,
       showDelay: question.showDelay,
       text: question.text,
       textOrder: question.textOrder ?? null,
-      textItems: question.textItems ?? null,
+      textDurationMs: question.textDurationMs ?? null,
+      textWaitForFinish: question.textWaitForFinish ?? null,
+      textItems: this.mapPublicTextItems(question.textItems),
       playMediaSimultaneously: question.playMediaSimultaneously ?? true,
       transferType: question.transferType
     };
+  }
+
+  public static mapPublicTextItems(
+    items: QuestionTextItemDTO[] | null | undefined
+  ): QuestionTextItemDTO[] | null {
+    return (
+      items?.map((item) =>
+        item.placement === "replic"
+          ? {
+              ...item,
+              text: "",
+              durationMs: item.durationMs ?? QuestionContentPlanLogic.textDuration(item.text)
+            }
+          : item
+      ) ?? null
+    );
   }
 
   public static setQuestionPlayed(game: Game, questionID: number, themeId: number) {

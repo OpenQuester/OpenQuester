@@ -48,8 +48,20 @@ export async function preparePreviewQuestion(
     });
   }
   const [questionDurations, answerDurations] = await Promise.all([
-    preloadQuestionMedia(question, signal),
-    preloadQuestionMedia({ ...question, questionFiles: question.answerFiles }, signal),
+    preloadQuestionMedia(
+      question.script ? { ...question, answerType: "select" } : question,
+      signal,
+    ),
+    preloadQuestionMedia(
+      {
+        ...question,
+        type: "simple",
+        answerType: "text",
+        answers: null,
+        questionFiles: question.answerFiles,
+      },
+      signal,
+    ),
   ]);
   if (!questionDurations || !answerDurations || signal.aborted) throw new Error("previewMedia");
   const withDurations = (files: Question["questionFiles"], durations: typeof questionDurations) =>

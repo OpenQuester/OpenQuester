@@ -1,3 +1,6 @@
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -27,7 +30,17 @@ export class AnswerSubmittedLogic {
   public static validate(game: Game, currentPlayer: Player | null) {
     GameStateValidator.validateGameInProgress(game);
 
-    if (game.gameState.answeringPlayer !== currentPlayer?.meta.id) {
+    const state = game.gameState;
+    const direct =
+      state.currentQuestion?.type === PackageQuestionType.SECRET ||
+      state.currentQuestion?.type === PackageQuestionType.STAKE;
+    if (
+      state.questionState !== QuestionState.ANSWERING ||
+      (direct && !QuestionContentPlanLogic.isPresentationComplete(game))
+    ) {
+      throw new ClientError(ClientResponse.CANNOT_SUBMIT_ANSWER);
+    }
+    if (state.answeringPlayer !== currentPlayer?.meta.id) {
       throw new ClientError(ClientResponse.CANNOT_SUBMIT_ANSWER);
     }
   }

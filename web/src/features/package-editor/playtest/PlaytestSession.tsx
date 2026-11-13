@@ -23,12 +23,16 @@ export function PlaytestSession({
   initial,
   question,
   credits,
+  roundNominalPrices,
+  finalRoundPrices,
   legacy,
   onRestart,
 }: {
   initial: GameSession;
   question: Question;
   credits: { authors: string[]; sources: string[] };
+  roundNominalPrices?: number[];
+  finalRoundPrices?: { min: number; max: number };
   legacy: boolean;
   onRestart: () => void;
 }) {
@@ -36,7 +40,13 @@ export function PlaytestSession({
   const [game] = useState(() => {
     const start = structuredClone(initial);
     if (start.state.timer) start.state.timer = previewTimer(start.state.timer.durationMs);
-    const result = new PreviewRuntime(start, structuredClone(question), credits);
+    const result = new PreviewRuntime(
+      start,
+      structuredClone(question),
+      credits,
+      roundNominalPrices,
+      finalRoundPrices,
+    );
     result.store.setState({ previewVolume: useSettings.getState().volume });
     return result;
   });

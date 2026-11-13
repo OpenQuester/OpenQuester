@@ -109,6 +109,13 @@ with behavior; a generic "Try transition" comment supplies no missing context.
 
 ### Make types and module names accurate
 
+Declare imports at the top of the file. Never use inline `import("module").Type`
+annotations or `typeof import("module")` type queries. Import the symbol with
+`import type` and refer to it by name. Keep ordinary runtime dependencies at the
+top as static imports too. Use dynamic `import()` only when deferred loading or
+loading in a separate runtime is required, such as a lazy browser chunk or a
+Playwright page fixture.
+
 Reuse domain types when they model the data correctly. Give meaningful shared
 inputs/results named types instead of repeating inline shapes or hiding the
 contract in nested type machinery. Keep required fields required when guaranteed;
@@ -130,6 +137,12 @@ result. It is not a reason to redesign shared/public contracts during cleanup.
 Follow scoped module conventions: backend class files use PascalCase, function-only
 modules use camelCase, executable logic stays out of DTO modules, and public methods
 precede private methods. Do not cosmetically rename public wire fields or events.
+
+Name new TypeORM migrations `<version>_<Action>_<timestamp>.ts` and their classes
+`<Action>_<version_with_underscores>_<timestamp>`. Use a unique current Unix
+timestamp in milliseconds, greater than every existing migration timestamp.
+Register migrations in ascending timestamp order in `DataSource.ts` and keep
+released migration names and timestamps stable.
 
 ### Distinguish absence from valid values
 

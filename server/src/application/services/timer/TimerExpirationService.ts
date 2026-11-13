@@ -1,3 +1,5 @@
+import { SecretQuestionService } from "application/services/question/SecretQuestionService";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
 import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
@@ -17,16 +19,12 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
 import { BuzzerLogic } from "domain/logic/question/BuzzerLogic";
 import { QuestionTransitionLogic } from "domain/logic/question/QuestionTransitionLogic";
-import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
 import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
 import { StakeBiddingTimeoutLogic } from "domain/logic/timer/StakeBiddingTimeoutLogic";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { GamePhase, type TransitionResources, TransitionTrigger } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
-import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   type BroadcastEvent,
   type TimerExpirationResult
@@ -37,22 +35,15 @@ import {
   SocketIOFinalAutoLossEventPayload,
   type ThemeEliminateOutputData
 } from "domain/types/socket/events/FinalRoundEventData";
-import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { type MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import {
-  type SecretQuestionPriceBroadcastData,
-  type SecretQuestionTransferBroadcastData
-} from "domain/types/socket/game/SecretQuestionTransferData";
 import {
   AnsweringToShowingAnswerMutationData,
   AnsweringToShowingMutationData
 } from "domain/types/socket/transition/answering";
-import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition/special-question";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
-import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 
@@ -71,7 +62,8 @@ export class TimerExpirationService {
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
     private readonly transitionResourceService: TransitionResourceService,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
-    private readonly packageStore: PackageStore
+    private readonly packageStore: PackageStore,
+    private readonly secretQuestionService: SecretQuestionService
   ) {
     //
   }
@@ -372,163 +364,13 @@ export class TimerExpirationService {
       return { success: false, broadcasts: [] };
     }
 
-    const secretData = game.gameState.secretQuestionData;
-    const eligiblePlayers = game
-      .getInGamePlayers()
-      .filter(
-        (player) =>
-          player.role === PlayerRole.PLAYER && player.gameStatus === PlayerGameStatus.IN_GAME
-      );
-
-    // No players: fall back to showing the question as a simple one
-    if (eligiblePlayers.length === 0) {
-      const questionData = await this.packageStore.getQuestionWithTheme(
-        game.id,
-        secretData.questionId
-      );
-
-      if (!questionData) {
-        return { success: false, broadcasts: [] };
-      }
-
-      game.gameState.secretQuestionData = null;
-      game.setQuestionState(QuestionState.SHOWING);
-      game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
-        questionData.question
-      );
-
-      QuestionPickLogic.resetMediaDownloadStatus(game);
-      QuestionContentPlanLogic.applyToGame(game);
-
-      const timer = await this.socketQuestionStateService.setupQuestionTimer(
-        game,
-        QuestionContentPlanLogic.questionTimerDuration(game)
-      );
-      const timerDto = timer.value();
-
-      await this.gameService.updateGame(game);
-
-      const broadcasts: BroadcastEvent[] = timerDto
-        ? [
-            {
-              event: SocketIOGameEvents.QUESTION_DATA,
-              data: {
-                data: questionData.question,
-                timer: timerDto,
-                questionEligiblePlayers: game.getQuestionEligiblePlayers(),
-                contentPlan: game.gameState.questionContentPlan ?? null,
-                buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
-              } satisfies GameQuestionDataEventPayload,
-              room: game.id,
-              roleFilter: true
-            }
-          ]
-        : [];
-
-      return {
-        success: true,
-        game,
-        broadcasts
-      };
-    }
-
-    let targetPlayerId: number;
-
-    // One player: auto-assign as answerer
-    if (eligiblePlayers.length === 1) {
-      targetPlayerId = eligiblePlayers[0].meta.id;
-    } else {
-      const candidates = eligiblePlayers.filter(
-        (player) => player.meta.id !== secretData.pickerPlayerId
-      );
-
-      const pool = candidates.length > 0 ? candidates : eligiblePlayers;
-      const choiceIndex = Math.floor(Math.random() * pool.length);
-      targetPlayerId = pool[choiceIndex].meta.id;
-    }
-
-    // customPrice: the receiver ran out of time to pick, so the question is
-    // theirs at the lowest price (or a random player's, if they left)
-    const selection = secretData.priceSelection ?? null;
-    if (selection && eligiblePlayers.some((p) => p.meta.id === selection.playerId)) {
-      targetPlayerId = selection.playerId;
-    }
-
-    const price = selection ? Math.min(...selection.allowedPrices) : undefined;
-
-    const questionData = await this.packageStore.getQuestionWithTheme(
-      game.id,
-      secretData.questionId
-    );
-
-    if (!questionData) {
-      return { success: false, broadcasts: [] };
-    }
-
-    // Transition from SECRET_QUESTION_TRANSFER to ANSWERING with the automatic receiver/price.
-    const transitionResult =
-      await this.phaseTransitionRouter.tryTransition<SecretTransferToAnsweringPayload>({
-        game,
-        trigger: TransitionTrigger.TIMER_EXPIRED,
-        triggeredBy: { isSystem: true },
-        payload: price !== undefined ? { targetPlayerId, price } : { targetPlayerId },
-        resources: this.transitionResourceService.fromSimpleQuestion(questionData.question)
-      });
-
-    if (!transitionResult) {
-      this.logger.error("Secret transfer timeout transition failed", {
-        prefix: LogPrefix.TIMER_EXPIRATION,
-        gameId,
-        eligiblePlayers,
-        targetPlayerId
-      });
-
-      return { success: false, broadcasts: [] };
-    }
-
-    await this.gameService.updateGame(game);
-
-    const transferBroadcast: BroadcastEvent =
-      price !== undefined
-        ? ({
-            event: SocketIOGameEvents.SECRET_QUESTION_PRICE,
-            data: { playerId: targetPlayerId, price, questionId: secretData.questionId },
-            room: game.id
-          } satisfies BroadcastEvent<SecretQuestionPriceBroadcastData>)
-        : ({
-            event: SocketIOGameEvents.SECRET_QUESTION_TRANSFER,
-            data: {
-              fromPlayerId: secretData.pickerPlayerId,
-              toPlayerId: targetPlayerId,
-              questionId: secretData.questionId
-            },
-            room: game.id
-          } satisfies BroadcastEvent<SecretQuestionTransferBroadcastData>);
-
-    const broadcasts: BroadcastEvent[] = [transferBroadcast];
-
-    if (transitionResult.timer) {
-      broadcasts.push({
-        event: SocketIOGameEvents.QUESTION_DATA,
-        data: {
-          data: price !== undefined ? { ...questionData.question, price } : questionData.question,
-          timer: transitionResult.timer,
-          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
-          contentPlan: game.gameState.questionContentPlan ?? null,
-          buzzerOpensAtMs: game.gameState.buzzerOpensAtMs ?? null
-        } satisfies GameQuestionDataEventPayload,
-        room: game.id,
-        roleFilter: true
-      });
-    }
-
-    broadcasts.push(...transitionResult.broadcasts);
-
+    const result = await this.secretQuestionService.handleTimeout(game);
     return {
       success: true,
       game,
-      broadcasts,
-      timerMutations: transitionResult.timerMutations
+      broadcasts: result.broadcasts,
+      timerMutations: result.timerMutations,
+      mutations: [DataMutationConverter.saveGameMutation(game), ...result.additionalMutations]
     };
   }
 

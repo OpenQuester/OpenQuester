@@ -1,3 +1,4 @@
+import { getRealPrice } from "domain/logic/question/questionPrices";
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -95,6 +96,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
       pickerPlayerId,
       questionId: question.id!,
       maxPrice: question.maxPrice ?? null,
+      questionPrice: getRealPrice(question),
       bids: {},
       passedPlayers: [],
       biddingOrder,
@@ -109,7 +111,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
     });
 
     let automaticBid: PlayerBidData | null = null;
-    const nominalBidAmount = question.price ?? 1;
+    const nominalBidAmount = Math.max(getRealPrice(question) ?? 1, 1);
 
     // Bid question price automatically if picker score is lower
     if (pickerPlayer && pickerPlayer.score < nominalBidAmount) {
@@ -129,6 +131,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
         pickerPlayerId,
         questionId: question.id!,
         maxPrice: stakeData.maxPrice,
+        questionPrice: stakeData.questionPrice,
         biddingOrder: stakeData.biddingOrder,
         timer: undefined,
         automaticBid
@@ -180,6 +183,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
         pickerPlayerId: data.pickerPlayerId,
         questionId: data.questionId,
         maxPrice: data.maxPrice,
+        questionPrice: data.questionPrice,
         biddingOrder: data.biddingOrder,
         timer: timerResult.timer ?? {
           durationMs: 0,

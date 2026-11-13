@@ -21,7 +21,7 @@ export function projectFinalRoundData(
     bids: visibleBids,
     answers:
       data.phase === FinalRoundPhase.ANSWERING
-        ? data.answers.map((answer) => ({ ...answer, answer: "" }))
+        ? data.answers.map((answer) => ({ ...answer, answer: "", choiceOrder: undefined }))
         : data.answers
   };
 }

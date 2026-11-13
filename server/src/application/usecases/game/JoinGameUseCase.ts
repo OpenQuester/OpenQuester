@@ -1,5 +1,5 @@
+import { projectScriptState } from "domain/mappers/projectScriptState";
 import { QuestionTransitionLogic } from "domain/logic/question/QuestionTransitionLogic";
-import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { UserService } from "application/services/user/UserService";
 import { GameService } from "application/services/game/GameService";
@@ -7,9 +7,7 @@ import { GAME_CHAT_HISTORY_RETRIEVAL_LIMIT } from "domain/constants/game";
 import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { DataMutationType } from "domain/enums/DataMutationType";
-import { projectFinalRoundData } from "domain/mappers/projectFinalRoundData";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
@@ -122,7 +120,7 @@ export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, Gam
         ? await this.gameService.getTimer(game.id, game.gameState.questionState)
         : null;
     const gameJoinData: GameJoinOutputData = {
-      meta: { title: game.title, settings: game.settings },
+      meta: { title: game.title, settings: game.settings, maxPlayers: game.maxPlayers },
       players: game.players.map((p) => p.toDTO()),
       gameState: pausedTimer ? { ...visibleGameState, timer: pausedTimer } : visibleGameState,
       chatMessages
@@ -191,48 +189,6 @@ export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, Gam
     joinedRole: PlayerRole,
     viewerId: number
   ): GameStateDTO {
-    const gameState = game.gameState;
-    const currentRound = this.buildJoinVisibleCurrentRound(gameState, joinedRole);
-    const finalRoundData = projectFinalRoundData(gameState.finalRoundData, viewerId);
-    // Others' stakes and answers stay hidden from players until the review
-    const allPlay =
-      gameState.allPlay && joinedRole !== PlayerRole.SHOWMAN
-        ? AllPlayLogic.hideFromPlayers(gameState.allPlay, gameState.questionState)
-        : gameState.allPlay;
-
-    if (
-      currentRound === gameState.currentRound &&
-      finalRoundData === gameState.finalRoundData &&
-      allPlay === gameState.allPlay
-    ) {
-      return gameState;
-    }
-
-    return {
-      ...gameState,
-      currentRound,
-      finalRoundData,
-      allPlay
-    };
-  }
-
-  private buildJoinVisibleCurrentRound(
-    gameState: GameStateDTO,
-    joinedRole: PlayerRole
-  ): GameStateDTO["currentRound"] {
-    const currentRound = gameState.currentRound;
-    const canSeeFinalRoundQuestions = joinedRole === PlayerRole.SHOWMAN;
-
-    if (currentRound?.type !== PackageRoundType.FINAL || canSeeFinalRoundQuestions) {
-      return currentRound;
-    }
-
-    return {
-      ...currentRound,
-      themes: currentRound.themes.map((theme) => ({
-        ...theme,
-        questions: []
-      }))
-    };
+    return projectScriptState(game, viewerId, joinedRole === PlayerRole.SHOWMAN);
   }
 }

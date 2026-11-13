@@ -1,3 +1,7 @@
+import { getRealPrice, getVisiblePrice } from "domain/logic/question/questionPrices";
+import { answerFormat } from "domain/logic/question/answerFormat";
+import type { SecretRules } from "domain/types/package/SecretRules";
+import type { QuestionScriptDTO } from "domain/types/dto/package/QuestionScriptDTO";
 import { nonEmpty } from "domain/utils/textList";
 import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
@@ -18,14 +22,23 @@ import { PackageQuestionFile } from "infrastructure/database/models/package/Pack
 import { PackageTheme } from "infrastructure/database/models/package/PackageTheme";
 
 export interface PackageQuestionImport {
+  script?: QuestionScriptDTO | null;
   theme: PackageTheme;
   order: number;
+  secretRules?: SecretRules | null;
   price: number | null; // Final round questions have null price - players bid after theme selection
+  realPrice?: number | null;
   type: PackageQuestionType;
   isHidden: boolean;
   text?: string | null;
   textOrder?: number | null;
   textItems?: QuestionTextItemDTO[] | null;
+  textDurationMs?: number | null;
+  textWaitForFinish?: boolean | null;
+  answerDurationMs?: number | null;
+  answerTextItems?: QuestionTextItemDTO[] | null;
+  showmanComments?: string | null;
+  answerExplanation?: string | null;
   playMediaSimultaneously?: boolean | null;
   answerHint?: string | null;
   answerText?: string | null;
@@ -47,11 +60,14 @@ export interface PackageQuestionImport {
   priceMultiplier?: number | null;
   showDelay?: number | null;
   correctChoiceOrder?: number | null;
+  selectSource?: PackageQuestionDTO["selectSource"];
   showAnswerDuration: number;
 }
 
 @Entity("package_question")
 export class PackageQuestion {
+  @Column({ name: "script", type: "jsonb", nullable: true })
+  script?: QuestionScriptDTO | null;
   @PrimaryGeneratedColumn()
   id!: number;
 
@@ -66,6 +82,12 @@ export class PackageQuestion {
 
   @Column({ type: "int", nullable: true }) // Final round questions have null price - players bid after theme selection
   price!: number | null;
+
+  @Column({ name: "real_price", type: "int", nullable: true })
+  realPrice?: number | null;
+
+  @Column({ name: "secret_rules", type: "jsonb", nullable: true })
+  secret_rules?: SecretRules | null;
 
   @Column({ type: "int", default: 5000 })
   show_answer_duration!: number;
@@ -88,6 +110,24 @@ export class PackageQuestion {
 
   @Column({ name: "text_items", type: "jsonb", nullable: true })
   text_items?: QuestionTextItemDTO[] | null;
+
+  @Column({ type: "int", nullable: true })
+  text_duration_ms?: number | null;
+
+  @Column({ type: "boolean", nullable: true })
+  text_wait_for_finish?: boolean | null;
+
+  @Column({ type: "int", nullable: true })
+  answer_duration_ms?: number | null;
+
+  @Column({ type: "jsonb", nullable: true })
+  answer_text_items?: QuestionTextItemDTO[] | null;
+
+  @Column({ type: "text", nullable: true })
+  showman_comments?: string | null;
+
+  @Column({ type: "text", nullable: true })
+  answer_explanation?: string | null;
 
   @Column({ type: "boolean", default: true })
   play_media_simultaneously!: boolean;
@@ -158,21 +198,42 @@ export class PackageQuestion {
   @Column({ name: "correct_choice_order", type: "int", nullable: true })
   correctChoiceOrder?: number | null;
 
+  @Column({ type: "text", array: true, nullable: true })
+  select_source_right_labels?: string[] | null;
+
   @OneToMany(
     () => PackageQuestionChoiceAnswer,
     (answer: PackageQuestionChoiceAnswer) => answer.question
   )
   answers?: PackageQuestionChoiceAnswer[] | null;
 
+  public getVisiblePrice(): number | null {
+    return getVisiblePrice(this);
+  }
+
+  public getRealPrice(): number | null {
+    return getRealPrice(this);
+  }
+
   public import(data: PackageQuestionImport) {
+    this.script = data.script ?? null;
     this.theme = data.theme;
     this.order = data.order;
     this.price = data.price;
+    this.realPrice = data.realPrice ?? null;
+    this.secret_rules =
+      data.type === PackageQuestionType.SECRET ? (data.secretRules ?? null) : null;
     this.type = data.type;
     this.isHidden = data.isHidden;
     this.text = data.text;
     this.text_order = data.textOrder ?? null;
     this.text_items = data.textItems ?? null;
+    this.text_duration_ms = data.textDurationMs ?? null;
+    this.text_wait_for_finish = data.textWaitForFinish ?? null;
+    this.answer_duration_ms = data.answerDurationMs ?? null;
+    this.answer_text_items = data.answerTextItems ?? null;
+    this.showman_comments = data.showmanComments ?? null;
+    this.answer_explanation = data.answerExplanation ?? null;
     this.play_media_simultaneously = data.playMediaSimultaneously ?? true;
     this.answer_hint = data.answerHint;
     this.answer_text = data.answerText;
@@ -195,6 +256,7 @@ export class PackageQuestion {
     this.price_multiplier = data.priceMultiplier;
     this.showDelay = data.showDelay;
     this.correctChoiceOrder = data.correctChoiceOrder ?? null;
+    this.select_source_right_labels = data.selectSource?.rightLabels ?? null;
     this.show_answer_duration = data.showAnswerDuration;
   }
 
@@ -215,18 +277,31 @@ export class PackageQuestion {
         : null;
 
     let dto: PackageQuestionDTO = {
+      script: this.script ?? null,
       type: this.type,
       order: this.order,
       price: this.price,
+      realPrice: this.realPrice ?? null,
+      ...(this.secret_rules ? { secretRules: this.secret_rules } : {}),
       isHidden: this.isHidden,
       text: this.text,
       textOrder: this.text_order ?? null,
       textItems: this.text_items ?? null,
+      textDurationMs: this.text_duration_ms ?? null,
+      textWaitForFinish: this.text_wait_for_finish ?? null,
+      answerDurationMs: this.answer_duration_ms ?? null,
+      answerTextItems: this.answer_text_items ?? this.script?.answerTextItems ?? null,
+      showmanComments: this.showman_comments ?? null,
+      answerExplanation: this.answer_explanation ?? null,
       playMediaSimultaneously: this.play_media_simultaneously ?? true,
       answerHint: this.answer_hint,
       answerText: this.answer_text,
-      ...(this.type === PackageQuestionType.CHOICE && this.correctChoiceOrder != null
+      ...(answerFormat({ type: this.type, answerType: this.answer_type }) === AnswerType.SELECT &&
+      this.correctChoiceOrder != null
         ? { correctChoiceOrder: this.correctChoiceOrder }
+        : {}),
+      ...(opts.includeAuthoringMetadata && this.select_source_right_labels?.length
+        ? { selectSource: { rightLabels: this.select_source_right_labels } }
         : {}),
       answerType: this.answer_type ?? AnswerType.TEXT,
       answerNumber: this.answer_number ?? null,

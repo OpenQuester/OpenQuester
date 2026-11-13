@@ -93,7 +93,40 @@ export class SocketActionDispatcher {
         });
 
         // 1. Validate input
-        const payload = entry.inputValidator ? entry.inputValidator(rawData) : (rawData ?? {});
+        let scriptStep: number | undefined;
+        let scriptQuestionId: number | undefined;
+        let input = rawData;
+        if (
+          rawData &&
+          typeof rawData === "object" &&
+          !Array.isArray(rawData) &&
+          "scriptStep" in rawData
+        ) {
+          const {
+            scriptStep: suppliedStep,
+            scriptQuestionId: suppliedQuestionId,
+            ...rest
+          } = rawData as Record<string, unknown>;
+          if (
+            typeof suppliedQuestionId !== "number" ||
+            !Number.isSafeInteger(suppliedQuestionId) ||
+            suppliedQuestionId <= 0
+          ) {
+            throw new ClientError(ClientResponse.VALIDATION_ERROR);
+          }
+          if (
+            typeof suppliedStep !== "number" ||
+            !Number.isInteger(suppliedStep) ||
+            suppliedStep < 0 ||
+            suppliedStep > 128
+          ) {
+            throw new ClientError(ClientResponse.VALIDATION_ERROR);
+          }
+          scriptQuestionId = suppliedQuestionId;
+          scriptStep = suppliedStep;
+          input = rest;
+        }
+        const payload = entry.inputValidator ? entry.inputValidator(input) : (input ?? {});
 
         // 2. Resolve gameId
         const gameId = await this.resolveGameId(socket, entry, payload);
@@ -114,6 +147,7 @@ export class SocketActionDispatcher {
 
         // 4. Build action
         const action = this.buildAction(socket, entry, payload, gameId);
+        if (scriptStep !== undefined) { action.scriptStep = scriptStep; action.scriptQuestionId = scriptQuestionId; }
 
         // 5. Submit
         await (entry.directExecution

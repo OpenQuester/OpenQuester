@@ -8,19 +8,17 @@ import type { AnswerOutcome } from "@/game/questionFeedback";
 export function PlayerChip({
   player,
   onManage,
-  finalContentPlaying = false,
-  pointWaiting = false,
+  answerWaiting = false,
   outcome,
 }: {
   player: Player;
   onManage?: (playerId: number) => void;
-  finalContentPlaying?: boolean;
-  pointWaiting?: boolean;
+  answerWaiting?: boolean;
   outcome?: AnswerOutcome;
 }) {
   const { t } = useTranslation();
   const session = useSession();
-  const chip = chipState(session, player, t, finalContentPlaying, pointWaiting);
+  const chip = chipState(session, player, t, answerWaiting);
   return (
     <li data-testid="player-chip" data-player={player.meta.username}>
       <PlayerCard player={player} {...chip} outcome={outcome} onManage={onManage} />

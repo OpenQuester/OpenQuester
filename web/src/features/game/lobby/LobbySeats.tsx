@@ -5,7 +5,9 @@ import { lobbyStyles } from "./lobbyStyles";
 
 import type { Player } from "@/game/protocol";
 import { Avatar } from "@/ui/Avatar";
-import { EyeIcon, CloseIcon } from "@/ui/icons";
+import { DoorExitIcon, MoveToSpectatorsIcon } from "@/ui/icons";
+import { Button } from "@/ui/Button";
+import { MAX_GAME_SLOTS, MIN_GAME_SLOTS } from "@/features/create-game/gameSettings";
 import type { LobbyModel } from "./useLobby";
 export function LobbySeats({ lobby }: { lobby: LobbyModel }) {
   const { t } = useTranslation();
@@ -13,15 +15,21 @@ export function LobbySeats({ lobby }: { lobby: LobbyModel }) {
     seated,
     maxPlayers,
     readyCount,
-    activeSeated,
     slots,
     ready,
     myId,
     role,
     takeSlot,
-    hiddenEmpty,
     connection,
+    pending,
   } = lobby;
+  const resizing = pending?.action === "game-settings-change";
+  const removeReason =
+    seated.length >= maxPlayers
+      ? t("lobby.slotsOccupied")
+      : maxPlayers <= MIN_GAME_SLOTS
+        ? t("lobby.minSlots", { min: MIN_GAME_SLOTS })
+        : null;
   return (
     <section aria-labelledby="players-h" className={cn("flex flex-col gap-4", lobbyStyles.panel)}>
       <div className={layoutStyles.spacedActions}>
@@ -33,8 +41,45 @@ export function LobbySeats({ lobby }: { lobby: LobbyModel }) {
         </span>
         <div className="flex-1" />
         <span className="text-sm font-medium text-success" data-testid="ready-count">
-          {t("lobby.readyCount", { count: readyCount, total: activeSeated.length })}
+          {t("lobby.readyCount", { count: readyCount, total: seated.length })}
         </span>
+        {role === "showman" && (
+          <div className="flex flex-wrap gap-2">
+            <span className="group relative">
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-describedby={removeReason ? "remove-slot-reason" : undefined}
+                inactive={!!removeReason}
+                disabled={resizing}
+                onClick={() => {
+                  if (!removeReason)
+                    connection.emit("game-settings-change", { maxPlayers: maxPlayers - 1 });
+                }}
+              >
+                {t("lobby.removeSlot")}
+              </Button>
+              {removeReason && (
+                <span
+                  id="remove-slot-reason"
+                  role="tooltip"
+                  className="pointer-events-none absolute right-0 bottom-full z-10 mb-1 hidden w-max max-w-48 rounded-sm border border-line bg-surface-3 px-2 py-1 text-xs text-text group-focus-within:block group-hover:block"
+                >
+                  {removeReason}
+                </span>
+              )}
+            </span>
+            <Button
+              size="sm"
+              disabled={resizing || maxPlayers >= MAX_GAME_SLOTS}
+              onClick={() =>
+                connection.emit("game-settings-change", { maxPlayers: maxPlayers + 1 })
+              }
+            >
+              {t("lobby.addSlot")}
+            </Button>
+          </div>
+        )}
       </div>
       <ul className={lobbyStyles.seats}>
         {slots.map(({ p, index: i }) =>
@@ -71,9 +116,6 @@ export function LobbySeats({ lobby }: { lobby: LobbyModel }) {
           ),
         )}
       </ul>
-      {hiddenEmpty > 0 && (
-        <p className="m-0 text-sm text-muted">{t("lobby.moreSeats", { count: hiddenEmpty })}</p>
-      )}
     </section>
   );
 }
@@ -93,7 +135,6 @@ function PlayerSlot({
   onSpectate: () => void;
 }) {
   const { t } = useTranslation();
-  const offline = player.status === "disconnected";
   return (
     <li
       className={cn(
@@ -102,19 +143,14 @@ function PlayerSlot({
       )}
       data-testid="lobby-player"
     >
-      <Avatar name={player.meta.username} src={player.meta.avatar} muted={offline} />
+      <Avatar name={player.meta.username} src={player.meta.avatar} />
       <div className={layoutStyles.summaryColumn}>
         <span className="truncate font-semibold">
           {player.meta.username}
           {isMe && <span className="font-normal text-muted"> ({t("common.you")})</span>}
         </span>
-        <span
-          className={cn(
-            "text-[13px]",
-            offline ? "text-danger" : ready ? "text-success" : "text-warning",
-          )}
-        >
-          {offline ? t("lobby.offline") : ready ? t("lobby.ready") : t("lobby.notReady")}
+        <span className={cn("text-[13px]", ready ? "text-success" : "text-warning")}>
+          {t(ready ? "lobby.ready" : "lobby.notReady")}
         </span>
       </div>
       {canManage && (
@@ -126,16 +162,16 @@ function PlayerSlot({
             title={t("lobby.moveToSpectators", { name: player.meta.username })}
             className={cn(lobbyStyles.slotAction, "hover:text-text")}
           >
-            <EyeIcon size={16} />
+            <MoveToSpectatorsIcon size={16} />
           </button>
           <button
             type="button"
             onClick={onKick}
             aria-label={t("lobby.kick", { name: player.meta.username })}
             title={t("lobby.kick", { name: player.meta.username })}
-            className={cn(lobbyStyles.slotAction, "hover:text-danger")}
+            className={cn(lobbyStyles.slotAction, "text-danger hover:bg-danger-surface")}
           >
-            <CloseIcon size={16} />
+            <DoorExitIcon size={16} />
           </button>
         </div>
       )}

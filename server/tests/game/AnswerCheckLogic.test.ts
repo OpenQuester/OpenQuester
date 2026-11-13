@@ -83,3 +83,29 @@ describe("AnswerCheckLogic", () => {
     expect(AnswerCheckLogic.check(question({ answerText: "Paris" }), "Paris")).toBeNull();
   });
 });
+
+// Independent upstream oracle: hypot(a * dx, dy) <= max(.02, d).
+it.each([
+  [2, 2, 0.05, "0.540,0.500", false],
+  [1, 2, 0.05, "0.540,0.500", true],
+  [1, 2, 0.05, "0.500,0.560", false],
+  [0.5, 2, 0.05, "0.590,0.500", true],
+  [2, 0.5, 0, "0.509,0.500", true],
+  [2, 0.5, 0, "0.511,0.500", false],
+  [1, 2, null, "0.530,0.500", false]
+])(
+  "checks imported SIQ aspect %s independently of measured aspect %s (A13�A15)",
+  (sourceAspect, actualAspect, deviation, picked, expected) => {
+    const q = question({
+      answerType: AnswerType.POINT,
+      answerDeviation: deviation,
+      answerPoint: {
+        x: 0.5,
+        y: 0.5,
+        imageAspectRatio: actualAspect,
+        sourceGeometry: { kind: "sigame", aspectRatio: sourceAspect }
+      }
+    });
+    expect(AnswerCheckLogic.check(q, picked)).toBe(expected);
+  }
+);

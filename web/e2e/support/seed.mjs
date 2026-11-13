@@ -221,7 +221,7 @@ export async function seedBigPackage(base, title = "Big board") {
   return { id, title };
 }
 
-/** "Everyone answers" questions: no-risk and stake with subType forEveryone. */
+/** "Everyone answers" questions plus an ordinary automatic number question. */
 export async function seedAllPlayPackage(base, title = "Everyone answers") {
   const cookie = await author(base);
   const res = await fetch(`${base}/v1/packages`, {
@@ -260,6 +260,34 @@ export async function seedAllPlayPackage(base, title = "Everyone answers") {
                     answerType: "number",
                     answerNumber: 1969,
                     answerDeviation: 1,
+                  }),
+                ],
+              },
+              {
+                name: "Normal for everyone",
+                order: 1,
+                questions: [
+                  q(0, 100, "Which planet is known as the red planet?", "Mars", {
+                    subType: "forEveryone",
+                    realPrice: 500,
+                  }),
+                ],
+              },
+              {
+                name: "Normal select",
+                order: 2,
+                questions: [
+                  q(0, 100, "Choose the right option", "Chosen", {
+                    subType: "forEveryone",
+                    realPrice: 500,
+                    answerType: "select",
+                    showDelay: 0,
+                    correctChoiceOrder: 2,
+                    answers: ["Same", "Same", "Chosen"].map((text, order) => ({
+                      order,
+                      text,
+                      sourceLabel: String.fromCharCode(65 + order),
+                    })),
                   }),
                 ],
               },

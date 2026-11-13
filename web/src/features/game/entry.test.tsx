@@ -266,16 +266,19 @@ it("preserves masked join drafts and lets a guest correct local and server passw
   expect(screen.getByRole("alert")).toHaveTextContent("Password is incorrect");
 });
 
-it("retains offline and unnumbered players while limiting empty seat cards", () => {
+it("retains offline and unnumbered players and renders every seat", () => {
   const players = choosing().players.filter((player) => player.role === "player");
   const offline = { ...players[0]!, status: "disconnected" as const, slot: 4 };
   const unnumbered = { ...players[1]!, slot: null };
-  const { slots, hiddenEmpty } = getLobbySeats([offline, unnumbered], 8);
+  const slots = getLobbySeats([offline, unnumbered], 8);
   expect(slots).toEqual([
     { p: unnumbered, index: 0 },
     { p: null, index: 1 },
     { p: null, index: 2 },
+    { p: null, index: 3 },
     { p: offline, index: 4 },
+    { p: null, index: 5 },
+    { p: null, index: 6 },
+    { p: null, index: 7 },
   ]);
-  expect(hiddenEmpty).toBe(4);
 });

@@ -1,3 +1,6 @@
+import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
+import { questionMediaFiles } from "domain/logic/question/questionMediaFiles";
+import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -105,6 +108,12 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
       winnerPlayerId
     };
 
+    if (questionMediaFiles(game.gameState.currentQuestion).length) {
+      game.gameState.mediaDurations = null;
+      MediaDownloadLogic.resetAllPlayerStatus(game);
+      game.setQuestionState(QuestionState.MEDIA_DOWNLOADING);
+    }
+
     return {
       data: {
         winnerPlayerId,
@@ -122,7 +131,10 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     const { game } = ctx;
 
     // Setup answering timer so winner can request to answer
-    const durationMs = QuestionContentPlanLogic.questionTimerDuration(game);
+    const durationMs =
+      game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING
+        ? MEDIA_DOWNLOAD_TIMEOUT
+        : QuestionContentPlanLogic.questionTimerDuration(game);
     const timer = new GameStateTimer(durationMs);
     game.gameState.timer = timer.start();
 
@@ -171,6 +183,7 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
         event: SocketIOGameEvents.QUESTION_DATA,
         data: {
           data: questionPayload,
+          questionState: game.gameState.questionState,
           timer: timerResult.timer,
           questionEligiblePlayers: game.getQuestionEligiblePlayers(),
           contentPlan: game.gameState.questionContentPlan ?? null,

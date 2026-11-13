@@ -1,3 +1,4 @@
+import { getRealPrice } from "domain/logic/question/questionPrices";
 import { singleton } from "tsyringe";
 
 import { GameService } from "application/services/game/GameService";
@@ -93,7 +94,7 @@ export class StakeQuestionService {
       bid,
       stakeData,
       currentPlayer: biddingPlayer.toDTO(),
-      questionPrice: stakeQuestionData.question.price || 1,
+      questionPrice: Math.max(getRealPrice(stakeQuestionData.question) ?? 1, 1),
       allPlayers
     });
 
@@ -162,7 +163,7 @@ export class StakeQuestionService {
       stakeData.questionId
     );
     const stakeQuestion = stakeQuestionData?.question ?? null;
-    const questionPrice = stakeQuestion?.price ?? 0;
+    const questionPrice = stakeQuestion ? (getRealPrice(stakeQuestion) ?? 0) : 0;
 
     const mutationResult: StakeBiddingTimeoutMutationResult =
       StakeBiddingTimeoutLogic.processTimeout(game, questionPrice);

@@ -15,6 +15,7 @@ import {
 } from "./upload";
 import { PackageImportCancelledError } from "./htmlRemoval";
 import { useHtmlRemovalConfirmation } from "./HtmlRemovalDialog";
+import { COMPATIBILITY_NEEDS_REPAIR } from "./siqCompatibility";
 import { useUploadWarning } from "./useUploadWarning";
 
 type Run =
@@ -75,7 +76,9 @@ export function useResumeUpload(id: number) {
             : err instanceof Error
               ? err.message === RESUME_OTHER_SOURCE
                 ? t("upload.readErrors.otherSource")
-                : err.message
+                : err.message === COMPATIBILITY_NEEDS_REPAIR
+                  ? t("upload.errors.compatibilityNeedsRepair")
+                  : err.message
               : String(err),
       });
     }

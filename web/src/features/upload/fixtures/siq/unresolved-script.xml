@@ -1,0 +1,3 @@
+<package name="Unresolved source" version="5"><rounds><round name="Round"><themes><theme name="Theme"><questions>
+<question price="100" type="custom"><script><step><param name="content" type="content"><item type="image" isRef="True">only.png</item></param></step><step type="futureOperation"><param name="mode">unknown</param></step></script><params><param name="answerType">text</param><param name="theme" type="content"><item>Referenced content, not a theme announcement</item><item type="image" isRef="True">only.png</item></param></params></question>
+</questions></theme></themes></round></rounds></package>

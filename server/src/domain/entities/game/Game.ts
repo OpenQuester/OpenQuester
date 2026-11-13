@@ -128,6 +128,36 @@ export class Game {
     this._maxPlayers = maxPlayers;
   }
 
+  /** Keep occupied seats when reducing the lobby size. Fill earlier empty seats as needed. */
+  public resizeLobbySlots(maxPlayers: number): { playerId: number; slot: number }[] {
+    if (this.startedAt !== null) {
+      throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);
+    }
+    const seated = this.getInGamePlayers();
+    if (maxPlayers < this._maxPlayers && maxPlayers < seated.length) {
+      throw new ClientError(ClientResponse.CANNOT_SET_MAX_PLAYERS_BELOW_CURRENT, undefined, {
+        maxPlayers,
+        playersCount: seated.length
+      });
+    }
+    const moved: { playerId: number; slot: number }[] = [];
+    if (maxPlayers < this._maxPlayers) {
+      const used = new Set(seated.map((player) => player.gameSlot));
+      const free = Array.from({ length: maxPlayers }, (_, slot) => slot).filter(
+        (slot) => !used.has(slot)
+      );
+      for (const player of seated) {
+        if (player.gameSlot === null || player.gameSlot >= maxPlayers) {
+          const slot = free.shift()!;
+          player.gameSlot = slot;
+          moved.push({ playerId: player.meta.id, slot });
+        }
+      }
+    }
+    this.maxPlayers = maxPlayers;
+    return moved;
+  }
+
   public get startedAt() {
     return this._startedAt;
   }
@@ -487,6 +517,8 @@ export class Game {
    * Removes current question, timer and sets question state to 'choosing'
    */
   public resetToChoosingState() {
+    this.gameState.scriptProgress = null;
+    this.gameState.scriptView = null;
     this.gameState.currentQuestion = null;
     this.gameState.timer = null;
     this.gameState.answeredPlayers = null;
@@ -496,6 +528,7 @@ export class Game {
     this.gameState.skippedPlayers = null;
     this.gameState.answerShowData = null;
     this.gameState.secretQuestionData = null;
+    this.gameState.secretAward = null;
     this.gameState.stakeQuestionData = null;
     this.gameState.questionEligiblePlayers = null;
     this._mediaEligiblePlayerIds = null;
@@ -699,7 +732,7 @@ export class Game {
   }
 
   private _getPreservedReconnectSlot(existingSlot: number | null | undefined): number | null {
-    if (ValueUtils.isBad(existingSlot)) {
+    if (ValueUtils.isBad(existingSlot) || existingSlot >= this._maxPlayers) {
       return null;
     }
 
