@@ -302,6 +302,54 @@ describe("Showman tools", () => {
     });
   });
 
+  it("resizes lobby slots without dropping an occupied seat", async () => {
+    await suite.scenario(async (scenario) => {
+      const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        3,
+        0
+      );
+      const player = playerSockets[0];
+      await scenario.emitAndWaitForEvent(player, SocketIOGameEvents.PLAYER_SLOT_CHANGE, () =>
+        scenario.actor(player).emit(SocketIOGameEvents.PLAYER_SLOT_CHANGE, { targetSlot: 9 })
+      );
+      const changed = await scenario.emitAndWaitForEvent<GameSettingsChangeEventPayload>(
+        player,
+        SocketIOGameEvents.GAME_SETTINGS_CHANGE,
+        () =>
+          scenario
+            .actor(showmanSocket)
+            .emit(SocketIOGameEvents.GAME_SETTINGS_CHANGE, { maxPlayers: 3 })
+      );
+      expect(changed.maxPlayers).toBe(3);
+      const game = await utils.getGameFromGameService(gameId);
+      expect(game.maxPlayers).toBe(3);
+      expect(
+        game
+          .getInGamePlayers()
+          .map((p) => p.gameSlot)
+          .sort()
+      ).toEqual([0, 1, 2]);
+      expect(changed.playerSlots).toEqual([{ playerId: expect.any(Number), slot: 0 }]);
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOEvents.ERROR, () =>
+        scenario
+          .actor(showmanSocket)
+          .emit(SocketIOGameEvents.GAME_SETTINGS_CHANGE, { maxPlayers: 2 })
+      );
+      await scenario.emitAndWaitForEvent(player, SocketIOEvents.ERROR, () =>
+        scenario.actor(player).emit(SocketIOGameEvents.GAME_SETTINGS_CHANGE, { maxPlayers: 3 })
+      );
+      await utils.startGame(showmanSocket);
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOEvents.ERROR, () =>
+        scenario
+          .actor(showmanSocket)
+          .emit(SocketIOGameEvents.GAME_SETTINGS_CHANGE, { maxPlayers: 3 })
+      );
+      expect((await utils.getGameFromGameService(gameId)).maxPlayers).toBe(3);
+    });
+  });
+
   it("changes the rules mid-game from the next timer on", async () => {
     await suite.scenario(async (scenario) => {
       const { showmanSocket, playerSockets, gameId } = await utils.setupGameTestEnvironment(

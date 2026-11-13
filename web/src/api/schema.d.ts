@@ -4528,6 +4528,8 @@ export interface components {
             /** @example Game title */
             title: string;
             settings: components["schemas"]["GameSettings"];
+            /** @description Current player slot count when joining or reconnecting. */
+            maxPlayers?: number;
         };
         GameState: {
             /**
@@ -6265,9 +6267,19 @@ export interface components {
                 [key: string]: string | number | boolean | null;
             };
         };
-        /** @description game-settings-change: the game's rules after the showman changed them */
+        SocketIOGameSettingsChangeInput: components["schemas"]["GameSettingsInput"] & {
+            /** @description New player slot count, accepted in the lobby only. Occupied seats are kept. */
+            maxPlayers?: number;
+        };
+        /** @description game-settings-change: rules and any updated lobby slot count and seating */
         SocketIOGameSettingsChangeEventPayload: {
             settings: components["schemas"]["GameSettings"];
+            maxPlayers?: number;
+            /** @description Players moved into earlier empty seats. */
+            playerSlots?: {
+                playerId: number;
+                slot: number;
+            }[];
         };
         /** @description buzzer-open (showman only, no input, SHOWING phase): opens the buzzer now instead of when the question finishes. Presses from here on are not false starts and running false-start locks are lifted. Broadcast to everyone with the new opening moment. */
         SocketIOBuzzerOpenEventPayload: {

@@ -97,7 +97,7 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
     gameId,
     title: data.meta.title,
     settings: data.meta.settings ?? null,
-    maxPlayers: null,
+    maxPlayers: data.meta.maxPlayers ?? null,
     players: data.players,
     state,
     // The server sends the history newest first; the chat reads top to bottom.
@@ -907,8 +907,20 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         joinMode: event.payload.joinMode === "open" ? null : event.payload.joinMode,
       });
 
-    case "game-settings-change":
-      return { ...session, settings: event.payload.settings };
+    case "game-settings-change": {
+      const { settings, maxPlayers, playerSlots } = event.payload;
+      return {
+        ...session,
+        settings,
+        maxPlayers: maxPlayers ?? session.maxPlayers,
+        players: playerSlots
+          ? session.players.map((player) => {
+              const moved = playerSlots.find(({ playerId }) => playerId === player.meta.id);
+              return moved ? { ...player, slot: moved.slot } : player;
+            })
+          : session.players,
+      };
+    }
 
     case "games": {
       const { event: kind, data } = event.payload;

@@ -21,6 +21,8 @@ import Joi from "joi";
 import {
   FINAL_ROUND_ANSWER_MAX_LENGTH,
   GAME_ID_CHARACTERS_LENGTH,
+  GAME_MAX_PLAYERS,
+  LOBBY_MIN_PLAYER_SLOTS,
   STAKE_QUESTION_MIN_BID
 } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -175,8 +177,15 @@ export class GameValidator {
   public static validateGameSettingsChange(data: GameSettingsChangeInputData) {
     return this._validate<GameSettingsChangeInputData>(
       data,
-      gameSettingsScheme()
-        .keys({ timers: gameTimerSettingsScheme().min(1).optional() })
+      (gameSettingsScheme() as Joi.ObjectSchema<GameSettingsChangeInputData>)
+        .keys({
+          timers: gameTimerSettingsScheme().min(1).optional(),
+          maxPlayers: Joi.number()
+            .integer()
+            .min(LOBBY_MIN_PLAYER_SLOTS)
+            .max(GAME_MAX_PLAYERS)
+            .optional()
+        })
         .min(1)
         .required()
     );

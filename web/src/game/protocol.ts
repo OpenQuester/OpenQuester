@@ -314,6 +314,7 @@ export interface GameSettings {
 
 /** The showman's change: any subset of the rules and timers (ms). */
 export interface GameSettingsChange {
+  maxPlayers?: number;
   falseStart?: boolean;
   buttonPressMode?: ButtonPressMode;
   wrongAnswerPenalty?: "subtract" | "none";
@@ -417,7 +418,7 @@ export interface ChatMessage {
 }
 
 export interface GameJoinData {
-  meta: { title: string; settings?: GameSettings };
+  meta: { title: string; settings?: GameSettings; maxPlayers?: number };
   players: Player[];
   gameState: GameState;
   chatMessages: ChatMessage[];
@@ -548,7 +549,11 @@ export interface ServerEvents {
   };
   "game-join-mode-change": { joinMode: GameJoinMode };
   /** The showman changed the rules; they apply from the next timer or question. */
-  "game-settings-change": { settings: GameSettings };
+  "game-settings-change": {
+    settings: GameSettings;
+    maxPlayers?: number;
+    playerSlots?: { playerId: number; slot: number }[];
+  };
   /** Not in SERVER_EVENT_NAMES: the connection forwards it with its own listener. */
   games: GameListEvent;
   "stake-question-picked": {

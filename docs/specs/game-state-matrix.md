@@ -241,10 +241,18 @@ Online leave waits for this user's leave or game deletion; errors or a five-seco
 timeout allow retry. Offline/disconnected leave completes locally without rejoin.
 Leaving the last lobby is voluntary. Before returning home, cancel stale catalogue
 reads, remove confirmed deleted/closed games and invalidate all list variants.
-Warning notices are dismissible, expire after 30 seconds and remove only `notice`
-from the URL with history replacement. Reduced motion removes the closing animation.
+Kicked players see the room title and no return offer for that room. Successful
+rejoin clears the local suppression. Warning notices are dismissible, expire after
+30 seconds and clear their own URL parameters with history replacement. Reduced
+motion removes the closing animation.
 
 ### Lobby and question layout
+
+The lobby shows all 2–15 player slots. The showman can change the count before
+the game starts. A reduction keeps connected players, moving a player beyond the
+new limit into an earlier empty slot. Slot changes and joins share the game
+action queue. The `game-data` snapshot carries the current count for new and
+reconnecting clients. The package rounds are collapsed by default.
 
 The React dock keeps a stable height through ordinary question phases, pause and
 reconnect; bids, secret transfers, final and all-play forms size to their content.

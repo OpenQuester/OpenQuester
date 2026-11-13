@@ -10,9 +10,11 @@ export type HomeNoticeReason = "deleted" | "kicked" | "closed";
 
 export function HomeNotice({
   reason,
+  title,
   onDismiss,
 }: {
   reason: HomeNoticeReason;
+  title?: string;
   onDismiss: () => void;
 }) {
   const { t } = useTranslation();
@@ -43,7 +45,11 @@ export function HomeNotice({
           role="status"
           className="flex items-center gap-3 rounded-md border border-warning/40 bg-warning-surface py-2 pl-5 pr-2 text-warning"
         >
-          <span className="min-w-0 flex-1">{t(`home.notice.${reason}`)}</span>
+          <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+            {reason === "kicked" && title
+              ? t("home.notice.kickedFrom", { title })
+              : t(`home.notice.${reason}`)}
+          </span>
           <button
             type="button"
             onClick={() => setClosing(true)}

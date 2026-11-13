@@ -94,7 +94,7 @@
     "settingsChange": {
       "event": "game-settings-change",
       "direction": "both",
-      "inputSchema": "#/components/schemas/GameSettingsInput",
+      "inputSchema": "#/components/schemas/SocketIOGameSettingsChangeInput",
       "payloadSchema": "#/components/schemas/SocketIOGameSettingsChangeEventPayload",
       "description": "The showman changes any subset of the rules and timers mid-game (same limits as on creation; at least one field). Running timers keep their deadline; new values apply from the next timer or question. The round time limit is measured from the start of the current round. The server broadcasts the full new settings and logs the change to the chat."
     },
@@ -6927,6 +6927,10 @@
           },
           "settings": {
             "$ref": "#/components/schemas/GameSettings"
+          },
+          "maxPlayers": {
+            "type": "integer",
+            "description": "Current player slot count when joining or reconnecting."
           }
         },
         "required": [
@@ -11674,12 +11678,45 @@
           "params"
         ]
       },
+      "SocketIOGameSettingsChangeInput": {
+        "allOf": [
+          { "$ref": "#/components/schemas/GameSettingsInput" },
+          {
+            "type": "object",
+            "properties": {
+              "maxPlayers": {
+                "type": "integer",
+                "minimum": 2,
+                "maximum": 15,
+                "description": "New player slot count, accepted in the lobby only. Occupied seats are kept."
+              }
+            }
+          }
+        ]
+      },
       "SocketIOGameSettingsChangeEventPayload": {
         "type": "object",
-        "description": "game-settings-change: the game's rules after the showman changed them",
+        "description": "game-settings-change: rules and any updated lobby slot count and seating",
         "properties": {
           "settings": {
             "$ref": "#/components/schemas/GameSettings"
+          },
+          "maxPlayers": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 15
+          },
+          "playerSlots": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "playerId": { "type": "integer" },
+                "slot": { "type": "integer", "minimum": 0, "maximum": 14 }
+              },
+              "required": ["playerId", "slot"]
+            },
+            "description": "Players moved into earlier empty seats."
           }
         },
         "required": [

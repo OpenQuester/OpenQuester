@@ -14,15 +14,14 @@ export function useLobby() {
   const me = findMe(session, myId);
   const role = me?.role ?? "spectator";
   const host = showman(session);
-  const seated = seatedPlayers(session);
+  const seated = seatedPlayers(session).filter((p) => p.status === "in-game");
   const maxPlayers = session.maxPlayers ?? preview.data?.maxPlayers ?? Math.max(seated.length, 2);
   const ready = new Set(session.state.readyPlayers ?? []);
-  const activeSeated = seated.filter((p) => p.status === "in-game");
-  const readyCount = activeSeated.filter((p) => ready.has(p.meta.id)).length;
+  const readyCount = seated.filter((p) => ready.has(p.meta.id)).length;
   const meReady = ready.has(myId);
   const autoStart = session.settings?.autoStart ?? preview.data?.settings?.autoStart ?? true;
   const freeSlots = Math.max(0, maxPlayers - seated.length);
-  const { slots, hiddenEmpty } = getLobbySeats(seated, maxPlayers);
+  const slots = getLobbySeats(seated, maxPlayers);
   const takeSlot = (slot: number) => {
     if (role === "player") connection.emit("player-slot-change", { targetSlot: slot });
     else connection.takeSeat(slot);
@@ -41,13 +40,11 @@ export function useLobby() {
     seated,
     maxPlayers,
     ready,
-    activeSeated,
     readyCount,
     meReady,
     autoStart,
     freeSlots,
     slots,
-    hiddenEmpty,
     takeSlot,
   };
 }

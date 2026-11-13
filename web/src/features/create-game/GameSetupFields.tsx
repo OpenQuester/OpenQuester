@@ -1,11 +1,11 @@
 import { layoutStyles } from "@/ui/layoutStyles";
 import { useTranslation } from "react-i18next";
-import type { AgeRestriction } from "@/api/types";
-import { Label, Select, TextInput } from "@/ui/Field";
+import { Label, TextInput } from "@/ui/Field";
 import { RadioButton } from "@/ui/RadioButton";
 import { createGameStyles } from "./createGameStyles";
 import { PasswordInput } from "@/ui/PasswordInput";
 import type { CreateGameForm } from "./useCreateGame";
+import { MAX_GAME_SLOTS, MIN_GAME_SLOTS } from "./gameSettings";
 
 export function GameSetupFields({ form }: { form: CreateGameForm }) {
   const { t } = useTranslation();
@@ -37,26 +37,30 @@ export function GameSetupFields({ form }: { form: CreateGameForm }) {
       <div className="flex flex-wrap gap-4">
         <div className={createGameStyles.setupField}>
           <Label htmlFor="g-max">{t("create.players")}</Label>
-          <Select
+          <TextInput
             id="g-max"
+            type="number"
+            min={MIN_GAME_SLOTS}
+            max={MAX_GAME_SLOTS}
+            aria-describedby="g-max-help"
             value={maxPlayers}
-            onChange={(e) => setMaxPlayers(Number(e.target.value))}
-          >
-            {Array.from({ length: 14 }, (_, i) => i + 2).map((n) => (
-              <option key={n} value={n}>
-                {t("create.upTo", { count: n })}
-              </option>
-            ))}
-          </Select>
+            onChange={(e) => setMaxPlayers(e.target.value)}
+          />
+          <span id="g-max-help" className="text-sm text-muted">
+            {MIN_GAME_SLOTS}–{MAX_GAME_SLOTS}
+          </span>
         </div>
         <div className={createGameStyles.setupField}>
-          <Label htmlFor="g-age">{t("create.age")}</Label>
-          <Select id="g-age" value={age} onChange={(e) => setAge(e.target.value as AgeRestriction)}>
-            <option value="NONE">{t("create.ageNone")}</option>
-            <option value="A12">12+</option>
-            <option value="A16">16+</option>
-            <option value="A18">18+</option>
-          </Select>
+          <span id="g-age" className="text-[15px] font-semibold">
+            {t("create.age")}
+          </span>
+          <div role="radiogroup" aria-labelledby="g-age" className="flex flex-wrap gap-1.5">
+            {(["NONE", "A12", "A16", "A18"] as const).map((rating) => (
+              <RadioButton key={rating} checked={age === rating} onClick={() => setAge(rating)}>
+                {rating === "NONE" ? t("create.ageNone") : `${rating.slice(1)}+`}
+              </RadioButton>
+            ))}
+          </div>
         </div>
       </div>
       <fieldset className={layoutStyles.optionGroup}>

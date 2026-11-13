@@ -13,13 +13,11 @@ export const lobbyStyles = {
   header: "mx-auto flex max-w-[1240px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6",
   codeBadge: "rounded-sm bg-surface-2 px-3 py-1.5 text-sm text-muted",
   content:
-    "mx-auto flex w-full max-w-[1240px] flex-1 flex-wrap items-start gap-6 px-4 pb-16 pt-6 sm:px-6 sm:pt-8",
-  phase: "m-0 text-sm font-semibold uppercase tracking-[0.08em] text-muted",
-  metadata: "flex flex-wrap items-center gap-x-3 gap-y-1 text-muted",
+    "mx-auto flex w-full max-w-[1240px] flex-1 flex-wrap items-start gap-5 px-4 py-6 sm:px-6",
   seats: "m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(220px,100%),1fr))] gap-3 p-0",
   seat,
   emptySeat: `${seat} w-full border-dashed border-line-strong bg-transparent text-left text-muted enabled:hover:border-info disabled:cursor-default`,
   emptyAvatar:
     "inline-flex h-11 w-11 items-center justify-center rounded-full bg-avatar font-semibold",
-  mainColumn: "flex min-w-0 flex-[999_1_560px] flex-col gap-6",
+  mainColumn: "flex min-w-0 flex-[999_1_560px] flex-col gap-5",
 } as const;

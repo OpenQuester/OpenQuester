@@ -155,9 +155,17 @@ export class GameSettingsChangeUseCase implements GameActionHandler<
     ctx: ActionExecutionContext<GameSettingsChangeInputData>
   ): Promise<ActionHandlerResult<GameSettingsChangeEventPayload>> {
     const game = requireShowman(ctx);
-    game.settings = GameSettingsLogic.merge(game.settings, ctx.action.payload);
+    const { maxPlayers, ...settings } = ctx.action.payload;
+    const playerSlots = maxPlayers === undefined ? [] : game.resizeLobbySlots(maxPlayers);
+    if (Object.keys(settings).length > 0) {
+      game.settings = GameSettingsLogic.merge(game.settings, settings);
+    }
 
-    const data: GameSettingsChangeEventPayload = { settings: game.settings };
+    const data: GameSettingsChangeEventPayload = {
+      settings: game.settings,
+      ...(maxPlayers === undefined ? {} : { maxPlayers }),
+      ...(playerSlots.length ? { playerSlots } : {})
+    };
 
     return {
       success: true,

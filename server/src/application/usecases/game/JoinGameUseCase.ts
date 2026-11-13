@@ -120,7 +120,7 @@ export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, Gam
         ? await this.gameService.getTimer(game.id, game.gameState.questionState)
         : null;
     const gameJoinData: GameJoinOutputData = {
-      meta: { title: game.title, settings: game.settings },
+      meta: { title: game.title, settings: game.settings, maxPlayers: game.maxPlayers },
       players: game.players.map((p) => p.toDTO()),
       gameState: pausedTimer ? { ...visibleGameState, timer: pausedTimer } : visibleGameState,
       chatMessages

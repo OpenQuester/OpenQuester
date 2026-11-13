@@ -62,7 +62,9 @@ export async function hostGame(
   await page.goto(`/games/new?packageId=${options.packageId ?? packageId()}`);
   await page.getByLabel("Game name").fill(title);
   if (options.maxPlayers)
-    await page.getByLabel("Players", { exact: true }).selectOption(String(options.maxPlayers));
+    await page.getByRole("spinbutton", { name: "Players" }).fill(String(options.maxPlayers));
+  if (options.falseStarts === false || options.fastestPress)
+    await page.getByRole("tab", { name: "Rules" }).click();
   if (options.falseStarts === false) await page.getByLabel("False starts").uncheck();
   if (options.fastestPress) await page.getByRole("radio", { name: "Fastest press" }).click();
   await page.getByRole("button", { name: "Create & open lobby" }).click();

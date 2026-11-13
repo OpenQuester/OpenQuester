@@ -64,7 +64,6 @@ export class GameConnection {
   }
 
   connect(): void {
-    forgetLeftGame(this.gameId);
     // React StrictMode mounts, unmounts and remounts: a closed connection must
     // be able to start over.
     this.closed = false;
@@ -265,7 +264,10 @@ export class GameConnection {
 
   private onServerEvent(event: ServerEvent): void {
     const store = useGameStore.getState();
-    if (event.type === "game-data") store.setConnection("connected");
+    if (event.type === "game-data") {
+      forgetLeftGame(this.gameId);
+      store.setConnection("connected");
+    }
 
     const before = store.session;
     store.dispatch(event);

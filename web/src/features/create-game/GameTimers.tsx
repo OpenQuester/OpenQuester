@@ -13,13 +13,15 @@ export function GameTimers({
   value,
   onChange,
   idPrefix = "g",
+  expanded = false,
 }: {
   value: GameSettings;
   onChange: (next: GameSettings) => void;
   idPrefix?: string;
+  expanded?: boolean;
 }) {
   const { t } = useTranslation();
-  return (
+  const fields = (
     <>
       <div className={createGameStyles.field}>
         <Label htmlFor={`${idPrefix}-round`}>{t("create.rules.roundLimit")}</Label>
@@ -41,32 +43,37 @@ export function GameTimers({
         </Select>
         <p className="m-0 text-sm text-muted">{t("create.rules.roundLimitHelp")}</p>
       </div>
-      <details className="rounded-md border border-line p-4">
-        <summary className="cursor-pointer font-semibold">{t("create.rules.timers")}</summary>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {(Object.keys(TIMER_CHOICES) as (keyof typeof TIMER_CHOICES)[]).map((key) => (
-            <div key={key} className={createGameStyles.field}>
-              <Label htmlFor={`${idPrefix}-timer-${key}`}>{t(`create.rules.timer.${key}`)}</Label>
-              <Select
-                id={`${idPrefix}-timer-${key}`}
-                value={value.timers[key] / 1000}
-                onChange={(e) =>
-                  onChange({
-                    ...value,
-                    timers: { ...value.timers, [key]: Math.round(Number(e.target.value) * 1000) },
-                  })
-                }
-              >
-                {withCurrent(TIMER_CHOICES[key], value.timers[key] / 1000).map((sec) => (
-                  <option key={sec} value={sec}>
-                    {t("create.rules.seconds", { count: sec })}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          ))}
-        </div>
-      </details>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {(Object.keys(TIMER_CHOICES) as (keyof typeof TIMER_CHOICES)[]).map((key) => (
+          <div key={key} className={createGameStyles.field}>
+            <Label htmlFor={`${idPrefix}-timer-${key}`}>{t(`create.rules.timer.${key}`)}</Label>
+            <Select
+              id={`${idPrefix}-timer-${key}`}
+              value={value.timers[key] / 1000}
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  timers: { ...value.timers, [key]: Math.round(Number(e.target.value) * 1000) },
+                })
+              }
+            >
+              {withCurrent(TIMER_CHOICES[key], value.timers[key] / 1000).map((sec) => (
+                <option key={sec} value={sec}>
+                  {t("create.rules.seconds", { count: sec })}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ))}
+      </div>
     </>
+  );
+  return expanded ? (
+    fields
+  ) : (
+    <details className="rounded-md border border-line p-4">
+      <summary className="cursor-pointer font-semibold">{t("create.rules.timers")}</summary>
+      <div className="mt-4 grid gap-4">{fields}</div>
+    </details>
   );
 }

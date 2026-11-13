@@ -86,7 +86,8 @@
     "loadFailed": "Couldn't load games. Check your connection and try again.",
     "hideRejoin": "Hide",
     "notice": {
-      "kicked": "You were removed from the game.",
+      "kicked": "You were kicked from the game.",
+      "kickedFrom": "You were kicked from “{{title}}”.",
       "deleted": "The showman deleted the game.",
       "closed": "A moderator closed the game."
     }
@@ -160,7 +161,9 @@
     "age": "Age rating",
     "ageNone": "Everyone",
     "whoCanJoin": "Who can join",
-    "public": "Anyone with the link",
+    "public": "Public",
+    "playerRange": "Enter a whole number from {{min}} to {{max}}.",
+    "tabs": { "general": "General", "rules": "Rules", "timers": "Timers" },
     "private": "Password",
     "password": "Password",
     "passwordPlaceholder": "Leave empty to generate one",
@@ -300,7 +303,11 @@
   "lobby": {
     "leave": "Leave lobby",
     "youAre": "You are",
-    "kicker": "Lobby · waiting for players",
+    "waitingPlayers": "Waiting for players",
+    "addSlot": "Add slot",
+    "removeSlot": "Remove slot",
+    "slotsOccupied": "All slots are occupied.",
+    "minSlots": "At least {{min}} slots are required.",
     "players": "Players",
     "readyCount": "{{count}} of {{total}} ready",
     "openSlot": "Open slot",
@@ -319,7 +326,7 @@
     "readyUndo": "✓ Ready — click to undo",
     "readyHelp": "The game starts when every connected player is ready. The showman can also start it earlier.",
     "waitingForHost": "Waiting for {{name}} to start · {{ready}} of {{total}} ready.",
-    "watchInstead": "Watch instead",
+    "watchInstead": "Become a spectator",
     "youreWatching": "You're watching",
     "spectatorHelp": "Take a free seat to play. You can switch back any time before the game starts.",
     "noSeats": "All seats are taken. A seat may free up before the start.",
