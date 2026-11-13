@@ -56,6 +56,8 @@ const question = (): PackageQuestionDTO => ({
 describe("authored question content and answer windows", () => {
   it("retains ordered text/blank/private steps while exposing no private speech or future answer", () => {
     const q = question();
+    q.textWaitForFinish = false;
+    q.textItems![0].waitForFinish = false;
     const safe = GameQuestionMapper.mapToSimpleQuestion(q);
     const fullPlan = QuestionContentPlanLogic.build(q);
     expect(QuestionContentPlanLogic.build(safe)).toEqual(fullPlan);
@@ -66,6 +68,7 @@ describe("authored question content and answer windows", () => {
       order: 1,
       text: "",
       placement: "replic",
+      waitForFinish: false,
       durationMs: 2000
     });
     expect(fullPlan?.steps.map((step) => step.durationMs)).toEqual([3000, 2000, 1000]);

@@ -4,9 +4,14 @@
     0 0 0 4px var(--oq-scrim),
     inset 0 0 0 1px var(--oq-scrim);
 }
+.point-target-editor {
+  border-color: black;
+  box-shadow: none;
+}
 /* Match the selected point's two-second pulse without moving the answer geometry. */
 @media (prefers-reduced-motion: no-preference) {
   .game-screen .point-target,
+  .point-target-editor,
   .game-screen [data-testid="point-answer-dot"] {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }

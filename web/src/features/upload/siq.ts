@@ -278,7 +278,6 @@ class SiqReader {
       text: body.text,
       textOrder: body.textOrder,
       textDurationMs: body.textDurationMs,
-      textWaitForFinish: body.textWaitForFinish,
       answerTextItems: body.answerTextItems,
       answerDurationMs: body.answerDurationMs,
       showmanComments: child(child(q, "info"), "showmanComments")?.textContent?.trim() || null,
@@ -446,7 +445,7 @@ class SiqReader {
     return base;
   }
 
-  /** Preserve every script content occurrence, including private replic and timed blank steps. */
+  /** Preserve the order and duration of script content, including timed blank steps. */
   private readScriptContent(content: Element, where: string) {
     const textItems: NonNullable<UploadQuestion["textItems"]> = [];
     const questionFiles: QuestionFile[] = [];
@@ -471,8 +470,7 @@ class SiqReader {
           order,
           text: value,
           durationMs: durationMs ?? (!value ? 2000 : null),
-          waitForFinish,
-          placement: kind === "say" || placement === "replic" ? "replic" : "screen",
+          placement: "screen",
         });
       } else {
         const media = mediaType(kind);
@@ -583,7 +581,6 @@ class SiqReader {
       text: asked.text,
       textOrder: asked.textOrder,
       textDurationMs: asked.textDurationMs,
-      textWaitForFinish: asked.textWaitForFinish,
       textItems: asked.textItems,
       questionFiles: asked.files,
       answerFiles: shown.files,
@@ -652,7 +649,6 @@ class SiqReader {
       text: q.text,
       textOrder: q.textOrder,
       textDurationMs: q.textDurationMs,
-      textWaitForFinish: q.textWaitForFinish,
       textItems: q.textItems,
       questionFiles: q.files,
       answerFiles: a.files,
@@ -769,7 +765,7 @@ function mediaType(kind: string): MediaType | null {
   return null;
 }
 
-/** Keep source occurrences in one order space, including blank screen clears and private pauses. */
+/** Keep source occurrences in one order space, including blank screen clears. */
 function toSequence(entries: ContentEntry[]) {
   const files: QuestionFile[] = [];
   const occurrences: { sourceIndex: number; order: number; kind: string }[] = [];
@@ -792,24 +788,17 @@ function toSequence(entries: ContentEntry[]) {
         order,
         text: entry.value ?? "",
         durationMs: entry.durationMs ?? (!entry.value?.trim() ? 2000 : null),
-        waitForFinish: entry.waitForFinish,
-        placement: entry.kind === "said" ? "replic" : "screen",
+        placement: "screen",
       });
     }
   }
-  const main = allTextItems.find((item) => item.placement === "screen" && item.text.trim());
-  const caption =
-    main?.durationMs == null &&
-    ((entries.length === 1 && main?.waitForFinish !== false) ||
-      (main?.order === 0 &&
-        main.waitForFinish === false &&
-        files.length > 0 &&
-        allTextItems.filter((item) => item.placement === "screen").length === 1));
+  const main = allTextItems.find(
+    (item) => entries[item.order]?.kind === "text" && item.text.trim(),
+  );
   return {
     text: main?.text ?? null,
-    textOrder: main && !caption ? main.order : null,
+    textOrder: main?.order ?? null,
     textDurationMs: main?.durationMs ?? null,
-    textWaitForFinish: main?.waitForFinish ?? null,
     textItems: allTextItems.filter((item) => item !== main),
     allTextItems,
     files,
@@ -864,15 +853,16 @@ function siqGroupSizes(question: Element) {
     if (group) groups[phase].push(group);
     group = null;
   };
+  const script = child(question, "script");
   const count = (item: Element, waits: boolean) => {
     const type = item.getAttribute("type") ?? "text";
     const media = mediaType(type);
+    const isText = type === "text" || type === "say";
     group ??= { files: 0, visuals: 0 };
-    if (media || (type !== "text" && type !== "say")) group.files++;
+    if (media || (!script && !isText)) group.files++;
     if (media === "image" || media === "video") group.visuals++;
-    if (waits) close();
+    if (waits || isText) close();
   };
-  const script = child(question, "script");
   if (script) {
     const byName = (parent: Element | null, name: string) =>
       [...children(parent, "param")].find((item) => item.getAttribute("name") === name) ?? null;
@@ -891,11 +881,7 @@ function siqGroupSizes(question: Element) {
       if (!source && byName(step, "fallbackRefId")?.textContent?.trim() === "right")
         groups[phase].push({ files: 0, visuals: 0 });
       for (const item of children(source, "item")) {
-        const media = mediaType(item.getAttribute("type") ?? "text");
-        group ??= { files: 0, visuals: 0 };
-        if (media) group.files++;
-        if (media === "image" || media === "video") group.visuals++;
-        if (item.getAttribute("waitForFinish")?.toLowerCase() !== "false") close();
+        count(item, item.getAttribute("waitForFinish")?.toLowerCase() !== "false");
       }
       close();
     }

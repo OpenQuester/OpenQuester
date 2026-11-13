@@ -490,10 +490,7 @@ export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean
         : text != null || textDurationMs != null),
   );
   const mainIndex = steps.findIndex((step) => step.kind === "main");
-  const textStep =
-    mainIndex >= 0 && (q.mainTextFirst || q.questionFiles.length || (q.textItems?.length ?? 0) > 0)
-      ? mainIndex
-      : null;
+  const textStep = mainIndex >= 0 ? mainIndex : null;
   const questionFiles = steps.flatMap((step, index) =>
     step.kind === "media"
       ? [
@@ -516,9 +513,6 @@ export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean
                   ...(step.item.durationMs === undefined
                     ? {}
                     : { durationMs: step.item.durationMs }),
-                  ...(step.item.waitForFinish === undefined
-                    ? {}
-                    : { waitForFinish: step.item.waitForFinish }),
                   ...(step.item.placement === undefined ? {} : { placement: step.item.placement }),
                 },
               ]
@@ -538,7 +532,6 @@ export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean
     text,
     textOrder: textStep,
     textDurationMs,
-    textWaitForFinish: scriptWithoutMain ? null : q.textWaitForFinish,
     answerDurationMs: q.answerDurationMs,
     showmanComments: q.showmanComments,
     answerExplanation: q.answerExplanation,
@@ -580,7 +573,6 @@ export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean
                     order: q.script ? (step.item.scriptOrder ?? order) : order,
                     text: step.item.text,
                     durationMs: step.item.durationMs,
-                    waitForFinish: step.item.waitForFinish,
                     placement: step.item.placement,
                   },
                 ]

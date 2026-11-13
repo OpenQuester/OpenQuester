@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
-import { inputClass } from "@/ui/Field";
+import { Select } from "@/ui/Field";
 import { PREVIEW_PLAYERS, PREVIEW_SHOWMAN, PREVIEW_SPECTATORS } from "./previewModel";
 
 interface Props {
@@ -41,8 +41,7 @@ export function PlaytestControls(props: Props) {
         >
           <label className="flex items-center gap-2 whitespace-nowrap text-sm">
             {t("editor.playtest.perspective")}
-            <select
-              className={inputClass}
+            <Select
               value={perspective}
               onChange={(e) => props.onPerspective(Number(e.target.value))}
             >
@@ -53,7 +52,7 @@ export function PlaytestControls(props: Props) {
               ))}
               <option value={PREVIEW_SHOWMAN}>{t("editor.playtest.showman")}</option>
               <option value={PREVIEW_SPECTATORS[0]}>{t("editor.playtest.spectator")}</option>
-            </select>
+            </Select>
           </label>
         </div>
         <div className="flex flex-wrap items-end gap-2">

@@ -371,11 +371,14 @@ export function readSiqScript(
             const resolved = resolve(option);
             const first = child(resolved, "item");
             if (!first) fail("empty option");
+            if (
+              first?.getAttribute("placement") === "replic" ||
+              first?.getAttribute("type") === "say"
+            )
+              fail("private replic cannot be a select option");
             const wrapper = source.ownerDocument.createElement("param");
             wrapper.append(first!.cloneNode(true));
             const parsed = readContent(wrapper);
-            if (parsed.textItems[0]?.placement === "replic")
-              fail("private replic cannot be a select option");
             const file = parsed.questionFiles[0]?.file ?? null;
             const text = parsed.textItems[0]?.text ?? null;
             if (!file && !text) fail("unavailable option content");

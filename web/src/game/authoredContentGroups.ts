@@ -16,7 +16,7 @@ export function isVisual({ file }: Pick<QuestionFile, "file">) {
   return file.type === "image" || file.type === "video";
 }
 
-/** The same order and wait flags determine authored groups in the editor and game. */
+/** Text always closes a group. Only media can opt out of waiting. */
 export function authoredContentGroups<T extends Pick<QuestionFile, "order" | "waitForFinish">>(
   source: AuthoredContentSource<T>,
 ) {
@@ -27,7 +27,6 @@ export function authoredContentGroups<T extends Pick<QuestionFile, "order" | "wa
             order: source.textOrder,
             text: source.text ?? "",
             durationMs: source.textDurationMs,
-            waitForFinish: source.textWaitForFinish ?? true,
           },
         ]
       : []),
@@ -43,7 +42,7 @@ export function authoredContentGroups<T extends Pick<QuestionFile, "order" | "wa
   let group: typeof entries = [];
   for (const entry of entries) {
     group.push(entry);
-    if (("media" in entry ? entry.media.waitForFinish : entry.waitForFinish) !== false) {
+    if (!("media" in entry) || entry.media.waitForFinish !== false) {
       groups.push(group);
       group = [];
     }

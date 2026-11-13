@@ -28,7 +28,7 @@ it("offers one actual-price field for fixed secret prices and none for price cho
   setup(newQuestion(100, { type: "secret", realPrice: 0 }));
   const user = userEvent.setup();
   const mode = screen.getByLabelText("Secret price rule");
-  const label = "Actual price (optional)";
+  const label = "Actual price";
   expect(screen.getByLabelText(label)).toHaveValue("0");
 
   await user.selectOptions(mode, "fixed");
@@ -412,7 +412,7 @@ it("keeps a fractional media duration while typing and clears the point target w
 
 it("keeps incomplete reveal input and permits only durations from 2 to 30 seconds", async () => {
   const { store } = setup(newQuestion(100));
-  const input = screen.getByLabelText("Answer reveal duration");
+  const input = screen.getByRole("textbox", { name: "Answer reveal duration" });
   const save = screen.getByTestId("question-save");
   input.focus();
   fireEvent.change(input, { target: { value: "" } });
@@ -429,11 +429,8 @@ it("keeps incomplete reveal input and permits only durations from 2 to 30 second
   expect(input).toHaveAccessibleDescription("Enter a duration from 2 to 30 seconds.");
   fireEvent.change(input, { target: { value: "2" } });
   expect(save).toBeEnabled();
-  expect(screen.getByText("Enter a duration from 2 to 30 seconds.")).not.toHaveAttribute(
-    "role",
-    "alert",
-  );
-  expect(input).toHaveAccessibleDescription("Enter a duration from 2 to 30 seconds.");
+  expect(screen.queryByText("Enter a duration from 2 to 30 seconds.")).toBeNull();
+  expect(input).not.toHaveAccessibleDescription();
   fireEvent.change(input, { target: { value: "30" } });
   expect(save).toBeEnabled();
   fireEvent.change(input, { target: { value: "30.1" } });
@@ -467,7 +464,7 @@ it("hides numeric text fields while retaining their draft values across save and
   expect(document.querySelector("#qf-answer")).toBeNull();
   expect(document.querySelector("#qf-wrong")).toBeNull();
   expect(document.querySelector("#qf-hint")).toHaveValue("Hint");
-  await user.type(screen.getByLabelText("Right number"), "0");
+  await user.type(screen.getByRole("textbox", { name: "Right number" }), "0");
   await user.click(screen.getByTestId("question-save"));
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]).toMatchObject({
     answerType: "number",
@@ -482,7 +479,7 @@ it("hides numeric text fields while retaining their draft values across save and
   expect(document.querySelector("#qf-answer")).toHaveValue("Original\nAnother");
   expect(document.querySelector("#qf-wrong")).toHaveValue("Wrong");
   await user.selectOptions(screen.getByLabelText("How players answer"), "number");
-  expect(screen.getByLabelText("Right number")).toHaveValue("0");
+  expect(screen.getByRole("textbox", { name: "Right number" })).toHaveValue("0");
 });
 
 it("maps the point slider to the larger image dimension without rewriting a legacy radius", async () => {
@@ -557,7 +554,7 @@ it("returns focus to the invalid number target when the preview cannot run", asy
   const preview = await screen.findByRole("dialog", { name: "Interactive game preview" });
   expect(await within(preview).findByRole("alert")).toHaveTextContent(/number/i);
   await userEvent.click(within(preview).getByRole("button", { name: "Return to editing" }));
-  await waitFor(() => expect(screen.getByLabelText("Right number")).toHaveFocus());
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "Right number" })).toHaveFocus());
 });
 
 it("returns focus to a correct-choice radio after deleting the selected option", async () => {
@@ -606,7 +603,7 @@ it("returns focus to Add option when a choice repair has no options", async () =
 
 it("does not rewrite an imported reveal duration merely by opening the question", () => {
   const { store } = setup(newQuestion(100, { showAnswerDuration: 1234 }));
-  expect(screen.getByLabelText("Answer reveal duration")).toHaveValue("1.234");
+  expect(screen.getByRole("textbox", { name: "Answer reveal duration" })).toHaveValue("1.234");
   expect(screen.getByTestId("question-save")).toBeDisabled();
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.showAnswerDuration).toBe(1234);
 });
@@ -617,7 +614,7 @@ it("keeps a legacy reveal duration while answer media controls the timeline, the
     answerFiles: [{ md5: "missing", type: "image", displayTime: 5000 }],
   });
   const { store } = setup(q);
-  const duration = screen.getByLabelText("Answer reveal duration");
+  const duration = screen.getByRole("textbox", { name: "Answer reveal duration" });
   expect(duration).toBeDisabled();
   expect(duration).not.toHaveAttribute("aria-invalid", "true");
   expect(duration).toHaveAccessibleDescription(
@@ -629,8 +626,11 @@ it("keeps a legacy reveal duration while answer media controls the timeline, the
   expect(store.getState().pkg.rounds[0]!.themes[0]!.questions[0]!.showAnswerDuration).toBe(60_000);
   act(() => store.getState().edit(q.id));
   await userEvent.click(screen.getByRole("button", { name: "Remove file" }));
-  expect(screen.getByLabelText("Answer reveal duration")).toBeEnabled();
-  expect(screen.getByLabelText("Answer reveal duration")).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByRole("textbox", { name: "Answer reveal duration" })).toBeEnabled();
+  expect(screen.getByRole("textbox", { name: "Answer reveal duration" })).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
   expect(screen.getByTestId("question-save")).toBeDisabled();
   expect(screen.getByRole("alert")).toHaveTextContent("2 to 30 seconds");
 });
@@ -969,11 +969,64 @@ it("saves an added main prompt before media in a legacy media-only final", async
   expect(saved.questionFiles?.[0]?.order).toBe(1);
 });
 
+it("saves an explicit display duration for a legacy caption and leaves final price controls absent", async () => {
+  const { store } = setup(
+    newQuestion(null, {
+      text: "Legacy caption",
+      textPosition: null,
+      mainTextFirst: undefined,
+      textItems: [{ id: "clue", order: 0, text: "Second clue" }],
+      questionFiles: [{ md5: "image", type: "image", displayTime: 5000 }],
+    }),
+    true,
+    true,
+  );
+  expect(screen.queryByRole("textbox", { name: "Price" })).toBeNull();
+  expect(screen.queryByRole("checkbox", { name: "Everyone answers" })).toBeNull();
+  await userEvent.type(screen.getByLabelText("Text display time"), "2.5");
+  await userEvent.type(screen.getByLabelText("Time to answer"), "12,5");
+  await userEvent.click(screen.getByTestId("question-save"));
+  const saved = toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]!;
+  expect(saved).toMatchObject({ textOrder: 0, textDurationMs: 2500, answerDurationMs: 12500 });
+  expect(saved.textItems?.[0]?.order).toBe(1);
+  expect(saved.questionFiles?.[0]?.order).toBe(2);
+});
+
+it("keeps an imported script intact when editing its board price", async () => {
+  const script = {
+    version: 1,
+    steps: [
+      { op: "showContent", phase: "question", orders: [0] },
+      { op: "setAnswerType", answerType: "number" },
+      { op: "askAnswer", mode: "direct", durationMs: 15000 },
+    ],
+  } satisfies NonNullable<DraftQuestion["script"]>;
+  const { store } = setup(
+    newQuestion(100, {
+      script,
+      textItems: [
+        { id: "prompt", order: 0, scriptOrder: 0, text: "First number", durationMs: 1000 },
+      ],
+      answerNumber: 42,
+    }),
+  );
+  expect(screen.queryByLabelText("Time to answer")).toBeNull();
+  expect(screen.queryByRole("checkbox")).toBeNull();
+  const price = screen.getByRole("textbox", { name: "Price" });
+  await userEvent.clear(price);
+  await userEvent.type(price, "200");
+  await userEvent.click(screen.getByTestId("question-save"));
+  expect(toUpload(store.getState().pkg).rounds[0]!.themes[0]!.questions[0]).toMatchObject({
+    price: 200,
+    script,
+  });
+});
+
 it("saves decimal answers and tolerance while keeping prices and bids integral", async () => {
   const { store } = setup(
     newQuestion(100, { type: "stake", answerType: "number", answerDelay: 7250 }),
   );
-  expect(screen.getByLabelText(/Answer window/i)).toHaveValue("");
+  expect(screen.getByLabelText("Time to answer")).toHaveValue("");
   const user = userEvent.setup();
   for (const [label, value] of [
     ["Right number", "3.14"],
@@ -981,7 +1034,7 @@ it("saves decimal answers and tolerance while keeping prices and bids integral",
     ["Price", "100.4"],
     ["Highest bid", "500.4"],
   ]) {
-    const input = screen.getByLabelText(label!);
+    const input = screen.getByRole("textbox", { name: label! });
     await user.clear(input);
     await user.type(input, value!);
   }
@@ -1041,10 +1094,10 @@ it.each([false, true])(
 
 it("preserves incomplete numeric input across responsive breakpoints", async () => {
   const { resize } = setup(newQuestion(100, { answerType: "number" }), true);
-  const number = screen.getByLabelText("Right number");
+  const number = screen.getByRole("textbox", { name: "Right number" });
   await userEvent.type(number, "1.");
   resize(false);
-  expect(screen.getByLabelText("Right number")).toBe(number);
+  expect(screen.getByRole("textbox", { name: "Right number" })).toBe(number);
   expect(number).toHaveValue("1.");
   expect(number).toHaveFocus();
 });

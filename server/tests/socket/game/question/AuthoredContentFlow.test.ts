@@ -533,7 +533,9 @@ describe("Authored content transport", () => {
         for (const question of final.themes.flatMap((theme) => theme.questions)) {
           question.text = "Final prompt";
           question.textOrder = 0;
-          question.textDurationMs = 5000;
+          question.textDurationMs = 3000;
+          question.textWaitForFinish = false;
+          question.textItems = [{ order: 1, text: "Second clue", durationMs: 2000 }];
           question.answerDurationMs = 15000;
           question.questionFiles = [];
         }
@@ -552,6 +554,11 @@ describe("Authored content transport", () => {
       const running = await utils.getGameFromGameService(gameId);
       expect(running.gameState.timer?.durationMs).toBe(20000);
       expect(running.gameState.finalRoundData?.questionData?.contentPlan?.totalMs).toBe(5000);
+      expect(
+        running.gameState.finalRoundData?.questionData?.contentPlan?.steps.map(
+          ({ durationMs }) => durationMs
+        )
+      ).toEqual([3000, 2000]);
       const reject = async () => {
         await rejectPrematureAnswer(
           scenario,

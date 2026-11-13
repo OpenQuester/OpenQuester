@@ -5,6 +5,7 @@ import { useQuestionMedia, type QuestionMediaListProps } from "./useQuestionMedi
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
+import { FittedLabel } from "@/ui/FittedLabel";
 import { GripIcon, TrashIcon, UploadIcon } from "@/ui/icons";
 import { AttachmentPreview } from "../AttachmentPreview";
 import { newId, type DraftQuestion } from "../packageDraft";
@@ -133,10 +134,10 @@ export function QuestionMediaList({
               aria-describedby={reorder.helpId}
               title={t("editor.timeline.moveHandle")}
               draggable
-              className="inline-flex size-11 shrink-0 touch-none cursor-grab items-center justify-center rounded-sm text-muted hover:bg-surface-3 hover:text-text active:cursor-grabbing"
+              className="inline-flex size-9 shrink-0 touch-none cursor-grab items-center justify-center rounded-sm text-muted hover:bg-surface-3 hover:text-text active:cursor-grabbing"
               {...reorder.grip(id, index)}
             >
-              <GripIcon size={16} />
+              <GripIcon size={14} />
             </button>
           );
           return (
@@ -176,14 +177,23 @@ export function QuestionMediaList({
                     media={step.file}
                     className={step.file.type === "image" ? "h-28 w-full" : "w-full"}
                   />
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Button
-                      className="min-w-0 flex-1 [overflow-wrap:anywhere]"
-                      onClick={() => edit(step.file, mediaIndex)}
-                      disabled={!canEdit(step.file)}
-                    >
-                      {t("mediaEditor.edit")}
-                    </Button>
+                  <Button
+                    fullWidth
+                    size="sm"
+                    className="px-2"
+                    onClick={() => edit(step.file, mediaIndex)}
+                    disabled={!canEdit(step.file)}
+                  >
+                    <FittedLabel>{t("mediaEditor.edit")}</FittedLabel>
+                  </Button>
+                  <div className={questionFormStyles.attachmentActions}>
+                    {step.file.type === "image" && (
+                      <DurationInput
+                        key={step.file.md5}
+                        value={step.file.displayTime}
+                        onChange={(value) => setDisplayTime(mediaIndex, value)}
+                      />
+                    )}
                     {grip}
                     <button
                       type="button"
@@ -194,16 +204,9 @@ export function QuestionMediaList({
                       }}
                       className={questionFormStyles.attachmentRemove}
                     >
-                      <TrashIcon size={16} />
+                      <TrashIcon size={14} />
                     </button>
                   </div>
-                  {step.file.type === "image" && (
-                    <DurationInput
-                      key={step.file.md5}
-                      value={step.file.displayTime}
-                      onChange={(value) => setDisplayTime(mediaIndex, value)}
-                    />
-                  )}
                 </>
               ) : step.kind === "text" && timeline ? (
                 <>
@@ -222,57 +225,28 @@ export function QuestionMediaList({
                       }));
                     }}
                   />
-                  <DurationInput
-                    value={step.item.durationMs ?? null}
-                    onChange={(value) => {
-                      const seconds = Number(value.replace(",", "."));
-                      if (!Number.isFinite(seconds)) return;
-                      timeline.setQ((current) => ({
-                        ...current,
-                        textItems: current.textItems?.map((item) =>
-                          item.id === step.item.id
-                            ? {
-                                ...item,
-                                durationMs: value.trim() ? Math.round(seconds * 1000) : null,
-                              }
-                            : item,
-                        ),
-                      }));
-                    }}
-                  />
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={step.item.placement === "replic"}
-                      onChange={(event) => {
-                        const placement = event.target.checked ? "replic" : "screen";
+                  {step.item.placement === "replic" && (
+                    <span className="text-sm text-faint">{t("editor.timeline.replic")}</span>
+                  )}
+                  <div className={questionFormStyles.attachmentActions}>
+                    <DurationInput
+                      value={step.item.durationMs ?? null}
+                      onChange={(value) => {
+                        const seconds = Number(value.replace(",", "."));
+                        if (!Number.isFinite(seconds)) return;
                         timeline.setQ((current) => ({
                           ...current,
                           textItems: current.textItems?.map((item) =>
-                            item.id === step.item.id ? { ...item, placement } : item,
+                            item.id === step.item.id
+                              ? {
+                                  ...item,
+                                  durationMs: value.trim() ? Math.round(seconds * 1000) : null,
+                                }
+                              : item,
                           ),
                         }));
                       }}
                     />
-                    {t("editor.timeline.replic")}
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={step.item.waitForFinish !== false}
-                      onChange={(event) => {
-                        const waitForFinish = event.target.checked;
-                        timeline.setQ((current) => ({
-                          ...current,
-                          textItems: current.textItems?.map((item) =>
-                            item.id === step.item.id ? { ...item, waitForFinish } : item,
-                          ),
-                        }));
-                      }}
-                    />
-                    {t("editor.timeline.waitForFinish")}
-                  </label>
-                  <div className="flex items-center justify-end gap-2">
                     {grip}
                     <button
                       type="button"
@@ -290,7 +264,7 @@ export function QuestionMediaList({
                         addButton.current?.focus();
                       }}
                     >
-                      <TrashIcon size={16} />
+                      <TrashIcon size={14} />
                     </button>
                   </div>
                 </>
@@ -323,7 +297,7 @@ function DurationInput({
       setText(value == null ? "" : String(value / 1000));
   }
   return (
-    <label className="flex items-center gap-1.5 text-faint">
+    <label className="mr-auto flex items-center gap-1 text-xs whitespace-nowrap text-faint">
       {t("editor.media.show")}
       <input
         inputMode="decimal"

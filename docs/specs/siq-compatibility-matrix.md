@@ -67,8 +67,8 @@ This matrix should be updated as parser/editor/game support evolves.
 | Text question | Supported | Import question text and answer. |
 | Image/audio/video media | SupportedWithConversion | Import media by hash and represent through OQ media fields; warn if file type/codec is risky. |
 | Simple answer text | Supported | Preserve answer text. |
-| Content order and timing (`placement`, `waitForFinish`, `duration`) | SupportedWithConversion | Screen text, blank timed screen clears and private replic/say occurrences keep their order, duration and wait flags through the existing content plan. A replic step keeps the previous screen; pure oral questions show a localized showman-reading cue. Unknown types/placements and invalid timing remain critical draft/archive repairs. The accepted 5+ visual adaptation still applies. |
-| Answer content | SupportedWithConversion | `right` remains checking data. Ordered `answerTextItems` share the order space with `answerFiles`, including legacy text after marker. Answer content is private until reveal; replic text remains showman-only afterwards. `info/comments` becomes reveal-only `answerExplanation`; `showmanComments` is a private instruction. |
+| Content order and timing (`placement`, `waitForFinish`, `duration`) | SupportedWithConversion | Screen text, timed blanks, and SIQ `replic` or `say` occurrences import as screen text with their source order and duration. Text always closes a group. Media retains its authored wait settings. Existing OQ private text stays private. Unknown types, placements, and invalid timing remain critical draft repairs. |
+| Answer content | SupportedWithConversion | `right` remains checking data. Ordered `answerTextItems` share the order space with `answerFiles`, including legacy text after marker. Imported answer text is private until reveal. `info/comments` becomes reveal-only `answerExplanation`, and `showmanComments` is a private instruction. |
 | `answerDuration` | SupportedWithConversion | Absent/0 uses room default; positive integer seconds become `answerDurationMs` once. It overrides the post-presentation pressing/direct/all-play/final window, never the post-buzz submit timer. Invalid/overflow values remain blocking repairs. Structured scripts can set a separate duration per ask. |
 | Select / legacy choice | SupportedWithConversion | Select is independent of mechanics. Unique source labels map to option orders; unresolved identities stay in repair drafts. See [Select answer format](#select-answer-format). |
 | Stake/bidding question | SupportedWithConversion | Standard stake uses the auction. Stake-all gives each eligible player a private personal stake and grades against it. |
@@ -192,7 +192,8 @@ A SIQ compatibility change is not done until unsupported or lossy behavior is vi
 
 ### Authored media limits and playback
 
-SIQ preflight counts question and answer separately using the original groups.
+SIQ preflight counts question and answer separately. Each text item closes a
+group, and media closes a group according to its authored wait setting.
 An archive with more than 30 steps in either phase or more than 10 file
 occurrences in any step is rejected with a location and count report.
 Repeated references and newly started background audio count toward the limit.

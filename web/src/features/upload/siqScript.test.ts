@@ -254,11 +254,9 @@ describe("typed SI scripts", () => {
       { op: "askAnswer", mode: "direct", durationMs: 15000 },
       { op: "askAnswer", mode: "direct", durationMs: 2000 },
     ]);
-    expect(q.textItems).toMatchObject([
-      { order: 0, text: "First prompt", placement: "screen", waitForFinish: true },
-    ]);
+    expect(q.textItems).toMatchObject([{ order: 0, text: "First prompt", placement: "screen" }]);
     expect(q.script?.answerTextItems).toMatchObject([
-      { order: 0, text: "Second prompt", placement: "screen", waitForFinish: true },
+      { order: 0, text: "Second prompt", placement: "screen" },
     ]);
     expect(q.script?.steps.at(-1)).toEqual({
       op: "showContent",

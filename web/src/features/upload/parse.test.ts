@@ -126,8 +126,8 @@ describe("parseSiq", () => {
         { file: { md5: md5Hex(mp3), type: "audio" }, order: 0, placement: "background" },
       ],
     });
-    // A text-only question keeps its text as a plain caption.
-    expect(secret!.textOrder).toBeNull();
+    // A text-only import still gets an ordered presentation step.
+    expect(secret!.textOrder).toBe(0);
     expect(secret).toMatchObject({
       type: "secret",
       subType: "simple",
@@ -208,8 +208,8 @@ describe("parseSiq", () => {
       ],
     });
     expect(films!.questionFiles![0]).not.toHaveProperty("waitForFinish");
-    // A text shown together with the next item stays a caption; grouping is kept.
-    expect(who!.textOrder).toBeNull();
+    // Text has its own duration; authored media grouping is kept.
+    expect(who!.textOrder).toBe(0);
     expect(who!.questionFiles).toMatchObject([
       { order: 1 },
       { order: 2, waitForFinish: false },

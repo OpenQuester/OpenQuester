@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import type { QuestionFieldsProps } from "./questionUpdates";
 import { cn } from "@/lib/cn";
 import { Button } from "@/ui/Button";
+import { ChoiceInput } from "@/ui/ChoiceInput";
+import { RequiredMark } from "./QuestionFields";
 import { TextInput } from "@/ui/Field";
 import { PlusIcon, TrashIcon } from "@/ui/icons";
 import { SingleMediaField } from "../media-editor/SingleMediaField";
@@ -21,7 +23,10 @@ export function QuestionChoiceFields({
   const correct = correctChoice(q);
   return (
     <fieldset className={layoutStyles.optionGroup} data-testid="choice-fields">
-      <legend className="mb-1 text-[15px] font-semibold">{t("editor.form.options")}</legend>
+      <legend className="mb-1 text-[15px] font-semibold">
+        {t("editor.form.options")}
+        <RequiredMark />
+      </legend>
       <span className="text-sm text-faint">{t("editor.form.optionsHelp")}</span>
       {q.selectSource &&
         !q.selectSource.unresolvedOptions?.length &&
@@ -67,7 +72,7 @@ export function QuestionChoiceFields({
                     : "border-line-strong text-muted",
                 )}
               >
-                <input
+                <ChoiceInput
                   type="radio"
                   name="qf-correct"
                   checked={isCorrect}

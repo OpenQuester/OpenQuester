@@ -10,7 +10,7 @@ interface AuthoredContentSource<T> {
   textWaitForFinish?: boolean | null;
 }
 
-/** Group by the authored wait flags before applying any playback scheduling. */
+/** Text always closes a group. Only media can opt out of waiting. */
 export function authoredContentGroups<
   T extends { order: number; waitForFinish?: boolean; file: { type: PackageFileType } }
 >(source: AuthoredContentSource<T>): (QuestionTextItemDTO | { order: number; media: T })[][] {
@@ -20,8 +20,7 @@ export function authoredContentGroups<
           {
             order: source.textOrder,
             text: source.text ?? "",
-            durationMs: source.textDurationMs,
-            waitForFinish: source.textWaitForFinish ?? true
+            durationMs: source.textDurationMs
           }
         ]
       : []),
@@ -38,7 +37,7 @@ export function authoredContentGroups<
   let group: typeof entries = [];
   for (const entry of entries) {
     group.push(entry);
-    if (("media" in entry ? entry.media.waitForFinish : entry.waitForFinish) !== false) {
+    if (!("media" in entry) || entry.media.waitForFinish !== false) {
       groups.push(group);
       group = [];
     }

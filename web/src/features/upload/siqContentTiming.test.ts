@@ -17,7 +17,7 @@ const questions = (content: Awaited<ReturnType<typeof read>>["content"]) =>
   content.rounds[0]!.themes[0]!.questions;
 
 describe("SIQ authored answer windows and text occurrences", () => {
-  it("separates checking, reveal explanation, screen clears and private speech through draft/OQ/storage", async () => {
+  it("imports speech as timed screen text and keeps private instructions through draft/OQ/storage", async () => {
     const parsed = await read();
     const [q, oral, legacy] = questions(parsed.content);
     expect(parsed.warnings).toEqual([]);
@@ -29,10 +29,10 @@ describe("SIQ authored answer windows and text occurrences", () => {
       textOrder: 0,
       textDurationMs: 3000,
       textItems: [
-        { order: 1, text: "Read this privately", placement: "replic", durationMs: 2000 },
+        { order: 1, text: "Read this privately", placement: "screen", durationMs: 2000 },
         { order: 2, text: "", placement: "screen", durationMs: 1000 },
-        { order: 3, text: "", placement: "replic", durationMs: 4000 },
-        { order: 4, text: "Final clue", waitForFinish: false, durationMs: 1000 },
+        { order: 3, text: "", placement: "screen", durationMs: 4000 },
+        { order: 4, text: "Final clue", placement: "screen", durationMs: 1000 },
       ],
       questionFiles: [{ order: 5 }],
       answerTextItems: [
@@ -45,7 +45,7 @@ describe("SIQ authored answer windows and text occurrences", () => {
     });
     expect(oral).toMatchObject({
       text: null,
-      textItems: [{ placement: "replic", text: "Purely oral private question" }],
+      textItems: [{ placement: "screen", text: "Purely oral private question" }],
     });
     expect(legacy).toMatchObject({
       answerText: "Legacy key",
@@ -56,8 +56,8 @@ describe("SIQ authored answer windows and text occurrences", () => {
       answerFiles: [{ order: 1 }],
     });
     const plan = buildContentPlan({ ...q, files: q!.questionFiles })!;
-    expect(plan.steps.map((step) => step.durationMs)).toEqual([3000, 2000, 1000, 4000, 5000]);
-    expect(positionAt(plan, 3500).screen[0]?.order).toBe(0); // replic retains the screen
+    expect(plan.steps.map((step) => step.durationMs)).toEqual([3000, 2000, 1000, 4000, 1000, 5000]);
+    expect(positionAt(plan, 3500).screen[0]?.order).toBe(1);
     expect(positionAt(plan, 5500).screen[0]?.order).toBe(2); // empty screen replaces it
     const draft = fromUpload(parsed.content);
     expect(validatePackage(draft, () => true).critical).toBe(0);
@@ -71,6 +71,39 @@ describe("SIQ authored answer windows and text occurrences", () => {
     });
     const id = await draftFromParsed(parsed);
     expect(toUpload((await loadDraft(id))!.pkg)).toEqual(upload);
+  });
+
+  it("converts legacy say atoms and scripted replic content into separate timed screen steps", async () => {
+    const v4 = await read(
+      '<package><rounds><round><themes><theme><questions><question price="100"><scenario><atom type="say" time="3">Legacy prompt</atom><atom>Next</atom></scenario><right><answer>Key</answer></right></question></questions></theme></themes></round></rounds></package>',
+    );
+    const scripted = await read(
+      '<package><rounds><round><themes><theme><questions><question type="custom" price="100"><script><step type="showContent"><param name="content"><item placement="replic" waitForFinish="false" duration="00:00:03">Script prompt</item><item>Next</item></param></step><step type="askAnswer"><param name="mode">button</param></step></script><right><answer>Key</answer></right></question></questions></theme></themes></round></rounds></package>',
+    );
+    for (const [parsed, firstText] of [
+      [v4, "Legacy prompt"],
+      [scripted, "Script prompt"],
+    ] as const) {
+      const [question] = questions(parsed.content);
+      expect(parsed.warnings).toEqual([]);
+      expect(question?.textItems?.[0]).toEqual({
+        order: 0,
+        text: firstText,
+        durationMs: 3000,
+        placement: "screen",
+      });
+      const plan = buildContentPlan(question!)!;
+      expect(plan.steps.map((step) => step.durationMs)).toEqual([3000, 2000]);
+    }
+  });
+
+  it("allocates a display interval even for a single untimed SIQ prompt", async () => {
+    const parsed = await read(
+      '<package><rounds><round><themes><theme><questions><question price="100"><scenario><atom>Prompt</atom></scenario><right><answer>Key</answer></right></question></questions></theme></themes></round></rounds></package>',
+    );
+    const [question] = questions(toUpload(fromUpload(parsed.content)));
+    expect(question).toMatchObject({ text: "Prompt", textOrder: 0 });
+    expect(buildContentPlan(question!)?.steps.map((step) => step.durationMs)).toEqual([2000]);
   });
 
   it.each(["-1", "1.5", "NaN", "Infinity", "2147484", "999999999999999999999999"])(

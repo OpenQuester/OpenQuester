@@ -401,10 +401,11 @@ When changing gameplay state, make sure:
   public question/board projections or public reveal. SIQ `info/comments` uses
   separate `answerExplanation`, shown only after the answer.
 - **Authored text and speech:** question/answer text occurrences share their
-  phase's file order space. Duration and wait flags use the existing content
-  clock. Empty timed screen text clears the screen; a replic-only step keeps the
-  previous screen. Replic text is delivered only to the showman, including during
-  answer reveal and reconnect. Players see a localized showman-reading cue.
+  phase's file order space and each closes a playback group for its display
+  duration. Empty timed screen text clears the screen. Newly imported SIQ speech
+  appears as a separate screen text step. Saved private OQ speech keeps the
+  previous screen and is delivered only to the showman, including during answer
+  reveal and reconnect. Players see a localized showman-reading cue.
   Checking answers and future answer content are separate and remain hidden.
 - **Authored answer window:** `answerDurationMs` overrides the pressing window
   after presentation, a designated answerer's window, or the shared all-play/final

@@ -147,7 +147,13 @@ export function PointPicker({
       {!onPick && (
         <PointDescription targetDescription={targetDescription} picked={picked} percent={percent} />
       )}
-      <PointOverlay target={target} radius={r} picked={picked} hover={hover} />
+      <PointOverlay
+        target={target}
+        radius={r}
+        picked={picked}
+        hover={hover}
+        editing={!!onPick && !!target}
+      />
       <PointMarkers markers={markers} percent={percent} />
     </div>
   );
@@ -196,11 +202,13 @@ function PointOverlay({
   radius,
   picked,
   hover,
+  editing,
 }: {
   target?: PointTarget | null;
   radius: number;
   picked?: Spot | null;
   hover: Spot | null;
+  editing: boolean;
 }) {
   const cursor = picked ?? hover;
   return (
@@ -208,7 +216,7 @@ function PointOverlay({
       {target && (
         <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
           <span
-            className={questionStyles.correctPoint}
+            className={cn(questionStyles.correctPoint, editing && "point-target-editor")}
             style={{
               left: `${target.x * 100}%`,
               top: `${target.y * 100}%`,
