@@ -45,6 +45,12 @@ example "This package's media is 620 MB; the limit for one package is
 500 MB." Edits are charged to the package's author, and the package being
 replaced does not count against itself.
 
+New packages and full content replacements can reference up to 1,000 distinct
+stored file names, including logos, question and answer attachments, and
+choice images. The API returns 413 before verifying declared sizes or saving
+content if the count exceeds the limit. Existing packages can still be read
+and their existing uploads completed.
+
 On an upload, previously declared file sizes are confirmed before evaluating
 file and package limits, so that upload uses any newly measured storage sizes.
 
@@ -60,8 +66,9 @@ sizes already known at creation. Before new or replaced content becomes
 `ready`, every referenced file must have a storage-confirmed size and the
 file, package, author's total, and bucket limits are checked again. This
 includes logos, question/answer media, and choice images. Missing or false
-declarations cannot make over-quota content playable; the upload state and
-game creation endpoints return 413 (or 507 for the bucket) until it fits.
+declarations cannot make over-quota content playable. The upload state
+endpoint returns 413 (or 507 for the bucket) until it fits. Game creation and
+package changes return 409 while the saved status is uploading.
 
 This is an acceptance limit, not an S3 transfer limit: presigned PUTs and the
 generic file endpoint can still receive bytes before they are checked.

@@ -15,6 +15,7 @@ import {
 } from "domain/constants/cron";
 import { PackageUploadCheckJob } from "application/jobs/PackageUploadCheckJob";
 import { PackageUploadService } from "application/services/package/PackageUploadService";
+import { RedisService } from "application/services/redis/RedisService";
 import { ICronJob } from "domain/types/cron/ICronJob";
 import { Environment } from "shared/config/Environment";
 import { ILogger } from "shared/logging/ILogger";
@@ -34,7 +35,8 @@ export class CronJobFactory {
     private readonly fileService: FileService,
     private readonly logArchivalService: LogArchivalService,
     private readonly storageCleanupService: StorageCleanupService,
-    private readonly packageUploadService: PackageUploadService
+    private readonly packageUploadService: PackageUploadService,
+    private readonly redis: RedisService
   ) {
     this.env = Environment.getInstance(this.logger);
   }
@@ -72,6 +74,7 @@ export class CronJobFactory {
     return new PackageUploadCheckJob(
       this.logger,
       this.packageUploadService,
+      this.redis,
       CRON_EXP_EVERY_5_MINUTES
     );
   }

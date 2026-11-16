@@ -296,7 +296,7 @@ export interface paths {
                         "application/json": components["schemas"]["PackageCorruptedResponse"];
                     };
                 };
-                /** @description A file, the package or the uploader's total storage is over its limit; the message says which and by how much */
+                /** @description The package references more than 1,000 distinct media files, or a file, package or uploader storage limit was exceeded. The message identifies the limit. */
                 413: {
                     headers: {
                         [name: string]: unknown;
@@ -333,7 +333,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get package by id */
+        /**
+         * Get package by id
+         * @description Returns the saved upload status. Reading a package does not verify its media in storage.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -414,7 +417,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description A file, the package or the uploader's total storage is over its limit; the message says which and by how much */
+                /** @description The package references more than 1,000 distinct media files, or a file, package or uploader storage limit was exceeded. The message identifies the limit. */
                 413: {
                     headers: {
                         [name: string]: unknown;
@@ -506,7 +509,7 @@ export interface paths {
         };
         /**
          * Upload state of a package's media
-         * @description For the package author or a user with edit_package. Lists the media files storage doesn't have yet, with fresh upload links, so an interrupted upload can be resumed; marks the package ready once every file is stored.
+         * @description For the package author or a user with edit_package. Checks unconfirmed media within the shared verification limits and returns fresh upload links for unconfirmed files. Marks the package ready once every file is confirmed and measured storage quotas pass.
          */
         get: {
             parameters: {
@@ -558,6 +561,44 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["PackageNotFoundResponse"];
                     };
+                };
+                /** @description A measured file, package or uploader storage limit was exceeded. */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description An upload check is active or cooling down for this package, or its content changed during the check. */
+                429: {
+                    headers: {
+                        "Retry-After"?: number;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+                /** @description Shared upload verification capacity is temporarily unavailable. */
+                503: {
+                    headers: {
+                        "Retry-After"?: number;
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
+                    };
+                };
+                /** @description The storage bucket is full. */
+                507: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -1278,7 +1319,7 @@ export interface paths {
                         "application/json": components["schemas"]["BadRequestResponse"];
                     };
                 };
-                /** @description The package's media isn't fully uploaded yet (`package_upload_unfinished`), so it can't be played */
+                /** @description The saved package upload status is not ready (`package_upload_unfinished`) */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1426,6 +1467,17 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["GameNotFoundResponse"];
+                    };
+                };
+                /** @description The new package's saved upload status is not ready (`package_upload_unfinished`) */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: string;
+                        };
                     };
                 };
             };
@@ -6229,7 +6281,7 @@ export interface components {
             username: string;
         };
         /**
-         * @description `uploading` while storage lacks some of the package's media files; such a package can't be picked for a game. `ready` once every file is stored.
+         * @description Saved status. `uploading` until every file is confirmed and measured storage quotas pass. Only `ready` packages can be used for a game.
          * @enum {string}
          */
         PackageUploadStatus: "uploading" | "ready";

@@ -17,6 +17,7 @@
   "no_avatar": "Avatar with this filename is not found",
   "package_content_step_limit": "%round › %theme › Question %question (%phase): %actual steps, maximum %max",
   "package_content_file_limit": "%round › %theme › Question %question (%phase), step %step: %actual files, maximum %max",
+  "package_media_file_limit": "This package references %actual distinct media files. The limit is %max files.",
   "package_not_found": "Package not found",
   "package_corrupted": "Package %id is corrupted - No %missing",
   "package_author_not_found": "User that upload package not found, upload aborted",
@@ -134,7 +135,9 @@
   "storage_sign_in_to_upload": "Sign in to upload files.",
   "storage_sign_in_to_read": "Sign in to open files.",
   "storage_file_not_found": "This file isn't in storage.",
-  "package_upload_unfinished": "This package can't be played yet: %missing of its %total media files haven't been uploaded. Its author can resume the upload from My packages.",
+  "package_upload_unfinished": "This package can't be played until its upload is confirmed. %missing of its %total media files are still unconfirmed. Its author can check the upload from My packages.",
+  "package_upload_check_busy": "The package's media check is pending. Try again shortly.",
+  "package_upload_check_unavailable": "The media check is temporarily unavailable. Try again shortly.",
   "question_report_already_sent": "You already reported this question. The author will see it.",
   "question_report_not_found": "Report not found"
 }

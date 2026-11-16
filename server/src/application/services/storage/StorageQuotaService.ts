@@ -36,6 +36,7 @@ import { ByteUtils } from "domain/utils/ByteUtils";
 const BUCKET_HARD_SHARE = 0.95;
 /** Unverified sizes checked against storage on each upload, at most. */
 const VERIFY_ON_UPLOAD = 50;
+const MAX_PACKAGE_MEDIA_FILES = 1000;
 
 const NO_LIMITS: StorageLimits = {
   userQuotaBytes: null,
@@ -134,12 +135,19 @@ export class StorageQuotaService {
     declaredFileSizes: ClientFileSizes | undefined,
     replacePackageId?: number
   ): Promise<Map<string, number>> {
+    const fileKinds = PackageMediaLogic.collectFiles(content);
+    if (fileKinds.size > MAX_PACKAGE_MEDIA_FILES) {
+      throw new ClientError(ClientResponse.PACKAGE_MEDIA_FILE_LIMIT, HttpStatus.PAYLOAD_TOO_LARGE, {
+        actual: fileKinds.size,
+        max: MAX_PACKAGE_MEDIA_FILES
+      });
+    }
+
     if (user.id) {
       // Use the storage-confirmed sizes in this upload's file/package checks too.
       await this.verifyUserFiles(user.id);
     }
 
-    const fileKinds = PackageMediaLogic.collectFiles(content);
     const filenames = [...fileKinds.keys()];
     const knownSizes = await this.storageRepository.getSizes(filenames);
     const sizes = new Map<string, number>();
@@ -312,10 +320,11 @@ export class StorageQuotaService {
   }
 
   /** Reads the real size of a stored file and records it; null when it isn't stored. */
-  public async verifyFile(filename: string): Promise<number | null> {
+  public async verifyFile(filename: string, signal?: AbortSignal): Promise<number | null> {
     const head = await this.objectStorage.headObject(
       this.s3Context.bucket,
-      StorageUtils.parseFilePath(filename)
+      StorageUtils.parseFilePath(filename),
+      signal
     );
     if (head) {
       await this.storageRepository.setVerifiedSize(filename, head.size);

@@ -1,6 +1,7 @@
 import { Router, type Express, type Request, type Response } from "express";
 
 import { PackageService } from "application/services/package/PackageService";
+import { UPLOAD_CHECK_RETRY_SECONDS } from "application/services/package/PackageUploadRefreshGate";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
@@ -89,9 +90,16 @@ export class PackageRestApiController {
       packIdScheme()
     ).validate();
 
-    const data = await this.packageService.getUploadStateForSession(req.session.userId, packageId);
-
-    return res.status(HttpStatus.OK).send(data);
+    try {
+      const data = await this.packageService.getUploadStateForSession(req.session.userId, packageId);
+      return res.status(HttpStatus.OK).send(data);
+    } catch (error) {
+      if (error instanceof ClientError &&
+        (error.code === HttpStatus.TOO_MANY_REQUESTS || error.code === HttpStatus.SERVICE_UNAVAILABLE)) {
+        res.set("Retry-After", String(UPLOAD_CHECK_RETRY_SECONDS));
+      }
+      throw error;
+    }
   };
 
   private listPackages = async (req: Request, res: Response) => {

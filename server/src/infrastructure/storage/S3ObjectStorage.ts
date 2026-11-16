@@ -120,9 +120,15 @@ export class S3ObjectStorage implements ObjectStorage {
     await this.client.send(command);
   }
 
-  public async headObject(bucket: string, key: string): Promise<{ size: number } | null> {
+  public async headObject(
+    bucket: string,
+    key: string,
+    signal?: AbortSignal
+  ): Promise<{ size: number } | null> {
     try {
-      const result = await this.client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+      const result = await this.client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }), {
+        abortSignal: signal
+      });
 
       return { size: Number(result.ContentLength ?? 0) };
     } catch (error) {

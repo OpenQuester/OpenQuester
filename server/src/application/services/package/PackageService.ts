@@ -29,7 +29,6 @@ import { StorageCleanupService } from "application/services/storage/StorageClean
 import { StorageQuotaService } from "application/services/storage/StorageQuotaService";
 import { StorageRepository } from "infrastructure/database/repositories/StorageRepository";
 import { PackageUploadService } from "application/services/package/PackageUploadService";
-import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
 import { type PackageUploadStateDTO } from "domain/types/dto/package/PackageUploadStateDTO";
 import { type PackageUploadBody } from "domain/types/dto/package/PackageUploadBody";
 import { type EditablePackage } from "application/types/package/EditablePackage";
@@ -59,16 +58,6 @@ export class PackageService {
     relations?: string[]
   ): Promise<PackageDTO> {
     const pack = await this.getPackageRaw(packId, select, relations ?? PACKAGE_DETAILED_RELATIONS);
-    if (pack.upload_status === PackageUploadStatus.UPLOADING) {
-      // Uploaders that never report back would otherwise look
-      // unfinished until the background check; ask storage while someone looks.
-      try {
-        pack.upload_status = (await this.packageUploadService.refresh(pack.id)).status;
-      } catch {
-        // Keep the stored status.
-      }
-    }
-
     return pack.toDTO(this.fileUrlBuilder, {
       fetchIds: true,
       includeAuthoringMetadata: true

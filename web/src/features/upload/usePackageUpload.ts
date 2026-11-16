@@ -8,6 +8,7 @@ import type { ParsedPackage } from "./types";
 import { PointImageDimensionsError } from "./pointImageDimensions";
 import { FinalMediaDurationError } from "./finalMediaDuration";
 import {
+  PackageMediaLimitError,
   RESUME_OTHER_SOURCE,
   contentHash,
   resumeFromFile,
@@ -149,6 +150,8 @@ export function usePackageUpload() {
 }
 
 function uploadError(err: unknown, t: TFunction): string {
+  if (err instanceof PackageMediaLimitError)
+    return t("upload.mediaFileLimit", { actual: err.actual, max: err.max });
   if (err instanceof FinalMediaDurationError)
     return t(`upload.finalMedia.${err.reason}`, { name: err.fileName });
   if (err instanceof PointImageDimensionsError) return t("upload.pointImageDimensions");

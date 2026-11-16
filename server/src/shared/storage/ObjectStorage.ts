@@ -41,7 +41,7 @@ export interface ObjectStorage {
   putObject(input: ObjectStoragePutRequest): Promise<void>;
   deleteObject(bucket: string, key: string): Promise<void>;
   /** Size of a stored object, or null when it doesn't exist. */
-  headObject(bucket: string, key: string): Promise<{ size: number } | null>;
+  headObject(bucket: string, key: string, signal?: AbortSignal): Promise<{ size: number } | null>;
   /** A stored object's bytes as a stream, or null when it doesn't exist. */
   getObject(bucket: string, key: string): Promise<ObjectStorageObject | null>;
   deleteObjects(bucket: string, keys: string[]): Promise<ObjectStorageDeleteResult>;
