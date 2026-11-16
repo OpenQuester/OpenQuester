@@ -1,4 +1,4 @@
-/** Image picks stay distinguishable from text options and are judged by the showman. */
+/** Media-only picks use a label that stays distinguishable from text options. */
 export function optionAnswer(
   text: string | null | undefined,
   index: number,
@@ -13,8 +13,8 @@ export function optionAnswer(
   return answer;
 }
 
-/** Legacy numeric text can also be an image-only option's display placeholder. */
-export function ambiguousImagePlaceholder(
+/** Legacy numeric text can also be a media-only option's display placeholder. */
+export function ambiguousMediaPlaceholder(
   options: readonly { text?: string | null; order: number; file?: { type: string } | null }[],
   answer: string,
 ): boolean {
@@ -22,7 +22,6 @@ export function ambiguousImagePlaceholder(
   return [...options]
     .sort((a, b) => a.order - b.order)
     .some(
-      (option, index) =>
-        option.file?.type === "image" && !option.text?.trim() && normalized === String(index + 1),
+      (option, index) => !!option.file && !option.text?.trim() && normalized === String(index + 1),
     );
 }

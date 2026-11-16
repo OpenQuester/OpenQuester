@@ -105,23 +105,39 @@ describe("private game creation", () => {
     );
   });
 
-  it("retains drafts and timer disclosure through query refresh, failure and retry", async () => {
+  it("returns to General when the player count is invalid", async () => {
+    renderForm();
+    const user = userEvent.setup();
+    const players = screen.getByRole("spinbutton", { name: "Players" });
+    await user.clear(players);
+    await user.type(players, "16");
+    await user.click(screen.getByRole("tab", { name: "Timers" }));
+    await user.click(screen.getByRole("button", { name: "Create & open lobby" }));
+    expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("alert")).toHaveTextContent("Enter a whole number from 2 to 15.");
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("retains drafts and the active tab through query refresh, failure and retry", async () => {
     const client = renderForm();
     const user = userEvent.setup();
     const title = screen.getByLabelText("Game name");
     await user.type(title, "  My quiz  ");
     await user.click(screen.getByRole("radio", { name: "Password" }));
     await user.type(screen.getByLabelText("Password", { exact: true }), "Keep_123");
-    await user.click(screen.getByRole("radio", { name: "Anyone with the link" }));
+    await user.click(screen.getByRole("radio", { name: "Public" }));
     await user.click(screen.getByRole("radio", { name: "Password" }));
     const password = screen.getByLabelText("Password", { exact: true });
     expect(password).toHaveValue("Keep_123");
-    await user.click(screen.getByText("Timers", { selector: "summary" }));
-    const details = screen.getByText("Timers", { selector: "summary" }).parentElement;
+    const playerCount = screen.getByRole("spinbutton", { name: "Players" });
+    await user.clear(playerCount);
+    await user.type(playerCount, "10");
+    await user.click(screen.getByRole("radio", { name: "16+" }));
+    const timersTab = screen.getByRole("tab", { name: "Timers" });
+    await user.click(timersTab);
     const timer = screen.getByLabelText("Time to press the buzzer");
     await user.selectOptions(timer, "15");
     await user.selectOptions(screen.getByLabelText("Round time limit"), "15");
-    await user.selectOptions(screen.getByLabelText("Players", { exact: true }), "10");
     await act(async () => {
       client.setQueryData(["me"], { id: 1, username: "Updated host" });
       client.setQueryData(["package", 7], {
@@ -137,8 +153,7 @@ describe("private game creation", () => {
     expect(screen.getByLabelText("Password", { exact: true })).toBe(password);
     expect(screen.getByLabelText("Time to press the buzzer")).toBe(timer);
     expect(timer).toHaveValue("15");
-    expect(details).toHaveAttribute("open");
-    expect(screen.getByText("Timers", { selector: "summary" }).parentElement).toBe(details);
+    expect(timersTab).toHaveAttribute("aria-selected", "true");
 
     let reject!: (error: Error) => void;
     post.mockImplementationOnce(
@@ -154,7 +169,7 @@ describe("private game creation", () => {
     await act(async () => reject(new Error("Try again")));
     expect(screen.getByRole("alert")).toHaveTextContent("Try again");
     expect(password).toHaveValue("Keep_123");
-    expect(details).toHaveAttribute("open");
+    expect(timersTab).toHaveAttribute("aria-selected", "true");
     expect(navigate).not.toHaveBeenCalled();
     const invalidate = vi.spyOn(client, "invalidateQueries");
     await user.click(screen.getByRole("button", { name: "Create & open lobby" }));
@@ -163,6 +178,7 @@ describe("private game creation", () => {
     expect(post.mock.calls[1]?.[1].body).toMatchObject({
       title: "My quiz",
       maxPlayers: 10,
+      ageRestriction: "A16",
       password: "Keep_123",
       isPrivate: true,
       settings: { timers: { answerMs: 15000, roundMs: 900000 } },

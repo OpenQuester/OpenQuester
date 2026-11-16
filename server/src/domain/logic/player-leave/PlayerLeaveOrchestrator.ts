@@ -1,4 +1,3 @@
-import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { singleton } from "tsyringe";
 
 import { Game } from "domain/entities/game/Game";
@@ -16,6 +15,7 @@ import { MediaDownloadLeaveStrategy } from "domain/logic/player-leave/strategies
 import { StakeBiddingLeaveStrategy } from "domain/logic/player-leave/strategies/StakeBiddingLeaveStrategy";
 import { TurnPlayerLeaveStrategy } from "domain/logic/player-leave/strategies/TurnPlayerLeaveStrategy";
 import { type TransitionResources } from "domain/state-machine/types";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
 import { PlayerKickBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 
@@ -80,16 +80,16 @@ export class PlayerLeaveOrchestrator {
     };
 
     // Execute strategies BEFORE removing player
-    for (const strategy of this.strategies) {
+    for (const strategy of game.gameState.scriptProgress ? [] : this.strategies) {
       if (this.afterRemovalStrategies.includes(strategy)) {
         continue;
       }
 
-      // A disconnected finalist can rejoin before answering starts without losing the bid.
+      // A disconnected finalist or designated answerer retains their seat during preparation.
       if (
         strategy === this.answeringStrategy &&
         options.reason === PlayerLeaveReason.DISCONNECT &&
-        TransitionGuards.isFinalRoundMediaDownloading(game)
+        game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING
       ) {
         continue;
       }
@@ -112,7 +112,7 @@ export class PlayerLeaveOrchestrator {
     }
 
     // Execute the strategies that depend on the player being gone
-    for (const strategy of this.afterRemovalStrategies) {
+    for (const strategy of game.gameState.scriptProgress ? [] : this.afterRemovalStrategies) {
       if (strategy.canHandle(strategyInput)) {
         const strategyResult = await strategy.execute(strategyInput);
         result.mutations.push(...strategyResult.mutations);
@@ -169,7 +169,7 @@ export class PlayerLeaveOrchestrator {
       transitionResources: options.transitionResources
     };
 
-    for (const strategy of this.strategies) {
+    for (const strategy of game.gameState.scriptProgress ? [] : this.strategies) {
       if (strategy.canHandle(strategyInput)) {
         const strategyResult = await strategy.execute(strategyInput);
         result.mutations.push(...strategyResult.mutations);

@@ -1,3 +1,4 @@
+import type { DataMutation } from "domain/types/action/DataMutation";
 import { Game } from "domain/entities/game/Game";
 import {
   SocketIOEvents,
@@ -31,4 +32,5 @@ export interface ServiceResult<TData = unknown> {
 export interface TimerExpirationResult extends ServiceResult {
   game?: Game;
   timerMutations?: TimerMutation[];
+  mutations?: DataMutation[];
 }

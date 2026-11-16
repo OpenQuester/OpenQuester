@@ -1,8 +1,9 @@
+import { ChoiceMedia } from "./ChoiceMedia";
 import { questionStyles, questionContentLayout } from "./questionStyles";
 import { Trans, useTranslation } from "react-i18next";
 import { PlayerMessage } from "../PlayerName";
 import { ReportQuestionButton } from "@/features/stats/QuestionReporting";
-import { findPlayer, pointPicture } from "@/game/selectors";
+import { findPlayer, pointPicture, myRole } from "@/game/selectors";
 import { parsePointAnswer } from "@/game/pointAnswer";
 import { useGame, useSession } from "../../GameContext";
 import { ContentStage } from "../ContentStage";
@@ -52,7 +53,10 @@ function pointMarkers(session: GameSession, result: AnsweredPlayer | null, t: Tr
 export function AnswerReveal() {
   const { t } = useTranslation();
   const session = useSession();
+  const { myId } = useGame();
   const s = session.state;
+  const fullQuestion = s.finalRoundData?.questionData?.question ?? s.currentQuestion;
+  const showman = myRole(session, myId) === "showman";
   const content = session.content;
   const data = s.answerShowData;
   const allPlaySummary = allPlayRevealText(session, t);
@@ -65,7 +69,7 @@ export function AnswerReveal() {
   const markers = pointMarkers(session, result, t);
   const credits = revealCredits(data, t);
   const timed = content?.kind === "answer";
-  if (data?.answerPoint && pointImage && !timed)
+  if (data?.answerPoint && pointImage && !timed && !data.answerExplanation)
     return (
       <div className={`${questionContentLayout} oq-pop`} data-testid="answer-reveal">
         <PointResults
@@ -80,8 +84,17 @@ export function AnswerReveal() {
   const textLength = (answerText?.length ?? 0) + (result?.answerText?.length ?? 0);
   const text = (
     <>
-      <RevealedText answerText={answerText} rightAnswers={data?.rightAnswers} result={result} />
-      {timed && data?.answerPoint && pointImage && (
+      <RevealedText
+        answerText={answerText ?? data?.correctChoice?.text ?? null}
+        rightAnswers={data?.rightAnswers}
+        result={result}
+      />
+      {data?.answerExplanation && (
+        <p className="m-0 text-center text-soft" data-testid="answer-explanation">
+          {data.answerExplanation}
+        </p>
+      )}
+      {(timed || data?.answerExplanation) && data?.answerPoint && pointImage && (
         <PointResults
           src={pointImage}
           target={data.answerPoint}
@@ -99,6 +112,12 @@ export function AnswerReveal() {
         <ContentStage
           content={content}
           files={data?.answerFiles ?? []}
+          textItems={
+            showman
+              ? (fullQuestion?.answerTextItems ?? data?.answerTextItems)
+              : data?.answerTextItems
+          }
+          textOrder={null}
           paused={s.isPaused}
           label={label}
           caption={text}
@@ -112,7 +131,13 @@ export function AnswerReveal() {
           text={text}
           footer={footer}
           media={
-            data?.correctChoiceImage ? (
+            data?.correctChoice?.file ? (
+              <ChoiceMedia
+                file={data.correctChoice.file}
+                label={answerText ?? label}
+                paused={s.isPaused}
+              />
+            ) : data?.correctChoiceImage ? (
               <img
                 src={data.correctChoiceImage}
                 alt={label}

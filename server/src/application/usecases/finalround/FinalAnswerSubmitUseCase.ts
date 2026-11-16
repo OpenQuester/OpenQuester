@@ -60,7 +60,8 @@ export class FinalAnswerSubmitUseCase implements GameActionHandler<
     const mutationResult = FinalAnswerSubmitLogic.addAnswer(
       game,
       player.meta.id,
-      action.payload.answerText
+      action.payload.answerText,
+      action.payload.choiceOrder
     );
 
     // This helper enters FINAL_REVIEWING and settles auto-losses when all answers are in.

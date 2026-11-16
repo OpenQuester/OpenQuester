@@ -1,10 +1,11 @@
+import { getRealPrice } from "@/game/questionPrices";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { MediaFile } from "@/features/upload/types";
 import { Button } from "@/ui/Button";
 import { Spinner } from "@/ui/Spinner";
-import { questionMedia, type DraftQuestion } from "../packageDraft";
+import { questionMedia, type DraftQuestion, type DraftRound } from "../packageDraft";
 import {
   checkQuestion,
   type PackageIssueCode,
@@ -13,7 +14,13 @@ import {
 import { preparePreviewQuestion } from "./preparePreview";
 import { FinalMediaDurationError } from "@/features/upload/finalMediaDuration";
 import { PlaytestSession } from "./PlaytestSession";
-import { initialPreview, previewMedia, previewQuestion, type PreviewNames } from "./previewModel";
+import {
+  finalPreviewRoundPrices,
+  initialPreview,
+  previewMedia,
+  previewQuestion,
+  type PreviewNames,
+} from "./previewModel";
 
 type Issue = {
   code: PackageIssueCode | "reveal" | "stakeLimit" | "deviation";
@@ -21,6 +28,10 @@ type Issue = {
 };
 const fieldFor: Partial<Record<Issue["code"], string>> = {
   questionEmpty: "#qf-text",
+  compatibilityNeedsRepair: "#qf-compatibility button",
+  scriptRepair: "#qf-compatibility button",
+  secretRulesInvalid: "#qf-secret-kind",
+  realPriceRange: "#qf-real-price",
   noPrice: "#qf-price",
   priceRange: "#qf-price",
   missingMedia: '[data-testid="question-media-fields"] button',
@@ -29,6 +40,7 @@ const fieldFor: Partial<Record<Issue["code"], string>> = {
   choiceCorrectUnresolved:
     '[data-testid="choice-fields"] input[type="radio"]:not(:disabled), #qf-add-option:not(:disabled)',
   secretPrices: "#qf-prices",
+  realPriceConflict: "#qf-real-price",
   numberAnswerMissing: "#qf-number",
   pointAnswerMissing: '[data-testid="point-picker"]',
   reveal: "#qf-reveal",
@@ -67,9 +79,9 @@ function previewIssues(
     !final &&
     question.type === "stake" &&
     !question.forEveryone &&
-    question.price != null &&
+    getRealPrice(question) != null &&
     question.maxPrice != null &&
-    question.maxPrice < question.price
+    question.maxPrice < getRealPrice(question)!
   )
     list.push({ code: "stakeLimit" });
   return list;
@@ -91,13 +103,17 @@ function issueMessage(issue: Issue, t: TFunction): string {
 export function QuestionPlaytest({
   question,
   final,
+  roundNominalPrices,
+  round,
   themeName,
   media,
   canSave,
   onFix,
 }: {
   question: DraftQuestion;
+  roundNominalPrices?: number[];
   final: boolean;
+  round?: DraftRound;
   themeName: string;
   media: Map<string, MediaFile>;
   canSave: boolean;
@@ -177,7 +193,14 @@ export function QuestionPlaytest({
             <li key={`${issue.code}-${index}`}>{issueMessage(issue, t)}</li>
           ))}
         </ul>
-        <Button onClick={() => onFix(fieldFor[issues[0]!.code] ?? "#qf-text")}>
+        <Button
+          onClick={() =>
+            onFix(
+              fieldFor[issues[0]!.code] ??
+                (question.script ? "#qf-compatibility button" : "#qf-text"),
+            )
+          }
+        >
           {t("editor.playtest.fix")}
         </Button>
       </div>
@@ -211,7 +234,9 @@ export function QuestionPlaytest({
       key={run}
       initial={prepared.initial}
       question={prepared.question}
+      roundNominalPrices={roundNominalPrices}
       credits={{ authors: question.authors, sources: question.sources }}
+      finalRoundPrices={finalPreviewRoundPrices(round, question)}
       legacy={!!question.answerPoint && !question.answerPoint.imageAspectRatio}
       onRestart={() => setRun((n) => n + 1)}
     />

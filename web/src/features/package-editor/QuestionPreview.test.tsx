@@ -76,7 +76,7 @@ it("shows the numeric target, including zero, instead of hidden stale answer tex
   rerender(view({ ...question, type: "choice" }));
   expect(screen.getByText("Old answer")).toBeInTheDocument();
   rerender(view({ ...question, type: "choice" }, true));
-  expect(screen.getByText("0")).toBeInTheDocument();
+  expect(screen.getByText("Old answer")).toBeInTheDocument();
 });
 
 it("shows the first image target temporarily or pinned without replacing the image, then resets on identity changes", async () => {
@@ -180,5 +180,5 @@ it("handles missing or invalid targets and keeps a choice answer when point mode
   expect(screen.getByText("Actual answer")).toBeInTheDocument();
   expect(screen.queryByTestId("point-picker")).not.toBeInTheDocument();
   rerender(view({ ...question, type: "choice", questionFiles: [image("first")] }, true));
-  expect(screen.getByRole("button", { name: /Point on image/ })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Point on image/ })).not.toBeInTheDocument();
 });

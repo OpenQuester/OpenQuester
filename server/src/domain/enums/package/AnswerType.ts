@@ -8,5 +8,6 @@ export enum AnswerType {
    * A spot on the question's picture, sent as "x,y" fractions of its width
    * and height; checked against `answerPoint` within `answerDeviation`
    */
-  POINT = "point"
+  POINT = "point",
+  SELECT = "select"
 }

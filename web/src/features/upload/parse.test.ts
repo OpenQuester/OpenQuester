@@ -126,8 +126,8 @@ describe("parseSiq", () => {
         { file: { md5: md5Hex(mp3), type: "audio" }, order: 0, placement: "background" },
       ],
     });
-    // A text-only question keeps its text as a plain caption.
-    expect(secret!.textOrder).toBeNull();
+    // A text-only import still gets an ordered presentation step.
+    expect(secret!.textOrder).toBe(0);
     expect(secret).toMatchObject({
       type: "secret",
       subType: "simple",
@@ -208,8 +208,8 @@ describe("parseSiq", () => {
       ],
     });
     expect(films!.questionFiles![0]).not.toHaveProperty("waitForFinish");
-    // A text shown together with the next item stays a caption; grouping is kept.
-    expect(who!.textOrder).toBeNull();
+    // Text has its own duration; authored media grouping is kept.
+    expect(who!.textOrder).toBe(0);
     expect(who!.questionFiles).toMatchObject([
       { order: 1 },
       { order: 2, waitForFinish: false },
@@ -259,7 +259,7 @@ describe("parseOq", () => {
     ).rejects.toThrow("badContentJson");
   });
 
-  it("strips server fields, keeps media by hash and downgrades a one-option choice", async () => {
+  it("strips server fields, keeps media by hash and preserves a one-option choice for repair", async () => {
     const md5 = md5Hex(png);
     const content = {
       id: 7,
@@ -325,10 +325,10 @@ describe("parseOq", () => {
     expect(q1!.questionFiles).toEqual([
       { order: 0, displayTime: null, file: { md5, type: "image" } },
     ]);
-    expect(q2).toMatchObject({ type: "simple" });
-    expect(q2).not.toHaveProperty("answers");
+    expect(q2).toMatchObject({ type: "choice", correctChoiceNeedsRepair: true });
+    expect(q2!.answers).toHaveLength(1);
     expect(parsed.files.get(md5)?.type).toBe("image");
-    expect(parsed.warnings.map((w) => w.code)).toEqual(["choiceAsSimple"]);
+    expect(parsed.warnings.map((w) => w.code)).toEqual(["choiceCorrectUnresolved"]);
   });
 });
 
@@ -388,4 +388,23 @@ it("allows 300 OQ occurrences across 30 groups and rejects the answer separately
   await expect(read()).rejects.toMatchObject({
     issues: [{ phase: "answer", step: 1, actual: 11, max: 10 }],
   });
+});
+
+it("imports forAll and stakeAll through draft and OQ without losing participation or actual zero", async () => {
+  // Standard templates at SI revision 0c2167728f9eb66117b4c3576a05d91f9509cd8a.
+  const xml = `<package name="Everyone"><rounds><round name="Round"><themes><theme name="Theme"><questions>${["forAll", "stakeAll"].map((type) => `<question price="100" type="${type}"><params><param name="question" type="content"><item>Question</item></param></params><right><answer>Answer</answer></right></question>`).join("")}</questions></theme></themes></round></rounds></package>`;
+  const parsed = await siq(xml);
+  expect(parsed.warnings).toEqual([]);
+  const questions = parsed.content.rounds[0]!.themes[0]!.questions;
+  expect(questions).toMatchObject([
+    { type: "simple", subType: "forEveryone" },
+    { type: "stake", subType: "forEveryone", maxPrice: null },
+  ]);
+  questions[0]!.realPrice = 0;
+  const content = toUpload(fromUpload(parsed.content));
+  const restored = await parseOq({ "content.json": strToU8(JSON.stringify(content)) });
+  expect(restored.content.rounds[0]!.themes[0]!.questions).toMatchObject([
+    { type: "simple", subType: "forEveryone", price: 100, realPrice: 0 },
+    { type: "stake", subType: "forEveryone" },
+  ]);
 });

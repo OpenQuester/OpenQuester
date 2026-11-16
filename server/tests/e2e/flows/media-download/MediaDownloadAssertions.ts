@@ -51,7 +51,10 @@ export function assertMediaQuestionData(
       `Question data files mismatch: expected ${JSON.stringify(expectedFiles)}, received ${JSON.stringify(actualFiles)}`
     );
   }
-  for (const { file } of actualFiles) {
+  const optionFiles = (payload.data.answers ?? []).flatMap((option) =>
+    option.file ? [{ file: option.file }] : []
+  );
+  for (const { file } of [...actualFiles, ...optionFiles]) {
     if (!file.md5 || !file.link || !/^https?:\/\//.test(file.link)) {
       throw new Error(
         `Question media must include a filename and HTTP(S) link: ${JSON.stringify(file)}`
@@ -60,7 +63,7 @@ export function assertMediaQuestionData(
   }
   if (payload.questionTransition) {
     assertFreshTimer(payload.questionTransition.timer, QUESTION_TRANSITION_MS, "question opening");
-    if (!expectedFiles.length) {
+    if (!expectedFiles.length && !optionFiles.length) {
       if (payload.timer !== null || !payload.questionTransition.mediaReady)
         throw new Error("Text preparation must be ready with no media timer");
       return;

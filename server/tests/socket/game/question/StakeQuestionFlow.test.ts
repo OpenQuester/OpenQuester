@@ -3,11 +3,15 @@ import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { GameActionType } from "domain/enums/GameActionType";
+import { AnswerType } from "domain/enums/package/AnswerType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
+import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import {
   StakeBidSubmitInputData,
   StakeBidSubmitOutputData,
@@ -101,11 +105,113 @@ describe("Stake Question Flow Tests", () => {
   });
 
   afterEach(async () => {
+    utils.packageTransform = null;
     await suite?.reset();
   });
 
   afterAll(async () => {
     await suite?.stop();
+  });
+
+  it("scores a direct stake selection by option order at the winning bid", async () => {
+    await suite.scenario(async (scenario) => {
+      utils.packageTransform = (pkg) => {
+        const question = pkg.rounds
+          .flatMap(({ themes }) => themes)
+          .flatMap(({ questions }) => questions)
+          .find((item) => item.type === PackageQuestionType.STAKE)!;
+        Object.assign(question, {
+          price: 100,
+          questionFiles: null,
+          answerType: AnswerType.SELECT,
+          showDelay: 0,
+          correctChoiceOrder: 1,
+          selectSource: { rightLabels: ["B"] },
+          answers: [
+            { order: 0, text: "Same", sourceLabel: "A", file: null },
+            { order: 1, text: "Same", sourceLabel: "B", file: null }
+          ]
+        });
+      };
+      const { setup } = await _prepare({ playerCount: 2, playerScores: [500, 500] });
+      const { gameId, showmanSocket, playerSockets, playerUsers } = setup;
+      const [winnerSocket, otherSocket] = playerSockets;
+      const winnerId = playerUsers[0].id;
+      await scenario.emitAndWaitForEvent<StakeBidSubmitOutputData>(
+        showmanSocket,
+        SocketIOGameEvents.STAKE_BID_SUBMIT,
+        () =>
+          scenario.actor(winnerSocket).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+            bidType: StakeBidType.NORMAL,
+            bidAmount: 300
+          })
+      );
+      const winner = scenario.waitForEvent<StakeQuestionWinnerEventData>(
+        showmanSocket,
+        SocketIOGameEvents.STAKE_QUESTION_WINNER
+      );
+      const data = scenario.waitForEvent<GameQuestionDataEventPayload>(
+        winnerSocket,
+        SocketIOGameEvents.QUESTION_DATA
+      );
+      scenario.actor(otherSocket).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        bidType: StakeBidType.PASS,
+        bidAmount: null
+      });
+      expect(await winner).toMatchObject({ winnerPlayerId: winnerId, finalBid: 300 });
+      const { data: shown, buzzerOpensAtMs } = await data;
+      expect(shown.answers?.map(({ order, text }) => [order, text])).toEqual([
+        [0, "Same"],
+        [1, "Same"]
+      ]);
+      expect(shown).not.toHaveProperty("correctChoiceOrder");
+      expect(shown).not.toHaveProperty("selectSource");
+
+      await scenario.assert.waitForActionsComplete({ gameId });
+      const game = await utils.getGameFromGameService(gameId);
+      expect(game.gameState.questionState).toBe(QuestionState.ANSWERING);
+      expect(game.gameState.answeringPlayer).toBe(winnerId);
+      expect(buzzerOpensAtMs).toBeGreaterThan(0);
+      game.gameState.timer!.startedAt = new Date(Date.now() + 10_000);
+      await utils.updateGame(game);
+      const submitChoice = () =>
+        scenario.actor(winnerSocket).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+          answerText: "Same",
+          choiceOrder: 1
+        });
+      const early = await scenario.emitAndWaitForEvent<ErrorEventPayload>(
+        winnerSocket,
+        SocketIOEvents.ERROR,
+        submitChoice
+      );
+      expect(early.message).toBe("You cannot submit answer on this question");
+      await scenario.assert.waitForActionsComplete({ gameId });
+      expect((await utils.getGameState(gameId))!.submittedChoiceOrder ?? null).toBeNull();
+
+      game.gameState.timer!.startedAt = new Date(Date.now() - buzzerOpensAtMs!);
+      await utils.updateGame(game);
+      const accepted = scenario
+        .createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.ANSWER_SUBMITTED,
+          socketId: winnerSocket.id
+        })
+        .waitForCount(1);
+      const { answerResult } = await scenario.emitAndWaitForEvent<QuestionAnswerResultEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.ANSWER_RESULT,
+        submitChoice
+      );
+      await accepted;
+      await scenario.assert.waitForActionsComplete({ gameId });
+      expect(answerResult).toMatchObject({
+        player: winnerId,
+        answerType: AnswerResultType.CORRECT,
+        choiceOrder: 1,
+        result: 300,
+        score: 800
+      });
+    });
   });
 
   describe("STAKE Question Selection", () => {

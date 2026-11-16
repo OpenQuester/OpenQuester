@@ -1,3 +1,4 @@
+import { answerFormat } from "@/game/answerFormat";
 import { packageBoardStyles, questionCardHeight } from "./packageBoardStyles";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/cn";
@@ -18,7 +19,7 @@ export function QuestionCardContent({
 }: Omit<QuestionCardProps, "index"> & { card: ReturnType<typeof useQuestionCard> }) {
   const { t } = useTranslation();
   const { selected, readOnly, cards, type, image, mediaTypes, label } = card;
-  const choiceImage = !final && q.type === "choice" ? correctChoice(q)?.file : null;
+  const choiceImage = !final && answerFormat(q) === "select" ? correctChoice(q)?.file : null;
   const mainText = q.text.trim();
   const extraText = q.textItems?.find((item) => item.text.trim())?.text;
   const hasText = !!(mainText || extraText);

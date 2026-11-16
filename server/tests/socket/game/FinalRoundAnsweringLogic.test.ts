@@ -1,3 +1,5 @@
+import { AnswerType } from "domain/enums/package/AnswerType";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { container } from "tsyringe";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
@@ -41,6 +43,7 @@ describe("Final Round Answering Logic", () => {
   });
 
   afterEach(async () => {
+    if (suite) suite.utils.packageTransform = null;
     await suite?.reset();
   });
 
@@ -67,6 +70,263 @@ describe("Final Round Answering Logic", () => {
       `"${event}" broadcasts for players ${playerIds.join(", ")}`
     );
   }
+
+  it("keeps an imported final point private through media timeout, reconnect and manual review", async () => {
+    await suite.scenario(async (scenario) => {
+      const target = {
+        x: 0.5,
+        y: 0.5,
+        imageAspectRatio: 2,
+        sourceGeometry: { kind: "sigame" as const, aspectRatio: 1 }
+      };
+      const { showmanSocket, playerSockets, spectatorSockets, gameId, playerUsers } =
+        await utils.setupFinalRoundGame({ playersCount: 2, playerScores: [1500, 1200] });
+      await scenario.runAndWaitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE,
+        () => utils.completeThemeElimination(playerSockets, gameId, playerUsers)
+      );
+      const state = await utils.getGameState(gameId);
+      const questionId = state.currentRound!.themes.find(
+        (theme) => !theme.questions.some((q) => q.isPlayed)
+      )!.questions[0].id;
+      const store = container.resolve(PackageStore);
+      const question = await store.getQuestion(gameId, questionId);
+      const file = {
+        md5: "final-point-image",
+        type: PackageFileType.IMAGE,
+        link: "https://example.test/point.png"
+      };
+      await container.resolve(RedisRepository).hset(store.getPackageKey(gameId), {
+        [`q:${questionId}`]: JSON.stringify({
+          ...question,
+          answerType: AnswerType.POINT,
+          answerPoint: target,
+          pointImageOrder: 1,
+          showAnswerDuration: 30_000,
+          questionFiles: [
+            { order: 0, displayTime: 1, file },
+            { order: 1, displayTime: 1, file }
+          ]
+        })
+      });
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.FINAL_BID_SUBMIT, () =>
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 })
+      );
+      const host = scenario.waitForEvent<FinalQuestionEventData>(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_QUESTION_DATA
+      );
+      const player = scenario.waitForEvent<FinalQuestionEventData>(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_QUESTION_DATA
+      );
+      const spectator = scenario.waitForEvent<FinalQuestionEventData>(
+        spectatorSockets[0],
+        SocketIOGameEvents.FINAL_QUESTION_DATA
+      );
+      scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
+      const [hostData, playerData, spectatorData] = await Promise.all([host, player, spectator]);
+      expect(hostData.questionData.question).toMatchObject({
+        answerPoint: target,
+        pointImageOrder: 1
+      });
+      for (const data of [playerData, spectatorData]) {
+        expect(data.questionData.question).not.toHaveProperty("answerPoint");
+        expect(data.questionData.question.pointImageOrder).toBe(1);
+      }
+      expect((await utils.getGameState(gameId)).questionState).toBe(
+        QuestionState.MEDIA_DOWNLOADING
+      );
+      await scenario.runAndWaitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE,
+        () => utils.expireTimerAndWaitForAction(gameId, GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED)
+      );
+      const { socket } = await suite.utils.createGameClient(suite.app, suite.userRepo);
+      const rejoined = await suite.utils.joinSpecificGameWithData(
+        socket,
+        gameId,
+        PlayerRole.SPECTATOR
+      );
+      expect(rejoined.gameState.finalRoundData?.questionData?.question).not.toHaveProperty(
+        "answerPoint"
+      );
+      expect(rejoined.gameState.finalRoundData?.questionData?.question.pointImageOrder).toBe(1);
+      for (const [i, playerSocket] of playerSockets.entries()) {
+        await scenario.emitAndWaitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
+          () =>
+            scenario
+              .actor(playerSocket)
+              .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+                answerText: i === 0 ? "0.540,0.500" : "0.500,0.500"
+              })
+        );
+      }
+      const answers = (await utils.getGameState(gameId)).finalRoundData!.answers;
+      expect(answers).toHaveLength(2);
+      expect(answers.every((answer) => answer.isCorrect == null)).toBe(true);
+      await scenario.emitAndWaitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_REVIEW,
+        () =>
+          scenario
+            .actor(showmanSocket)
+            .emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
+              answerId: answers[0].id,
+              isCorrect: false
+            })
+      );
+      const revealed = await scenario.emitAndWaitForEvent<QuestionFinishEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.QUESTION_FINISH,
+        () =>
+          scenario
+            .actor(showmanSocket)
+            .emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
+              answerId: answers[1].id,
+              isCorrect: true
+            })
+      );
+      expect(revealed.answerPoint).toEqual(target);
+      expect(revealed.answerPointImage).toBe(
+        playerData.questionData.question.questionFiles!.find((file) => file.order === 1)!.file.link
+      );
+      const { socket: revealedSpectator } = await suite.utils.createGameClient(
+        suite.app,
+        suite.userRepo
+      );
+      const revealedSnapshot = await suite.utils.joinSpecificGameWithData(
+        revealedSpectator,
+        gameId,
+        PlayerRole.SPECTATOR
+      );
+      expect(revealedSnapshot.gameState.questionState).toBe(QuestionState.SHOWING_ANSWER);
+      expect(revealedSnapshot.gameState.answerShowData?.answerPoint).toEqual(target);
+      await scenario.runAndWaitForEvent(showmanSocket, SocketIOGameEvents.GAME_FINISHED, () =>
+        utils.expireTimerAndWaitForAction(gameId)
+      );
+      expect((await utils.getGameState(gameId)).timer).toBeNull();
+    });
+  });
+
+  it("final select preserves private choice identity and immutable answers until manual review", async () => {
+    await suite.scenario(async (scenario) => {
+      const { showmanSocket, playerSockets, gameId, playerUsers } = await utils.setupFinalRoundGame(
+        { playersCount: 2, playerScores: [1500, 1200] }
+      );
+      const bidding = scenario.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
+      await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
+      await bidding;
+      const state = await utils.getGameState(gameId);
+      const theme = state.currentRound!.themes.find(
+        (item) => !item.questions.some((q) => q.isPlayed)
+      )!;
+      const questionId = theme.questions[0].id;
+      const store = container.resolve(PackageStore);
+      const question = await store.getQuestion(gameId, questionId);
+      await container.resolve(RedisRepository).hset(store.getPackageKey(gameId), {
+        [`q:${questionId}`]: JSON.stringify({
+          ...question,
+          text: null,
+          textItems: null,
+          questionFiles: null,
+          answerType: AnswerType.SELECT,
+          showDelay: 0,
+          correctChoiceOrder: 1,
+          answers: [
+            { order: 0, text: "Same", file: null },
+            { order: 1, text: "Same", file: null }
+          ]
+        })
+      });
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.FINAL_BID_SUBMIT, () =>
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 })
+      );
+      const publicQuestion = scenario.waitForEvent<FinalQuestionEventData>(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_QUESTION_DATA
+      );
+      const answering = scenario.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
+      scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
+      await answering;
+      expect((await publicQuestion).questionData.question).toMatchObject({
+        answerType: AnswerType.SELECT
+      });
+      expect((await publicQuestion).questionData.question).not.toHaveProperty("correctChoiceOrder");
+      const accepted = scenario
+        .createAcceptedActionProbe({ gameId, actionType: GameActionType.FINAL_ANSWER_SUBMIT })
+        .waitForCount(1);
+      const submitted = scenario.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
+      scenario
+        .actor(playerSockets[0])
+        .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "Same", choiceOrder: 1 });
+      await Promise.all([accepted, submitted]);
+      await scenario.assert.waitForActionsComplete({ gameId });
+      await scenario.emitAndWaitForEvent(playerSockets[0], SocketIOEvents.ERROR, () =>
+        scenario
+          .actor(playerSockets[0])
+          .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "Same", choiceOrder: 0 })
+      );
+      const { socket } = await suite.utils.createGameClient(suite.app, suite.userRepo);
+      const joined = scenario.waitForEvent(socket, SocketIOGameEvents.GAME_DATA);
+      scenario.actor(socket).emit(SocketIOGameEvents.JOIN, { gameId, role: PlayerRole.SPECTATOR });
+      const snapshot = await joined;
+      expect(snapshot.gameState.finalRoundData.bids).toEqual({});
+      expect(JSON.stringify(snapshot.gameState)).not.toContain("choiceOrder");
+      const end = scenario.waitForEvent<FinalSubmitEndEventData>(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_SUBMIT_END
+      );
+      scenario
+        .actor(playerSockets[1])
+        .emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, { answerText: "Same", choiceOrder: 0 });
+      const reviews = (await end).allReviews!;
+      expect(reviews.map((entry) => [entry.choiceOrder, entry.isCorrect])).toEqual([
+        [1, null],
+        [0, null]
+      ]);
+      await scenario.assert.waitForActionsComplete({ gameId });
+      const final = (await utils.getGameState(gameId)).finalRoundData!;
+      expect(final.phase).toBe(FinalRoundPhase.REVIEWING);
+      expect(final.answers.map((answer) => answer.choiceOrder)).toEqual([1, 0]);
+      await scenario.emitAndWaitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_REVIEW,
+        () =>
+          scenario
+            .actor(showmanSocket)
+            .emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
+              answerId: final.answers[0].id,
+              isCorrect: true
+            })
+      );
+      const reveal = scenario.waitForEvent<QuestionFinishEventPayload>(
+        playerSockets[0],
+        SocketIOGameEvents.QUESTION_FINISH
+      );
+      scenario
+        .actor(showmanSocket)
+        .emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
+          answerId: final.answers[1].id,
+          isCorrect: false
+        });
+      expect((await reveal).correctChoice).toMatchObject({ order: 1, text: "Same" });
+      await scenario.assert.waitForActionsComplete({ gameId });
+      expect((await utils.getGameState(gameId)).questionState).toBe(QuestionState.SHOWING_ANSWER);
+    });
+  });
 
   describe("Answer Submission Flow", () => {
     it("should allow players to submit answers and transition to reviewing phase", async () => {

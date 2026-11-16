@@ -1,5 +1,6 @@
 import { zipSync } from "fflate";
 
+import { readCompatibilityIssues } from "@/features/upload/siqCompatibility";
 import { md5Hex, mimeFor } from "@/features/upload/archive";
 import type { MediaFile, MediaType, ParsedPackage } from "@/features/upload/types";
 
@@ -67,6 +68,9 @@ export function toParsed(pkg: DraftPackage, media: Map<string, MediaFile>): Pars
  */
 export async function exportOq(pkg: DraftPackage, media: Map<string, MediaFile>): Promise<Blob> {
   const parsed = toParsed(pkg, media);
+  for (const round of parsed.content.rounds)
+    for (const theme of round.themes)
+      for (const question of theme.questions) readCompatibilityIssues(question.compatibilityIssues);
   const entries: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = {
     "content.json": new TextEncoder().encode(JSON.stringify(parsed.content, null, 2)),
   };

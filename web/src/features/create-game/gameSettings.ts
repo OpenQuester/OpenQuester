@@ -29,3 +29,5 @@ export const TIMER_CHOICES: Record<Exclude<keyof GameTimerSettings, "roundMs">, 
 export const ROUND_MINUTES = [0, 10, 15, 20, 30, 45, 60];
 
 export const PRESS_MODES: ButtonPressMode[] = ["random_within_window", "first_wins"];
+export const MIN_GAME_SLOTS = 2;
+export const MAX_GAME_SLOTS = 15;

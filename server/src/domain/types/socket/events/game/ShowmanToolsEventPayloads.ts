@@ -32,11 +32,13 @@ export interface GameJoinModeChangeEventPayload {
 }
 
 /** Any subset of the rules and timers; omitted fields keep their current value */
-export type GameSettingsChangeInputData = GameSettingsInput;
+export type GameSettingsChangeInputData = GameSettingsInput & { maxPlayers?: number };
 
 /** The game's rules after the showman changed them */
 export interface GameSettingsChangeEventPayload {
   settings: GameSettingsDTO;
+  maxPlayers?: number;
+  playerSlots?: { playerId: number; slot: number }[];
 }
 
 /** The showman opened the buzzer before the question finished */

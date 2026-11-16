@@ -6,6 +6,7 @@ import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 import { GAME_QUESTION_ANSWER_TIME, MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
 import { type Game } from "domain/entities/game/Game";
+import { assertMediaQuestionData } from "tests/e2e/flows/media-download/MediaDownloadAssertions";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
@@ -41,50 +42,72 @@ describe("SocketGameTestFlowUtils reliability", () => {
     players.forEach((player) => expect(player.emit).not.toHaveBeenCalled());
   });
 
-  it.each([true, false])("waits for independent gated release (files: %s)", async (hasFiles) => {
-    jest.useFakeTimers({ now: new Date("2026-11-08T12:00:00Z") });
-    const { flow, stateUtils, showman, players, events, question } =
-      createRegularMediaFixture(hasFiles);
-    const opening = { timer: { ...timer(1550), startedAt: new Date() }, mediaReady: !hasFiles };
-    const state = {
-      ...mediaDownloadingState(question),
-      questionTransition: opening,
-      timer: hasFiles ? timer(MEDIA_DOWNLOAD_TIMEOUT) : null
-    };
-    stateUtils.getGameState.mockResolvedValue(state);
-    const release = () => {
-      const showingTimer = { ...timer(GAME_QUESTION_ANSWER_TIME), startedAt: new Date() };
-      stateUtils.getGameState.mockResolvedValue({
-        questionState: QuestionState.SHOWING,
-        timer: showingTimer
-      });
-      events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, {
-        ...mediaStatus(-1, true, true),
-        timer: showingTimer,
-        questionTransition: null
-      });
-    };
-    (showman.emit as jest.Mock).mockImplementation(() => {
-      events.emit(SocketIOGameEvents.QUESTION_DATA, {
-        ...questionData(42, question.questionFiles ?? []),
-        timer: state.timer,
-        questionTransition: opening
-      });
-    });
-    players.forEach((player, index) => {
-      (player.emit as jest.Mock).mockImplementation(() => {
+  it.each(["body", "options", "text"])(
+    "waits for independent gated release (%s)",
+    async (media) => {
+      const hasFiles = media !== "text";
+      jest.useFakeTimers({ now: new Date("2026-11-08T12:00:00Z") });
+      const { flow, stateUtils, showman, players, events, question } = createRegularMediaFixture(
+        media === "body"
+      );
+      if (media === "options") {
+        question.type = PackageQuestionType.CHOICE;
+        question.answers = [{ order: 0, text: null, file: createQuestionFiles()[0].file }];
+      }
+      const opening = { timer: { ...timer(1550), startedAt: new Date() }, mediaReady: !hasFiles };
+      const state = {
+        ...mediaDownloadingState(question),
+        questionTransition: opening,
+        timer: hasFiles ? timer(MEDIA_DOWNLOAD_TIMEOUT) : null
+      };
+      stateUtils.getGameState.mockResolvedValue(state);
+      const release = () => {
+        const showingTimer = { ...timer(GAME_QUESTION_ANSWER_TIME), startedAt: new Date() };
+        stateUtils.getGameState.mockResolvedValue({
+          questionState: QuestionState.SHOWING,
+          timer: showingTimer
+        });
         events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, {
-          ...mediaStatus(index + 11, true, index === players.length - 1),
-          timer: null,
-          questionTransition: { ...opening, mediaReady: index === players.length - 1 }
+          ...mediaStatus(-1, true, true),
+          timer: showingTimer,
+          questionTransition: null
+        });
+      };
+      (showman.emit as jest.Mock).mockImplementation(() => {
+        events.emit(SocketIOGameEvents.QUESTION_DATA, {
+          ...questionData(42, question.questionFiles ?? []),
+          data: question,
+          timer: state.timer,
+          questionTransition: opening
         });
       });
-    });
-    const expire = jest.spyOn(TestUtils, "expireTimer").mockImplementation(async () => release());
-    await flow.pickQuestion(showman, 42, players);
-    expect(expire).toHaveBeenCalledWith("game-1", "question-transition");
-    expect(stateUtils.startQuestionPlayback).toHaveBeenCalledWith("game-1");
-    players.forEach((player) => expect(player.emit).toHaveBeenCalledTimes(hasFiles ? 1 : 0));
+      players.forEach((player, index) => {
+        (player.emit as jest.Mock).mockImplementation(() => {
+          events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, {
+            ...mediaStatus(index + 11, true, index === players.length - 1),
+            timer: null,
+            questionTransition: { ...opening, mediaReady: index === players.length - 1 }
+          });
+        });
+      });
+      const expire = jest.spyOn(TestUtils, "expireTimer").mockImplementation(async () => release());
+      await flow.pickQuestion(showman, 42, players);
+      expect(expire).toHaveBeenCalledWith("game-1", "question-transition");
+      expect(stateUtils.startQuestionPlayback).toHaveBeenCalledWith("game-1");
+      players.forEach((player) => expect(player.emit).toHaveBeenCalledTimes(hasFiles ? 1 : 0));
+    }
+  );
+
+  it("requires a preparation timer and resource links for option-only media", () => {
+    const payload = questionData(42, []);
+    payload.data.answers = [{ order: 0, text: null, file: createQuestionFiles()[0].file }];
+    payload.questionTransition = { timer: timer(1550), mediaReady: false };
+    expect(() => assertMediaQuestionData(payload, 42, [])).not.toThrow();
+    payload.timer = null;
+    expect(() => assertMediaQuestionData(payload, 42, [])).toThrow("fresh");
+    payload.timer = timer(MEDIA_DOWNLOAD_TIMEOUT);
+    payload.data.answers[0].file!.link = undefined;
+    expect(() => assertMediaQuestionData(payload, 42, [])).toThrow("HTTP(S) link");
   });
 
   it("bounds a playback clock that never settles", async () => {

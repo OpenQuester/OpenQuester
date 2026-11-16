@@ -36,7 +36,12 @@ export interface GameStore {
   pending: { action: string; at: number; playerId?: number } | null;
   toasts: GameToast[];
   /** Set once the local player left or was removed; the page navigates away. */
-  left: { gameId: string; why: "left" | "kicked" | "deleted" | "closed"; removed?: boolean } | null;
+  left: {
+    gameId: string;
+    why: "left" | "kicked" | "deleted" | "closed";
+    removed?: boolean;
+    title?: string;
+  } | null;
   /** Showman: board clicks remove or restore questions instead of picking. */
   boardEdit: boolean;
   setBoardEdit: (on: boolean) => void;
@@ -198,14 +203,19 @@ const gameStore = (live: boolean): StateCreator<GameStore> => {
     },
     dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
     markLeft: (why, removed = false) => {
-      const gameId = get().gameId;
+      const { gameId, session } = get();
       if (!gameId) return;
       set({
-        left: { gameId, why, ...(removed ? { removed: true } : {}) },
+        left: {
+          gameId,
+          why,
+          ...(removed ? { removed: true } : {}),
+          ...(why === "kicked" && session?.title ? { title: session.title } : {}),
+        },
         pending: null,
         questionPresentation: null,
       });
-      if (live && why === "left") rememberLeftGame(gameId);
+      if (live && (why === "left" || why === "kicked")) rememberLeftGame(gameId);
     },
   });
 };
@@ -279,6 +289,7 @@ function resolvesPending(
   after: GameSession,
 ): boolean {
   if (!pending) return false;
+  if (event.type === "question-script-state") return true;
   if (pending.action === "user-leave") {
     return event.type === "user-leave" && event.payload.user === pending.playerId;
   }

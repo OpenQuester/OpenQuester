@@ -39,7 +39,7 @@ import {
  * - All players exhausted after wrong answer
  */
 export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
-  public readonly fromPhase = GamePhase.ANSWERING;
+  public readonly fromPhase: GamePhase = GamePhase.ANSWERING;
   public readonly toPhase = GamePhase.SHOWING_ANSWER;
 
   /**

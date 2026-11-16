@@ -9,7 +9,8 @@ import type { DraftMedia } from "./packageDraft";
 import { formatBytes } from "@/lib/format";
 import { EditorMediaPlayer } from "./EditorMediaPlayer";
 import { useAttachmentSize } from "./useAttachmentSize";
-import { PointPicker, type Spot } from "@/features/game/play/PointPicker";
+import type { PointTarget } from "@/lib/pointGeometry";
+import { PointPicker } from "@/features/game/play/PointPicker";
 
 export function MediaIcon({ type, size = 16 }: { type: DraftMedia["type"]; size?: number }) {
   return type === "image" ? (
@@ -35,7 +36,7 @@ export function AttachmentPreview({
   media: Pick<DraftMedia, "md5" | "type">;
   small?: boolean;
   className?: string;
-  point?: { target: Spot | null; radius: number | null };
+  point?: { target: PointTarget | null; radius: number | null };
   disableImageDrag?: boolean;
 }) {
   const { t } = useTranslation();

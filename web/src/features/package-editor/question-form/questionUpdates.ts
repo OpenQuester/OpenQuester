@@ -17,7 +17,7 @@ export function changeQuestionType(
         { id: newId(), text: "", file: null },
       ],
     };
-  return { type };
+  return { type, ...(q.type === "choice" && type !== "choice" ? { answerType: "select" } : {}) };
 }
 
 export function editChoiceText(q: DraftQuestion, id: string, text: string): Partial<DraftQuestion> {
@@ -36,5 +36,29 @@ export function selectChoice(q: DraftQuestion, id: string): Partial<DraftQuestio
   const previous = correctChoice(q);
   const answerText =
     option.text || (previous && q.answerText === previous.text ? "" : q.answerText);
-  return { correctChoiceOptionId: id, answerText };
+  return {
+    correctChoiceOptionId: id,
+    answerText,
+    compatibilityIssues: q.compatibilityIssues?.filter((issue) => issue.feature !== "select"),
+  };
+}
+
+/** Explicitly discards unsupported imported behavior, retaining the visible prompt and reveal. */
+export function convertImportedQuestionToSimple(): Partial<DraftQuestion> {
+  return {
+    type: "simple",
+    script: undefined,
+    compatibilityIssues: undefined,
+    secretRules: undefined,
+    realPrice: undefined,
+    forEveryone: false,
+    allowedPrices: [],
+    answerType: "text",
+    answerNumber: null,
+    answerPoint: null,
+    answerDeviation: null,
+    options: [],
+    selectSource: undefined,
+    correctChoiceOptionId: undefined,
+  };
 }

@@ -135,7 +135,15 @@ export function QuestionForm({ at, onClose }: { at: ops.QuestionPath; onClose: (
                       >
                         <QuestionPlaytest
                           question={q}
+                          roundNominalPrices={at.round.themes
+                            .flatMap((theme) =>
+                              theme.questions.map((question) =>
+                                question.id === q.id ? q.price : question.price,
+                              ),
+                            )
+                            .filter((price): price is number => price != null && price >= 0)}
                           final={final}
+                          round={at.round}
                           themeName={at.theme.name}
                           media={previewMedia}
                           canSave={form.canSave}

@@ -100,21 +100,27 @@ test("new target uses last image and secret preview waits for that step", async 
     .getByLabel("View as")
     .selectOption("3");
   const stage = game.getByTestId("content-stage");
+  const dock = game.getByTestId("dock");
+  const target = game.getByTestId("point-picker");
+  const presentedImages = () =>
+    stage.evaluate((element) =>
+      Array.from(element.querySelectorAll("img"), (image) => [
+        image.naturalWidth,
+        image.naturalHeight,
+      ]),
+    );
   await expect(stage).toBeVisible();
-  await expect(game.getByTestId("point-picker")).toHaveCount(0);
-  await expect(game.getByTestId("dock")).toContainText("Wait for the target picture to appear.");
-  await expect(stage.locator("img")).toHaveCount(1);
-  expect(
-    await stage
-      .locator("img")
-      .evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight]),
-  ).toEqual([100, 200]);
+  await expect.poll(presentedImages).toEqual([[100, 200]]);
+  await expect(target).toHaveCount(0);
+  await expect(dock).toContainText("Watch the question first.");
   const dir = process.env.OQ_POINT_SHOTS;
   if (dir) {
     mkdirSync(dir, { recursive: true });
     await page.screenshot({ path: join(dir, "point-sequence-first.png") });
   }
-  const target = game.getByTestId("point-picker");
+  await expect.poll(presentedImages).toEqual([[240, 120]]);
+  await expect(target).toHaveCount(0);
+  await expect(dock).toContainText("Watch the question first.");
   await expect(target).toBeVisible({ timeout: 7000 });
   expect(
     await target

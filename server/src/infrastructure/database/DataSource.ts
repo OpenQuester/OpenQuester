@@ -68,8 +68,13 @@ import { AddAnswerTypes_0_28_0_1792400000000 as AddAnswerTypes } from "./migrati
 import { AddQuestionReports_0_29_0_1792500000000 as AddQuestionReports } from "./migrations/0.29.0_AddQuestionReports_1792500000000";
 import { AddPackageUploadStatus_0_30_0_1792600000000 as AddPackageUploadStatus } from "./migrations/0.30.0_AddPackageUploadStatus_1792600000000";
 import { AddCorrectChoiceOrder_0_31_0_1792700000000 as AddCorrectChoiceOrder } from "./migrations/0.31.0_AddCorrectChoiceOrder_1792700000000";
-import { AddMediaPlaybackSetting_0_33_0_1793300000000 as AddMediaPlaybackSetting } from "./migrations/0.33.0_AddMediaPlaybackSetting_1793300000000";
 import { AddQuestionContentFields_0_32_0_1793200000000 as AddQuestionContentFields } from "./migrations/0.32.0_AddQuestionContentFields_1793200000000";
+import { AddMediaPlaybackSetting_0_33_0_1793300000000 as AddMediaPlaybackSetting } from "./migrations/0.33.0_AddMediaPlaybackSetting_1793300000000";
+import { AddQuestionRealPrice_0_34_0_1794418572611 as AddQuestionRealPrice } from "infrastructure/database/migrations/0.34.0_AddQuestionRealPrice_1794418572611";
+import { AddSecretRules_0_34_1_1794418572612 as AddSecretRules } from "infrastructure/database/migrations/0.34.1_AddSecretRules_1794418572612";
+import { AddOptionSourceLabel_0_34_2_1794418572613 as AddOptionSourceLabel } from "infrastructure/database/migrations/0.34.2_AddOptionSourceLabel_1794418572613";
+import { AddQuestionAuthoredContent_0_34_3_1794418572614 as AddQuestionAuthoredContent } from "infrastructure/database/migrations/0.34.3_AddQuestionAuthoredContent_1794418572614";
+import { AddQuestionScript_0_34_4_1794418572615 as AddQuestionScript } from "infrastructure/database/migrations/0.34.4_AddQuestionScript_1794418572615";
 import { QuestionReport } from "infrastructure/database/models/report/QuestionReport";
 import { StorageLimit } from "infrastructure/database/models/StorageLimit";
 
@@ -179,8 +184,8 @@ export const AppDataSource = new DataSource({
   ],
   migrations: [
     createUserAndFileTables,
-    createPermissionTable,
     updateUserModelFields,
+    createPermissionTable,
     updateUserRequiredFields,
     writeMoreToDB,
     changePermissionValidation,
@@ -205,9 +210,9 @@ export const AppDataSource = new DataSource({
     AddUserBannedField,
     AddGuestAndNameField,
     AddPackageManagementPermissions,
+    AddShowAnswerDuration,
     AddMutePlayerPermission,
     AddMutedUntilToUser,
-    AddShowAnswerDuration,
     AddViewLogsPerm,
     AddContentSequencingFields,
     AddManageGamesPermission,
@@ -218,7 +223,12 @@ export const AppDataSource = new DataSource({
     AddPackageUploadStatus,
     AddCorrectChoiceOrder,
     AddQuestionContentFields,
-    AddMediaPlaybackSetting
+    AddMediaPlaybackSetting,
+    AddQuestionRealPrice,
+    AddSecretRules,
+    AddOptionSourceLabel,
+    AddQuestionAuthoredContent,
+    AddQuestionScript
   ],
   poolSize: env.DB_POOL_SIZE,
   migrationsRun: true,

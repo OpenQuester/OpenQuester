@@ -11,11 +11,11 @@ type Filter = "all" | "lobby" | "playing";
 export function useHomePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { notice } = useSearch({ from: "/shell/" });
+  const { notice, gameTitle } = useSearch({ from: "/shell/" });
   const dismissNotice = useCallback(() => {
     void navigate({
       to: "/",
-      search: (previous) => ({ ...previous, notice: undefined }),
+      search: (previous) => ({ ...previous, notice: undefined, gameTitle: undefined }),
       replace: true,
       hash: true,
       resetScroll: false,
@@ -90,6 +90,7 @@ export function useHomePage() {
 
   return {
     notice,
+    gameTitle,
     dismissNotice,
     games,
     mine,

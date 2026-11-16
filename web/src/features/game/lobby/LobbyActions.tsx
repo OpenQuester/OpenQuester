@@ -4,10 +4,13 @@ import { lobbyStyles } from "./lobbyStyles";
 
 import { Button } from "@/ui/Button";
 import { DeleteGameButton } from "../DeleteGameButton";
-import { InviteCard } from "./InviteCard";
+import { Avatar } from "@/ui/Avatar";
+import { spectators } from "@/game/selectors";
 import type { LobbyModel } from "./useLobby";
 export function LobbyActions({ lobby }: { lobby: LobbyModel }) {
+  const { t } = useTranslation();
   const { role, session } = lobby;
+  const watching = spectators(session);
   return (
     <aside className={lobbyStyles.actions}>
       {role === "player" && <PlayerReadiness lobby={lobby} />}
@@ -16,14 +19,35 @@ export function LobbyActions({ lobby }: { lobby: LobbyModel }) {
 
       {role === "showman" && <HostStart lobby={lobby} />}
 
-      <InviteCard gameId={session.gameId} password={session.state.password ?? null} />
+      <section aria-labelledby="spec-h" className={lobbyStyles.panel}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="spec-h" className={lobbyStyles.actionTitle}>
+            {t("lobby.spectators")}
+          </h2>
+          <span className="text-sm text-muted">
+            {t("lobby.watching", { count: watching.length })}
+          </span>
+        </div>
+        {watching.length > 0 && (
+          <ul className="mt-3 mb-0 flex max-h-[min(18rem,40dvh)] list-none flex-col gap-2 overflow-y-auto overscroll-contain p-0">
+            {watching.map((player) => (
+              <li
+                key={player.meta.id}
+                className={cn(lobbyStyles.seat, "min-h-0 border-line-strong bg-surface-2 p-2")}
+              >
+                <Avatar name={player.meta.username} src={player.meta.avatar} />
+                <span className="min-w-0 truncate font-semibold">{player.meta.username}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </aside>
   );
 }
 function PlayerReadiness({ lobby }: { lobby: LobbyModel }) {
   const { t } = useTranslation();
-  const { me, pending, meReady, connection, host, readyCount, activeSeated, myId, autoStart } =
-    lobby;
+  const { me, pending, meReady, connection, host, readyCount, seated, myId, autoStart } = lobby;
   return (
     <section className={cn("flex flex-col gap-3.5", lobbyStyles.actionPanel)}>
       <h2 className={lobbyStyles.actionTitle}>
@@ -48,7 +72,7 @@ function PlayerReadiness({ lobby }: { lobby: LobbyModel }) {
           ? t(autoStart ? "lobby.waitingForReady" : "lobby.waitingForHost", {
               name: host?.meta.username ?? t("roles.showman"),
               ready: readyCount,
-              total: activeSeated.length,
+              total: seated.length,
             })
           : t(autoStart ? "lobby.readyHelp" : "lobby.readyManualHelp")}
       </p>
@@ -90,21 +114,21 @@ function SpectatorActions({ lobby }: { lobby: LobbyModel }) {
 }
 function HostStart({ lobby }: { lobby: LobbyModel }) {
   const { t } = useTranslation();
-  const { activeSeated, readyCount, pending, connection, session, autoStart } = lobby;
+  const { seated, readyCount, pending, connection, session, autoStart } = lobby;
   return (
     <section className={cn("flex flex-col gap-4", lobbyStyles.actionPanel)}>
       <h2 className={lobbyStyles.actionTitle}>{t("lobby.startTitle")}</h2>
       <ul className={lobbyStyles.checklist}>
         <Check ok>{t("lobby.checkPackage")}</Check>
-        <Check ok={activeSeated.length >= 1} warn={activeSeated.length === 0}>
-          {activeSeated.length === 0
+        <Check ok={seated.length >= 1} warn={seated.length === 0}>
+          {seated.length === 0
             ? t("lobby.checkNoPlayers")
-            : t("lobby.checkPlayers", { count: activeSeated.length })}
+            : t("lobby.checkPlayers", { count: seated.length })}
         </Check>
-        <Check ok={readyCount === activeSeated.length && activeSeated.length > 0} warn>
-          {readyCount === activeSeated.length && activeSeated.length > 0
+        <Check ok={readyCount === seated.length && seated.length > 0} warn>
+          {readyCount === seated.length && seated.length > 0
             ? t("lobby.checkAllReady")
-            : t("lobby.checkNotReady", { count: activeSeated.length - readyCount })}
+            : t("lobby.checkNotReady", { count: seated.length - readyCount })}
         </Check>
       </ul>
       <Button
@@ -116,7 +140,7 @@ function HostStart({ lobby }: { lobby: LobbyModel }) {
         {t("lobby.start")}
       </Button>
       <p className="m-0 text-sm text-muted">
-        {activeSeated.length === 0
+        {seated.length === 0
           ? t("lobby.startAloneHelp")
           : t(autoStart ? "lobby.startHelp" : "lobby.startManualHelp")}
       </p>

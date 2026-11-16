@@ -1,10 +1,13 @@
+import { getRealPrice } from "@/game/questionPrices";
+import { textDuration } from "@/game/contentPlan";
 import { detectMediaMime } from "@/features/upload/archive";
 import type { MediaFile } from "@/features/upload/types";
 import type { GameJoinData, Player, Question, QuestionFile, Round } from "@/game/protocol";
 import { sessionFromSnapshot } from "@/game/reducer";
 import { serverNow } from "@/lib/clock";
-import { toUploadQuestion, type DraftQuestion } from "../packageDraft";
+import { toUploadQuestion, type DraftQuestion, type DraftRound } from "../packageDraft";
 import { playableNumericQuestion } from "../numericAnswer";
+import { MAX_PRICE } from "../validatePackage";
 
 export const PREVIEW_SHOWMAN = 1;
 export const PREVIEW_PLAYERS = [2, 3, 4] as const;
@@ -15,6 +18,23 @@ export const PREVIEW_FINAL_THEME = 12;
 /** Server score limits, applied only to local simulated results. */
 export const clampPreviewScore = (value: number) =>
   Math.max(-2_100_000_000, Math.min(2_100_000_000, value));
+
+/** The last selected theme can use prices from themes eliminated in playtest. */
+export function finalPreviewRoundPrices(round: DraftRound | undefined, question: DraftQuestion) {
+  if (!round || round.type !== "final" || !question.script) return undefined;
+  const prices = round.themes.flatMap((theme) =>
+    theme.questions.flatMap((item) => {
+      const source = item.id === question.id ? question : item;
+      const price = source.realPrice ?? source.price;
+      return price != null && Number.isSafeInteger(price) && price > 0 && price <= MAX_PRICE
+        ? [price]
+        : [];
+    }),
+  );
+  return prices.length
+    ? { min: Math.min(...prices), max: Math.max(...prices) }
+    : { min: 1, max: 1 };
+}
 
 /** URLs belong only to this launch and never enter editor storage. */
 export function previewMedia(files: Map<string, MediaFile>) {
@@ -85,7 +105,7 @@ export interface PreviewNames {
 export function initialPreview(
   final: boolean,
   themeName: string,
-  question: Pick<Question, "price" | "isHidden">,
+  question: Pick<Question, "price" | "realPrice" | "isHidden">,
   names: PreviewNames,
   random = Math.random,
 ) {
@@ -133,7 +153,12 @@ export function initialPreview(
     players: [
       person(PREVIEW_SHOWMAN, "showman", names.showman),
       ...PREVIEW_PLAYERS.map((id, i) =>
-        person(id, "player", names.players[i]!, Math.max(1000, (question.price ?? 0) + 100)),
+        person(
+          id,
+          "player",
+          names.players[i]!,
+          Math.max(1000, (getRealPrice(question) ?? 0) + 100),
+        ),
       ),
       ...PREVIEW_SPECTATORS.map((id) => person(id, "spectator", names.spectator + ` ${id - 4}`)),
     ],
@@ -178,15 +203,23 @@ export function publicQuestion(q: Question): Question {
     type: q.type,
     order: q.order,
     price: q.price,
+    ...(q.realPrice != null ? { realPrice: q.realPrice } : {}),
     isHidden: q.isHidden,
     text: q.text,
     textOrder: q.textOrder,
-    textItems: q.textItems,
+    textItems: q.textItems?.map((item) =>
+      item.placement === "replic"
+        ? { ...item, text: "", durationMs: item.durationMs ?? textDuration(item.text) }
+        : item,
+    ),
+    textDurationMs: q.textDurationMs,
+    textWaitForFinish: q.textWaitForFinish,
+    answerDurationMs: q.answerDurationMs,
     playMediaSimultaneously: q.playMediaSimultaneously,
     answerType: q.answerType,
     pointImageOrder: q.pointImageOrder,
     answerDelay: q.answerDelay,
-    questionComment: q.questionComment,
+
     questionFiles: q.questionFiles,
     subType: q.subType,
     showAnswerDuration: q.showAnswerDuration,

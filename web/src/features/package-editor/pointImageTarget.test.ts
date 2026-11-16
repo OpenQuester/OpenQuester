@@ -24,7 +24,12 @@ describe("point image occurrence", () => {
   it("automatically follows the last image and undo restores the legacy target and point", () => {
     const q = newQuestion(100, {
       answerType: "point",
-      answerPoint: { x: 0.2, y: 0.4 },
+      answerPoint: {
+        x: 0.2,
+        y: 0.4,
+        imageAspectRatio: 2,
+        sourceGeometry: { kind: "sigame", aspectRatio: 1 },
+      },
       answerDeviation: 0.05,
       questionFiles: [img("one"), img("two")],
     });
@@ -64,7 +69,12 @@ describe("point image occurrence", () => {
     const q = newQuestion(100, {
       answerType: "point",
       pointImageId: "two",
-      answerPoint: { x: 0.2, y: 0.4 },
+      answerPoint: {
+        x: 0.2,
+        y: 0.4,
+        imageAspectRatio: 2,
+        sourceGeometry: { kind: "sigame", aspectRatio: 1 },
+      },
       questionFiles: [
         img("one"),
         { occurrenceId: "sound", md5: "sound", type: "audio", displayTime: null },
@@ -135,7 +145,12 @@ describe("point image occurrence", () => {
       second = img("two", "b");
     const q = newQuestion(100, {
       answerType: "point",
-      answerPoint: { x: 0.2, y: 0.4 },
+      answerPoint: {
+        x: 0.2,
+        y: 0.4,
+        imageAspectRatio: 2,
+        sourceGeometry: { kind: "sigame", aspectRatio: 1 },
+      },
       pointImageId: "two",
       questionFiles: [first, second],
     });
@@ -167,7 +182,12 @@ describe("point image occurrence", () => {
     const second = img("two", "b");
     const q = newQuestion(100, {
       answerType: "point",
-      answerPoint: { x: 0.2, y: 0.4 },
+      answerPoint: {
+        x: 0.2,
+        y: 0.4,
+        imageAspectRatio: 2,
+        sourceGeometry: { kind: "sigame", aspectRatio: 1 },
+      },
       pointImageId: "one",
       questionFiles: [first, second],
     });
@@ -193,4 +213,31 @@ describe("point image occurrence", () => {
       expect(change.undo(change.question).answerPoint).toEqual(q.answerPoint);
     }
   });
+});
+
+it("retains source geometry on re-encoding without crop, replacement resets and undo restores it (A17)", () => {
+  const original = img("target");
+  const q = newQuestion(100, {
+    answerType: "point",
+    pointImageId: "target",
+    questionFiles: [original],
+    answerPoint: { x: 0.2, y: 0.4, sourceGeometry: { kind: "sigame", aspectRatio: 1 } },
+  });
+  const reencoded = changeMedia("questionFiles", {
+    kind: "edit",
+    index: 0,
+    original,
+    file: { ...original, md5: "reencoded" },
+    geometryChanged: false,
+  })(q)!;
+  expect(reencoded.question.answerPoint).toEqual(q.answerPoint);
+  const cropped = changeMedia("questionFiles", {
+    kind: "edit",
+    index: 0,
+    original,
+    file: { ...original, md5: "cropped" },
+    geometryChanged: true,
+  })(q)!;
+  expect(cropped.question.answerPoint).toBeNull();
+  expect(cropped.undo(cropped.question).answerPoint).toEqual(q.answerPoint);
 });

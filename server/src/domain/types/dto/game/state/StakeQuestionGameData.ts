@@ -6,6 +6,8 @@ export interface StakeQuestionGameData {
   questionId: number;
   /** Maximum bid allowed for this question (null means no limit) */
   maxPrice: number | null;
+  /** Actual base price disclosed for bidding; absent on legacy snapshots. */
+  questionPrice?: number | null;
   /** Current bids from all players (playerId -> the highest bid amount) */
   bids: Record<number, number | null>;
   /** Players who have passed and are out of bidding */

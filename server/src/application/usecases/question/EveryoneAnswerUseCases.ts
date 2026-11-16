@@ -133,7 +133,12 @@ export class SubmitEveryoneAnswerUseCase implements GameActionHandler<
     ctx: ActionExecutionContext<AllPlayAnswerInputData>
   ): Promise<ActionHandlerResult<AllPlaySubmittedEventPayload>> {
     const playerId = requirePlayer(ctx);
-    AllPlayLogic.submitAnswer(ctx.game, playerId, ctx.action.payload.answerText);
+    AllPlayLogic.submitAnswer(
+      ctx.game,
+      playerId,
+      ctx.action.payload.answerText,
+      ctx.action.payload.choiceOrder
+    );
 
     const data: AllPlaySubmittedEventPayload = { playerId };
 

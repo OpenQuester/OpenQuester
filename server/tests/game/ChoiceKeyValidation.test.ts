@@ -1,4 +1,5 @@
 import { describe, expect, it } from "@jest/globals";
+import { AnswerType } from "domain/enums/package/AnswerType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { uploadPackageScheme } from "presentation/schemes/package/packageSchemes";
 import { PackageUtils } from "tests/utils/PackageUtils";
@@ -16,6 +17,24 @@ describe("authored choice key validation", () => {
         uploadPackageScheme().validate({ content }, { allowUnknown: true }).error
       ).toBeUndefined();
     }
+  });
+
+  it("accepts a numbered blank legacy option but requires content for explicit select", () => {
+    const content = new PackageUtils().createTestPackageData({ id: 1, username: "author" });
+    const q = content.rounds[0].themes
+      .flatMap((theme) => theme.questions)
+      .find((question) => question.type === PackageQuestionType.CHOICE)!;
+    const validate = () => uploadPackageScheme().validate({ content }, { allowUnknown: true });
+    q.answerText = "1";
+    q.answers![0].text = null;
+    q.answers![1].text = "1";
+    expect(validate().error).toBeUndefined();
+
+    q.answerType = AnswerType.SELECT;
+    q.correctChoiceOrder = 1;
+    expect(validate().error).toBeDefined();
+    q.answers![0].text = "Other";
+    expect(validate().error).toBeUndefined();
   });
 
   it("rejects unmatched, fractional and duplicate referenced orders", () => {

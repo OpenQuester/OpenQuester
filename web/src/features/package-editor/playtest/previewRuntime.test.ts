@@ -6,6 +6,7 @@ import { previewTimer, PreviewRuntime } from "./previewRuntime";
 import { needsPlayerPerspective } from "./playtestGuidance";
 import { useGameStore } from "@/game/store";
 import { choosing } from "@/game/fixtures";
+import { answerWindowOpensIn } from "@/game/selectors";
 import { positionAt } from "@/game/contentPlan";
 import { contentElapsed, presentedQuestionContent } from "@/game/questionPresentation";
 
@@ -34,6 +35,10 @@ function finishTransition(game: PreviewRuntime) {
   if (!opening) return;
   vi.advanceTimersByTime(opening.timer.durationMs - opening.timer.elapsedMs);
   game.timeout();
+}
+
+function finishPresentation(game: PreviewRuntime) {
+  vi.advanceTimersByTime(answerWindowOpensIn(game.session));
 }
 
 describe("local question playtest", () => {
@@ -179,6 +184,25 @@ describe("local question playtest", () => {
     game.submit("1", 1);
     expect(game.session.lastResult?.answerType).toBe("correct");
   });
+  it.each([
+    ["select" as const, null],
+    ["text" as const, ["Stored alias"]],
+  ])("reveals aliases according to the explicit answer type %s", (answerType, expected) => {
+    const game = setup({
+      type: "choice",
+      answerType,
+      rightAnswers: ["Stored alias"],
+      correctChoiceOptionId: "a",
+      options: [
+        { id: "a", text: "First", file: null },
+        { id: "b", text: "Second", file: null },
+      ],
+    });
+    game.finish();
+    expect(game.session.state.answerShowData?.rightAnswers).toEqual(expected);
+    expect(game.question.rightAnswers).toEqual(["Stored alias"]);
+  });
+
   it("reveals the numeric target rather than hidden draft text or aliases", () => {
     const game = setup({
       answerType: "number",
@@ -302,6 +326,7 @@ describe("local question playtest", () => {
     game.advance();
     game.advance();
     finishTransition(game);
+    finishPresentation(game);
     game.setPerspective(PREVIEW_PLAYERS[1]);
     game.commands.emit("all-play-answer", { answerText: "42" });
     game.advance();
@@ -372,7 +397,32 @@ describe("local question playtest", () => {
     game.setPerspective(PREVIEW_PLAYERS[1]);
     game.commands.emit("secret-question-price", { price: 300 });
     expect(game.session.state.answeringPlayer).toBe(PREVIEW_PLAYERS[1]);
-    expect(game.session.state.currentQuestion?.price).toBe(300);
+    expect(game.session.state.currentQuestion?.price).toBe(100);
+    expect(game.session.state.currentQuestion?.realPrice).toBe(300);
+  });
+
+  it("gates direct answers through readiness, opening lead and presentation with false starts off", () => {
+    const game = setup({
+      type: "secret",
+      textDurationMs: 5000,
+      answerDurationMs: 15000,
+      questionFiles: [{ md5: "image", type: "image", displayTime: 1000 }],
+    });
+    game.session.settings = { ...game.session.settings!, falseStart: false };
+    game.advance();
+    game.commands.emit("secret-question-transfer", { targetPlayerId: PREVIEW_PLAYERS[1] });
+    game.submit("Too early");
+    expect(game.session.submittedAnswer).toBeNull();
+    game.ready();
+    finishTransition(game);
+    const clock = game.session.state.timer!;
+    expect(clock.durationMs).toBe(21000);
+    game.submit("Still too early");
+    expect(game.session.submittedAnswer).toBeNull();
+    game.setClock(previewTimer(clock.durationMs, 6000));
+    game.submit("After presentation");
+    expect(game.session.submittedAnswer).toBe("After presentation");
+    expect(game.session.state.timer?.durationMs).toBe(21000);
   });
 
   it.each([false, true])(
@@ -393,6 +443,8 @@ describe("local question playtest", () => {
         game.setPerspective(PREVIEW_PLAYERS[1]);
         game.commands.emit("secret-question-price", { price: 300 });
       }
+      expect(game.session.state.questionState).toBe("media_downloading");
+      game.ready();
       const content = game.session.content;
       expect(content?.timer).toEqual(game.session.state.timer);
       expect(content?.timer).not.toBeNull();
@@ -466,6 +518,7 @@ describe("local question playtest", () => {
     everyone.advance();
     everyone.timeout();
     everyone.advance();
+    finishPresentation(everyone);
     everyone.commands.emit("all-play-answer", { answerText: "42" });
     everyone.timeout();
     expect(everyone.session.players.filter((p) => p.role === "player").map((p) => p.score)).toEqual(
@@ -495,6 +548,7 @@ describe("local question playtest", () => {
     game.advance();
     game.advance();
     finishTransition(game);
+    finishPresentation(game);
     for (const [id, value] of [
       [2, "42"],
       [3, "41"],
@@ -519,6 +573,7 @@ describe("local question playtest", () => {
     expect(game.store.getState().session?.state.currentQuestion?.answerText).toBe("42");
     game.setPerspective(5);
     expect(game.store.getState().session?.state.currentQuestion).not.toHaveProperty("answerText");
+    finishPresentation(game);
     for (const id of PREVIEW_PLAYERS) {
       game.setPerspective(id);
       game.commands.emit("all-play-answer", { answerText: `Answer ${id}` });
@@ -534,7 +589,10 @@ describe("local question playtest", () => {
   });
 
   it("keeps final answers for showman review even when they are numbers", () => {
-    const game = setup({ answerType: "number", answerNumber: 42 }, true);
+    const game = setup(
+      { answerType: "number", answerNumber: 42, textDurationMs: 5000, answerDurationMs: 15000 },
+      true,
+    );
     expect(needsPlayerPerspective(game.session, PREVIEW_SHOWMAN)).toBe(false);
     expect(needsPlayerPerspective(game.session, PREVIEW_PLAYERS[1])).toBe(true);
     const eliminationVersion = game.session.version;
@@ -565,8 +623,8 @@ describe("local question playtest", () => {
     game.setPerspective(PREVIEW_PLAYERS[0]);
     game.commands.emit("final-answer-submit", { answerText: "42" });
     expect(game.session.state.finalRoundData?.answers).toHaveLength(0);
-    const plan = game.session.state.finalRoundData!.questionData!.contentPlan!;
-    game.setClock(previewTimer(game.session.state.timer!.durationMs, plan.totalMs));
+    expect(game.session.state.timer?.durationMs).toBe(20000);
+    finishPresentation(game);
     for (const id of PREVIEW_PLAYERS) {
       game.setPerspective(id);
       game.commands.emit("final-answer-submit", { answerText: "42" });
@@ -603,5 +661,225 @@ describe("local question playtest", () => {
     }).question;
     expect(checkPreviewAnswer(choice, "blue")).toBe(true);
     expect(checkPreviewAnswer(choice, "Red")).toBe(false);
+  });
+});
+
+it.each(["subtract", "none"] as const)(
+  "previews normal-for-all with actual price and %s penalty",
+  (penalty) => {
+    const game = setup({
+      type: "simple",
+      forEveryone: true,
+      realPrice: 500,
+      answerType: "number",
+      answerNumber: 42,
+    });
+    game.session.settings = { ...game.session.settings!, wrongAnswerPenalty: penalty };
+    game.pick();
+    game.ready();
+    finishTransition(game);
+    game.advanceWait();
+    expect(game.session.state.allPlay).toMatchObject({
+      mode: "simple",
+      price: 500,
+      wrongAnswerPenalty: penalty,
+    });
+    expect(game.session.state.currentQuestion?.price).toBe(100);
+    for (const [index, id] of PREVIEW_PLAYERS.entries()) {
+      game.setPerspective(id);
+      game.commands.emit("all-play-answer", { answerText: index === 0 ? "42" : "7" });
+    }
+    expect(game.session.state.allPlay?.entries.map((e) => e.scoreChange)).toEqual([
+      500,
+      penalty === "none" ? 0 : -500,
+      penalty === "none" ? 0 : -500,
+    ]);
+  },
+);
+
+it("resolves the lowest secret price on transfer timeout and retains the board nominal", () => {
+  const game = setup({ type: "secret", allowedPrices: [500, 300] });
+  game.pick();
+  game.timeout();
+  expect(game.session.state.currentQuestion).toMatchObject({ price: 100, realPrice: 300 });
+  expect(game.question.price).toBe(100);
+});
+
+it.each(["stake", "noRisk"] as const)(
+  "preview %s all-play select accepts the same wrong option independently",
+  (type) => {
+    const game = setup({
+      type,
+      forEveryone: true,
+      answerType: "select",
+      correctChoiceOptionId: "c",
+      text: "",
+      options: [
+        { id: "a", text: "Same", file: null },
+        { id: "b", text: "Same", file: null },
+        { id: "c", text: "Correct", file: null },
+      ],
+    });
+    game.pick();
+    if (type === "stake") game.timeout();
+    game.ready();
+    finishTransition(game);
+    finishPresentation(game);
+    game.command({ type: "all-play-answer", payload: { answerText: "Same", choiceOrder: 0 } }, 2);
+    game.command(
+      { type: "all-play-answer", payload: { answerText: "Correct", choiceOrder: 2 } },
+      2,
+    );
+    game.setPerspective(5);
+    expect(JSON.stringify(game.store.getState().session?.state)).not.toContain("choiceOrder");
+    game.command({ type: "all-play-answer", payload: { answerText: "Same", choiceOrder: 0 } }, 3);
+    game.command(
+      { type: "all-play-answer", payload: { answerText: "Correct", choiceOrder: 2 } },
+      4,
+    );
+    expect(
+      game.session.state.allPlay?.entries.map((entry) => [entry.choiceOrder, entry.isCorrect]),
+    ).toEqual([
+      [0, false],
+      [0, false],
+      [2, true],
+    ]);
+  },
+);
+
+it("preview final select stays private and manual, then reveals the keyed option without answerFiles", () => {
+  const game = setup(
+    {
+      answerType: "select",
+      text: "",
+      correctChoiceOptionId: "b",
+      options: [
+        { id: "a", text: "Same", file: null },
+        { id: "b", text: "Same", file: null },
+      ],
+    },
+    true,
+  );
+  game.timeout();
+  game.timeout();
+  game.timeout();
+  for (const id of PREVIEW_PLAYERS)
+    game.command(
+      { type: "final-answer-submit", payload: { answerText: "Same", choiceOrder: 1 } },
+      id,
+    );
+  expect(game.session.state.finalRoundData?.answers.every((entry) => entry.isCorrect == null)).toBe(
+    true,
+  );
+  expect(game.session.state.finalRoundData?.answers.map((entry) => entry.choiceOrder)).toEqual([
+    1, 1, 1,
+  ]);
+  for (const id of PREVIEW_PLAYERS)
+    game.command(
+      { type: "final-answer-review", payload: { answerId: `preview-${id}`, isCorrect: true } },
+      PREVIEW_SHOWMAN,
+    );
+  expect(game.session.finished).toBe(false);
+  expect(game.session.state.questionState).toBe("showing_answer");
+  expect(game.session.state.answerShowData?.correctChoice).toMatchObject({
+    order: 1,
+    text: "Same",
+  });
+});
+
+describe("secret rule preview", () => {
+  const rules = {
+    outcome: "question" as const,
+    priceAnnouncement: "afterTransfer" as const,
+    priceChooser: "receiver" as const,
+    priceRule: { kind: "range" as const, min: 200, max: 1000000, step: 0 },
+  };
+  it("keeps a private range until transfer and resolves timeout to its lowest integer", () => {
+    const game = setup({ type: "secret", secretRules: rules });
+    game.pick();
+    expect(game.store.getState().session!.state.secretQuestionData).not.toHaveProperty(
+      "announcedRange",
+    );
+    game.commands.emit("secret-question-transfer", { targetPlayerId: PREVIEW_PLAYERS[1] });
+    expect(game.session.state.secretQuestionData?.priceSelection?.range).toEqual({
+      min: 200,
+      max: 1000000,
+      step: 0,
+    });
+    game.timeout();
+    expect(game.session.state.currentQuestion).toMatchObject({ price: 100, realPrice: 200 });
+  });
+  it("makes opener choose before transfer and rejects the receiver choosing early", () => {
+    const game = setup({
+      type: "secret",
+      secretRules: { ...rules, priceAnnouncement: "beforeTransfer", priceChooser: "opener" },
+    });
+    game.pick();
+    expect(game.session.state.secretQuestionData?.priceSelection?.playerId).toBe(
+      PREVIEW_PLAYERS[0],
+    );
+    game.setPerspective(PREVIEW_PLAYERS[1]);
+    game.commands.emit("secret-question-price", { price: 400 });
+    expect(game.question.realPrice).toBeUndefined();
+    game.setPerspective(PREVIEW_PLAYERS[0]);
+    game.commands.emit("secret-question-price", { price: 400 });
+    expect(game.session.state.secretQuestionData?.step).toBe("transfer");
+    game.commands.emit("secret-question-transfer", { targetPlayerId: PREVIEW_PLAYERS[1] });
+    expect(game.session.state.currentQuestion).toMatchObject({ price: 100, realPrice: 400 });
+  });
+  it("reveals and scores a fixed zero without changing the nominal secret price", () => {
+    const game = setup({
+      type: "secret",
+      realPrice: 0,
+      secretRules: { ...rules, priceAnnouncement: "beforeTransfer", priceRule: null },
+    });
+    const recipient = PREVIEW_PLAYERS[1];
+    const scoreBefore = game.session.players.find((player) => player.meta.id === recipient)!.score;
+
+    game.pick();
+    expect(game.session.state.secretQuestionData?.announcedPrice).toBe(0);
+    game.commands.emit("secret-question-transfer", { targetPlayerId: recipient });
+    expect(game.session.state.currentQuestion).toMatchObject({ price: 100, realPrice: 0 });
+    game.judge("correct");
+
+    expect(game.session.state.questionState).toBe("showing_answer");
+    expect(game.session.state.currentQuestion?.realPrice).toBe(0);
+    expect(game.session.lastResult).toMatchObject({
+      player: recipient,
+      answerType: "correct",
+      result: 0,
+      score: scoreBefore,
+    });
+    const cell = game.session.state.currentRound?.themes
+      .flatMap((theme) => theme.questions)
+      .find((question) => question.id === game.question.id);
+    expect(cell).toMatchObject({ price: 100, isPlayed: true });
+  });
+
+  it("hides the award before transfer and awards exactly once without a fake submission", () => {
+    const game = setup({
+      type: "secret",
+      text: "",
+      answerText: "",
+      realPrice: 500,
+      secretRules: { ...rules, outcome: "award", priceRule: null },
+    });
+    game.pick();
+    const before = game.store.getState().session!.state;
+    expect(JSON.stringify(before)).not.toContain("award");
+    game.commands.emit("secret-question-transfer", { targetPlayerId: PREVIEW_PLAYERS[1] });
+    const score = game.session.players.find((p) => p.meta.id === PREVIEW_PLAYERS[1])!.score;
+    expect(game.session.state.secretAward).toMatchObject({
+      recipientPlayerId: PREVIEW_PLAYERS[1],
+      price: 500,
+      newScore: score,
+    });
+    expect(game.session.state.answerShowData).toBeNull();
+    expect(game.session.submittedAnswer).toBeNull();
+    game.commands.emit("secret-question-transfer", { targetPlayerId: PREVIEW_PLAYERS[1] });
+    expect(game.session.players.find((p) => p.meta.id === PREVIEW_PLAYERS[1])!.score).toBe(score);
+    game.commands.emit("game-pause");
+    game.timeout();
+    expect(game.session.state.secretAward?.price).toBe(500);
   });
 });

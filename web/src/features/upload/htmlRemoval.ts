@@ -152,6 +152,14 @@ const normalize = (values: unknown[]) => {
 };
 const isHtmlFile = (v: unknown) =>
   obj(v) && lower(typeof v.type === "string" ? v.type : null) === "html";
+const hasHtmlSource = (value: unknown, depth = 0): boolean => {
+  if (depth > 12) return false;
+  if (Array.isArray(value)) return value.some((v) => hasHtmlSource(v, depth + 1));
+  return (
+    obj(value) &&
+    (isHtmlFile(value) || Object.values(value).some((v) => hasHtmlSource(v, depth + 1)))
+  );
+};
 export function scanOq(p: Json, remove: boolean): HtmlRemovalReport {
   const report: HtmlRemovalReport = { questions: [], totalQuestions: 0 };
   const rounds = arr(p.rounds);
@@ -168,6 +176,14 @@ export function scanOq(p: Json, remove: boolean): HtmlRemovalReport {
         report.totalQuestions++;
         const html =
           lower(typeof q.type === "string" ? q.type : null) === "html" ||
+          (obj(q.selectSource) &&
+            arr(q.selectSource.unresolvedOptions).some(
+              (option) =>
+                obj(option) &&
+                lower(typeof option.kind === "string" ? option.kind : null) === "html",
+            )) ||
+          hasHtmlSource(q.compatibilityIssues) ||
+          hasHtmlSource(q.script) ||
           [...arr(q.questionFiles), ...arr(q.answerFiles), ...arr(q.answers)].some(
             (f) => obj(f) && isHtmlFile(f.file),
           );

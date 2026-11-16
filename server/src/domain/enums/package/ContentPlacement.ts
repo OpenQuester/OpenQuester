@@ -6,5 +6,6 @@
  */
 export enum ContentPlacement {
   SCREEN = "screen",
-  BACKGROUND = "background",
+  REPLIC = "replic",
+  BACKGROUND = "background"
 }

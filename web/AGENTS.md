@@ -178,8 +178,12 @@ functions/      Cloudflare Pages Functions proxying /v1 and /socket.io to the AP
   AV seeking uses one interactive waveform/thumbnail timeline. Cut-left/right
   actions set boundaries at its playhead and reject empty intervals. Play/Pause
   resumes inside the selection and restarts at its beginning otherwise.
-  PointPicker's wrapper shrinks to the displayed image; target markers use a
-  square aspect ratio so width-based radius stays circular in flex layouts.
+  PointPicker's wrapper shrinks to the displayed image. Native OQ target markers use a
+  square aspect ratio so width-based radius stays circular in flex layouts. Imported
+  `answerPoint.sourceGeometry` uses normalized ellipse semiaxes `deviation/aspectRatio`
+  and `deviation`; measured image aspect never replaces that private source metric.
+  Explicit target/radius edits switch to native geometry, while autosave/text/re-encoding
+  retain it. Target crop/replacement/rotation resets the target and metric together.
   The editor radius slider maps 100% to a diameter of 120% of the target image's
   longer side. Before publication, the shared upload flow measures that final
   image's oriented aspect ratio after optimization; failed decoding blocks the

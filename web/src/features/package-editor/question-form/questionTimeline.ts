@@ -101,3 +101,33 @@ export function syncQuestionFiles(
   }
   return withQuestionSteps(after, steps);
 }
+
+/** Answer content shares the same authored timeline operations, without a main checking-text step. */
+export function answerTimeline(question: DraftQuestion): DraftQuestion {
+  return {
+    ...question,
+    questionFiles: question.answerFiles,
+    text: "",
+    textPosition: null,
+    mainTextFirst: false,
+    textItems: question.answerTextItems,
+  };
+}
+
+export function answerSteps(question: DraftQuestion): QuestionStep[] {
+  return questionSteps(answerTimeline(question));
+}
+
+export function withAnswerSteps(question: DraftQuestion, steps: QuestionStep[]): DraftQuestion {
+  const timeline = withQuestionSteps(answerTimeline(question), steps);
+  return { ...question, answerFiles: timeline.questionFiles, answerTextItems: timeline.textItems };
+}
+
+export function syncAnswerFiles(
+  before: DraftQuestion,
+  after: DraftQuestion,
+  restore?: QuestionStep[],
+): DraftQuestion {
+  const timeline = syncQuestionFiles(answerTimeline(before), answerTimeline(after), restore);
+  return { ...after, answerFiles: timeline.questionFiles, answerTextItems: timeline.textItems };
+}

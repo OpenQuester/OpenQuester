@@ -1,8 +1,10 @@
+import { getRealPrice, getVisiblePrice } from "./questionPrices";
+import { answerFormat } from "./answerFormat";
 import { pointImage } from "@/lib/pointImage";
 import { serverNow } from "@/lib/clock";
 import { timerStartDelay } from "@/lib/timer";
 
-import { timerElapsed } from "./contentPlan";
+import { buildContentPlan, timerElapsed } from "./contentPlan";
 import type { GameSession } from "./reducer";
 import type { BoardQuestion, BoardTheme, Player, PlayerRole, Question } from "./protocol";
 
@@ -66,7 +68,7 @@ export function phaseOf(session: GameSession): Phase {
         return "final_reviewing";
     }
   }
-  if (s.allPlay && s.currentRound.type !== "final") {
+  if (s.allPlay && (s.currentRound.type !== "final" || s.scriptView)) {
     if (s.questionState === "bidding") return "all_play_bidding";
     if (s.questionState === "showing") return "all_play_answering";
     if (s.questionState === "reviewing") return "all_play_reviewing";
@@ -138,7 +140,7 @@ export function hasSkipped(session: GameSession, id: number): boolean {
   return (session.state.skippedPlayers ?? []).includes(id);
 }
 
-/** Only one player answers noRisk, stake and secret questions; there is no buzzer race. */
+/** These mechanics designate one eligible answerer. Single no-risk still uses the buzzer. */
 export function isSingleAnswerer(question: Question | null | undefined): boolean {
   return question?.type === "noRisk" || question?.type === "stake" || question?.type === "secret";
 }
@@ -175,7 +177,11 @@ export function canBuzz(session: GameSession, myId: number, connected = true): A
   if (phase === "answering") {
     return session.state.answeringPlayer === myId ? no("already_done") : no("not_your_turn");
   }
-  if (phase !== "showing") return no("wrong_phase");
+  if (
+    phase !== "showing" ||
+    (session.state.scriptView && session.state.scriptView.waitingFor !== "answer")
+  )
+    return no("wrong_phase");
   if (timerStartDelay(session.state.timer) > 0) return no("question_opening");
   if (!isEligible(session, myId)) {
     return no(session.state.currentQuestion?.type === "noRisk" ? "not_your_turn" : "not_eligible");
@@ -188,11 +194,7 @@ export function canBuzz(session: GameSession, myId: number, connected = true): A
 
 /** These formats need the answering player to submit through the game. */
 export function requiresAnswerSubmission(question: Question | null | undefined): boolean {
-  return (
-    question?.type === "choice" ||
-    question?.answerType === "number" ||
-    question?.answerType === "point"
-  );
+  return answerFormat(question) !== "text";
 }
 
 /** Manual judging is available for oral/text answers. */
@@ -201,7 +203,10 @@ export function canManuallyJudge(session: GameSession): boolean {
   if (phaseOf(session) !== "answering" || state.isPaused || state.answeringPlayer == null)
     return false;
   if (!state.currentQuestion) return false;
-  return !requiresAnswerSubmission(state.currentQuestion);
+  return (
+    (!!state.scriptView && session.hasAnswerSubmission) ||
+    !requiresAnswerSubmission(state.currentQuestion)
+  );
 }
 
 /** Can I pick this cell on the board? */
@@ -229,7 +234,7 @@ export function questionValue(session: GameSession): number {
     const bid = session.state.stakeQuestionData?.highestBid;
     if (bid != null) return bid;
   }
-  const price = q.price ?? 0;
+  const price = getRealPrice(q) ?? 0;
   if (q.type === "noRisk") return Math.round(price * (q.priceMultiplier ?? 1));
   return price;
 }
@@ -268,23 +273,31 @@ export function hasFinalBid(session: GameSession, id: number): boolean {
 
 /** Stake auction: who bids now and what the minimum next bid is. */
 export function stakeInfo(session: GameSession) {
-  const stake = session.state.stakeQuestionData;
+  const { state } = session;
+  const stake = state.stakeQuestionData;
   if (!stake) return null;
+  const script = state.scriptView;
+  const scripted =
+    stake.biddingPhase &&
+    script?.waitingFor === "answerer" &&
+    script.questionId === stake.questionId;
   const order = stake.biddingOrder;
   const bidderId =
-    session.state.currentTurnPlayerId != null && order.includes(session.state.currentTurnPlayerId)
-      ? session.state.currentTurnPlayerId
+    !scripted && state.currentTurnPlayerId != null && order.includes(state.currentTurnPlayerId)
+      ? state.currentTurnPlayerId
       : (order[stake.currentBidderIndex] ?? null);
+  const currentPrice = getRealPrice(state.currentQuestion);
   const price =
-    session.state.currentQuestion?.price ?? stakePriceFromBoard(session, stake.questionId);
-  const minBid = stake.highestBid != null ? stake.highestBid + 1 : (price ?? 1);
+    (scripted ? (stake.questionPrice ?? currentPrice) : (currentPrice ?? stake.questionPrice)) ??
+    stakePriceFromBoard(session, stake.questionId);
+  const minBid = stake.highestBid != null ? stake.highestBid + 1 : Math.max(price ?? 1, 1);
   return { stake, bidderId, minBid, price };
 }
 
 function stakePriceFromBoard(session: GameSession, questionId: number): number | null {
   for (const theme of session.state.currentRound?.themes ?? []) {
     for (const q of theme.questions) {
-      if (q.id === questionId) return q.price;
+      if (q.id === questionId) return getVisiblePrice(q);
     }
   }
   return null;
@@ -350,9 +363,11 @@ export function allPlayStakes(
   const data = session.state.allPlay;
   if (!data) return { win: 0, lose: 0 };
   if (data.mode === "stake") {
-    const stake = entry.stake || data.price;
+    const stake = entry.stake ?? data.price;
     return { win: stake, lose: -stake };
   }
+  if (data.mode === "simple")
+    return { win: data.price, lose: data.wrongAnswerPenalty === "none" ? 0 : 0 - data.price };
   return { win: Math.round(data.price * (data.priceMultiplier ?? 1)), lose: 0 };
 }
 
@@ -375,10 +390,59 @@ export function pointPicture(question: Question | null | undefined): string | nu
   return image?.file.link ?? null;
 }
 
+/** The answer window follows the authoritative lead and presentation, regardless of false starts. */
+export function answerWindowOpensIn(session: GameSession): number {
+  const state = session.state;
+  const now = (state.isPaused ? state.pausedAt : null) ?? serverNow();
+  // The script has already advanced past presentation when it asks for an answer.
+  if (state.scriptView?.waitingFor === "answer") return timerStartDelay(state.timer, now);
+  const phase = phaseOf(session);
+  const q = state.currentQuestion;
+  let contentMs: number;
+  if (phase === "final_answering") {
+    const data = state.finalRoundData?.questionData;
+    const plan =
+      data?.contentPlan === undefined && data?.question.textItems != null
+        ? buildContentPlan({ ...data.question, files: data.question.questionFiles })
+        : data?.contentPlan;
+    contentMs =
+      (plan?.totalMs ?? 0) +
+      (answerFormat(data?.question) === "select" ? Math.max(0, data?.question.showDelay ?? 0) : 0);
+  } else if (
+    phase === "all_play_answering" ||
+    (phase === "answering" && (q?.type === "secret" || q?.type === "stake"))
+  ) {
+    contentMs = state.questionContentPlan?.totalMs ?? 0;
+    if (answerFormat(q) === "select") {
+      if (state.questionContentPlan === undefined && session.content?.kind === "question")
+        contentMs = session.content.plan.totalMs;
+      const opensAt = state.buzzerOpensAtMs || contentMs + Math.max(0, q?.showDelay ?? 0);
+      contentMs = Math.max(contentMs, opensAt);
+    }
+  } else if (phase === "answering") {
+    contentMs = 0;
+  } else {
+    return 0;
+  }
+  if (!state.timer) return contentMs > 0 ? Infinity : 0;
+  return (
+    timerStartDelay(state.timer, now) +
+    Math.max(0, contentMs - timerElapsed(state.timer, state.isPaused, now))
+  );
+}
+
 /** I'm the one who should answer now, in writing (buzzer answerer or everyone). */
 export function canAnswerNow(session: GameSession, myId: number): boolean {
+  if (session.state.isPaused || answerWindowOpensIn(session) > 0) return false;
   const phase = phaseOf(session);
   if (phase === "answering") return session.state.answeringPlayer === myId;
+  if (phase === "final_answering")
+    return (
+      myRole(session, myId) === "player" &&
+      hasFinalBid(session, myId) &&
+      isEligible(session, myId) &&
+      !session.finalSubmitted.includes(myId)
+    );
   if (phase === "all_play_answering") {
     const entry = session.state.allPlay?.entries.find((e) => e.playerId === myId);
     return !!entry && !entry.submitted;

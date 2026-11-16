@@ -477,6 +477,30 @@
   border-radius: 12px;
   container: choice-card / size;
 }
+/* Local AV controls need their intrinsic height inside the scrollable options list. */
+.answer-choices[data-media="true"] {
+  grid-auto-rows: max-content;
+}
+.choice-card[data-media="true"] {
+  container-type: inline-size;
+}
+.choice-card[data-media="true"] > .choice-answer {
+  position: static;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-height: 44px;
+}
+.choice-card[data-media="true"] > kbd {
+  grid-column: 1;
+  grid-row: 1;
+}
+.choice-card[data-media="true"] > .choice-preview {
+  grid-column: 2;
+  grid-row: 1;
+}
+.choice-card[data-media="true"] > .choice-media {
+  grid-row: 2;
+}
 .choice-card[data-image="true"][data-text="true"] {
   grid-template-columns: 24px minmax(0, 1fr) var(--choice-image-width);
 }

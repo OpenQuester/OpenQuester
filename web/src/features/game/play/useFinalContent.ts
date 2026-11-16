@@ -2,13 +2,13 @@ import { useMemo } from "react";
 
 import { buildContentPlan } from "@/game/contentPlan";
 import type { GameSession, ContentClock } from "@/game/reducer";
-import { useContentPosition } from "./media/useContentPosition";
+import { useAnswerWindowReady } from "./question/useQuestionStage";
 
 const EMPTY_PLAN = { steps: [{ startMs: 0, durationMs: 0, items: [] }], totalMs: 0 };
 
 /** Final-round content shares the final timer, including pause and rejoin. */
-export function useFinalContent(session: GameSession, enabled = true) {
-  const data = enabled ? session.state.finalRoundData?.questionData : null;
+export function useFinalContent(session: GameSession) {
+  const data = session.state.finalRoundData?.questionData;
   const legacy =
     data?.contentPlan === null ||
     (data?.contentPlan === undefined && data?.question.textItems == null);
@@ -18,6 +18,9 @@ export function useFinalContent(session: GameSession, enabled = true) {
     const q = data.question;
     return buildContentPlan({
       text: q.text,
+      answerDurationMs: q.answerDurationMs,
+      textDurationMs: q.textDurationMs,
+      textWaitForFinish: q.textWaitForFinish,
       textOrder: q.textOrder,
       textItems: q.textItems,
       playMediaSimultaneously: q.playMediaSimultaneously,
@@ -32,6 +35,6 @@ export function useFinalContent(session: GameSession, enabled = true) {
     // until the server restores the clock instead of exposing a later step.
     frozenAtMs: plan && !session.state.timer ? 0 : null,
   };
-  const { position } = useContentPosition(clock, session.state.isPaused);
-  return { content: plan ? clock : null, playing: !legacy && !!plan && !position.done, legacy };
+  const answerWindowReady = useAnswerWindowReady(session);
+  return { content: plan ? clock : null, playing: !answerWindowReady, legacy };
 }

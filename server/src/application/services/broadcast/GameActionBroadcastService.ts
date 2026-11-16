@@ -5,8 +5,14 @@ import { RealtimeEvents } from "application/ports/realtime/RealtimeEvent";
 import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
-import { projectFinalRoundData } from "domain/mappers/projectFinalRoundData";
-import type { FinalBidSubmitOutputData } from "domain/types/socket/events/FinalRoundEventData";
+import { projectAnswerReveal } from "domain/mappers/projectAnswerReveal";
+import { projectScriptQuestion, projectScriptState } from "domain/mappers/projectScriptState";
+import { PlayerRole } from "domain/types/game/PlayerRole";
+import type { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
+import type {
+  FinalBidSubmitOutputData,
+  FinalQuestionEventData
+} from "domain/types/socket/events/FinalRoundEventData";
 import { Game } from "domain/entities/game/Game";
 import {
   SocketIOEvents,
@@ -14,14 +20,20 @@ import {
   SocketIOUserEvents
 } from "domain/enums/SocketIOEvents";
 import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import type { QuestionScriptScoreEffect } from "domain/logic/question/QuestionScriptLogic";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
-import { type FinalQuestionEventData } from "domain/types/socket/events/FinalRoundEventData";
 import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
+
+interface ScriptBroadcastSource {
+  question: PackageQuestionDTO | null;
+  scores: { playerId: number; score: number }[];
+  outcomes?: QuestionScriptScoreEffect[];
+}
 
 type IOEvent = SocketIOEvents | SocketIOGameEvents | SocketIOUserEvents;
 
@@ -109,8 +121,22 @@ export class GameActionBroadcastService {
     game: Game
   ): Promise<void> {
     const { event, data, useRoleBasedBroadcast } = broadcast;
+    if (event === SocketIOGameEvents.QUESTION_SCRIPT_STATE) {
+      await this.emitScriptState(game, data as ScriptBroadcastSource);
+      return;
+    }
     if (event === SocketIOGameEvents.FINAL_BID_SUBMIT) {
       await this.emitFinalBid(gameId, data as FinalBidSubmitOutputData);
+      return;
+    }
+
+    if (
+      event === SocketIOGameEvents.QUESTION_FINISH &&
+      (data as QuestionFinishEventPayload).answerTextItems?.some(
+        (item) => item.placement === "replic"
+      )
+    ) {
+      await this.emitAnswerReveal(gameId, data as QuestionFinishEventPayload, game);
       return;
     }
 
@@ -134,6 +160,81 @@ export class GameActionBroadcastService {
     }
 
     await this.emitWithRoleBasedFiltering(event, game);
+  }
+
+  private async emitAnswerReveal(
+    gameId: string,
+    data: QuestionFinishEventPayload,
+    game: Game
+  ): Promise<void> {
+    const publicData = projectAnswerReveal(data);
+    try {
+      const sockets = await this.realtimeGateway.getRoomSocketIds(gameId);
+      const sessions = await this.socketUserDataService.getSocketDataBatch(sockets);
+      for (const socketId of sockets) {
+        const session = sessions.get(socketId);
+        const player =
+          session?.gameId === gameId
+            ? game.getPlayer(session.id, { fetchDisconnected: false })
+            : null;
+        this.realtimeGateway.publish(
+          RealtimeEvents.toSocket(
+            socketId,
+            SocketIOGameEvents.QUESTION_FINISH,
+            player?.role === PlayerRole.SHOWMAN ? data : publicData
+          )
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Could not deliver private answer speech: ${error}`, {
+        prefix: LogPrefix.BROADCAST,
+        gameId
+      });
+      this.realtimeGateway.publish(
+        RealtimeEvents.toRoom(gameId, SocketIOGameEvents.QUESTION_FINISH, publicData)
+      );
+    }
+  }
+
+  private async emitScriptState(game: Game, source: ScriptBroadcastSource): Promise<void> {
+    const event = SocketIOGameEvents.QUESTION_SCRIPT_STATE;
+    const payloadFor = (viewerId?: number, host = false) => {
+      const gameState = projectScriptState(game, viewerId, host);
+      if (source.question) {
+        gameState.currentQuestion = projectScriptQuestion(game.gameState, source.question, host);
+      }
+      return { gameState, scores: source.scores, outcomes: source.outcomes };
+    };
+    try {
+      const ids = await this.realtimeGateway.getRoomSocketIds(game.id);
+      const sessions = ids.length
+        ? await this.socketUserDataService.getSocketDataBatch(ids)
+        : new Map();
+      if (sessions.size) {
+        for (const socketId of ids) {
+          const session = sessions.get(socketId);
+          const player =
+            session?.gameId === game.id
+              ? game.getPlayer(session.id, { fetchDisconnected: false })
+              : null;
+          this.realtimeGateway.publish(
+            RealtimeEvents.toSocket(
+              socketId,
+              event,
+              payloadFor(player?.meta.id, player?.role === PlayerRole.SHOWMAN)
+            )
+          );
+        }
+        return;
+      }
+    } catch (error) {
+      this.logger.warn(`Could not personalize script state: ${error}`, {
+        prefix: LogPrefix.BROADCAST,
+        gameId: game.id
+      });
+    }
+    // Failed recipient lookup never exposes private price bounds or submissions.
+    this.realtimeGateway.publish(RealtimeEvents.toRoom(game.id, event, payloadFor()));
   }
 
   private async emitFinalBid(gameId: string, bid: FinalBidSubmitOutputData): Promise<void> {
@@ -195,13 +296,10 @@ export class GameActionBroadcastService {
       });
     }
 
-    // Recipient lookup can fail; the room fallback must contain only public final data.
+    // Recipient lookup can fail; the room fallback must contain only public game data.
     this.realtimeGateway.publish(
       RealtimeEvents.toRoom(game.id, event, {
-        gameState: {
-          ...game.gameState,
-          finalRoundData: projectFinalRoundData(game.gameState.finalRoundData)
-        }
+        gameState: projectScriptState(game)
       })
     );
   }
@@ -220,7 +318,7 @@ export class GameActionBroadcastService {
       ...payload,
       questionData: {
         ...payload.questionData,
-        question: GameQuestionMapper.mapToSimpleQuestion(fullQuestion)
+        question: GameQuestionMapper.mapToSimpleQuestion(fullQuestion, false)
       }
     };
 
@@ -280,6 +378,7 @@ export class GameActionBroadcastService {
         this.realtimeGateway.publish(
           RealtimeEvents.toSocket(socketId, SocketIOGameEvents.QUESTION_DATA, {
             ...payload,
+            questionState: game.gameState.questionState,
             data: questionData
           } satisfies GameQuestionDataEventPayload)
         );

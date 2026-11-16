@@ -21,3 +21,23 @@ describe("point aspect validation", () => {
     expect(uploadPackageScheme().validate({ content }, { allowUnknown: true }).error).toBeUndefined();
   });
 });
+
+it.each([0, -1, Infinity, NaN])("rejects invalid SIQ source aspect %s", (aspectRatio) => {
+  const content = new PackageUtils().createTestPackageData({ id: 1, username: "author" });
+  const question = content.rounds[0].themes[0].questions[0];
+  question.answerType = AnswerType.POINT;
+  question.answerPoint = { x: 0.5, y: 0.5, sourceGeometry: { kind: "sigame", aspectRatio } };
+  expect(uploadPackageScheme().validate({ content }, { allowUnknown: true }).error).toBeDefined();
+});
+it("accepts SIQ geometry independently of measured geometry", () => {
+  const content = new PackageUtils().createTestPackageData({ id: 1, username: "author" });
+  const question = content.rounds[0].themes[0].questions[0];
+  question.answerType = AnswerType.POINT;
+  question.answerPoint = {
+    x: 0.5,
+    y: 0.5,
+    imageAspectRatio: 2,
+    sourceGeometry: { kind: "sigame", aspectRatio: 1 }
+  };
+  expect(uploadPackageScheme().validate({ content }, { allowUnknown: true }).error).toBeUndefined();
+});

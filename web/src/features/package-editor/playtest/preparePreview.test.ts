@@ -28,3 +28,27 @@ it("measures legacy point geometry on the preview copy without changing the draf
   expect(result.answerPoint).toEqual({ x: 0.4, y: 0.6, imageAspectRatio: 2 });
   expect(original.answerPoint).toEqual({ x: 0.4, y: 0.6 });
 });
+
+it("measures current image without overwriting legacy SIQ source aspect (A14)", async () => {
+  class ImageStub {
+    naturalWidth = 1200;
+    naturalHeight = 600;
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    set src(_value: string) {
+      queueMicrotask(() => this.onload?.());
+    }
+    removeAttribute() {}
+  }
+  vi.stubGlobal("Image", ImageStub);
+  const original = question(100, {
+    answerType: "point",
+    answerPoint: { x: 0.5, y: 0.5, sourceGeometry: { kind: "sigame", aspectRatio: 1 } },
+    questionFiles: [
+      { order: 0, displayTime: null, file: { md5: "image", type: "image", link: "blob:local" } },
+    ],
+  });
+  const result = await preparePreviewQuestion(original, new AbortController().signal);
+  expect(result.answerPoint).toEqual({ ...original.answerPoint, imageAspectRatio: 2 });
+  expect(original.answerPoint?.imageAspectRatio).toBeUndefined();
+});

@@ -71,8 +71,13 @@ test("lobby shows the showman, package overview and selected start mode, and kee
   });
   await expect(page.getByTestId("lobby-showman")).toContainText("user1");
   await expect(page.getByTestId("lobby-start-mode")).toContainText("Showman starts");
+  await expect(page.getByRole("heading", { name: "Evening quiz" })).toBeVisible();
+  await expect(page.getByText("Capitals", { exact: true })).toBeHidden();
+  await page.getByText("Rounds and themes", { exact: true }).click();
   await expect(page.getByText("Capitals", { exact: true })).toBeVisible();
   await expect(page.getByText("Final discoveries", { exact: true })).toBeVisible();
+  await page.getByText("Rounds and themes", { exact: true }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(900);
   if (process.env.OQ_SCREENSHOT_DIR)
     await page.screenshot({ path: `${process.env.OQ_SCREENSHOT_DIR}/lobby.png`, fullPage: true });
   await page.getByRole("button", { name: "Take seat 3", exact: true }).click();

@@ -25,7 +25,13 @@ export function useGameConnection(gameId: string, myId: number, join: JoinOption
       const removed = left.removed || left.why === "deleted" || left.why === "closed";
       void refreshGames(client, removed ? gameId : undefined).then(() => {
         if (active)
-          void navigate({ to: "/", search: left.why === "left" ? {} : { notice: left.why } });
+          void navigate({
+            to: "/",
+            search:
+              left.why === "left"
+                ? {}
+                : { notice: left.why, ...(left.title ? { gameTitle: left.title } : {}) },
+          });
       });
     }
     return () => {

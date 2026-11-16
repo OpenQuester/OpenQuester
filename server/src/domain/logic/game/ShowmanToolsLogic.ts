@@ -4,7 +4,9 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { QuestionScriptLogic } from "domain/logic/question/QuestionScriptLogic";
 import { ValueUtils } from "domain/utils/ValueUtils";
 
 export interface AnswerUndoResult {
@@ -48,10 +50,43 @@ export class ShowmanToolsLogic {
 
   /**
    * Takes back the last ruling on the current question: its score change is
-   * reverted. After a wrong answer, the player may buzz again.
+   * reverted. While the buzzer is open, the player may buzz again.
    */
   public static undoLastRuling(game: Game): UndoneRuling {
     const state = game.gameState;
+    const progress = state.scriptProgress;
+    const scripted = !!(progress || state.scriptView);
+    if (scripted && state.isPaused) {
+      throw new ClientError(ClientResponse.NOTHING_TO_UNDO);
+    }
+
+    if (scripted && state.questionState === QuestionState.SHOWING) {
+      const attempt = state.answeredPlayers?.at(-1);
+      if (
+        progress?.waitingFor !== "answer" ||
+        progress.mode !== "button" ||
+        state.answeringPlayer != null ||
+        !attempt ||
+        attempt.answerType === AnswerResultType.CORRECT
+      ) {
+        throw new ClientError(ClientResponse.NOTHING_TO_UNDO);
+      }
+      const identity = QuestionScriptLogic.answerEffectIdentity(progress, attempt.player);
+      if (
+        !progress.appliedEffects.includes(identity) ||
+        !progress.submissions.some(
+          (entry) => entry.playerId === attempt.player && entry.scored && entry.correct === false
+        ) ||
+        !game.getPlayer(attempt.player, { fetchDisconnected: true })
+      ) {
+        throw new ClientError(ClientResponse.NOTHING_TO_UNDO);
+      }
+      progress.appliedEffects = progress.appliedEffects.filter((effect) => effect !== identity);
+      progress.submissions = progress.submissions.filter(
+        (entry) => entry.playerId !== attempt.player
+      );
+    }
+
     let last: GameStateAnsweredPlayerData | null = null;
     let canAnswerAgain = false;
 
@@ -70,8 +105,14 @@ export class ShowmanToolsLogic {
         delete data.answerResult;
         // A final wrong ruling is also in the attempt history. Consume both
         // copies so another undo reaches the previous player, not this one again.
-        if (state.answeredPlayers?.[state.answeredPlayers.length - 1]?.player === last.player) {
+        if (
+          (!scripted || last.answerType === AnswerResultType.WRONG) &&
+          state.answeredPlayers?.at(-1)?.player === last.player
+        ) {
           state.answeredPlayers = state.answeredPlayers.slice(0, -1);
+        }
+        if (progress && last.answerType === AnswerResultType.CORRECT) {
+          delete progress.lastCorrectResult;
         }
       } else if (state.answeredPlayers?.length) {
         last = state.answeredPlayers[state.answeredPlayers.length - 1];
@@ -98,7 +139,14 @@ export class ShowmanToolsLogic {
         playerId: last.player,
         revertedResult,
         newScore: player.score,
-        canAnswerAgain
+        canAnswerAgain:
+          canAnswerAgain &&
+          (!progress ||
+            (player.role === PlayerRole.PLAYER &&
+              !player.isRestricted &&
+              !player.isBanned &&
+              game.isPlayerEligibleToAnswer(last.player) &&
+              !state.skippedPlayers?.includes(last.player)))
       },
       answerType: last.answerType
     };

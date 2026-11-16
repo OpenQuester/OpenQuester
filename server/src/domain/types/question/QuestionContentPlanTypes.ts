@@ -10,8 +10,11 @@ export interface ContentDefaults {
 
 export interface QuestionContentSource {
   text?: string | null;
+  answerDurationMs?: number | null;
   /** Null/undefined keeps the text visible as a caption. */
   textOrder?: number | null;
+  textDurationMs?: number | null;
+  textWaitForFinish?: boolean | null;
   textItems?: QuestionTextItemDTO[] | null;
   playMediaSimultaneously?: boolean | null;
   files?: PackageQuestionFileDTO[] | null;

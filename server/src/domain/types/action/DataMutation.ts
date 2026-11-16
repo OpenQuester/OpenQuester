@@ -1,9 +1,10 @@
+import type { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { type Game } from "domain/entities/game/Game";
 import { DataMutationType } from "domain/enums/DataMutationType";
 import {
   type SocketIOEvents,
   type SocketIOGameEvents,
-  type SocketIOUserEvents,
+  type SocketIOUserEvents
 } from "domain/enums/SocketIOEvents";
 import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
 import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
@@ -85,6 +86,8 @@ export enum MutationAction {
   INIT_SESSION = "INIT_SESSION",
   CLEAR_LEFT_AT = "CLEAR_LEFT_AT",
   END_SESSION = "END_SESSION",
+  SECRET_AWARD = "SECRET_AWARD",
+  SCRIPT_ANSWER = "SCRIPT_ANSWER"
 }
 
 /**
@@ -94,7 +97,13 @@ export enum MutationAction {
 export type PlayerStatsMutationAction =
   | { readonly action: MutationAction.INIT_SESSION; readonly joinedAt: Date }
   | { readonly action: MutationAction.CLEAR_LEFT_AT }
-  | { readonly action: MutationAction.END_SESSION; readonly leftAt: Date };
+  | { readonly action: MutationAction.END_SESSION; readonly leftAt: Date }
+  | { readonly action: MutationAction.SECRET_AWARD; readonly newScore: number }
+  | {
+      readonly action: MutationAction.SCRIPT_ANSWER;
+      readonly newScore: number;
+      readonly answerType: AnswerResultType;
+    };
 
 /**
  * Apply a player statistics side-effect.
@@ -143,6 +152,23 @@ export type DataMutation =
 
 /** Create a SAVE_GAME mutation. */
 export class DataMutationConverter {
+  public static recordScriptResult(
+    gameId: string,
+    userId: number,
+    answerType: AnswerResultType | null,
+    newScore: number
+  ): UpdatePlayerStatsMutation {
+    return {
+      type: DataMutationType.UPDATE_PLAYER_STATS,
+      gameId,
+      userId,
+      payload:
+        answerType === null
+          ? { action: MutationAction.SECRET_AWARD, newScore }
+          : { action: MutationAction.SCRIPT_ANSWER, answerType, newScore }
+    };
+  }
+
   public static saveGameMutation(game: Game): SaveGameMutation {
     return { type: DataMutationType.SAVE_GAME, game };
   }
@@ -153,11 +179,7 @@ export class DataMutationConverter {
   }
 
   /** Create a TIMER_SET mutation. */
-  public static setTimerMutation(
-    key: string,
-    value: string,
-    pxTtl: number
-  ): SetTimerMutation {
+  public static setTimerMutation(key: string, value: string, pxTtl: number): SetTimerMutation {
     return { type: DataMutationType.TIMER_SET, key, value, pxTtl };
   }
 
@@ -179,7 +201,7 @@ export class DataMutationConverter {
       data,
       target: SocketBroadcastTarget.GAME,
       gameId,
-      useRoleBasedBroadcast,
+      useRoleBasedBroadcast
     };
   }
 
@@ -194,7 +216,7 @@ export class DataMutationConverter {
       event,
       data,
       target: SocketBroadcastTarget.SOCKET,
-      socketId,
+      socketId
     };
   }
 
@@ -212,9 +234,7 @@ export class DataMutationConverter {
    * Services (PhaseTransitionRouter, SocketGameTimerService, etc.) still return
    * the old `TimerMutation` type — this bridges them to the new mutation system.
    */
-  public static mutationFromTimerMutations(
-    mutations: TimerMutation[] | undefined
-  ): DataMutation[] {
+  public static mutationFromTimerMutations(mutations: TimerMutation[] | undefined): DataMutation[] {
     if (!mutations || mutations.length === 0) {
       return [];
     }
@@ -225,7 +245,7 @@ export class DataMutationConverter {
           type: DataMutationType.TIMER_SET,
           key: m.key,
           value: m.value,
-          pxTtl: m.pxTtl,
+          pxTtl: m.pxTtl
         };
       }
       return { type: DataMutationType.TIMER_DELETE, key: m.key };
@@ -254,7 +274,7 @@ export class DataMutationConverter {
         data: b.data,
         target: SocketBroadcastTarget.GAME,
         gameId: gameId ?? b.room,
-        useRoleBasedBroadcast: b.roleFilter,
+        useRoleBasedBroadcast: b.roleFilter
       })
     );
   }
@@ -279,7 +299,7 @@ export class DataMutationConverter {
         target: b.target ?? SocketBroadcastTarget.GAME,
         gameId: b.gameId,
         socketId: b.socketId,
-        useRoleBasedBroadcast: b.useRoleBasedBroadcast,
+        useRoleBasedBroadcast: b.useRoleBasedBroadcast
       })
     );
   }
@@ -300,7 +320,7 @@ export class DataMutationConverter {
       type: DataMutationType.UPDATE_SOCKET_SESSION,
       socketId,
       userId: JSON.stringify(userId),
-      gameId,
+      gameId
     };
   }
 
@@ -317,7 +337,7 @@ export class DataMutationConverter {
       type: DataMutationType.UPDATE_PLAYER_STATS,
       gameId,
       userId,
-      payload: { action: MutationAction.INIT_SESSION, joinedAt },
+      payload: { action: MutationAction.INIT_SESSION, joinedAt }
     };
   }
 
@@ -325,15 +345,12 @@ export class DataMutationConverter {
    * Declare a "clear leftAt time" mutation.
    * Emitted by Join Use Case for reconnecting players.
    */
-  public static clearPlayerLeftAt(
-    gameId: string,
-    userId: number
-  ): UpdatePlayerStatsMutation {
+  public static clearPlayerLeftAt(gameId: string, userId: number): UpdatePlayerStatsMutation {
     return {
       type: DataMutationType.UPDATE_PLAYER_STATS,
       gameId,
       userId,
-      payload: { action: MutationAction.CLEAR_LEFT_AT },
+      payload: { action: MutationAction.CLEAR_LEFT_AT }
     };
   }
 
@@ -344,16 +361,14 @@ export class DataMutationConverter {
    * Centralises the field-by-field mapping that was previously duplicated in
    * {@link DataMutationProcessor} and {@link GameActionExecutor}.
    */
-  public static broadcastsToSocketEvents(
-    broadcasts: BroadcastMutation[]
-  ): SocketEventBroadcast[] {
+  public static broadcastsToSocketEvents(broadcasts: BroadcastMutation[]): SocketEventBroadcast[] {
     return broadcasts.map((b) => ({
       event: b.event,
       data: b.data,
       target: b.target,
       gameId: b.gameId,
       socketId: b.socketId,
-      useRoleBasedBroadcast: b.useRoleBasedBroadcast,
+      useRoleBasedBroadcast: b.useRoleBasedBroadcast
     }));
   }
 }

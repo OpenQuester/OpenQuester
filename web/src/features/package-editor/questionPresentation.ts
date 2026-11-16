@@ -5,6 +5,9 @@ export function questionTypeDetail(
   t: (k: string, o?: Record<string, unknown>) => string,
 ): string {
   switch (q.type) {
+    case "simple":
+    case "choice":
+      return q.forEveryone ? t("editor.preview.everyone") : "";
     case "stake":
       return [
         q.maxPrice != null

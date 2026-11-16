@@ -10,6 +10,8 @@ import { ThemeEliminationToBiddingHandler } from "domain/state-machine/handlers/
 import { ChoosingToMediaDownloadingHandler } from "domain/state-machine/handlers/regular-round/ChoosingToMediaDownloadingHandler";
 import { AnsweringToShowingAnswerHandler } from "domain/state-machine/handlers/regular-round/AnsweringToShowingAnswerHandler";
 import { AnsweringToShowingHandler } from "domain/state-machine/handlers/regular-round/AnsweringToShowingHandler";
+import { DirectMediaToAnsweringHandler } from "domain/state-machine/handlers/special-question/DirectMediaToAnsweringHandler";
+import { DirectMediaToShowingAnswerHandler } from "domain/state-machine/handlers/special-question/DirectMediaToShowingAnswerHandler";
 import { MediaDownloadingToShowingHandler } from "domain/state-machine/handlers/regular-round/MediaDownloadingToShowingHandler";
 import { FinalMediaToAnsweringHandler } from "domain/state-machine/handlers/final-round/FinalMediaToAnsweringHandler";
 import { ShowingAnswerToGameFinishHandler } from "domain/state-machine/handlers/regular-round/ShowingAnswerToGameFinishHandler";
@@ -84,7 +86,10 @@ export function createPhaseTransitionRouter(logger: ILogger): PhaseTransitionRou
     // Answer display complete: SHOWING_ANSWER → CHOOSING (continue regular rounds)
     new ShowingAnswerToChoosingHandler(),
 
-    // Media download complete/timeout: MEDIA_DOWNLOADING → SHOWING
+    // A designated answerer leaves before media release.
+    new DirectMediaToShowingAnswerHandler(),
+    // Media download complete/timeout: MEDIA_DOWNLOADING → ANSWERING or SHOWING
+    new DirectMediaToAnsweringHandler(),
     new MediaDownloadingToShowingHandler(),
     // Final media download complete/timeout: MEDIA_DOWNLOADING -> FINAL_ANSWERING
     new FinalMediaToAnsweringHandler(),

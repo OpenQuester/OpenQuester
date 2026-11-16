@@ -1,3 +1,5 @@
+import { projectScriptState, projectScriptQuestion } from "domain/mappers/projectScriptState";
+import { QuestionScriptLogic } from "domain/logic/question/QuestionScriptLogic";
 import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
@@ -17,10 +19,6 @@ import { type GameAction, type GameActionResult } from "domain/types/action/Game
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { type QuestionPickResult, QuestionPickType } from "domain/types/question/QuestionPickTypes";
-import {
-  type SecretQuestionPriceResult,
-  type SecretQuestionTransferResult
-} from "domain/types/question/SecretQuestionTransferTypes";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { type FinalQuestionEventData } from "domain/types/socket/events/FinalRoundEventData";
 import {
@@ -28,10 +26,6 @@ import {
   type GameLeaveBroadcastData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import {
-  type SecretQuestionPriceBroadcastData,
-  type SecretQuestionTransferBroadcastData
-} from "domain/types/socket/game/SecretQuestionTransferData";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
 import { type ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
@@ -68,14 +62,6 @@ export class SocketActionHooks {
     this.hooks.set(GameActionType.LEAVE, this.afterLeaveGame.bind(this));
     this.hooks.set(GameActionType.ADMIN_GAME_CLOSE, this.afterCloseGame.bind(this));
     this.hooks.set(GameActionType.QUESTION_PICK, this.afterQuestionPick.bind(this));
-    this.hooks.set(
-      GameActionType.SECRET_QUESTION_TRANSFER,
-      this.afterSecretQuestionTransfer.bind(this)
-    );
-    this.hooks.set(
-      GameActionType.SECRET_QUESTION_PRICE_SELECT,
-      this.afterSecretQuestionPrice.bind(this)
-    );
   }
 
   /**
@@ -193,7 +179,7 @@ export class SocketActionHooks {
 
     // A paused game keeps its saved timer, so a rejoining showman still gets the question
     const timer = await this.getQuestionTimer(game);
-    const currentId = timer ? game.gameState.currentQuestion?.id : undefined;
+    const currentId = timer || game.gameState.scriptProgress ? game.gameState.currentQuestion?.id : undefined;
     const final = game.gameState.finalRoundData;
     const joinedPlayer = game.getPlayer(action.playerId, { fetchDisconnected: false });
     const finalId =
@@ -254,15 +240,37 @@ export class SocketActionHooks {
       return;
     }
 
+    const live = game.gameState.currentQuestion;
+    const resolvedQuestion =
+      live?.id === question.id && live?.realPrice != null
+        ? { ...question, realPrice: live.realPrice }
+        : question;
     const joinedPlayer = game.getPlayer(action.playerId, { fetchDisconnected: false });
+    if (game.gameState.scriptProgress) {
+      const host = joinedPlayer?.role === PlayerRole.SHOWMAN;
+      const state = projectScriptState(game, joinedPlayer?.meta.id, host);
+      const activeQuestion = QuestionScriptLogic.activeQuestion(game, question);
+      state.currentQuestion = projectScriptQuestion(game.gameState, activeQuestion, host);
+      if (timer) {
+        state.timer = timer;
+      }
+      this.realtimeGateway.publish(
+        RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.QUESTION_SCRIPT_STATE, {
+          gameState: state,
+          scores: []
+        })
+      );
+      return;
+    }
     const questionData =
       joinedPlayer?.role === PlayerRole.SHOWMAN
-        ? question
-        : GameQuestionMapper.mapToSimpleQuestion(question);
+        ? resolvedQuestion
+        : GameQuestionMapper.mapToSimpleQuestion(resolvedQuestion, true);
 
     this.realtimeGateway.publish(
       RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.QUESTION_DATA, {
         data: questionData,
+        questionState: game.gameState.questionState,
         questionTransition: game.gameState.questionTransition ?? null,
         timer,
         questionEligiblePlayers: game.getQuestionEligiblePlayers(),
@@ -328,63 +336,6 @@ export class SocketActionHooks {
     await this.emitPersonalizedQuestionData(game, data.gameId, question, timer ?? null);
   }
 
-  private async afterSecretQuestionTransfer({
-    game,
-    result
-  }: AfterExecutionHookContext): Promise<void> {
-    if (!result.data) {
-      return;
-    }
-
-    const data = result.data as SecretQuestionTransferResult;
-    const { gameId, timer, question, fromPlayerId, toPlayerId, questionId, allowedPrices } = data;
-
-    const transferData: SecretQuestionTransferBroadcastData = {
-      fromPlayerId,
-      toPlayerId,
-      questionId,
-      allowedPrices: allowedPrices ?? null,
-      // The price pick runs on its own timer
-      ...(allowedPrices ? { timer } : {})
-    };
-
-    this.realtimeGateway.publish(
-      RealtimeEvents.toRoom(gameId, SocketIOGameEvents.SECRET_QUESTION_TRANSFER, transferData)
-    );
-
-    if (!timer || !question) {
-      return;
-    }
-
-    await this.emitPersonalizedQuestionData(game, gameId, question, timer);
-  }
-
-  private async afterSecretQuestionPrice({
-    game,
-    result
-  }: AfterExecutionHookContext): Promise<void> {
-    if (!result.data) {
-      return;
-    }
-
-    const { gameId, playerId, price, questionId, timer, question } =
-      result.data as SecretQuestionPriceResult;
-
-    this.realtimeGateway.publish(
-      RealtimeEvents.toRoom(gameId, SocketIOGameEvents.SECRET_QUESTION_PRICE, {
-        playerId,
-        price,
-        questionId
-      } satisfies SecretQuestionPriceBroadcastData)
-    );
-
-    if (!timer || !question) {
-      return;
-    }
-
-    await this.emitPersonalizedQuestionData(game, gameId, question, timer);
-  }
-
   private async emitPersonalizedQuestionData(
     game: Game,
     gameId: string,
@@ -403,6 +354,7 @@ export class SocketActionHooks {
       this.realtimeGateway.publish(
         RealtimeEvents.toSocket(sid, SocketIOGameEvents.QUESTION_DATA, {
           data: questionData,
+          questionState: game.gameState.questionState,
           questionTransition: game.gameState.questionTransition ?? null,
           timer,
           questionEligiblePlayers: game.getQuestionEligiblePlayers(),

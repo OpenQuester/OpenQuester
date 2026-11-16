@@ -95,6 +95,7 @@ const TIMER_KEYS = [
 function ruleChanges(t: T, p: ChatSystemEntry["params"]): string {
   const onOff = (on: boolean) => t(on ? "chat.log.ruleOn" : "chat.log.ruleOff");
   const parts: string[] = [];
+  if (typeof p.maxPlayers === "number") parts.push(`${t("lobby.players")}: ${p.maxPlayers}`);
   if (typeof p.falseStart === "boolean")
     parts.push(`${t("create.rules.falseStart")}: ${onOff(p.falseStart)}`);
   if (typeof p.buttonPressMode === "string")

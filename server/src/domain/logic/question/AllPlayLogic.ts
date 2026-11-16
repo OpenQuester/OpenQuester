@@ -1,10 +1,13 @@
+import { getRealPrice } from "domain/logic/question/questionPrices";
+import { WrongAnswerPenalty } from "domain/enums/game/GameSettings";
+import { ChoiceSelectionLogic } from "domain/logic/question/ChoiceSelectionLogic";
 import { ALL_PLAY_MIN_STAKE, SCORE_ABS_LIMIT } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { AnswerCheckLogic } from "domain/logic/question/AnswerCheckLogic";
-import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
+import { QuestionContentPlanLogic } from "domain/logic/question/QuestionContentPlanLogic";
 import {
   AllPlayDataDTO,
   AllPlayEntryDTO,
@@ -20,8 +23,8 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ValueUtils } from "domain/utils/ValueUtils";
 
 /**
- * Rules of "everyone answers" questions: stake-for-everyone and
- * no-risk-for-everyone ({@link AllPlayDataDTO}).
+ * Rules of "everyone answers" questions: normal, stake and no-risk
+ * for everyone ({@link AllPlayDataDTO}).
  */
 export class AllPlayLogic {
   /** The all-play mode of a question, or null for a normal question */
@@ -36,6 +39,13 @@ export class AllPlayLogic {
 
     if (question.type === PackageQuestionType.NO_RISK) {
       return AllPlayMode.NO_RISK;
+    }
+
+    if (
+      question.type === PackageQuestionType.SIMPLE ||
+      question.type === PackageQuestionType.CHOICE
+    ) {
+      return AllPlayMode.SIMPLE;
     }
 
     return null;
@@ -60,7 +70,8 @@ export class AllPlayLogic {
       mode,
       questionId: question.id!,
       themeId,
-      price: question.price ?? 0,
+      price: getRealPrice(question) ?? 0,
+      wrongAnswerPenalty: game.settings.wrongAnswerPenalty,
       maxStake: question.maxPrice ?? null,
       priceMultiplier: Number.isFinite(multiplier) && multiplier > 0 ? multiplier : null,
       entries: players.map((p) => ({
@@ -126,11 +137,15 @@ export class AllPlayLogic {
     }
   }
 
-  public static submitAnswer(game: Game, playerId: number, answer: string): AllPlayEntryDTO {
+  public static submitAnswer(
+    game: Game,
+    playerId: number,
+    answer: string,
+    choiceOrder?: number
+  ): AllPlayEntryDTO {
     const data = this._require(game, QuestionState.SHOWING);
     const entry = this._entry(data, playerId);
-    const timer = game.gameState.timer;
-    if (timer && GamePauseLogic.startDelayMs(timer) > 0) {
+    if (!QuestionContentPlanLogic.isPresentationComplete(game)) {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
 
@@ -138,7 +153,11 @@ export class AllPlayLogic {
       throw new ClientError(ClientResponse.ALL_PLAY_ALREADY_SUBMITTED);
     }
 
+    const selected = ChoiceSelectionLogic.resolve(game, answer, choiceOrder);
     entry.answer = answer.trim();
+    if (selected !== null) {
+      entry.choiceOrder = selected;
+    }
     entry.submitted = true;
 
     return entry;
@@ -168,7 +187,13 @@ export class AllPlayLogic {
     const auto: AllPlayEntryDTO[] = [];
 
     for (const entry of data.entries) {
-      const verdict = entry.answer ? AnswerCheckLogic.check(question, entry.answer) : false;
+      if (entry.isCorrect !== null) {
+        continue;
+      }
+
+      const verdict = entry.answer
+        ? AnswerCheckLogic.check(question, entry.answer, entry.choiceOrder ?? null)
+        : false;
       if (verdict !== null) {
         this._rule(game, data, entry, verdict);
         auto.push(entry);
@@ -214,7 +239,15 @@ export class AllPlayLogic {
       return isCorrect ? stake : -stake;
     }
 
-    return isCorrect ? Math.round(data.price * (data.priceMultiplier ?? 1)) : 0;
+    if (data.mode === AllPlayMode.NO_RISK) {
+      return isCorrect ? Math.round(data.price * (data.priceMultiplier ?? 1)) : 0;
+    }
+
+    return isCorrect
+      ? data.price
+      : data.wrongAnswerPenalty === WrongAnswerPenalty.NONE
+        ? 0
+        : 0 - data.price;
   }
 
   /** Copy for players who must not see the others' answers or stakes yet */
@@ -233,7 +266,8 @@ export class AllPlayLogic {
       entries: data.entries.map((e) => ({
         ...e,
         stake: e.stake === null ? null : 0,
-        answer: e.answer === null ? null : ""
+        answer: e.answer === null ? null : "",
+        choiceOrder: undefined
       }))
     };
   }

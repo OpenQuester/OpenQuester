@@ -11,7 +11,18 @@ export function useHostTools() {
   const lastRuling =
     (session.state.answeredPlayers ?? []).length > 0 ||
     !!session.state.answerShowData?.answerResult;
-  const canUndo = (phase === "showing" || phase === "reveal") && lastRuling;
+  const { scriptView, answeredPlayers, answeringPlayer, answerShowData } = session.state;
+  const lastAttempt = answeredPlayers?.at(-1);
+  const openScriptAsk =
+    phase === "showing" &&
+    scriptView?.waitingFor === "answer" &&
+    scriptView.answerMode === "button" &&
+    answeringPlayer == null &&
+    !!lastAttempt &&
+    lastAttempt.answerType !== "correct";
+  const canUndo = scriptView
+    ? !paused && (openScriptAsk || (phase === "reveal" && !!answerShowData && lastRuling))
+    : (phase === "showing" || phase === "reveal") && lastRuling;
   return { session, connection, phase, paused, boardEdit, setBoardEdit, canUndo };
 }
 export type HostToolsModel = ReturnType<typeof useHostTools>;

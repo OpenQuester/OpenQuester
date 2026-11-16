@@ -114,3 +114,30 @@ describe("PointPicker from the keyboard", () => {
     expect(screen.getByText(expected)).toHaveClass("sr-only");
   });
 });
+
+it("draws imported normalized semiaxes rather than forcing a circle (A13/A14)", () => {
+  const { rerender } = render(
+    <PointPicker
+      src="https://x/p"
+      radius={0.05}
+      target={{ x: 0.5, y: 0.5, sourceGeometry: { kind: "sigame", aspectRatio: 2 } }}
+    />,
+  );
+  expect(screen.getByTestId("point-target")).toHaveStyle({
+    width: "5%",
+    height: "10%",
+    aspectRatio: "auto",
+  });
+  rerender(
+    <PointPicker
+      src="https://x/p"
+      radius={0.05}
+      target={{ x: 0.5, y: 0.5, sourceGeometry: { kind: "sigame", aspectRatio: 1 } }}
+    />,
+  );
+  expect(screen.getByTestId("point-target")).toHaveStyle({
+    width: "10%",
+    height: "10%",
+    aspectRatio: "auto",
+  });
+});

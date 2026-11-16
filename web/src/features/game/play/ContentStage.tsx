@@ -1,6 +1,7 @@
 import { useContext, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { QuestionTextItem } from "@/features/upload/types";
 import type { QuestionFile } from "@/game/protocol";
 import type { ContentClock } from "@/game/reducer";
 import { isMainTextItem } from "@/game/contentPlan";
@@ -23,7 +24,7 @@ interface ContentStageProps {
   files: QuestionFile[];
   text?: string | null;
   textOrder?: number | null;
-  textItems?: readonly { order: number; text: string }[] | null;
+  textItems?: readonly QuestionTextItem[] | null;
   paused: boolean;
   pointAnswer?: { file: QuestionFile; view: ReactNode };
   caption?: ReactNode;
@@ -39,6 +40,10 @@ export function ContentStage(props: ContentStageProps) {
   const { content, files, paused } = props;
   const { t } = useTranslation();
   const game = useContext(GameContext);
+  const showman = useGameState(
+    (s) =>
+      s.session?.players.some((p) => p.meta.id === game?.myId && p.role === "showman") ?? false,
+  );
   const online = useGameState((s) => s.connection === "connected");
   const clock = useContentPosition(content, paused, !game || online);
   const { position, running, now, attempt, restart, canRestart, finished, fileReplay, select } =
@@ -170,6 +175,28 @@ export function ContentStage(props: ContentStageProps) {
         );
 
   const copy = stageText(props, position.screen, position.done, attempt, t);
+  const replics =
+    content.plan.steps[position.index]?.items.filter(
+      (item) => item.kind === "text" && item.placement === "replic",
+    ) ?? [];
+  const privateCopy = showman
+    ? replics.flatMap((item) => {
+        const text = props.textItems?.find((entry) => entry.order === item.order)?.text;
+        return text
+          ? [
+              <p key={item.order} className={questionText} data-testid="showman-replic">
+                {text}
+              </p>,
+            ]
+          : [];
+      })
+    : [];
+  const oralPlaceholder =
+    replics.length > 0 && privateCopy.length === 0 ? (
+      <p className={questionStyles.contentNote} data-testid="oral-placeholder">
+        {t("question.showmanReading")}
+      </p>
+    ) : null;
   const textRevision = `${attempt}:${copy.hasStepText ? position.screenIndex : copy.recapped ? "recap" : "caption"}`;
   const screenSteps = content.plan.steps.flatMap((step, index) =>
     step.items.some(({ placement }) => placement === "screen") ? [index] : [],
@@ -183,7 +210,12 @@ export function ContentStage(props: ContentStageProps) {
       <QuestionBody
         label={props.label}
         footer={props.footer}
-        text={copy.text}
+        text={
+          <>
+            {copy.text}
+            {privateCopy.length ? privateCopy : oralPlaceholder}
+          </>
+        }
         textLength={copy.length}
         textRevision={textRevision}
         media={mediaView || undefined}
@@ -248,10 +280,17 @@ function stageText(
       const value =
         textItems?.find((entry) => entry.order === item.order)?.text ??
         (isMain(item) ? text : null);
-      return value ? [{ order: item.order, value }] : [];
+      return value?.trim() ? [{ order: item.order, value }] : [];
     });
   const recap =
-    done && !items.some(isMain) && content.plan.steps.some((step) => step.items.some(isMain))
+    done &&
+    !items.some(
+      (item) =>
+        item.kind === "text" &&
+        props.textItems?.some((text) => text.order === item.order && !text.text.trim()),
+    ) &&
+    !items.some(isMain) &&
+    content.plan.steps.some((step) => step.items.some(isMain))
       ? text
       : null;
   const hideCaption = attempt > 0 && textOrder != null;

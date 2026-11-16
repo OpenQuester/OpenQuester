@@ -31,6 +31,10 @@ export function secretModel({
   const targetPlayer =
     candidate?.role === "player" &&
     candidate.status === "in-game" &&
+    !candidate.restrictionData.banned &&
+    !candidate.restrictionData.restricted &&
+    (!session.state.questionEligiblePlayers ||
+      session.state.questionEligiblePlayers.includes(candidate.meta.id)) &&
     !(secret?.transferType === "exceptCurrent" && candidate.meta.id === secret.pickerPlayerId)
       ? candidate
       : undefined;

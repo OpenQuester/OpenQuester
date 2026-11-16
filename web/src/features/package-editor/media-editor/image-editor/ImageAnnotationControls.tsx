@@ -2,7 +2,7 @@ import { MediaRange, mediaControlStyles } from "../MediaControls";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/ui/Button";
 import type { DrawingTool, ImageAnnotation } from "../mediaEdits";
-import { inputClass } from "@/ui/Field";
+import { inputClass, Select } from "@/ui/Field";
 export function ImageAnnotationControls({
   propertyTool,
   showText,
@@ -76,18 +76,14 @@ export function ImageAnnotationControls({
       {annotations.length > 0 && (
         <label className={mediaControlStyles.label}>
           {t("mediaEditor.annotation")}
-          <select
-            className={inputClass}
-            value={selected ?? ""}
-            onChange={(e) => onSelect(e.target.value || null)}
-          >
+          <Select value={selected ?? ""} onChange={(e) => onSelect(e.target.value || null)}>
             <option value="">{t("mediaEditor.select")}</option>
             {annotations.map((a, i) => (
               <option key={a.id} value={a.id}>
                 {i + 1}. {t(`mediaEditor.${a.tool}`)}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
       {selected && <Button onClick={onDelete}>{t("mediaEditor.delete")}</Button>}

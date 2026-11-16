@@ -6,12 +6,7 @@ import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { type SecretQuestionPriceResult } from "domain/types/question/SecretQuestionTransferTypes";
 import { SecretQuestionPriceInputData } from "domain/types/socket/game/SecretQuestionTransferData";
 
-/**
- * Handles the price pick of a customPrice secret question by its receiver.
- *
- * Like the transfer, the question data is emitted per socket by the
- * post-execution hook (showman sees the answer, players don't).
- */
+/** Resolves the active opener or receiver price choice through the queued action. */
 export class SelectSecretQuestionPriceUseCase implements GameActionHandler<
   SecretQuestionPriceInputData,
   SecretQuestionPriceResult
@@ -41,7 +36,9 @@ export class SelectSecretQuestionPriceUseCase implements GameActionHandler<
       },
       mutations: [
         DataMutationConverter.saveGameMutation(result.game),
-        ...DataMutationConverter.mutationFromTimerMutations(result.timerMutations)
+        ...DataMutationConverter.mutationFromTimerMutations(result.timerMutations),
+        ...DataMutationConverter.mutationFromServiceBroadcasts(result.broadcasts),
+        ...result.additionalMutations
       ],
       broadcastGame: result.game
     };

@@ -6,7 +6,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { PackageQuestionDTO, PackageQuestionSubType } from "domain/types/dto/package/PackageQuestionDTO";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
@@ -38,6 +38,7 @@ describe("Secret Question Flow Tests", () => {
   });
 
   afterEach(async () => {
+    utils.packageTransform = null;
     await suite?.reset();
   });
 
@@ -478,6 +479,14 @@ describe("Secret Question Flow Tests", () => {
 
     it("should fallback to showing when secret transfer times out after all players leave", async () => {
       await suite.scenario(async (scenario) => {
+        utils.packageTransform = (pkg) => {
+          const question = pkg.rounds
+            .flatMap((round) => round.themes)
+            .flatMap((theme) => theme.questions)
+            .find((question) => question.transferType === PackageQuestionTransferType.ANY)!;
+          question.subType = PackageQuestionSubType.CUSTOM_PRICE;
+          question.allowedPrices = [200, 400];
+        };
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
         const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
         const spectatorSocket = spectatorSockets[0];
@@ -533,7 +542,14 @@ describe("Secret Question Flow Tests", () => {
         const showingState = await utils.getGameState(gameId);
         expect(showingState!.questionState).toBe(QuestionState.SHOWING);
         expect(showingState!.secretQuestionData).toBeNull();
-        expect(showingState!.currentQuestion).toBeDefined();
+        expect(showingState!.currentQuestion).toMatchObject({
+          price: secretQuestion!.price,
+          realPrice: 200
+        });
+        expect(spectatorQuestionData.data).toMatchObject({
+          price: secretQuestion!.price,
+          realPrice: 200
+        });
       });
     });
 

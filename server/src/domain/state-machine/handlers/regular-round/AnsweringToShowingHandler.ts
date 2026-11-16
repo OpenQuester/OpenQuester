@@ -1,3 +1,4 @@
+import { QuestionValueLogic } from "domain/logic/question/QuestionValueLogic";
 import { timerKey } from "domain/constants/redisKeys";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
@@ -86,7 +87,7 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
 
     // Get score result from payload or default to current question price (negative)
     // When timer expires with no payload, use negative question price as penalty
-    const currentQuestionPrice = game.gameState.currentQuestion?.price ?? 0;
+    const currentQuestionPrice = QuestionValueLogic.effectiveValue(game);
     const scoreResult = payload?.scoreResult ?? -currentQuestionPrice;
     const answerType = payload?.answerType ?? AnswerResultType.WRONG;
 

@@ -8,6 +8,8 @@ export function ChoiceOption({
   index,
   text,
   image,
+  label,
+  media,
   disabled,
   className,
   onPick,
@@ -17,6 +19,8 @@ export function ChoiceOption({
   index: number;
   text: string;
   image?: string;
+  label?: string | null;
+  media?: ReactNode;
   disabled: boolean;
   className: string;
   onPick: () => void;
@@ -50,6 +54,7 @@ export function ChoiceOption({
     <li
       className={cn("choice-card", className)}
       data-image={!!image}
+      data-media={!!media}
       data-text={!!text}
       style={
         {
@@ -81,12 +86,17 @@ export function ChoiceOption({
         onFocus={showText}
         onBlur={(e) => hideText(e.relatedTarget)}
       />
-      <kbd className={questionStyles.choiceLetter}>{index + 1}</kbd>
+      <kbd className={questionStyles.choiceLetter}>{label || index + 1}</kbd>
       {text && (
         <span ref={preview} className="choice-preview" onPointerEnter={showText}>
           {text}
           {status}
         </span>
+      )}
+      {media && (
+        <div className="choice-media relative col-span-full min-w-0" data-no-shortcuts>
+          {media}
+        </div>
       )}
       {image && (
         <button

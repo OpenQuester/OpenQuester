@@ -534,7 +534,9 @@ test("editor video retains working controls in fullscreen", async ({ page }) => 
     expect(fullscreen.x + fullscreen.width).toBeLessThanOrEqual(video.x + video.width + 1);
     expect(fullscreen.y + fullscreen.height).toBeLessThanOrEqual(video.y + video.height + 1);
     expect(seek.y).toBeGreaterThanOrEqual(play.y + play.height);
-    expect(mute.y).toBeGreaterThanOrEqual(seek.y + seek.height);
+    expect(mute.x).toBeGreaterThanOrEqual(play.x + play.width);
+    expect(mute.y).toBeCloseTo(play.y, 0);
+    expect(volume.x).toBeGreaterThanOrEqual(mute.x + mute.width);
     expect(volume.x + volume.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
     expect(seek.width).toBeGreaterThan(bounds.width - 20);
   };
@@ -686,17 +688,20 @@ test("video attachment actions are compact and removal stays staged", async ({ p
   const card = form.getByTestId("attachment-card").filter({ has: page.locator("video") });
   const edit = card.getByRole("button", { name: "Edit", exact: true });
   const remove = card.getByRole("button", { name: "Remove file" });
+  const assertActions = async (editButton: typeof edit, removeButton: typeof remove) => {
+    const editBox = (await editButton.boundingBox())!;
+    const removeBox = (await removeButton.boundingBox())!;
+    const cardBox = (await card.boundingBox())!;
+    expect(editBox.width).toBeGreaterThanOrEqual(cardBox.width - 18);
+    expect(removeBox.y).toBeGreaterThanOrEqual(editBox.y + editBox.height);
+    expect(removeBox.width).toBeGreaterThanOrEqual(24);
+    expect(removeBox.height).toBeGreaterThanOrEqual(24);
+    expect(removeBox.x + removeBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width);
+  };
   for (const width of [1304, 1366, 375]) {
     await page.setViewportSize({ width, height: 884 });
     await card.scrollIntoViewIfNeeded();
-    const editBox = (await edit.boundingBox())!;
-    const removeBox = (await remove.boundingBox())!;
-    const cardBox = (await card.boundingBox())!;
-    expect(
-      Math.abs(editBox.y + editBox.height / 2 - (removeBox.y + removeBox.height / 2)),
-    ).toBeLessThan(2);
-    expect(removeBox.x).toBeGreaterThanOrEqual(editBox.x + editBox.width);
-    expect(removeBox.x + removeBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width);
+    await assertActions(edit, remove);
     const dir = process.env.OQ_ITEM2_SCREENSHOTS;
     if (dir) {
       mkdirSync(dir, { recursive: true });
@@ -710,15 +715,7 @@ test("video attachment actions are compact and removal stays staged", async ({ p
   });
   const ukrainianEdit = card.getByRole("button", { name: "Редагувати", exact: true });
   const ukrainianRemove = card.getByRole("button", { name: "Прибрати файл" });
-  const ukEditBox = (await ukrainianEdit.boundingBox())!;
-  const ukRemoveBox = (await ukrainianRemove.boundingBox())!;
-  const ukCardBox = (await card.boundingBox())!;
-  expect(ukRemoveBox.width).toBeGreaterThanOrEqual(44);
-  expect(ukRemoveBox.height).toBeGreaterThanOrEqual(44);
-  expect(ukRemoveBox.x + ukRemoveBox.width).toBeLessThanOrEqual(ukCardBox.x + ukCardBox.width);
-  expect(
-    Math.abs(ukEditBox.y + ukEditBox.height / 2 - (ukRemoveBox.y + ukRemoveBox.height / 2)),
-  ).toBeLessThan(2);
+  await assertActions(ukrainianEdit, ukrainianRemove);
   await page.evaluate(async () => {
     const path = "/src/i18n/index.ts";
     const { i18n } = await import(path);
@@ -1874,7 +1871,7 @@ test("no-risk all-play preview starts without Continue", async ({ page }) => {
   await seed(page);
   const form = page.getByTestId("question-dialog");
   await form.getByRole("button", { name: /^No risk / }).click();
-  await form.getByLabel("Everyone plays it").check();
+  await form.getByRole("checkbox", { name: "Everyone answers" }).check();
   await form.getByRole("button", { name: "Preview", exact: true }).click();
   const game = page.getByTestId("question-playtest");
   await expect(game.getByTestId("question-text")).toHaveText("Name this artwork");

@@ -1,3 +1,4 @@
+import { getRealPrice } from "domain/logic/question/questionPrices";
 import { singleton } from "tsyringe";
 
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
@@ -14,7 +15,6 @@ import {
 import { FinalBiddingPlayerLeaveLogic } from "domain/logic/player-leave/FinalBiddingPlayerLeaveLogic";
 import { StakeBiddingPlayerLeaveLogic } from "domain/logic/player-leave/StakeBiddingPlayerLeaveLogic";
 import { PlayerLeaveStrategyResult } from "domain/logic/player-leave/strategies/IPlayerLeaveStrategy";
-import { DEFAULT_QUESTION_PRICE } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { AllPlayLogic } from "domain/logic/question/AllPlayLogic";
@@ -109,7 +109,7 @@ export class PlayerLeaveService {
     const question = await this.packageStore.getQuestion(game.id, stakeData.questionId);
 
     return {
-      minimumBid: question?.price || DEFAULT_QUESTION_PRICE
+      minimumBid: Math.max(getRealPrice(question) ?? 1, 1)
     };
   }
 

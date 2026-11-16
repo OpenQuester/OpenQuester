@@ -9,6 +9,7 @@ import { File } from "infrastructure/database/models/File";
 import { PackageQuestion } from "infrastructure/database/models/package/PackageQuestion";
 
 export interface PackageQuestionChoiceAnswerImport {
+  sourceLabel?: string | null;
   question: PackageQuestion;
   order: number;
   text?: string | null;
@@ -32,6 +33,9 @@ export class PackageQuestionChoiceAnswer {
   @Column({ type: "int" })
   order!: number;
 
+  @Column({ name: "source_label", type: "varchar", length: 500, nullable: true })
+  sourceLabel?: string | null;
+
   @Column({ type: "text", nullable: true })
   text?: string | null;
 
@@ -44,6 +48,7 @@ export class PackageQuestionChoiceAnswer {
 
   public import(data: PackageQuestionChoiceAnswerImport) {
     this.text = data.text;
+    this.sourceLabel = data.sourceLabel ?? null;
     this.order = data.order;
     this.file = data.fileData?.file;
     this.type = data.fileData?.type;
@@ -65,6 +70,7 @@ export class PackageQuestionChoiceAnswer {
 
     let dto: PackageAnswerDTO = {
       text: this.text,
+      ...(this.sourceLabel == null ? {} : { sourceLabel: this.sourceLabel }),
       file: fileDTO,
       order: this.order
     };

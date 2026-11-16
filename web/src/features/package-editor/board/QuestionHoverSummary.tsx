@@ -1,3 +1,4 @@
+import { answerFormat } from "@/game/answerFormat";
 import { useTranslation } from "react-i18next";
 import type { DraftQuestion } from "../packageDraft";
 import { correctChoice } from "../choiceCorrectness";
@@ -12,7 +13,8 @@ export function QuestionHoverSummary({
 }) {
   const { t } = useTranslation();
   const mediaCount = question.questionFiles.length + question.answerFiles.length;
-  const selected = !final && question.type === "choice" ? correctChoice(question) : undefined;
+  const selected =
+    !final && answerFormat(question) === "select" ? correctChoice(question) : undefined;
   return (
     <div className="flex flex-col gap-3">
       {!final && (

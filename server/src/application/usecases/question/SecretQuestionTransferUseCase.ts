@@ -9,13 +9,7 @@ import {
   SecretQuestionTransferInputData
 } from "domain/types/socket/game/SecretQuestionTransferData";
 
-/**
- * Handles secret question transfer.
- *
- * Returns empty broadcasts because the socket handler's `afterBroadcast`
- * must perform personalized per-socket emissions (showman sees full answer,
- * players see filtered data).
- */
+/** Accepts a transfer and declares the resulting state, timer and role-filtered events. */
 export class SecretQuestionTransferUseCase implements GameActionHandler<
   SecretQuestionTransferInputData,
   SecretQuestionTransferResult
@@ -33,8 +27,7 @@ export class SecretQuestionTransferUseCase implements GameActionHandler<
       ctx.action.payload
     );
 
-    const { game, fromPlayerId, toPlayerId, questionId, timer, question, allowedPrices } =
-      result;
+    const { game, fromPlayerId, toPlayerId, questionId, timer, question, allowedPrices } = result;
 
     const broadcastData: SecretQuestionTransferBroadcastData = {
       fromPlayerId,
@@ -56,7 +49,9 @@ export class SecretQuestionTransferUseCase implements GameActionHandler<
       data: resultData,
       mutations: [
         DataMutationConverter.saveGameMutation(game),
-        ...DataMutationConverter.mutationFromTimerMutations(result.timerMutations)
+        ...DataMutationConverter.mutationFromTimerMutations(result.timerMutations),
+        ...DataMutationConverter.mutationFromServiceBroadcasts(result.broadcasts),
+        ...result.additionalMutations
       ],
       broadcastGame: game
     };

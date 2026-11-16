@@ -1,12 +1,14 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GameConnection } from "@/game/connection";
+import { buildContentPlan } from "@/game/contentPlan";
 import {
   ALICE,
   BOB,
   choosing,
+  player,
   question,
   round,
   SAM,
@@ -16,6 +18,7 @@ import {
 } from "@/game/fixtures";
 import { reduce, type GameSession } from "@/game/reducer";
 import { useGameStore } from "@/game/store";
+import { i18n } from "@/i18n";
 
 import { GameContext } from "../GameContext";
 import { GameActionDock } from "./GameActionDock";
@@ -44,6 +47,73 @@ const showing = (extra = {}) =>
 
 describe("Dock", () => {
   beforeEach(() => useGameStore.setState({ session: null, pending: null }));
+
+  it.each([
+    ["en", "user2 receives 650 points."],
+    ["uk", "user2 отримує 650 балів."],
+    ["ru", "user2 получает 650 баллов."],
+  ])("renders the secret award in the %s dock", async (locale, announcement) => {
+    await i18n.changeLanguage(locale);
+    try {
+      const awarded = reduce(choosing(), {
+        type: "secret-question-awarded",
+        payload: {
+          questionId: 100,
+          recipientPlayerId: ALICE,
+          price: 650,
+          appliedChange: 650,
+          newScore: 1620,
+          reason: "secretAward",
+          timer: timer(),
+        },
+      });
+      expect(awarded.players.find((player) => player.meta.id === ALICE)?.score).toBe(1620);
+      renderDock(awarded, SHOWMAN);
+      const status = screen.getByTestId("dock-status");
+      expect(status.textContent).toBe(announcement);
+      expect(within(status).getByText("user2")).toHaveClass("player-name");
+      expect(within(status).getByText("650")).toHaveClass("text-success");
+      expect(screen.getByRole("button", { name: i18n.t("dock.reveal.continue") })).toBeEnabled();
+    } finally {
+      await act(() => i18n.changeLanguage("en").then(() => undefined));
+    }
+  });
+
+  it("opens direct answer input after presentation without a new timer or server event", () => {
+    vi.useFakeTimers();
+    try {
+      const s = showing({
+        questionState: "answering",
+        answeringPlayer: ALICE,
+        currentQuestion: question(100, {
+          type: "secret",
+          text: "Prompt",
+          textOrder: 0,
+          textDurationMs: 5000,
+          answerDurationMs: 15000,
+        }),
+        timer: timer(20000),
+        questionContentPlan: {
+          totalMs: 5000,
+          steps: [
+            {
+              startMs: 0,
+              durationMs: 5000,
+              items: [{ kind: "text", order: 0, placement: "screen", durationMs: 5000 }],
+            },
+          ],
+        },
+      });
+      s.settings = { falseStart: false, buttonPressMode: "random_within_window" };
+      renderDock(s, ALICE);
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(5001));
+      expect(screen.getByRole("textbox")).toBeInTheDocument();
+      expect(useGameStore.getState().session?.state.timer).toBe(s.state.timer);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it.each([ALICE, SHOWMAN])("randomly picks only unplayed cells for eligible user %s", (id) => {
     const s = choosing();
@@ -485,21 +555,28 @@ describe("Dock", () => {
   it.each(["noRisk", "secret", "stake"] as const)(
     "lets the answerer give up a %s point question",
     async (type) => {
+      const currentQuestion = question(100, {
+        type,
+        answerType: "point",
+        questionFiles: [
+          {
+            order: 0,
+            displayTime: null,
+            file: { md5: "image", type: "image", link: "https://x/map.png" },
+          },
+        ],
+      });
+      const questionContentPlan = buildContentPlan({
+        ...currentQuestion,
+        files: currentQuestion.questionFiles,
+      })!;
       const emit = renderDock(
         showing({
           questionState: "answering",
           answeringPlayer: ALICE,
-          currentQuestion: question(100, {
-            type,
-            answerType: "point",
-            questionFiles: [
-              {
-                order: 0,
-                displayTime: null,
-                file: { md5: "image", type: "image", link: "https://x/map.png" },
-              },
-            ],
-          }),
+          currentQuestion,
+          questionContentPlan,
+          timer: { ...timer(), elapsedMs: questionContentPlan.totalMs },
         }),
         ALICE,
       );
@@ -653,6 +730,47 @@ describe("Dock", () => {
     expect(emit).toHaveBeenCalledWith("answer-result", { scoreResult: -100, answerType: "wrong" });
   });
 
+  it("describes continuation while another player answers a direct script step", () => {
+    const s = showing({ questionState: "answering", answeringPlayer: BOB });
+    s.state.scriptView = {
+      questionId: s.state.currentQuestion!.id!,
+      programCounter: 3,
+      waitingFor: "answer",
+      actorId: BOB,
+      answererIds: [BOB],
+      answerMode: "direct",
+    };
+    renderDock(s, ALICE);
+    expect(
+      screen.queryAllByText("The question continues when this answer is resolved.").length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByText(/buzzer reopens/)).not.toBeInTheDocument();
+  });
+
+  it("uses the scripted score estimate and omits it when the recipient cannot see the amount", () => {
+    const s = showing({ questionState: "answering", answeringPlayer: BOB });
+    const view = {
+      questionId: s.state.currentQuestion!.id!,
+      programCounter: 3,
+      waitingFor: "answer" as const,
+      actorId: BOB,
+      answererIds: [BOB],
+      answerMode: "direct" as const,
+    };
+    s.state.scriptView = { ...view, scoreEstimate: { win: 200, lose: 0 } };
+    const emit = renderDock(s, SHOWMAN);
+    expect(screen.getByTestId("judge-correct")).toHaveTextContent("+200");
+    expect(screen.getByTestId("judge-wrong")).toHaveTextContent("±0");
+    expect(screen.queryByTestId("judge-correct-double")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("judge-wrong"));
+    expect(emit).toHaveBeenCalledWith("answer-result", { scoreResult: 0, answerType: "wrong" });
+    act(() =>
+      useGameStore.setState({ session: { ...s, state: { ...s.state, scriptView: view } } }),
+    );
+    expect(screen.getByTestId("judge-correct")).toHaveAccessibleName("Correct C");
+    expect(screen.getByTestId("judge-wrong")).toHaveAccessibleName("Wrong W");
+  });
+
   it("offers a single neutral zero-point ruling and disables it while pending", async () => {
     const emit = renderDock(showing({ questionState: "answering", answeringPlayer: BOB }), SHOWMAN);
     const skip = screen.getByRole("button", { name: "Skip, 0" });
@@ -679,14 +797,23 @@ describe("Dock", () => {
       currentQuestion: question(100, { type: "stake", price: 100 }),
       currentTurnPlayerId: ALICE,
       questionState: "bidding",
+      scriptView: {
+        questionId: 99,
+        programCounter: 2,
+        waitingFor: null,
+        actorId: null,
+        answererIds: [],
+        answerMode: "direct",
+      },
       stakeQuestionData: {
         pickerPlayerId: ALICE,
         questionId: 100,
+        questionPrice: 300,
         maxPrice: null,
         bids: { [BOB]: 100 },
         passedPlayers: [],
         biddingOrder: [ALICE, BOB],
-        currentBidderIndex: 0,
+        currentBidderIndex: 1, // Native snapshots prefer currentTurnPlayerId.
         highestBid: 100,
         winnerPlayerId: null,
         biddingPhase: true,
@@ -695,6 +822,7 @@ describe("Dock", () => {
     s.players = s.players.map((p) => ({ ...p, score: p.meta.id === ALICE ? 600 : 500 }));
     const emit = renderDock(s, ALICE);
     const slider = screen.getByRole("slider", { name: "Bid amount slider" });
+    expect(slider).toHaveAttribute("min", "101");
     fireEvent.change(slider, { target: { value: "250" } });
     expect(screen.getByRole("textbox", { name: "Your bid" })).toHaveValue("250");
     await userEvent.click(screen.getByTestId("bid-submit"));
@@ -716,6 +844,96 @@ describe("Dock", () => {
     await userEvent.click(screen.getByTestId("bid-pass"));
     expect(emit).toHaveBeenLastCalledWith("stake-bid-submit", { bidType: "pass", bidAmount: null });
   });
+
+  const thirdBidder = 5;
+  const finalAuction = { roundType: "final", nominal: null, minimum: 100 } as const;
+  it.each([
+    { myId: ALICE, ...finalAuction },
+    { myId: BOB, ...finalAuction },
+    { myId: thirdBidder, ...finalAuction },
+    { myId: ALICE, roundType: "simple", nominal: 100, minimum: 500 },
+  ] as const)(
+    "updates scripted $roundType auction controls from server snapshots for player $myId",
+    async ({ myId, roundType, nominal, minimum }) => {
+      const currentRound = round(roundType);
+      if (roundType === "final") {
+        currentRound.themes = currentRound.themes.map((theme) => ({ ...theme, questions: [] }));
+      }
+      let s = session(
+        {
+          currentRound,
+          currentQuestion: question(100, { type: "stake", price: nominal }),
+          currentTurnPlayerId: ALICE,
+          questionState: "bidding",
+          scriptView: {
+            questionId: 100,
+            programCounter: 1,
+            waitingFor: "answerer",
+            actorId: ALICE,
+            answererIds: [ALICE, BOB, thirdBidder],
+            answerMode: "button",
+          },
+          stakeQuestionData: {
+            pickerPlayerId: ALICE,
+            questionId: 100,
+            questionPrice: minimum,
+            maxPrice: null,
+            bids: {},
+            passedPlayers: [],
+            biddingOrder: [ALICE, BOB, thirdBidder],
+            currentBidderIndex: 0,
+            highestBid: null,
+            winnerPlayerId: null,
+            biddingPhase: true,
+          },
+        },
+        [ALICE, BOB, thirdBidder].map((id) => player(id, "player", { score: 600 })),
+      );
+      const emit = renderDock(s, myId);
+      const expectControls = async (bidderId: number, amount: number, canPass: boolean) => {
+        if (myId !== bidderId) {
+          expect(screen.queryByTestId("bid-submit")).not.toBeInTheDocument();
+          expect(screen.queryByTestId("bid-pass")).not.toBeInTheDocument();
+          return;
+        }
+        expect(screen.getByRole("textbox", { name: "Your bid" })).toHaveValue(String(amount));
+        expect(screen.getByRole("button", { name: /All-in/ })).toBeEnabled();
+        if (canPass) expect(screen.getByTestId("bid-pass")).toBeEnabled();
+        else expect(screen.queryByTestId("bid-pass")).not.toBeInTheDocument();
+        const submit = screen.getByTestId("bid-submit");
+        expect(submit).toBeEnabled();
+        await userEvent.click(submit);
+        expect(emit).toHaveBeenCalledExactlyOnceWith("stake-bid-submit", {
+          bidType: "normal",
+          bidAmount: amount,
+        });
+      };
+      const update = (currentBidderIndex: number, passedPlayers: number[]) => {
+        const gameState: GameSession["state"] = {
+          ...s.state,
+          scriptView: {
+            ...s.state.scriptView!,
+            actorId: s.state.stakeQuestionData!.biddingOrder[currentBidderIndex] ?? null,
+          },
+          stakeQuestionData: {
+            ...s.state.stakeQuestionData!,
+            currentBidderIndex,
+            highestBid: minimum,
+            bids: passedPlayers.length ? { [ALICE]: minimum, [BOB]: null } : { [ALICE]: minimum },
+            passedPlayers,
+          },
+        };
+        s = reduce(s, { type: "question-script-state", payload: { gameState, scores: [] } });
+        act(() => useGameStore.setState({ session: s }));
+      };
+
+      await expectControls(ALICE, minimum, false);
+      update(1, []);
+      await expectControls(BOB, minimum + 1, true);
+      update(2, [BOB]);
+      await expectControls(thirdBidder, minimum + 1, true);
+    },
+  );
 
   it.each(["all-play", "final"] as const)(
     "submits the slider value in %s bidding",

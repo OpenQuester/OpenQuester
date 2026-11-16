@@ -11,7 +11,10 @@ export function validatePackageContentLimits(pack: Pick<PackageDTO, "rounds">): 
       for (const [index, question] of theme.questions.entries()) {
         const timelines = {
           question: authoredContentGroups({ ...question, files: question.questionFiles }),
-          answer: authoredContentGroups({ files: question.answerFiles })
+          answer: authoredContentGroups({
+            files: question.answerFiles,
+            textItems: question.answerTextItems
+          })
         };
         for (const [phase, groups] of Object.entries(timelines)) {
           const location = { round: round.name, theme: theme.name, question: index + 1, phase };

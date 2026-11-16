@@ -5,7 +5,14 @@ import type { ParsedPackage } from "@/features/upload/types";
 import { draftFromParsed } from "./createDraft";
 import { collectMedia, deleteDraft, loadDraft, loadMedia, saveDraft } from "./draftStorage";
 import type { MediaFile } from "@/features/upload/types";
-import { emptyPackage } from "./packageDraft";
+import {
+  emptyPackage,
+  newQuestion,
+  newRound,
+  newTheme,
+  toUpload,
+  fromUpload,
+} from "./packageDraft";
 
 describe("drafts made from an imported file", () => {
   it("keep the original import report", async () => {
@@ -44,4 +51,26 @@ describe("media cleanup", () => {
     await deleteDraft("second");
     expect((await loadMedia([file.md5])).has(file.md5)).toBe(false);
   });
+});
+
+it("autosaves source geometry and explicit duplicate occurrence without converting the metric (A11/A14/A17)", async () => {
+  const pkg = emptyPackage("Point");
+  const q = newQuestion(100, {
+    answerType: "point",
+    pointImageId: "last",
+    answerPoint: { x: 0.5, y: 0.5, sourceGeometry: { kind: "sigame", aspectRatio: 1 } },
+    questionFiles: [
+      { occurrenceId: "first", md5: "same", type: "image", displayTime: null },
+      { occurrenceId: "last", md5: "same", type: "image", displayTime: null },
+    ],
+  });
+  pkg.rounds = [{ ...newRound("Round"), themes: [newTheme("Theme", [q])] }];
+  await saveDraft({ id: "siq-point", pkg, updatedAt: 1 }, [
+    { md5: "same", type: "image", name: "point.png", bytes: new Uint8Array([1]) },
+  ]);
+  const restored = await loadDraft("siq-point");
+  const again = fromUpload(toUpload(restored!.pkg)).rounds[0]!.themes[0]!.questions[0]!;
+  expect(again.answerPoint).toEqual(q.answerPoint);
+  expect(again.pointImageId).toBe(again.questionFiles[1]!.occurrenceId);
+  await deleteDraft("siq-point");
 });

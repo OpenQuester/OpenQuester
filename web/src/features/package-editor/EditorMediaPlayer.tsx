@@ -13,7 +13,7 @@ import { FullscreenIcon, PauseIcon, PlayIcon, VolumeIcon, VolumeOffIcon } from "
 import { formatTime } from "./media-editor/mediaEdits";
 
 const buttonClass =
-  "inline-flex size-9 shrink-0 items-center justify-center rounded-sm hover:bg-surface-3 disabled:opacity-50";
+  "inline-flex size-7 shrink-0 items-center justify-center rounded-sm hover:bg-surface-3 disabled:opacity-50";
 
 /** Editor playback is local and seekable; live game media has its own clock. */
 export function EditorMediaPlayer({
@@ -21,11 +21,13 @@ export function EditorMediaPlayer({
   type,
   className,
   onDuration,
+  suspended = false,
 }: {
   src: string;
   type: "audio" | "video";
   className?: string;
   onDuration: (seconds: number | null) => void;
+  suspended?: boolean;
 }) {
   const { t } = useTranslation();
   const ref = useRef<HTMLMediaElement>(null);
@@ -53,6 +55,10 @@ export function EditorMediaPlayer({
     document.addEventListener("fullscreenchange", syncFullscreen);
     return () => document.removeEventListener("fullscreenchange", syncFullscreen);
   }, []);
+
+  useEffect(() => {
+    if (suspended) ref.current?.pause();
+  }, [suspended]);
 
   const metadata = (event: SyntheticEvent<HTMLMediaElement>) => {
     const value = event.currentTarget.duration;
@@ -98,7 +104,7 @@ export function EditorMediaPlayer({
               type="button"
               className={cn(
                 buttonClass,
-                "absolute bottom-1 right-1 bg-scrim/70 text-on-scrim hover:bg-scrim/90",
+                "absolute right-1 bottom-1 size-9 bg-scrim/70 text-on-scrim hover:bg-scrim/90",
               )}
               aria-label={t(
                 fullscreen ? "editor.player.exitFullscreen" : "editor.player.fullscreen",
@@ -124,12 +130,13 @@ export function EditorMediaPlayer({
           className="sr-only"
         />
       )}
-      <div className="flex min-w-0 flex-col gap-1 px-1 pb-1 text-sm">
-        <div className="flex items-center gap-1">
+      <div className="flex min-w-0 flex-col gap-0.5 px-1 pb-1">
+        <div className="flex items-center gap-0.5 text-xs">
           <button
             type="button"
-            className={buttonClass}
+            className={cn(buttonClass, "w-6")}
             aria-label={t(playing ? "editor.player.pause" : "editor.player.play")}
+            disabled={suspended}
             onClick={() => {
               const media = ref.current;
               if (!media) return;
@@ -139,11 +146,19 @@ export function EditorMediaPlayer({
               } else media.pause();
             }}
           >
-            {playing ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
+            {playing ? <PauseIcon size={14} /> : <PlayIcon size={14} />}
           </button>
-          <span className="shrink-0 tabular-nums" aria-live="off">
+          <span className="shrink-0 whitespace-nowrap tabular-nums" aria-live="off">
             {formatTime(position)} / {formatTime(duration)}
           </span>
+          <VolumeControl
+            mediaRef={ref}
+            lastVolumeRef={lastVolume}
+            volume={volume}
+            muted={muted}
+            setVolume={setVolume}
+            setMuted={setMuted}
+          />
         </div>
         <input
           type="range"
@@ -161,14 +176,6 @@ export function EditorMediaPlayer({
               setPosition(value);
             }
           }}
-        />
-        <VolumeControl
-          mediaRef={ref}
-          lastVolumeRef={lastVolume}
-          volume={volume}
-          muted={muted}
-          setVolume={setVolume}
-          setMuted={setMuted}
         />
       </div>
       {loading && !error && (
@@ -207,7 +214,7 @@ function VolumeControl({
   const { t } = useTranslation();
   const effectivelyMuted = muted || volume === 0;
   return (
-    <div className="flex min-w-0 items-center gap-1">
+    <div className="ml-auto flex min-w-0 flex-1 items-center">
       <button
         type="button"
         className={buttonClass}
@@ -226,11 +233,11 @@ function VolumeControl({
           }
         }}
       >
-        {effectivelyMuted ? <VolumeOffIcon size={16} /> : <VolumeIcon size={16} />}
+        {effectivelyMuted ? <VolumeOffIcon size={14} /> : <VolumeIcon size={14} />}
       </button>
       <input
         type="range"
-        className="min-w-0 w-full max-w-28"
+        className="min-w-0 max-w-28 flex-1"
         aria-label={t("editor.player.volume")}
         min={0}
         max={1}

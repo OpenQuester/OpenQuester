@@ -1,3 +1,4 @@
+import { questionMediaFiles } from "./questionMediaFiles";
 import { mapUrl } from "@/lib/urlMappings";
 
 import type { Question, QuestionFile } from "./protocol";
@@ -20,15 +21,15 @@ export interface MediaDuration {
 }
 
 /**
- * Also reads each audio/video length: the server uses the longest report to
- * time the question's content steps, so a clip plays to its end.
+ * Reports audio/video lengths for authored question steps. Option media must
+ * load before readiness but does not contribute to the question timeline.
  */
 export async function preloadQuestionMedia(
   question: Question | null | undefined,
   signal?: AbortSignal,
 ): Promise<MediaDuration[] | null> {
   if (signal?.aborted) return null;
-  const files = question?.questionFiles ?? [];
+  const files = questionMediaFiles(question);
   if (files.some((f) => !f.file.link)) return null;
   if (files.length === 0) return [];
   // Repeated occurrences share downloaded bytes and one duration report.
@@ -38,16 +39,24 @@ export async function preloadQuestionMedia(
       entry,
     ]),
   );
-  const durations: MediaDuration[] = [];
+  const authoredHashes = new Set(question?.questionFiles?.map(({ file }) => file.md5));
+  const durations = new Map<string, number>();
+  const recordDuration = (md5: string, durationMs: number) => {
+    if (authoredHashes.has(md5)) {
+      durations.set(md5, Math.max(durations.get(md5) ?? 0, durationMs));
+    }
+  };
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener("abort", abort, { once: true });
   const timeout = window.setTimeout(abort, PRELOAD_TIMEOUT_MS);
   try {
     const loaded = await Promise.all(
-      Array.from(distinct.values(), (file) => preloadFile(file, durations, controller.signal)),
+      Array.from(distinct.values(), (file) => preloadFile(file, recordDuration, controller.signal)),
     );
-    return loaded.every(Boolean) && !controller.signal.aborted ? durations : null;
+    return loaded.every(Boolean) && !controller.signal.aborted
+      ? Array.from(durations, ([md5, durationMs]) => ({ md5, durationMs }))
+      : null;
   } finally {
     window.clearTimeout(timeout);
     signal?.removeEventListener("abort", abort);
@@ -57,7 +66,7 @@ export async function preloadQuestionMedia(
 
 function preloadFile(
   file: QuestionFile,
-  durations: MediaDuration[],
+  recordDuration: (md5: string, durationMs: number) => void,
   signal: AbortSignal,
 ): Promise<boolean> {
   // Off-document elements: the Discord Activity's src patch doesn't reach them
@@ -78,7 +87,7 @@ function preloadFile(
       if (el instanceof HTMLMediaElement) {
         el.oncanplaythrough = null;
         if (loaded && Number.isFinite(el.duration) && el.duration > 0) {
-          durations.push({ md5: file.file.md5, durationMs: Math.round(el.duration * 1000) });
+          recordDuration(file.file.md5, Math.round(el.duration * 1000));
         }
         el.removeAttribute("src");
         el.load();

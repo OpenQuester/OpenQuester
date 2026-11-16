@@ -3,10 +3,7 @@ import { ValueUtils } from "domain/utils/ValueUtils";
 import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerType } from "domain/enums/FinalRoundTypes";
-import {
-  AnswerData,
-  AnswerReviewData,
-} from "domain/types/socket/finalround/FinalRoundResults";
+import { AnswerData, AnswerReviewData } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundStateManager } from "./FinalRoundStateManager";
 
 export interface FinalAnswerSubmitPhaseCheck {
@@ -23,9 +20,7 @@ export class FinalRoundPhaseCompletionHelper {
    * Check if answering phase is complete after answer submission
    * If complete, transitions to reviewing phase and returns all reviews
    */
-  public static checkAnsweringPhaseCompletion(
-    game: Game
-  ): FinalAnswerSubmitPhaseCheck {
+  public static checkAnsweringPhaseCompletion(game: Game): FinalAnswerSubmitPhaseCheck {
     if (!FinalRoundStateManager.areAllAnswersSubmitted(game)) {
       return { isPhaseComplete: false };
     }
@@ -38,7 +33,7 @@ export class FinalRoundPhaseCompletionHelper {
 
     return {
       isPhaseComplete: true,
-      allReviews,
+      allReviews
     };
   }
 
@@ -58,7 +53,8 @@ export class FinalRoundPhaseCompletionHelper {
       // If answer is already reviewed, use that result
       if (answer.isCorrect !== undefined) {
         const scoreChange = ValueUtils.clampAbs(
-          answer.isCorrect ? bidAmount : -bidAmount, MAX_SCORE_DELTA
+          answer.isCorrect ? bidAmount : -bidAmount,
+          MAX_SCORE_DELTA
         );
         const review = this.createAnswerReviewData(answer, scoreChange, answer.isCorrect);
         if (answer.autoLoss) {
@@ -95,9 +91,10 @@ export class FinalRoundPhaseCompletionHelper {
       playerId: answer.playerId,
       answerId: answer.id,
       answerText: answer.answer,
+      ...(answer.choiceOrder === undefined ? {} : { choiceOrder: answer.choiceOrder }),
       scoreChange,
       answerType,
-      isCorrect,
+      isCorrect
     };
   }
 }

@@ -1,3 +1,7 @@
+import {
+  projectSecretQuestion,
+  startSecretQuestion
+} from "domain/logic/question/secretQuestionRules";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -55,8 +59,8 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
         return false;
       }
 
-      // Require at least two eligible players to enter transfer phase
-      return TransitionGuards.hasMultipleEligiblePlayers(game);
+      // Explicit rules keep their preamble even with one or no eligible receivers.
+      return !!question.secretRules || TransitionGuards.hasMultipleEligiblePlayers(game);
     } catch {
       return false;
     }
@@ -72,15 +76,12 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
 
     const { question, theme } = QuestionPickLogic.validateQuestionPick(game, payload!.questionData);
 
-    const secretData = {
-      pickerPlayerId,
-      transferType: question.transferType!,
-      questionId: question.id!,
-      transferDecisionPhase: true
-    } satisfies ChoosingToSecretTransferMutationData;
+    const secretData = startSecretQuestion(question, pickerPlayerId, payload?.secretRoundPrices);
 
     game.setQuestionState(QuestionState.SECRET_TRANSFER);
     game.gameState.answerShowData = null;
+    game.gameState.secretAward = null;
+    game.gameState.currentQuestion = null;
     game.gameState.secretQuestionData = secretData;
 
     // Mark question as played and reset media status for all players
@@ -131,6 +132,8 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
           pickerPlayerId: data.pickerPlayerId,
           transferType: data.transferType,
           questionId: data.questionId,
+          secretQuestionData: projectSecretQuestion(data),
+          timer: ctx.game.gameState.timer,
           questionEligiblePlayers: ctx.game.getQuestionEligiblePlayers()
         },
         room: ctx.game.id

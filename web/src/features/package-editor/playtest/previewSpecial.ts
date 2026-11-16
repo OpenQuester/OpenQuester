@@ -1,4 +1,9 @@
-import { allPlayMaxStake, allPlayStakes, phaseOf, stakeInfo } from "@/game/selectors";
+import { getRealPrice } from "@/game/questionPrices";
+import { answerFormat } from "@/game/answerFormat";
+import { previewChoiceSelection } from "./previewChoiceSelection";
+import { timerElapsed } from "@/game/contentPlan";
+import { startPreviewSecret, handlePreviewSecret, timeoutPreviewSecret } from "./previewSecret";
+import { allPlayMaxStake, allPlayStakes, canAnswerNow, phaseOf, stakeInfo } from "@/game/selectors";
 import type { AllPlayData } from "@/game/protocol";
 import { checkPreviewAnswer } from "./checkPreviewAnswer";
 import { nextAuctionTurn } from "./previewAuction";
@@ -12,15 +17,17 @@ import { previewTimer, type PreviewCommand, type PreviewRuntime } from "./previe
 
 export function startSpecial(game: PreviewRuntime): boolean {
   const q = game.question;
-  const all = q.subType === "forEveryone" && (q.type === "stake" || q.type === "noRisk");
+  const all =
+    q.subType === "forEveryone" && ["stake", "noRisk", "simple", "choice"].includes(q.type);
   if (all) {
     game.dispatch({
       type: "all-play-start",
       payload: {
-        mode: q.type === "stake" ? "stake" : "noRisk",
+        mode: q.type === "stake" ? "stake" : q.type === "noRisk" ? "noRisk" : "simple",
         questionId: PREVIEW_QUESTION,
         players: [...PREVIEW_PLAYERS],
-        price: q.price ?? 0,
+        price: getRealPrice(q) ?? 0,
+        wrongAnswerPenalty: game.session.settings?.wrongAnswerPenalty ?? "subtract",
         maxStake: q.maxPrice ?? null,
         priceMultiplier:
           q.priceMultiplier != null && Number.isFinite(q.priceMultiplier) && q.priceMultiplier > 0
@@ -29,7 +36,7 @@ export function startSpecial(game: PreviewRuntime): boolean {
         timer: q.type === "stake" ? previewTimer(30_000) : null,
       },
     });
-    if (q.type === "noRisk") game.showQuestion();
+    if (q.type !== "stake") game.showQuestion();
     return true;
   }
   if (q.type === "stake") {
@@ -39,6 +46,7 @@ export function startSpecial(game: PreviewRuntime): boolean {
         pickerPlayerId: PREVIEW_PLAYERS[0],
         questionId: PREVIEW_QUESTION,
         maxPrice: q.maxPrice ?? null,
+        questionPrice: getRealPrice(q),
         biddingOrder: [...PREVIEW_PLAYERS],
         timer: previewTimer(30_000),
       },
@@ -46,15 +54,7 @@ export function startSpecial(game: PreviewRuntime): boolean {
     return true;
   }
   if (q.type === "secret") {
-    game.dispatch({
-      type: "secret-question-picked",
-      payload: {
-        pickerPlayerId: PREVIEW_PLAYERS[0],
-        transferType: q.transferType ?? "any",
-        questionId: PREVIEW_QUESTION,
-      },
-    });
-    game.setClock(previewTimer(30_000));
+    startPreviewSecret(game);
     return true;
   }
   return false;
@@ -66,43 +66,7 @@ export function handleSpecial(
   sender: number,
 ): boolean {
   const phase = phaseOf(game.session);
-  const state = game.session.state;
-  if (phase === "secret_transfer" && command.type === "secret-question-transfer") {
-    const id = command.payload.targetPlayerId;
-    if (sender !== PREVIEW_SHOWMAN && sender !== state.secretQuestionData?.pickerPlayerId)
-      return true;
-    if (!PREVIEW_PLAYERS.some((playerId) => playerId === id)) return true;
-    if (state.secretQuestionData?.transferType === "exceptCurrent" && id === PREVIEW_PLAYERS[0])
-      return true;
-    game.dispatch({
-      type: "secret-question-transfer",
-      payload: {
-        fromPlayerId: PREVIEW_PLAYERS[0],
-        toPlayerId: id,
-        questionId: PREVIEW_QUESTION,
-        allowedPrices: game.question.allowedPrices,
-        timer: previewTimer(30_000),
-      },
-    });
-    if (!game.question.allowedPrices?.length) game.showQuestion();
-    return true;
-  }
-  if (phase === "secret_transfer" && command.type === "secret-question-price") {
-    const selection = state.secretQuestionData?.priceSelection;
-    if (selection?.playerId === sender && selection.allowedPrices.includes(command.payload.price)) {
-      game.dispatch({
-        type: "secret-question-price",
-        payload: {
-          playerId: selection.playerId,
-          price: command.payload.price,
-          questionId: PREVIEW_QUESTION,
-        },
-      });
-      game.question.price = command.payload.price;
-      game.showQuestion();
-    }
-    return true;
-  }
+  if (handlePreviewSecret(game, command, sender)) return true;
   if (phase === "stake_bidding" && command.type === "stake-bid-submit") {
     if (stakeInfo(game.session)?.bidderId === sender)
       bid(game, command.payload.bidType, command.payload.bidAmount);
@@ -113,7 +77,8 @@ export function handleSpecial(
     return true;
   }
   if (phase === "all_play_answering" && command.type === "all-play-answer") {
-    answer(game, sender, command.payload.answerText);
+    if (canAnswerNow(game.session, sender))
+      answer(game, sender, command.payload.answerText, command.payload.choiceOrder);
     return true;
   }
   if (phase === "all_play_reviewing" && command.type === "all-play-review") {
@@ -193,9 +158,18 @@ function stake(game: PreviewRuntime, id: number, amount: number) {
   if (game.session.state.allPlay?.entries.every((item) => item.stake != null)) game.showQuestion();
 }
 
-function answer(game: PreviewRuntime, id: number, value: string) {
+function answer(game: PreviewRuntime, id: number, value: string, order?: number) {
   const entry = game.session.state.allPlay?.entries.find((item) => item.playerId === id);
   if (!entry || entry.submitted || !value.trim()) return;
+  const state = game.session.state;
+  if (
+    answerFormat(game.question) === "select" &&
+    timerElapsed(state.timer, state.isPaused) < (state.buzzerOpensAtMs ?? 0)
+  )
+    return;
+  const selection = previewChoiceSelection(game.question, value, order);
+  if (!selection) return;
+  if (selection.choiceOrder !== undefined) game.choices.set(id, selection.choiceOrder);
   game.answers.set(id, value.trim());
   game.dispatch({ type: "all-play-answer", payload: { playerId: id } });
   if (game.session.state.allPlay?.entries.every((item) => item.submitted)) startReview(game);
@@ -209,12 +183,20 @@ function startReview(game: PreviewRuntime) {
     entries: data.entries.map((entry) => {
       const value = game.answers.get(entry.playerId) ?? "";
       const stake = game.stakes.get(entry.playerId) ?? null;
-      const verdict = value ? checkPreviewAnswer(game.question, value) : false;
+      const verdict = value
+        ? checkPreviewAnswer(
+            game.question,
+            value,
+            game.choices.get(entry.playerId) ?? null,
+            game.choices.has(entry.playerId),
+          )
+        : false;
       const score = allPlayStakes(game.session, { stake });
       return {
         ...entry,
         stake,
         answer: value,
+        choiceOrder: game.choices.get(entry.playerId),
         isCorrect: verdict,
         scoreChange: verdict == null ? null : verdict ? score.win : score.lose,
       };
@@ -245,7 +227,10 @@ export function timeoutSpecial(game: PreviewRuntime): boolean {
         stake(
           game,
           id,
-          Math.min(Math.max(game.question.price ?? 0, 1), allPlayMaxStake(game.session, id)),
+          Math.min(
+            Math.max(getRealPrice(game.question) ?? 0, 1),
+            allPlayMaxStake(game.session, id),
+          ),
         );
     }
     return true;
@@ -256,34 +241,13 @@ export function timeoutSpecial(game: PreviewRuntime): boolean {
       bid(
         game,
         info.stake.highestBid == null ? "normal" : "pass",
-        info.stake.highestBid == null ? game.question.price || 1 : null,
+        info.stake.highestBid == null ? Math.max(getRealPrice(game.question) ?? 1, 1) : null,
         true,
       );
     return true;
   }
   if (phase === "secret_transfer") {
-    const secret = game.session.state.secretQuestionData;
-    if (secret?.priceSelection)
-      handleSpecial(
-        game,
-        {
-          type: "secret-question-price",
-          payload: { price: secret.priceSelection.allowedPrices[0]! },
-        },
-        secret.priceSelection.playerId,
-      );
-    else
-      handleSpecial(
-        game,
-        {
-          type: "secret-question-transfer",
-          payload: {
-            targetPlayerId:
-              secret?.transferType === "exceptCurrent" ? PREVIEW_PLAYERS[1] : PREVIEW_PLAYERS[0],
-          },
-        },
-        PREVIEW_SHOWMAN,
-      );
+    timeoutPreviewSecret(game);
     return true;
   }
   return false;

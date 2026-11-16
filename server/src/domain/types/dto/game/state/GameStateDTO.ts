@@ -1,3 +1,4 @@
+import type { SecretQuestionAward } from "domain/types/dto/game/state/SecretQuestionGameData";
 import { QuestionTransitionDTO } from "domain/types/dto/game/state/QuestionTransitionDTO";
 import { AllPlayDataDTO } from "domain/types/dto/game/state/AllPlayDataDTO";
 import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
@@ -6,6 +7,10 @@ import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionCont
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuestionGameData";
 import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
+import type {
+  QuestionScriptProgress,
+  QuestionScriptView
+} from "domain/types/dto/package/QuestionScriptDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { FinalRoundGameData } from "domain/types/finalround/FinalRoundInterfaces";
 import {
@@ -44,6 +49,9 @@ export interface BuzzerWindowDTO {
 }
 
 export interface GameStateDTO {
+  scriptFinalBids?: Record<string, number>;
+  scriptProgress?: QuestionScriptProgress | null;
+  scriptView?: QuestionScriptView | null;
   questionState: QuestionState | null;
   isPaused: boolean;
   currentRound: GameStateRoundDTO | null;
@@ -85,7 +93,7 @@ export interface GameStateDTO {
    * only, or closed. People already in the game can always come back.
    */
   joinMode?: GameJoinMode | null;
-  /** "Everyone answers" question (stake / no-risk for everyone) in play */
+  /** "Everyone answers" question (normal / stake / no-risk for everyone) in play */
   allPlay?: AllPlayDataDTO | null;
   /** Final round specific data */
   finalRoundData?: FinalRoundGameData | null;
@@ -97,6 +105,7 @@ export interface GameStateDTO {
   answerShowData?: QuestionFinishEventPayload | QuestionFinishWithAnswerEventPayload | null;
   /** Secret question specific data - only set when a secret question is picked */
   secretQuestionData?: SecretQuestionGameData | null;
+  secretAward?: SecretQuestionAward | null;
   /** Stake question specific data - only set when a stake question is picked and bidding ended */
   stakeQuestionData?: StakeQuestionGameData | null;
   /** Game password - only visible to players who have joined the game */

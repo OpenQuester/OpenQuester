@@ -1,3 +1,5 @@
+import { FinalQuestionPlaybackLogic } from "domain/logic/final-round/FinalQuestionPlaybackLogic";
+import { answerWindowDuration } from "domain/logic/question/answerWindowDuration";
 import { SYSTEM_PLAYER_ID } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -45,8 +47,11 @@ export class FinalMediaToAnsweringHandler extends BaseTransitionHandler {
     data.contentPlan = QuestionContentPlanLogic.build(
       {
         text: question.text,
+        answerDurationMs: question.answerDurationMs,
         textOrder: question.textOrder,
         textItems: question.textItems,
+        textDurationMs: question.textDurationMs,
+        textWaitForFinish: question.textWaitForFinish,
         files: question.questionFiles,
         playMediaSimultaneously: question.playMediaSimultaneously
       },
@@ -61,13 +66,16 @@ export class FinalMediaToAnsweringHandler extends BaseTransitionHandler {
 
   protected async handleTimer(ctx: TransitionContext): Promise<TimerResult> {
     const game = ctx.game;
-    const contentMs = game.gameState.finalRoundData?.questionData?.contentPlan?.totalMs ?? 0;
+    const contentMs = FinalQuestionPlaybackLogic.presentationDuration(game);
     const duration = Math.max(
       1,
       contentMs +
         (FinalRoundStateManager.areAllAnswersSubmitted(game)
           ? 0
-          : game.settings.timers.finalAnswerMs)
+          : answerWindowDuration(
+              game.gameState.finalRoundData?.questionData?.question,
+              game.settings.timers.finalAnswerMs
+            ))
     );
     const timer = new GameStateTimer(duration);
     game.gameState.timer = timer.start();

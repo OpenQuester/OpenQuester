@@ -151,14 +151,19 @@ export class FinalRoundStateManager {
     game: Game,
     playerId: number,
     answerText: string,
-    isAutoLoss: boolean
+    isAutoLoss: boolean,
+    choiceOrder?: number
   ): FinalRoundAnswer {
     const data = this.getFinalRoundData(game);
     if (!data) {
       throw new ServerError("Final round data not initialized");
     }
 
+    if (data.answers.some((answer) => answer.playerId === playerId)) {
+      throw new ClientError(ClientResponse.ALREADY_ANSWERED);
+    }
     const answer: FinalRoundAnswer = {
+      ...(choiceOrder === undefined ? {} : { choiceOrder }),
       id: ValueUtils.generateUUID(),
       playerId,
       answer: answerText,

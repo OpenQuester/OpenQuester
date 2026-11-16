@@ -42,6 +42,27 @@ it.each([
   expect(screen.getByText("The player must select, enter, or mark an answer.")).toBeVisible();
 });
 
+it.each([
+  ["select" as const, false],
+  ["text" as const, true],
+  [undefined, true],
+])("shows aliases to the showman only for legacy choice (%s)", (answerType, visible) => {
+  const state = session({
+    currentRound: round(),
+    currentQuestion: question(100, { type: "choice", answerType, rightAnswers: ["Alias"] }),
+    questionState: "answering",
+    answeringPlayer: ALICE,
+  });
+  useGameStore.setState({ session: state, connection: "connected", pending: null });
+  const connection = { emit: vi.fn(), connected: true } as unknown as GameConnection;
+  render(
+    <GameContext.Provider value={{ connection, myId: SHOWMAN }}>
+      <ShowmanPanel />
+    </GameContext.Provider>,
+  );
+  expect(!!screen.queryByTestId("showman-right-answers")).toBe(visible);
+});
+
 it("still describes a free-text answer as spoken before submission", () => {
   const state = session({
     currentRound: round(),

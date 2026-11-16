@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { GameContext } from "@/features/game/GameContext";
+import { buildContentPlan } from "@/game/contentPlan";
 import { ALICE, BOB, SAM, question, round, session, snapshot, timer } from "@/game/fixtures";
 import { createGameStore } from "@/game/store";
 import { QuestionStage } from "./QuestionStage";
@@ -20,6 +21,11 @@ const pointQuestion = question(100, {
   questionFiles: [
     { order: 0, displayTime: null, file: { md5: "img", type: "image", link: "/wide.png" } },
   ],
+});
+const pointPlan = buildContentPlan({ ...pointQuestion, files: pointQuestion.questionFiles })!;
+const afterPointPresentation = () => ({
+  questionContentPlan: pointPlan,
+  timer: { ...timer(), elapsedMs: pointPlan.totalMs },
 });
 const entry = (
   playerId: number,
@@ -47,7 +53,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it("keeps all-play point players waiting until their target picture appears", () => {
+it("keeps all-play point input gated while the target picture is presenting", () => {
   vi.useFakeTimers();
   const q = {
     ...pointQuestion,
@@ -62,6 +68,7 @@ it("keeps all-play point players waiting until their target picture appears", ()
       },
     ],
   };
+  const plan = buildContentPlan({ ...q, files: q.questionFiles })!;
   const store = createGameStore();
   store.setState({
     connection: "connected",
@@ -69,6 +76,7 @@ it("keeps all-play point players waiting until their target picture appears", ()
       currentRound: round(),
       questionState: "showing",
       currentQuestion: q,
+      questionContentPlan: plan,
       timer: timer(),
       allPlay: allPlay([entry(ALICE, null, false, null), entry(BOB, null, false, null)]),
     }),
@@ -85,6 +93,9 @@ it("keeps all-play point players waiting until their target picture appears", ()
   expect(chips[0]).toHaveTextContent("waiting");
   expect(screen.queryByTestId("point-picker")).toBeNull();
   act(() => vi.advanceTimersByTime(2_030));
+  expect(chips[0]).toHaveTextContent("waiting");
+  expect(screen.queryByTestId("point-picker")).toBeNull();
+  act(() => vi.advanceTimersByTime(plan.totalMs - 2_000));
   expect(chips[0]).toHaveTextContent("answering");
   expect(screen.getByTestId("point-picker")).toBeInTheDocument();
 });
@@ -97,6 +108,7 @@ it("keeps only the local player's chosen point visible while other players answe
       currentRound: round(),
       questionState: "showing",
       currentQuestion: pointQuestion,
+      ...afterPointPresentation(),
       allPlay: allPlay([entry(ALICE, null, false, null), entry(BOB, "0.1,0.9", true, null)]),
     }),
   });
@@ -210,7 +222,12 @@ it("preview preserves only each player's point across perspective changes and cl
     ...pointQuestion,
     type: "noRisk" as const,
     subType: "forEveryone",
-    answerPoint: { x: 0.5, y: 0.5, imageAspectRatio: 2 },
+    answerPoint: {
+      x: 0.5,
+      y: 0.5,
+      imageAspectRatio: 2,
+      sourceGeometry: { kind: "sigame" as const, aspectRatio: 1 },
+    },
     answerDeviation: 0.1,
   };
   const names = {
@@ -229,7 +246,7 @@ it("preview preserves only each player's point across perspective changes and cl
   game.ready();
   vi.advanceTimersByTime(1550);
   game.timeout();
-  vi.advanceTimersByTime(200);
+  vi.advanceTimersByTime(200 + game.session.state.questionContentPlan!.totalMs);
   const stage = (id: number) => (
     <GameContext.Provider value={{ store: game.store, myId: id, connection: game.commands }}>
       <QuestionStage />
@@ -292,6 +309,7 @@ it("hides a tentative point when submission fails or times out", () => {
       currentRound: round(),
       questionState: "showing",
       currentQuestion: pointQuestion,
+      ...afterPointPresentation(),
       allPlay: allPlay([entry(ALICE, null, false, null)]),
     }),
   });
@@ -315,6 +333,7 @@ it("hides a tentative point when submission fails or times out", () => {
         currentRound: round(),
         questionState: "showing",
         currentQuestion: pointQuestion,
+        ...afterPointPresentation(),
         allPlay: allPlay([entry(ALICE, "", true, null)]),
       }),
     });
@@ -366,6 +385,7 @@ it.each(["all-play-answer", "final-answer-submit"] as const)(
         currentRound: round(final ? "final" : "simple"),
         questionState: "showing",
         currentQuestion: pointQuestion,
+        ...afterPointPresentation(),
         allPlay: final
           ? null
           : allPlay([entry(ALICE, null, false, null), entry(BOB, null, false, null)]),
@@ -377,7 +397,12 @@ it.each(["all-play-answer", "final-answer-submit"] as const)(
               bids: { [ALICE]: 100 },
               answers: [],
               eliminatedThemes: [],
-              questionData: { themeId: 10, themeName: "Theme", question: pointQuestion },
+              questionData: {
+                themeId: 10,
+                themeName: "Theme",
+                question: pointQuestion,
+                contentPlan: pointPlan,
+              },
             }
           : null,
       }),

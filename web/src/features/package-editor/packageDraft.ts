@@ -1,11 +1,15 @@
+import { answerFormat } from "@/game/answerFormat";
+import { compatibilityMedia } from "@/features/upload/siqCompatibility";
+import type { SecretRules } from "@/game/secretRules";
 import type {
   FileRef,
+  QuestionTextItem,
   MediaType,
   QuestionFile,
   UploadContent,
   UploadQuestion,
 } from "@/features/upload/types";
-import { questionSteps } from "./question-form/questionTimeline";
+import { answerSteps, questionSteps } from "./question-form/questionTimeline";
 
 /**
  * The editor works on its own tree with stable ids, so selection, undo and
@@ -25,6 +29,7 @@ export const QUESTION_TYPES: QuestionType[] = [
 export interface DraftMedia {
   /** Editor-only identity of this occurrence; a file may be used more than once. */
   occurrenceId?: string;
+  scriptOrder?: number;
   md5: string;
   type: MediaType;
   /** Milliseconds the file stays on screen; null lets the game decide. */
@@ -35,7 +40,8 @@ export interface DraftMedia {
   waitForFinish?: boolean;
 }
 
-export interface DraftTextItem {
+export interface DraftTextItem extends Omit<QuestionTextItem, "order"> {
+  scriptOrder?: number;
   id: string;
   text: string;
   /** Position in the combined sequence of main text, media and extra text. */
@@ -43,21 +49,32 @@ export interface DraftTextItem {
 }
 
 export interface DraftChoiceOption {
+  scriptOrder?: number;
   id: string;
   text: string;
   file: FileRef | null;
+  sourceLabel?: string | null;
 }
 
 export interface DraftQuestion {
+  script?: UploadQuestion["script"];
   id: string;
   type: QuestionType;
   price: number | null;
+  realPrice?: number | null;
+  secretRules?: SecretRules | null;
   text: string;
   /**
    * Where the text plays among the question files (0 = before the first);
    * null shows it as a caption next to the media for the whole question.
    */
   textPosition: number | null;
+  textDurationMs?: number | null;
+  textWaitForFinish?: boolean | null;
+  answerDurationMs?: number | null;
+  answerTextItems?: DraftTextItem[];
+  showmanComments?: string | null;
+  answerExplanation?: string | null;
   /** New editor questions keep the main prompt first; imports keep their authored order. */
   mainTextFirst?: boolean;
   /** Absent for legacy questions; an empty array marks the new sequence format. */
@@ -68,9 +85,11 @@ export interface DraftQuestion {
   answerFiles: DraftMedia[];
   answerHint: string;
   /** How players answer: typed/said (the showman judges), a number or a spot. */
-  answerType: "text" | "number" | "point";
+  answerType: "text" | "number" | "point" | "select";
+  selectSource?: UploadQuestion["selectSource"];
+  compatibilityIssues?: UploadQuestion["compatibilityIssues"];
   answerNumber: number | null;
-  answerPoint: { x: number; y: number; imageAspectRatio?: number } | null;
+  answerPoint: NonNullable<UploadQuestion["answerPoint"]> | null;
   /** Explicit target occurrence; absent preserves legacy first-image behavior. */
   pointImageId?: string;
   /** Numbers: how far off still counts. Points: radius as a share of the width. */
@@ -222,6 +241,8 @@ export function nextPrice(theme: DraftTheme, roundIndex: number): number {
 
 export function questionMedia(q: DraftQuestion): DraftMedia[] {
   const out = [...q.questionFiles, ...q.answerFiles];
+  for (const file of compatibilityMedia(q.compatibilityIssues))
+    out.push({ ...file, displayTime: null });
   for (const o of q.options)
     if (o.file) out.push({ md5: o.file.md5, type: o.file.type, displayTime: null });
   return out;
@@ -243,7 +264,7 @@ export function countQuestions(pkg: DraftPackage): number {
   return n;
 }
 
-// ── Upload content ⇄ editor tree ────────────────────────────────────────────
+// в”Ђв”Ђ Upload content в‡„ editor tree в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 const toMedia = (files: QuestionFile[] | null | undefined): DraftMedia[] =>
   [...(files ?? [])]
@@ -270,12 +291,18 @@ const byOrder = <T extends { order: number }>(list: T[]): T[] =>
 /** Decode one question independently of the surrounding round and theme tree. */
 function questionFromUpload(q: UploadQuestion): DraftQuestion {
   const sourceFiles = byOrder(q.questionFiles ?? []);
-  const questionFiles = toMedia(sourceFiles);
+  const questionFiles = toMedia(sourceFiles).map((file, index) =>
+    q.script ? { ...file, scriptOrder: sourceFiles[index]!.order } : file,
+  );
   const mainTextFirst =
     q.textItems != null &&
     (q.textOrder === 0 ||
       (q.textOrder == null && (!q.text?.trim() || (!sourceFiles.length && !q.textItems.length))));
-  const sourceTextItems = q.textItems?.map((item) => ({ ...item, id: newId() }));
+  const sourceTextItems = q.textItems?.map((item) => ({
+    ...item,
+    id: newId(),
+    ...(q.script ? { scriptOrder: item.order } : {}),
+  }));
   const sourceSteps = [
     ...sourceFiles.map((file) => ({ order: file.order, id: null as string | null })),
     ...(q.textOrder == null || !q.text?.trim() ? [] : [{ order: q.textOrder, id: null }]),
@@ -306,6 +333,8 @@ function questionFromUpload(q: UploadQuestion): DraftQuestion {
     id: newId(),
     text: a.text ?? "",
     file: a.file,
+    ...(a.sourceLabel == null ? {} : { sourceLabel: a.sourceLabel }),
+    ...(q.script ? { scriptOrder: a.order } : {}),
   }));
   const matches = sourceOptions
     .map((a, index) => ({ a, index }))
@@ -316,19 +345,39 @@ function questionFromUpload(q: UploadQuestion): DraftQuestion {
         ? options[matches[0]!.index]!.id
         : null
       : undefined;
+  const sourceAnswerTextItems = q.answerTextItems ?? q.script?.answerTextItems;
+  const sourceAnswerSteps = byOrder([...(q.answerFiles ?? []), ...(sourceAnswerTextItems ?? [])]);
   return newQuestion(q.price, {
     type: q.type,
+    script: q.script,
+    realPrice: q.realPrice,
+    secretRules: q.secretRules,
     text: q.text ?? "",
     textPosition: mainTextFirst ? 0 : textPosition(q),
     mainTextFirst: mainTextFirst || undefined,
     textItems,
+    textDurationMs: q.textDurationMs,
+    textWaitForFinish: q.textWaitForFinish,
+    answerDurationMs: q.answerDurationMs,
+    showmanComments: q.showmanComments,
+    answerExplanation: q.answerExplanation,
+    answerTextItems: sourceAnswerTextItems?.map((item) => ({
+      ...(q.script ? { scriptOrder: item.order } : {}),
+      ...item,
+      id: newId(),
+      order: sourceAnswerSteps.indexOf(item),
+    })),
     playMediaSimultaneously: q.playMediaSimultaneously ?? true,
     questionFiles,
     ...(pointImageId === undefined ? {} : { pointImageId }),
     answerText: q.answerText ?? "",
-    answerFiles: toMedia(q.answerFiles),
+    answerFiles: toMedia(q.answerFiles).map((file, index) =>
+      q.script ? { ...file, scriptOrder: byOrder(q.answerFiles ?? [])[index]!.order } : file,
+    ),
     answerHint: q.answerHint ?? "",
     answerType: q.answerType ?? "text",
+    selectSource: q.selectSource,
+    compatibilityIssues: q.compatibilityIssues,
     answerNumber: q.answerNumber ?? null,
     answerPoint: q.answerPoint ?? null,
     answerDeviation: q.answerDeviation ?? null,
@@ -428,24 +477,46 @@ export function toUpload(pkg: DraftPackage): UploadContent {
 }
 
 export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean): UploadQuestion {
-  const type: QuestionType = final ? "simple" : q.type;
+  const type: QuestionType = final && !q.script ? "simple" : q.type;
+  const text = orNull(q.text);
+  // The script owns timed blanks in textItems, so an empty main slot is only an editor placeholder.
+  const scriptWithoutMain = q.script != null && text == null;
+  const textDurationMs = scriptWithoutMain ? null : q.textDurationMs;
   const steps = questionSteps(q).filter(
     (step) =>
-      step.kind === "media" || (step.kind === "main" ? q.text.trim() : step.item.text.trim()),
+      step.kind === "media" ||
+      (step.kind === "text"
+        ? step.item.text.trim() || step.item.durationMs != null || step.item.placement === "replic"
+        : text != null || textDurationMs != null),
   );
   const mainIndex = steps.findIndex((step) => step.kind === "main");
-  const textStep =
-    mainIndex >= 0 && (q.mainTextFirst || q.questionFiles.length || (q.textItems?.length ?? 0) > 0)
-      ? mainIndex
-      : null;
+  const textStep = mainIndex >= 0 ? mainIndex : null;
   const questionFiles = steps.flatMap((step, index) =>
-    step.kind === "media" ? [{ ...fromMedia([step.file])![0]!, order: index }] : [],
+    step.kind === "media"
+      ? [
+          {
+            ...fromMedia([step.file])![0]!,
+            order: q.script ? (step.file.scriptOrder ?? index) : index,
+          },
+        ]
+      : [],
   );
   const textItems =
     q.textItems == null
       ? undefined
       : steps.flatMap((step, index) =>
-          step.kind === "text" ? [{ order: index, text: step.item.text }] : [],
+          step.kind === "text"
+            ? [
+                {
+                  order: q.script ? (step.item.scriptOrder ?? index) : index,
+                  text: step.item.text,
+                  ...(step.item.durationMs === undefined
+                    ? {}
+                    : { durationMs: step.item.durationMs }),
+                  ...(step.item.placement === undefined ? {} : { placement: step.item.placement }),
+                },
+              ]
+            : [],
         );
   const targetIndex =
     q.pointImageId == null
@@ -457,8 +528,13 @@ export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean
     type,
     order,
     price: final ? null : q.price,
-    text: orNull(q.text),
+    ...(q.realPrice == null ? {} : { realPrice: q.realPrice }),
+    text,
     textOrder: textStep,
+    textDurationMs,
+    answerDurationMs: q.answerDurationMs,
+    showmanComments: q.showmanComments,
+    answerExplanation: q.answerExplanation,
     playMediaSimultaneously: q.playMediaSimultaneously ?? true,
     ...(textItems === undefined ? {} : { textItems }),
     questionComment: orNull(q.questionComment),
@@ -466,6 +542,8 @@ export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean
     answerHint: orNull(q.answerHint),
     rightAnswers: listOrNull(q.rightAnswers),
     ...answerCheck(q, type),
+    ...(q.selectSource ? { selectSource: q.selectSource } : {}),
+    ...(q.compatibilityIssues?.length ? { compatibilityIssues: q.compatibilityIssues } : {}),
     wrongAnswers: listOrNull(q.wrongAnswers),
     authors: listOrNull(q.authors),
     sources: listOrNull(q.sources),
@@ -475,9 +553,37 @@ export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean
     ...(type !== "choice" && q.answerType === "point" && q.pointImageId !== undefined
       ? { pointImageOrder: questionFiles?.[targetIndex]?.order ?? -1 }
       : {}),
-    answerFiles: fromMedia(q.answerFiles),
+    answerFiles: answerSteps(q).flatMap((step, index) =>
+      step.kind === "media"
+        ? [
+            {
+              ...fromMedia([step.file])![0]!,
+              order: q.script ? (step.file.scriptOrder ?? index) : index,
+            },
+          ]
+        : [],
+    ),
+    ...(q.answerTextItems == null
+      ? {}
+      : {
+          answerTextItems: answerSteps(q).flatMap((step, order) =>
+            step.kind === "text"
+              ? [
+                  {
+                    order: q.script ? (step.item.scriptOrder ?? order) : order,
+                    text: step.item.text,
+                    durationMs: step.item.durationMs,
+                    placement: step.item.placement,
+                  },
+                ]
+              : [],
+          ),
+        }),
   };
   switch (type) {
+    case "simple":
+      if (!final && q.forEveryone) out.subType = "forEveryone";
+      break;
     case "hidden":
       out.isHidden = true;
       break;
@@ -493,17 +599,37 @@ export function toUploadQuestion(q: DraftQuestion, order: number, final: boolean
       out.subType = q.allowedPrices.length ? "customPrice" : "simple";
       out.transferType = q.transferType;
       out.allowedPrices = q.allowedPrices.length ? q.allowedPrices : null;
+      if (q.secretRules) out.secretRules = q.secretRules;
       break;
     case "choice":
-      out.subType = "simple";
-      out.showDelay = q.showDelay;
-      out.answers = q.options.map((o, i) => ({ order: i, text: orNull(o.text), file: o.file }));
-      if (q.correctChoiceOptionId !== undefined) {
-        const index = q.options.findIndex((option) => option.id === q.correctChoiceOptionId);
-        if (index < 0) out.correctChoiceNeedsRepair = true;
-        else out.correctChoiceOrder = index;
-      }
+      out.subType = q.forEveryone ? "forEveryone" : "simple";
       break;
+  }
+  if (q.script) {
+    out.script = q.script;
+    out.answerNumber = q.answerNumber;
+    out.answerPoint = q.answerPoint;
+    out.answerDeviation = q.answerDeviation;
+    out.answers = q.options.map((option, index) => ({
+      order: option.scriptOrder ?? index,
+      text: orNull(option.text),
+      file: option.file,
+      ...(option.sourceLabel == null ? {} : { sourceLabel: option.sourceLabel }),
+    }));
+  } else if (answerFormat(q) === "select") {
+    if (q.answerType === "select" || final) out.answerType = "select";
+    out.showDelay = q.showDelay;
+    out.answers = q.options.map((o, i) => ({
+      order: i,
+      text: orNull(o.text),
+      file: o.file,
+      ...(o.sourceLabel == null ? {} : { sourceLabel: o.sourceLabel }),
+    }));
+    if (q.correctChoiceOptionId !== undefined) {
+      const index = q.options.findIndex((option) => option.id === q.correctChoiceOptionId);
+      if (index < 0) out.correctChoiceNeedsRepair = true;
+      else out.correctChoiceOrder = index;
+    }
   }
   return out;
 }

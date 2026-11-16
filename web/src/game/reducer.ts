@@ -87,11 +87,17 @@ export interface GameSession {
 export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSession {
   const state = normalizeState(data.gameState);
   const finalData = state.finalRoundData;
+  const submittedAnswer =
+    state.questionState === "answering" &&
+    (state.currentRound?.type !== "final" || state.scriptView) &&
+    !state.allPlay
+      ? (state.submittedAnswer ?? null)
+      : null;
   return withPointSummary({
     gameId,
     title: data.meta.title,
     settings: data.meta.settings ?? null,
-    maxPlayers: null,
+    maxPlayers: data.meta.maxPlayers ?? null,
     players: data.players,
     state,
     // The server sends the history newest first; the chat reads top to bottom.
@@ -99,15 +105,8 @@ export function sessionFromSnapshot(gameId: string, data: GameJoinData): GameSes
       (a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp),
     ),
     finished: false,
-    submittedAnswer:
-      state.questionState === "answering" && state.currentRound?.type !== "final" && !state.allPlay
-        ? (state.submittedAnswer ?? null)
-        : null,
-    hasAnswerSubmission:
-      state.questionState === "answering" &&
-      state.currentRound?.type !== "final" &&
-      !state.allPlay &&
-      state.submittedAnswer != null,
+    submittedAnswer,
+    hasAnswerSubmission: submittedAnswer !== null,
     lastResult: null,
     finalSubmitted: finalData ? finalData.answers.map((a) => a.playerId) : [],
     finalAutoLoss: finalData
@@ -130,8 +129,11 @@ function questionPlan(question: Question | null, sent: ContentPlan | null | unde
   if (!question) return null;
   return buildContentPlan({
     text: question.text,
+    answerDurationMs: question.answerDurationMs,
     textOrder: question.textOrder,
     textItems: question.textItems,
+    textDurationMs: question.textDurationMs,
+    textWaitForFinish: question.textWaitForFinish,
     playMediaSimultaneously: question.playMediaSimultaneously,
     files: question.questionFiles,
   });
@@ -145,6 +147,7 @@ function answerPlan(
   if (data.answerContentPlan !== undefined) return data.answerContentPlan;
   return buildAnswerContentPlan({
     files: data.answerFiles,
+    textItems: data.answerTextItems,
     playMediaSimultaneously: question?.playMediaSimultaneously,
   });
 }
@@ -160,6 +163,10 @@ function isDirectAnswer(s: GameState): boolean {
 }
 
 function contentFromSnapshot(s: GameState): ContentClock | null {
+  if (s.scriptView?.waitingFor === "answer") {
+    const plan = questionPlan(s.currentQuestion, s.questionContentPlan);
+    return plan ? { kind: "question", plan, timer: null, frozenAtMs: plan.totalMs } : null;
+  }
   if (
     s.questionState === "media_downloading" &&
     s.questionTransition?.mediaReady &&
@@ -275,6 +282,7 @@ function backToChoosing(session: GameSession): GameSession {
       submittedAnswer: null,
       submittedChoiceOrder: null,
       secretQuestionData: null,
+      secretAward: null,
       stakeQuestionData: null,
       questionEligiblePlayers: null,
       timer: null,
@@ -297,6 +305,7 @@ function onQuestionData(
   sentPlan?: ContentPlan | null,
   buzzerOpensAtMs?: number | null,
   questionTransition?: QuestionTransition | null,
+  actualState?: GameState["questionState"],
 ) {
   const s = session.state;
   const stake = s.stakeQuestionData;
@@ -332,10 +341,16 @@ function onQuestionData(
     answeringPlayer = null;
   }
 
+  questionState = actualState ?? questionState;
+  const sameQuestion = s.currentQuestion?.id === data.id;
   return {
     ...patchState(session, {
       questionState,
       currentQuestion: data,
+      secretQuestionData: data.type === "secret" ? null : s.secretQuestionData,
+      questionContentPlan:
+        sentPlan !== undefined ? sentPlan : sameQuestion ? s.questionContentPlan : null,
+      scriptView: newPick ? null : s.scriptView,
       questionTransition:
         questionTransition !== undefined
           ? questionTransition
@@ -362,7 +377,7 @@ function onQuestionData(
     hasAnswerSubmission: newPick ? false : session.hasAnswerSubmission,
     content: questionContent(session, questionState, data, timer, sentPlan, newPick),
     players:
-      newPick && questionState === "media_downloading"
+      questionState === "media_downloading" && (!sameQuestion || s.questionState !== questionState)
         ? session.players.map((p) => ({ ...p, mediaDownloaded: false }))
         : session.players,
   };
@@ -454,6 +469,32 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       };
     }
 
+    case "question-script-state": {
+      const state = event.payload.gameState;
+      const outcome = event.payload.outcomes?.findLast((item) => item.answerType !== null);
+      return {
+        ...session,
+        state,
+        players: session.players.map((player) => ({
+          ...player,
+          score:
+            event.payload.scores.find((score) => score.playerId === player.meta.id)?.score ??
+            player.score,
+        })),
+        submittedAnswer: state.submittedAnswer ?? null,
+        hasAnswerSubmission: state.submittedAnswer != null,
+        lastResult: outcome?.answerType
+          ? {
+              player: outcome.playerId,
+              answerType: outcome.answerType,
+              result: outcome.change,
+              score: outcome.score,
+              key: session.version + 1,
+            }
+          : session.lastResult,
+        content: contentFromSnapshot(state),
+      };
+    }
     case "user-leave":
       return {
         ...session,
@@ -561,7 +602,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         const clock = timer ?? s.timer;
         return {
           ...patchState(next, {
-            questionState: "showing",
+            questionState: s.answeringPlayer != null && !s.allPlay ? "answering" : "showing",
             timer: clock,
             buzzerOpensAtMs: buzzerOpensAtMs ?? s.buzzerOpensAtMs ?? null,
             buzzerLocks: null,
@@ -588,6 +629,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         event.payload.contentPlan,
         event.payload.buzzerOpensAtMs,
         event.payload.questionTransition,
+        event.payload.questionState,
       );
 
     case "buzzer-open":
@@ -665,14 +707,14 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       const data = event.payload;
       if (s.currentRound?.type === "final") {
         const plan = answerPlan(data, s.finalRoundData?.questionData?.question);
-        if (!data.timer || !plan) return patchState(session, { answerShowData: data });
+        if (!data.timer) return patchState(session, { answerShowData: data });
         return {
           ...patchState(session, {
             answerShowData: data,
             questionState: "showing_answer",
             timer: data.timer,
           }),
-          content: { kind: "answer", plan, timer: data.timer, frozenAtMs: null },
+          content: plan ? { kind: "answer", plan, timer: data.timer, frozenAtMs: null } : null,
         };
       }
       const revealPlan = answerPlan(data, s.currentQuestion);
@@ -720,7 +762,9 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       return patchState(session, {
         questionState: "secret_transfer",
         currentRound: markQuestionPlayed(s.currentRound, event.payload.questionId),
-        secretQuestionData: {
+        secretAward: null,
+        timer: event.payload.timer ?? s.timer,
+        secretQuestionData: event.payload.secretQuestionData ?? {
           pickerPlayerId: event.payload.pickerPlayerId,
           transferType: event.payload.transferType,
           questionId: event.payload.questionId,
@@ -733,7 +777,13 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       });
 
     case "secret-question-transfer": {
-      const { toPlayerId, allowedPrices, timer } = event.payload;
+      const { toPlayerId, allowedPrices, timer, secretQuestionData } = event.payload;
+      if (secretQuestionData)
+        return patchState(session, {
+          timer: timer ?? s.timer,
+          secretQuestionData,
+          answeringPlayer: null,
+        });
       if (allowedPrices?.length && s.secretQuestionData) {
         // customPrice: the receiver picks the price before the question shows.
         return patchState(session, {
@@ -761,6 +811,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         price: p.price,
         maxStake: p.maxStake,
         priceMultiplier: p.priceMultiplier,
+        wrongAnswerPenalty: p.wrongAnswerPenalty,
         entries: p.players.map((playerId) => ({
           playerId,
           stake: null,
@@ -835,7 +886,9 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       const { playerId, newScore } = event.payload;
       const answered = s.answeredPlayers ?? [];
       // The last ruling for this player is the one taken back.
-      const at = answered.map((a) => a.player).lastIndexOf(playerId);
+      const undoingScriptCorrect =
+        s.scriptView && s.answerShowData?.answerResult?.answerType === "correct";
+      const at = undoingScriptCorrect ? -1 : answered.map((a) => a.player).lastIndexOf(playerId);
       const next = patchState(session, {
         answeredPlayers: at >= 0 ? answered.filter((_, i) => i !== at) : answered,
         answerShowData: s.answerShowData
@@ -854,8 +907,20 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
         joinMode: event.payload.joinMode === "open" ? null : event.payload.joinMode,
       });
 
-    case "game-settings-change":
-      return { ...session, settings: event.payload.settings };
+    case "game-settings-change": {
+      const { settings, maxPlayers, playerSlots } = event.payload;
+      return {
+        ...session,
+        settings,
+        maxPlayers: maxPlayers ?? session.maxPlayers,
+        players: playerSlots
+          ? session.players.map((player) => {
+              const moved = playerSlots.find(({ playerId }) => playerId === player.meta.id);
+              return moved ? { ...player, slot: moved.slot } : player;
+            })
+          : session.players,
+      };
+    }
 
     case "games": {
       const { event: kind, data } = event.payload;
@@ -869,7 +934,37 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
       };
     }
 
+    case "secret-question-awarded":
+      return {
+        ...patchState(session, {
+          questionState: "showing_answer",
+          currentQuestion: null,
+          secretQuestionData: null,
+          secretAward: event.payload,
+          timer: event.payload.timer,
+          answerShowData: null,
+          answeringPlayer: null,
+          submittedAnswer: null,
+          submittedChoiceOrder: null,
+          currentTurnPlayerId: event.payload.recipientPlayerId,
+        }),
+        players: session.players.map((p) =>
+          p.meta.id === event.payload.recipientPlayerId
+            ? { ...p, score: event.payload.newScore }
+            : p,
+        ),
+        content: null,
+        submittedAnswer: null,
+        hasAnswerSubmission: false,
+      };
+
     case "secret-question-price":
+      if (event.payload.secretQuestionData)
+        return patchState(session, {
+          timer: event.payload.timer ?? s.timer,
+          secretQuestionData: event.payload.secretQuestionData,
+          answeringPlayer: null,
+        });
       return patchState(session, {
         answeringPlayer: event.payload.playerId,
         secretQuestionData: s.secretQuestionData
@@ -892,6 +987,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
           pickerPlayerId: p.pickerPlayerId,
           questionId: p.questionId,
           maxPrice: p.maxPrice,
+          questionPrice: p.questionPrice,
           bids: {},
           passedPlayers: [],
           biddingOrder: p.biddingOrder,
@@ -1026,6 +1122,7 @@ function applyEvent(session: GameSession, event: ServerEvent): GameSession {
               id: r.answerId,
               playerId: r.playerId,
               answer: r.answerText,
+              choiceOrder: r.choiceOrder,
               isCorrect: r.isCorrect,
               autoLoss: r.answerType === "auto_loss",
               submittedAt: existing?.submittedAt ?? new Date().toISOString(),

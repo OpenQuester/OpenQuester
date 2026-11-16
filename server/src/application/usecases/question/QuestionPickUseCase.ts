@@ -1,3 +1,5 @@
+import { secretRoundPrices } from "domain/logic/question/secretQuestionRules";
+import { QuestionScriptService } from "application/services/question/QuestionScriptService";
 import { RoundProgressionService } from "application/services/game/RoundProgressionService";
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
 import { Game } from "domain/entities/game/Game";
@@ -12,7 +14,7 @@ import {
   GamePhase,
   type TransitionResources,
   type TransitionResult,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
@@ -24,9 +26,7 @@ import { QuestionAction } from "domain/types/game/QuestionAction";
 import { type QuestionPickResult } from "domain/types/question/QuestionPickTypes";
 import { StakeBidSubmitOutputData } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { QuestionPickInputData } from "domain/types/socket/events/SocketEventInterfaces";
-import {
-  type QuestionPickPayload,
-} from "domain/types/socket/transition/choosing";
+import { type QuestionPickPayload } from "domain/types/socket/transition/choosing";
 import { type StakeBiddingToAnsweringPayload } from "domain/types/socket/transition/special-question";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
@@ -44,14 +44,16 @@ import { PackageStore } from "infrastructure/database/repositories/PackageStore"
  *
  * SECRET and STAKE questions emit events that are identical for all players.
  */
-export class QuestionPickUseCase
-  implements GameActionHandler<QuestionPickInputData, QuestionPickResult>
-{
+export class QuestionPickUseCase implements GameActionHandler<
+  QuestionPickInputData,
+  QuestionPickResult
+> {
   constructor(
     private readonly packageStore: PackageStore,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
     private readonly transitionResourceService: TransitionResourceService,
-    private readonly roundProgressionService: RoundProgressionService
+    private readonly roundProgressionService: RoundProgressionService,
+    private readonly questionScriptService: QuestionScriptService
   ) {
     //
   }
@@ -65,7 +67,7 @@ export class QuestionPickUseCase
     QuestionActionValidator.validatePickAction({
       game,
       currentPlayer,
-      action: QuestionAction.PICK,
+      action: QuestionAction.PICK
     });
 
     // The round's time ran out while the board was open: the pick ends the
@@ -82,32 +84,46 @@ export class QuestionPickUseCase
       game,
       await this.packageStore.getQuestionWithTheme(game.id, questionId)
     );
-    const transitionResources =
-      this.transitionResourceService.fromQuestionWithTheme(questionData);
+    if (questionData.question.script) {
+      return this.questionScriptService.startPicked(
+        game,
+        questionData.question,
+        questionData.theme.id!,
+        currentPlayer!.meta.id
+      );
+    }
+    const roundPrices =
+      questionData.question.secretRules?.priceRule?.kind === "roundExtremes"
+        ? secretRoundPrices(
+            await this.packageStore.getQuestions(
+              game.id,
+              game.gameState.currentRound!.themes.flatMap((theme) =>
+                theme.questions.map((q) => q.id)
+              )
+            )
+          )
+        : undefined;
+    const transitionResources = this.transitionResourceService.fromQuestionWithTheme(questionData);
 
     // Capture eligible players BEFORE any transitions
     // This prevents players who join mid-question from answering
     game.captureQuestionEligiblePlayers();
 
     // Route transition based on question type/state (1-2 RT for timer ops)
-    let transitionResult =
-      await this.phaseTransitionRouter.tryTransition<QuestionPickPayload>({
-        game,
-        trigger: TransitionTrigger.USER_ACTION,
-        triggeredBy: { playerId: currentPlayer!.meta.id, isSystem: false },
-        payload: { questionId, questionData },
-        ...(transitionResources ? { resources: transitionResources } : {}),
-      });
+    let transitionResult = await this.phaseTransitionRouter.tryTransition<QuestionPickPayload>({
+      game,
+      trigger: TransitionTrigger.USER_ACTION,
+      triggeredBy: { playerId: currentPlayer!.meta.id, isSystem: false },
+      payload: { questionId, questionData, secretRoundPrices: roundPrices },
+      ...(transitionResources ? { resources: transitionResources } : {})
+    });
 
     if (!transitionResult) {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
 
     // Auto-advance if stake bidding is immediately resolved
-    if (
-      transitionResult.toPhase === GamePhase.STAKE_BIDDING &&
-      game.gameState.stakeQuestionData
-    ) {
+    if (transitionResult.toPhase === GamePhase.STAKE_BIDDING && game.gameState.stakeQuestionData) {
       transitionResult = await this._autoAdvanceStakeBiddingIfResolved(
         game,
         currentPlayer!,
@@ -131,15 +147,10 @@ export class QuestionPickUseCase
       ...result,
       mutations: [
         DataMutationConverter.saveGameMutation(game),
-        ...DataMutationConverter.mutationFromTimerMutations(
-          transitionResult.timerMutations
-        ),
-        ...DataMutationConverter.mutationFromServiceBroadcasts(
-          transitionResult.broadcasts,
-          game.id
-        ),
+        ...DataMutationConverter.mutationFromTimerMutations(transitionResult.timerMutations),
+        ...DataMutationConverter.mutationFromServiceBroadcasts(transitionResult.broadcasts, game.id)
       ],
-      broadcastGame: game,
+      broadcastGame: game
     };
   }
 
@@ -185,22 +196,20 @@ export class QuestionPickUseCase
 
     // Transition to ANSWERING immediately (1-2 RT for timer ops)
     const autoFinishTransition =
-      await this.phaseTransitionRouter.tryTransition<StakeBiddingToAnsweringPayload>(
-        {
-          game,
-          trigger: TransitionTrigger.CONDITION_MET,
-          triggeredBy: {
-            playerId: currentPlayer.meta.id,
-            isSystem: true,
-          },
-          payload: {
-            isPhaseComplete: true,
-            winnerPlayerId: winnerId,
-            finalBid: currentHighestBid,
-          },
-          ...(transitionResources ? { resources: transitionResources } : {}),
-        }
-      );
+      await this.phaseTransitionRouter.tryTransition<StakeBiddingToAnsweringPayload>({
+        game,
+        trigger: TransitionTrigger.CONDITION_MET,
+        triggeredBy: {
+          playerId: currentPlayer.meta.id,
+          isSystem: true
+        },
+        payload: {
+          isPhaseComplete: true,
+          winnerPlayerId: winnerId,
+          finalBid: currentHighestBid
+        },
+        ...(transitionResources ? { resources: transitionResources } : {})
+      });
 
     if (!autoFinishTransition) {
       return transitionResult;
@@ -221,14 +230,11 @@ export class QuestionPickUseCase
     return {
       ...autoFinishTransition,
       success: true,
-      broadcasts: [
-        ...transitionResult.broadcasts,
-        ...autoFinishTransition.broadcasts,
-      ],
+      broadcasts: [...transitionResult.broadcasts, ...autoFinishTransition.broadcasts],
       timerMutations: [
         ...(transitionResult.timerMutations ?? []),
-        ...(autoFinishTransition.timerMutations ?? []),
-      ],
+        ...(autoFinishTransition.timerMutations ?? [])
+      ]
     } satisfies TransitionResult;
   }
 }

@@ -1,6 +1,6 @@
 import { MediaRange, mediaControlStyles } from "../MediaControls";
 import { useTranslation } from "react-i18next";
-import { inputClass } from "@/ui/Field";
+import { Select } from "@/ui/Field";
 import type { ImageEdits } from "../mediaEdits";
 export function ImageOutputControls({
   blur,
@@ -39,8 +39,7 @@ export function ImageOutputControls({
       )}
       <label className={mediaControlStyles.label}>
         {t("mediaEditor.quality")}
-        <select
-          className={inputClass}
+        <Select
           value={quality}
           onChange={(e) => onQualityChange(e.target.value as ImageEdits["quality"])}
         >
@@ -49,7 +48,7 @@ export function ImageOutputControls({
               {t(`mediaEditor.${q}`)}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
     </>
   );

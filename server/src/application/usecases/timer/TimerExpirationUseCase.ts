@@ -81,6 +81,7 @@ export class TimerExpirationUseCase implements GameActionHandler<TimerActionPayl
     }
 
     const mutations = [
+      ...(result.mutations ?? []),
       ...DataMutationConverter.mutationFromTimerMutations(result.timerMutations),
       ...DataMutationConverter.mutationFromServiceBroadcasts(result.broadcasts)
     ];

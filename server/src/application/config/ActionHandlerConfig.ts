@@ -1,3 +1,4 @@
+import { QuestionScriptService } from "application/services/question/QuestionScriptService";
 import { GameActionHandlerRegistry } from "application/registries/GameActionHandlerRegistry";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { GameService } from "application/services/game/GameService";
@@ -87,6 +88,7 @@ export interface ActionHandlerConfigDeps {
   playerLeaveService: PlayerLeaveService;
   transitionResourceService: TransitionResourceService;
   packageStore: PackageStore;
+  questionScriptService: QuestionScriptService;
   logger: ILogger;
 }
 
@@ -115,6 +117,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     transitionResourceService,
     socketGameValidationService,
     packageStore,
+    questionScriptService,
     logger
   } = deps;
 
@@ -208,7 +211,8 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
       packageStore,
       phaseTransitionRouter,
       transitionResourceService,
-      roundProgressionService
+      roundProgressionService,
+      questionScriptService
     )
   );
 

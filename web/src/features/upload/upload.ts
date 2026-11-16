@@ -1,3 +1,4 @@
+import { assertPlayableCompatibility } from "./siqCompatibility";
 import { api, ApiError, unwrap } from "@/api/client";
 import type { components } from "@/api/schema";
 
@@ -13,7 +14,8 @@ import { assertOqContentLimits, parseOq } from "./oq";
 import { parseSiq, scanSiqContentLimits } from "./siq";
 import type { OptimizeProgress } from "./optimize/index";
 import { clearStash, loadStash, stashFiles, unstashFile } from "./stash";
-import type { MediaFile, ParsedPackage } from "./types";
+import type { MediaFile, ParsedPackage, UploadQuestion } from "./types";
+import { answerFormat } from "@/game/answerFormat";
 import { withPointImageDimensions } from "./pointImageDimensions";
 import { withFinalMediaDurations } from "./finalMediaDuration";
 
@@ -204,6 +206,7 @@ export async function uploadPackage(
   /** `contentHash` of the picked file; null for edited content; undefined keeps it on replace. */
   sourceHash?: string | null,
 ): Promise<UploadResult> {
+  assertPlayableCompatibility(parsed.content, parsed.warnings);
   let savings: UploadResult["savings"];
   const hasLocalMedia = [...parsed.files.values()].some((file) => file.bytes.byteLength > 0);
   onProgress(idle(hasLocalMedia ? "optimizing" : "creating"));
@@ -217,6 +220,16 @@ export async function uploadPackage(
     savings = { before: result.bytesBefore, after: result.bytesAfter };
   }
   return uploadPreparedPackage(parsed, onProgress, replaceId, sourceHash, savings);
+}
+
+function publicationQuestion({
+  selectSource,
+  compatibilityIssues: _issues,
+  ...question
+}: UploadQuestion): UploadQuestion {
+  if (question.script || !selectSource || answerFormat(question) !== "select") return question;
+
+  return { ...question, selectSource: { rightLabels: selectSource.rightLabels } };
 }
 
 /** Resume can already have encoded bytes; keep their hashes instead of encoding twice. */
@@ -236,7 +249,16 @@ async function uploadPreparedPackage(
   for (const f of parsed.files.values())
     if (f.bytes.byteLength > 0) fileSizes[f.md5] = f.bytes.byteLength;
   const body = {
-    content: parsed.content,
+    content: {
+      ...parsed.content,
+      rounds: parsed.content.rounds.map((round) => ({
+        ...round,
+        themes: round.themes.map((theme) => ({
+          ...theme,
+          questions: theme.questions.map(publicationQuestion),
+        })),
+      })),
+    },
     fileSizes,
     ...(sourceHash !== undefined ? { sourceHash } : {}),
   } as never;
@@ -309,6 +331,7 @@ export async function resumeFromFile(
   parsed: ParsedPackage,
   onProgress: (p: UploadProgress) => void,
 ): Promise<UploadResult & { unmatched: string[] }> {
+  assertPlayableCompatibility(parsed.content, parsed.warnings);
   onProgress(idle("checking"));
   const state = await getUploadState(id);
   const covered = (files: Map<string, MediaFile>) => state.missing.every((m) => files.has(m));

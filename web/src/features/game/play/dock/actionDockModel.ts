@@ -14,7 +14,13 @@ export interface ActionDockModel {
 /** Role/phase decisions are data; DockAction owns markup and command dispatch. */
 export type DockAction =
   | { kind: "info"; text: string; unpass?: boolean; randomQuestion?: boolean }
-  | { kind: "show-question"; early: boolean; opening: boolean; revealing: boolean }
+  | {
+      kind: "show-question";
+      early: boolean;
+      opening: boolean;
+      revealing: boolean;
+      scriptStop?: boolean;
+    }
   | {
       kind: "buzz";
       early: boolean;
@@ -23,7 +29,7 @@ export type DockAction =
       passing: boolean;
       canPass: boolean;
     }
-  | { kind: "judge"; value: number; wrong: number; pending: boolean }
+  | { kind: "judge"; value: number | null; wrong: number | null; pending: boolean; scripted?: true }
   | { kind: "judge-wait"; pending: boolean; message: string }
   | {
       kind: "answer";
@@ -58,6 +64,5 @@ export interface ActionDockContext {
   reason: (reason: DisabledReason) => string;
   buzzer: BuzzerTiming;
   secretTarget: number | null;
-  finalContentPlaying?: boolean;
   pointImageReady?: boolean;
 }

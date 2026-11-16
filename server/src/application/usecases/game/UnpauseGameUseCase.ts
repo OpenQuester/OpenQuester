@@ -73,7 +73,7 @@ export class UnpauseGameUseCase implements GameActionHandler<
     // Readiness received while paused can now release MEDIA_DOWNLOADING -> SHOWING
     // after the regular opening barrier, or MEDIA_DOWNLOADING -> FINAL_ANSWERING.
     const transition =
-      regularMedia || TransitionGuards.isFinalRoundMediaDownloading(game)
+      !game.gameState.scriptProgress && (regularMedia || TransitionGuards.isFinalRoundMediaDownloading(game))
         ? await this.phaseTransitionRouter.tryTransition({
             game,
             trigger: regularMedia ? TransitionTrigger.USER_ACTION : TransitionTrigger.CONDITION_MET,

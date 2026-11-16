@@ -3,6 +3,8 @@ import { type ChainableCommander } from "ioredis";
 import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import {
   GAME_EXPIRATION_WARNING_SECONDS,
   GAME_NAMESPACE,
@@ -162,11 +164,14 @@ interface SessionAndGame {
  */
 @singleton()
 export class GamePipelineService {
+  private readonly timerWakes = new Map<string, NodeJS.Timeout>();
+
   constructor(
     private readonly redisService: RedisService,
     private readonly lockService: GameActionLockService,
     @inject(DI_TOKENS.GameIndexManager)
-    private readonly gameIndexManager: GameIndexManager
+    private readonly gameIndexManager: GameIndexManager,
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }
@@ -300,6 +305,13 @@ export class GamePipelineService {
     gameIndexData: GameIndexesInputDTO
   ): Promise<void> {
     const pipeline = this.redisService.pipeline();
+    const openingKey = questionTransitionTimerKey(gameId);
+    const activeKey = timerKey(gameId);
+    const savedState = classified.saveGame?.game.gameState;
+    let cancelOpeningWake =
+      !!classified.deleteGame || (savedState !== undefined && !savedState.questionTransition);
+    let cancelActiveWake =
+      !!classified.deleteGame || savedState?.isPaused === true || savedState?.timer === null;
 
     // ── Game save ──
     if (classified.saveGame) {
@@ -315,11 +327,21 @@ export class GamePipelineService {
     // ── Timer DELETE mutations ──
     for (const m of classified.timerDeletes) {
       pipeline.del(m.key);
+      cancelOpeningWake ||= m.key === openingKey;
+      cancelActiveWake ||= m.key === activeKey;
     }
 
     // ── Timer SET mutations ──
+    let openingTtlMs: number | undefined;
+    let activeTtlMs: number | undefined;
     for (const m of classified.timerSets) {
       pipeline.set(m.key, m.value, "PX", m.pxTtl);
+      if (m.key === openingKey) {
+        openingTtlMs = m.pxTtl;
+      }
+      if (m.key === activeKey) {
+        activeTtlMs = m.pxTtl;
+      }
     }
 
     const results = await pipeline.exec();
@@ -333,6 +355,37 @@ export class GamePipelineService {
         throw error;
       }
     }
+
+    if (cancelOpeningWake || openingTtlMs !== undefined) {
+      this.replaceTimerWake(openingKey, openingTtlMs);
+    }
+    if (cancelActiveWake || activeTtlMs !== undefined) {
+      this.replaceTimerWake(activeKey, activeTtlMs);
+    }
+  }
+
+  private replaceTimerWake(key: string, ttlMs: number | undefined): void {
+    clearTimeout(this.timerWakes.get(key));
+    this.timerWakes.delete(key);
+    // Keep Redis expiry as the fallback, including TTLs outside Node's delay range.
+    if (ttlMs === undefined || ttlMs >= 2_147_483_647) {
+      return;
+    }
+
+    // Redis checks the current TTL on GET. Only Redis emits the expiry, even if
+    // another instance replaced this timer or tries to wake the same key.
+    const wake = setTimeout(() => {
+      this.timerWakes.delete(key);
+      void this.redisService.get(key).catch((error: unknown) => {
+        this.logger.warn("Could not wake the game timer", {
+          prefix: LogPrefix.TIMER,
+          key,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      });
+    }, ttlMs + 1);
+    wake.unref();
+    this.timerWakes.set(key, wake);
   }
 
   /**

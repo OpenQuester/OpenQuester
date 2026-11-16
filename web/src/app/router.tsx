@@ -33,7 +33,10 @@ const homeRoute = createRoute({
   beforeLoad: () => {
     if (isDiscordActivity()) throw redirect({ to: ACTIVITY_PATH });
   },
-  validateSearch: (s: Record<string, unknown>): { notice?: string } => ({ notice: str(s.notice) }),
+  validateSearch: (s: Record<string, unknown>): { notice?: string; gameTitle?: string } => ({
+    notice: str(s.notice),
+    ...(s.notice === "kicked" ? { gameTitle: str(s.gameTitle) } : {}),
+  }),
 });
 const loginRoute = createRoute({
   getParentRoute: () => shell,

@@ -31,29 +31,7 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
     case "info":
       return <InfoAction action={action} />;
     case "show-question":
-      return (
-        <div className="flex w-full flex-col gap-2 sm:flex-row">
-          {action.early && (
-            <Button
-              variant="accent"
-              className="flex-1"
-              onClick={() => connection.emit("buzzer-open")}
-              disabled={action.opening}
-              data-testid="open-buzzer"
-            >
-              {t("dock.showing.openBuzzer")}
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            className="flex-1"
-            onClick={() => connection.emit("skip-question-force")}
-            disabled={action.revealing}
-          >
-            {t("dock.showing.revealAnswer")}
-          </Button>
-        </div>
-      );
+      return <ShowQuestionAction action={action} />;
     case "buzz":
       return <BuzzAction action={action} />;
     case "judge-wait":
@@ -102,6 +80,38 @@ export function DockAction({ action }: { action: DockActionDescriptor | null }) 
     case "timed-answer":
       return <FinalAnswerBox event={action.event} numeric={action.numeric} />;
   }
+}
+
+function ShowQuestionAction({
+  action,
+}: {
+  action: Extract<DockActionDescriptor, { kind: "show-question" }>;
+}) {
+  const { t } = useTranslation();
+  const { connection } = useGame();
+  return (
+    <div className="flex w-full flex-col gap-2 sm:flex-row">
+      {action.early && (
+        <Button
+          variant="accent"
+          className="flex-1"
+          onClick={() => connection.emit("buzzer-open")}
+          disabled={action.opening}
+          data-testid="open-buzzer"
+        >
+          {t("dock.showing.openBuzzer")}
+        </Button>
+      )}
+      <Button
+        variant="ghost"
+        className="flex-1"
+        onClick={() => connection.emit("skip-question-force")}
+        disabled={action.revealing}
+      >
+        {t(action.scriptStop ? "script.stop" : "dock.showing.revealAnswer")}
+      </Button>
+    </div>
+  );
 }
 
 function InfoAction({ action }: { action: Extract<DockActionDescriptor, { kind: "info" }> }) {
@@ -185,12 +195,12 @@ function JudgeAction({ action }: { action: Extract<DockActionDescriptor, { kind:
           disabled={action.pending}
           onClick={() =>
             connection.emit("answer-result", {
-              scoreResult: action.value,
+              scoreResult: action.value ?? 0,
               answerType: "correct",
             })
           }
         >
-          {t("judge.correct")} {formatSigned(action.value)}{" "}
+          {t("judge.correct")} {action.value == null ? "" : formatSigned(action.value)}{" "}
           <kbd className="hidden text-xs opacity-70 md:inline">C</kbd>
         </Button>
         <Button
@@ -201,16 +211,21 @@ function JudgeAction({ action }: { action: Extract<DockActionDescriptor, { kind:
           disabled={action.pending}
           onClick={() =>
             connection.emit("answer-result", {
-              scoreResult: action.wrong === 0 ? -action.value : action.wrong,
+              scoreResult: action.scripted
+                ? (action.wrong ?? 0)
+                : action.wrong || -(action.value ?? 0),
               answerType: "wrong",
             })
           }
         >
-          {t("judge.wrong")} {action.wrong === 0 ? "±0" : formatSigned(action.wrong)}{" "}
+          {t("judge.wrong")}{" "}
+          {action.wrong == null ? "" : action.wrong === 0 ? "±0" : formatSigned(action.wrong)}{" "}
           <kbd className="hidden text-xs opacity-70 md:inline">W</kbd>
         </Button>
       </div>
-      <JudgeExtras value={action.value} wrongCosts={action.wrong !== 0} />
+      {!action.scripted && action.value != null && (
+        <JudgeExtras value={action.value} wrongCosts={action.wrong !== 0} />
+      )}
     </div>
   );
 }

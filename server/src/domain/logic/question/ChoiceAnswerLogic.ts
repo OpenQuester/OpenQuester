@@ -1,4 +1,5 @@
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { AnswerType } from "domain/enums/package/AnswerType";
+import { answerFormat } from "domain/logic/question/answerFormat";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { ChoiceSelectionLogic } from "domain/logic/question/ChoiceSelectionLogic";
 
@@ -6,8 +7,7 @@ const normalize = (text: string | null | undefined) =>
   (text ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
 
 /**
- * Checks a selected choice against its explicit correct order and optional
- * text aliases. Legacy questions use the main answer and aliases as text;
+ * Checks an explicit select by order. Legacy choices also accept text aliases;
  * ambiguous or unrecognized selections remain for the showman to judge.
  */
 export class ChoiceAnswerLogic {
@@ -18,7 +18,7 @@ export class ChoiceAnswerLogic {
     choiceOrder: number | null = null,
     explicitSelection = false
   ): boolean | null {
-    if (question?.type !== PackageQuestionType.CHOICE || !picked?.trim()) {
+    if (!question || answerFormat(question) !== AnswerType.SELECT || !picked?.trim()) {
       return null;
     }
 
@@ -26,7 +26,7 @@ export class ChoiceAnswerLogic {
     const options = answers.map((a) => normalize(a.text)).filter(Boolean);
     const pick = normalize(picked);
     if (!explicitSelection) {
-      if (ChoiceSelectionLogic.hasAmbiguousImagePlaceholder(answers, picked)) {
+      if (ChoiceSelectionLogic.hasAmbiguousMediaPlaceholder(answers, picked)) {
         return null;
       }
     }
@@ -39,6 +39,9 @@ export class ChoiceAnswerLogic {
       const selected = answers.filter((answer) => answer.order === choiceOrder);
       if (correct.length !== 1 || selected.length !== 1) {
         return null;
+      }
+      if (question.answerType === AnswerType.SELECT) {
+        return selected[0].order === question.correctChoiceOrder;
       }
       const alias = normalize(selected[0].text);
       return (

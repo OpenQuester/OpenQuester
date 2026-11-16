@@ -409,6 +409,43 @@ describe("question media readiness", () => {
     expect(socket.emit).toHaveBeenCalledOnce();
   });
 
+  it.each([0, 300])("preloads options and reports only %i authored durations", async (count) => {
+    const questionFiles = Array.from({ length: count }, (_, order) => ({
+      ...file("audio", `body-${order}`),
+      order,
+      waitForFinish: (order + 1) % 10 === 0,
+    }));
+    const optionFiles = [file("audio", "option-audio"), file("video", "option-video")];
+    if (questionFiles[0]) optionFiles.unshift(questionFiles[0]);
+    listeners.get("game-data")?.(
+      snapshot({
+        questionState: "media_downloading",
+        currentQuestion: question(100, {
+          answerType: "select",
+          questionFiles,
+          answers: optionFiles.map(({ file }, order) => ({ order, file, text: null })),
+        }),
+      }),
+    );
+    expect(media).toHaveLength(count + 2);
+    const ready = (element: HTMLMediaElement) => {
+      Object.defineProperty(element, "duration", { value: 2.5 });
+      element.dispatchEvent(new Event("canplaythrough"));
+    };
+    media.slice(0, -1).forEach(ready);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(socket.emit).not.toHaveBeenCalled();
+    ready(media.at(-1)!);
+    await vi.advanceTimersByTimeAsync(0);
+    if (count) {
+      expect(socket.emit).toHaveBeenCalledExactlyOnceWith("media-downloaded", {
+        mediaDurations: questionFiles.map(({ file }) => ({ md5: file.md5, durationMs: 2500 })),
+      });
+    } else {
+      expect(socket.emit).toHaveBeenCalledExactlyOnceWith("media-downloaded");
+    }
+  });
+
   it("immediately acknowledges a question with no media", async () => {
     receiveQuestion([]);
     await vi.advanceTimersByTimeAsync(0);

@@ -1,10 +1,13 @@
+import type { PointTarget } from "@/lib/pointGeometry";
+import type { SecretRules } from "./secretRules";
+import type { QuestionTextItem } from "@/features/upload/types";
+import type { QuestionScriptDTO, QuestionScriptView } from "./questionScript";
+
 /**
  * Socket.IO game protocol for the /games namespace.
  *
  * These types mirror the server's runtime DTOs (server/src/domain/types/**),
- * which are the source of truth. openapi/schema.json lags behind in a few
- * places (for example `questionState` is missing `media_downloading`,
- * `showing_answer` and `secret_transfer`, and `answerShowData` is absent), so
+ * which are the source of truth. openapi/schema.json omits some socket fields, so
  * the web client keeps its own precise copy here.
  */
 
@@ -61,6 +64,7 @@ export interface BoardQuestion {
   id: number;
   order: number;
   price: number | null;
+  realPrice?: number | null;
   questionComment?: string | null;
   isPlayed: boolean;
 }
@@ -105,7 +109,7 @@ export interface ContentPlanItem {
   kind: "text" | "file";
   /** File order for file items; the question's textOrder for the text item. */
   order: number;
-  placement: ContentPlacement;
+  placement: ContentPlacement | "replic";
   durationMs: number;
   startOffsetMs?: number;
 }
@@ -127,6 +131,7 @@ export interface ContentPlan {
 }
 
 export interface ChoiceAnswer {
+  sourceLabel?: string | null;
   id?: number;
   text?: string | null;
   file: PackageFile | null;
@@ -134,24 +139,34 @@ export interface ChoiceAnswer {
 }
 
 export interface Question {
+  script?: QuestionScriptDTO | null;
   id?: number;
   type: QuestionType;
   order: number;
   price: number | null;
+  realPrice?: number | null;
+  /** Private package/showman data; omitted in public question projection. */
+  secretRules?: SecretRules | null;
   isHidden: boolean;
   text?: string | null;
   /** Position of the text in the content order; null keeps it as a caption. */
   textOrder?: number | null;
   /** Additional text steps in the same order space as question files. */
-  textItems?: { order: number; text: string }[] | null;
+  textItems?: QuestionTextItem[] | null;
+  textDurationMs?: number | null;
+  textWaitForFinish?: boolean | null;
+  answerDurationMs?: number | null;
+  answerTextItems?: QuestionTextItem[] | null;
+  showmanComments?: string | null;
+  answerExplanation?: string | null;
   playMediaSimultaneously?: boolean | null;
   /** Showman only. */
   answerHint?: string | null;
   /** How the answer is given: typed/said, a number, or a spot on the picture. */
-  answerType?: "text" | "number" | "point" | null;
+  answerType?: "text" | "number" | "point" | "select" | null;
   /** Showman only: the right number / spot, and how far off still counts. */
   answerNumber?: number | null;
-  answerPoint?: { x: number; y: number; imageAspectRatio?: number } | null;
+  answerPoint?: PointTarget | null;
   /** Order of the target image; omitted on legacy questions. */
   pointImageOrder?: number | null;
   answerDeviation?: number | null;
@@ -186,10 +201,13 @@ export interface AnsweredPlayer {
 }
 
 export interface AnswerShowData {
+  answerTextItems?: QuestionTextItem[] | null;
+  answerExplanation?: string | null;
   timer?: Timer;
   answerFiles: QuestionFile[] | null;
   answerText: string | null;
   correctChoiceImage?: string | null;
+  correctChoice?: ChoiceAnswer | null;
   nextTurnPlayerId: number | null;
   answerContentPlan?: ContentPlan | null;
   answerResult?: AnsweredPlayer;
@@ -198,13 +216,14 @@ export interface AnswerShowData {
   authors?: string[] | null;
   sources?: string[] | null;
   /** Point answers: the right spot and the radius that counted. */
-  answerPoint?: { x: number; y: number; imageAspectRatio?: number } | null;
+  answerPoint?: PointTarget | null;
   answerDeviation?: number | null;
   /** Original question image for a point-answer reveal. */
   answerPointImage?: string | null;
 }
 
 export interface FinalAnswer {
+  choiceOrder?: number;
   id: string;
   playerId: number;
   answer: string;
@@ -244,13 +263,34 @@ export interface SecretQuestionData {
   questionId: number;
   transferDecisionPhase: boolean;
   /** customPrice: the receiver picks one of these prices before the question shows. */
-  priceSelection?: { playerId: number; allowedPrices: number[] } | null;
+  priceSelection?: {
+    playerId: number;
+    allowedPrices: number[];
+    range?: { min: number; max: number; step: number } | null;
+  } | null;
+  step?: "transfer" | "price";
+  actorPlayerId?: number | null;
+  recipientPlayerId?: number | null;
+  priceRevealed?: boolean;
+  announcedPrice?: number | null;
+  announcedRange?: { min: number; max: number; step: number } | null;
+  announcedPrices?: number[] | null;
+}
+
+export interface SecretQuestionAward {
+  questionId: number;
+  recipientPlayerId: number;
+  price: number;
+  appliedChange: number;
+  newScore: number;
+  reason: "secretAward";
 }
 
 export interface StakeQuestionData {
   pickerPlayerId: number;
   questionId: number;
   maxPrice: number | null;
+  questionPrice?: number | null;
   bids: Record<string, number | null>;
   passedPlayers: number[];
   biddingOrder: number[];
@@ -274,6 +314,7 @@ export interface GameSettings {
 
 /** The showman's change: any subset of the rules and timers (ms). */
 export interface GameSettingsChange {
+  maxPlayers?: number;
   falseStart?: boolean;
   buttonPressMode?: ButtonPressMode;
   wrongAnswerPenalty?: "subtract" | "none";
@@ -289,11 +330,12 @@ export interface GameListEvent {
   data?: { id?: string; title?: string; maxPlayers?: number };
 }
 
-export type AllPlayMode = "noRisk" | "stake";
+export type AllPlayMode = "simple" | "noRisk" | "stake";
 
 export type GameJoinMode = "open" | "spectators_only" | "closed";
 
 export interface AllPlayEntry {
+  choiceOrder?: number;
   playerId: number;
   /** Stake mode: the stake (0 = staked, amount hidden until the review). */
   stake: number | null;
@@ -312,6 +354,7 @@ export interface AllPlayData {
   price: number;
   maxStake: number | null;
   priceMultiplier: number | null;
+  wrongAnswerPenalty?: "subtract" | "none";
   entries: AllPlayEntry[];
 }
 
@@ -323,6 +366,8 @@ export interface QuestionTransition {
 }
 
 export interface GameState {
+  scriptFinalBids?: Record<string, number>;
+  scriptView?: QuestionScriptView | null;
   questionTransition?: QuestionTransition | null;
   questionState: QuestionState | null;
   isPaused: boolean;
@@ -351,6 +396,7 @@ export interface GameState {
   skippedPlayers: number[] | null;
   answerShowData?: AnswerShowData | null;
   secretQuestionData?: SecretQuestionData | null;
+  secretAward?: SecretQuestionAward | null;
   stakeQuestionData?: StakeQuestionData | null;
   password?: string | null;
   questionEligiblePlayers?: number[] | null;
@@ -372,13 +418,14 @@ export interface ChatMessage {
 }
 
 export interface GameJoinData {
-  meta: { title: string; settings?: GameSettings };
+  meta: { title: string; settings?: GameSettings; maxPlayers?: number };
   players: Player[];
   gameState: GameState;
   chatMessages: ChatMessage[];
 }
 
 export interface AnswerReview {
+  choiceOrder?: number;
   playerId: number;
   answerId: string;
   answerText: string;
@@ -388,8 +435,18 @@ export interface AnswerReview {
   isCorrect: boolean | null;
 }
 
-/** Server → client events and their payloads. */
+/** Server в†’ client events and their payloads. */
 export interface ServerEvents {
+  "question-script-state": {
+    gameState: GameState;
+    scores: { playerId: number; score: number }[];
+    outcomes?: {
+      playerId: number;
+      answerType: AnswerResultType | null;
+      change: number;
+      score: number;
+    }[];
+  };
   "game-data": GameJoinData;
   join: Player;
   "user-leave": { user: number };
@@ -418,6 +475,7 @@ export interface ServerEvents {
     timedOut?: boolean;
   };
   "question-data": {
+    questionState?: QuestionState | null;
     data: Question;
     timer: Timer | null;
     questionTransition?: QuestionTransition | null;
@@ -437,12 +495,15 @@ export interface ServerEvents {
   "question-skip": { playerId: number };
   "question-unskip": { playerId: number };
   "secret-question-picked": {
+    secretQuestionData?: SecretQuestionData | null;
+    timer?: Timer | null;
     pickerPlayerId: number;
     transferType: TransferType;
     questionId: number;
     questionEligiblePlayers?: number[] | null;
   };
   "secret-question-transfer": {
+    secretQuestionData?: SecretQuestionData | null;
     fromPlayerId: number;
     toPlayerId: number;
     questionId: number;
@@ -457,6 +518,7 @@ export interface ServerEvents {
     price: number;
     maxStake: number | null;
     priceMultiplier: number | null;
+    wrongAnswerPenalty?: "subtract" | "none";
     /** Stake timer in stake mode; null when the question comes next. */
     timer: Timer | null;
   };
@@ -470,7 +532,14 @@ export interface ServerEvents {
     newScore: number;
   };
   /** The receiver of a customPrice secret question picked its price. */
-  "secret-question-price": { playerId: number; price: number; questionId: number };
+  "secret-question-price": {
+    playerId: number;
+    price: number;
+    questionId: number;
+    secretQuestionData?: SecretQuestionData | null;
+    timer?: Timer | null;
+  };
+  "secret-question-awarded": SecretQuestionAward & { timer: Timer | null };
   "question-remove-restore": { questionId: number; isPlayed: boolean };
   "answer-result-undo": {
     playerId: number;
@@ -480,13 +549,18 @@ export interface ServerEvents {
   };
   "game-join-mode-change": { joinMode: GameJoinMode };
   /** The showman changed the rules; they apply from the next timer or question. */
-  "game-settings-change": { settings: GameSettings };
+  "game-settings-change": {
+    settings: GameSettings;
+    maxPlayers?: number;
+    playerSlots?: { playerId: number; slot: number }[];
+  };
   /** Not in SERVER_EVENT_NAMES: the connection forwards it with its own listener. */
   games: GameListEvent;
   "stake-question-picked": {
     pickerPlayerId: number;
     questionId: number;
     maxPrice: number | null;
+    questionPrice?: number | null;
     biddingOrder: number[];
     timer: Timer;
     questionEligiblePlayers?: number[] | null;
@@ -537,7 +611,7 @@ export type ServerEvent = {
   [K in ServerEventName]: { type: K; payload: ServerEvents[K] };
 }[ServerEventName];
 
-/** Client → server events and their payloads. */
+/** Client в†’ server events and their payloads. */
 export interface ClientEvents {
   join: { gameId: string; role: PlayerRole; targetSlot: number | null; password?: string | null };
   "user-leave": undefined;
@@ -566,12 +640,12 @@ export interface ClientEvents {
   "game-join-mode-change": { joinMode: GameJoinMode };
   "game-settings-change": GameSettingsChange;
   "all-play-stake": { amount: number };
-  "all-play-answer": { answerText: string };
+  "all-play-answer": { answerText: string; choiceOrder?: number };
   "all-play-review": { playerId: number; isCorrect: boolean };
   "stake-bid-submit": { bidType: StakeBidType; bidAmount: number | null };
   "theme-eliminate": { themeId: number };
   "final-bid-submit": { bid: number };
-  "final-answer-submit": { answerText: string };
+  "final-answer-submit": { answerText: string; choiceOrder?: number };
   "final-answer-review": { answerId: string; isCorrect: boolean };
   "player-role-change": { playerId: number | null; newRole: PlayerRole };
   "player-slot-change": { targetSlot: number; playerId?: number };
@@ -586,6 +660,7 @@ export type ClientEventName = keyof ClientEvents;
 
 export const SERVER_EVENT_NAMES: ServerEventName[] = [
   "game-data",
+  "question-script-state",
   "join",
   "user-leave",
   "start",
@@ -608,6 +683,7 @@ export const SERVER_EVENT_NAMES: ServerEventName[] = [
   "secret-question-picked",
   "secret-question-transfer",
   "secret-question-price",
+  "secret-question-awarded",
   "all-play-start",
   "question-remove-restore",
   "answer-result-undo",

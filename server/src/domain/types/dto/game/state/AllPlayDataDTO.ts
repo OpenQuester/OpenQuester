@@ -1,5 +1,7 @@
+import type { WrongAnswerPenalty } from "domain/enums/game/GameSettings";
 /** Which "everyone answers" question is being played */
 export enum AllPlayMode {
+  SIMPLE = "simple",
   /** No-risk for everyone: right wins price × multiplier, wrong costs nothing */
   NO_RISK = "noRisk",
   /** Stake for everyone: each player stakes, right wins the stake, wrong loses it */
@@ -13,6 +15,7 @@ export interface AllPlayEntryDTO {
   stake: number | null;
   /** Typed answer; null until submitted. Hidden from other players until review */
   answer: string | null;
+  choiceOrder?: number;
   submitted: boolean;
   /** The showman's ruling; null until reviewed */
   isCorrect: boolean | null;
@@ -32,11 +35,13 @@ export interface AllPlayDataDTO {
   mode: AllPlayMode;
   questionId: number;
   themeId: number;
-  /** Question price on the board */
+  /** Resolved actual base price, fixed when the question starts. */
   price: number;
   /** Stake mode: the package's upper limit for a stake */
   maxStake: number | null;
   /** No-risk mode: reward multiplier */
   priceMultiplier: number | null;
+  /** Simple mode: room penalty fixed at start; absent legacy snapshots subtract. */
+  wrongAnswerPenalty?: WrongAnswerPenalty;
   entries: AllPlayEntryDTO[];
 }

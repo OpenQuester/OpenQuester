@@ -2,8 +2,10 @@ import { PointMarkers } from "./PointMarkers";
 import "./PointPicker.css";
 import { questionStyles } from "./question/questionStyles";
 import { useMemo, useState, type KeyboardEvent, type MouseEvent } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
+import { pointAnswerRadius, type PointTarget } from "@/lib/pointGeometry";
 import { cn } from "@/lib/cn";
 import { mapUrl } from "@/lib/urlMappings";
 
@@ -14,9 +16,6 @@ export interface Spot {
 
 export type PointMarker = Spot & { id: number; name: string; correct: boolean | null };
 const NO_MARKERS: PointMarker[] = [];
-
-/** Point answers within this share of the picture's width count by default. */
-export const DEFAULT_POINT_RADIUS = 0.05;
 
 /** Arrow keys move the keyboard cursor this share of the picture; Shift moves 5× as far. */
 const KEY_STEP = 0.02;
@@ -32,7 +31,7 @@ export function PointPicker({
   src,
   onPick,
   target,
-  radius = DEFAULT_POINT_RADIUS,
+  radius,
   picked,
   markers = NO_MARKERS,
   className,
@@ -42,7 +41,7 @@ export function PointPicker({
 }: {
   src: string;
   onPick?: (spot: Spot) => void;
-  target?: Spot | null;
+  target?: PointTarget | null;
   radius?: number | null;
   picked?: Spot | null;
   markers?: PointMarker[];
@@ -66,25 +65,14 @@ export function PointPicker({
       y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)),
     };
   };
-  const r = radius ?? DEFAULT_POINT_RADIUS;
+  const r = pointAnswerRadius(target, radius);
   const percentFormatter = useMemo(
     () => new Intl.NumberFormat(i18n.language, { maximumSignificantDigits: 6 }),
     [i18n.language],
   );
   const percent = (value: number) => percentFormatter.format(value * 100);
   const imageDimensions = dimensions?.src === src ? dimensions : null;
-  const targetDescription = target
-    ? [
-        t("point.targetDescription", {
-          x: percent(target.x),
-          y: percent(target.y),
-          radius: percent(r),
-        }),
-        imageDimensions
-          ? t("point.imageDimensions", imageDimensions)
-          : t("point.imageDimensionsUnavailable"),
-      ].join(" ")
-    : undefined;
+  const targetDescription = describePointTarget(target, r, percent, imageDimensions, t);
   const cursorDescription =
     onPick && hover
       ? t("point.cursor", { x: Math.round(hover.x * 100), y: Math.round(hover.y * 100) })
@@ -159,10 +147,36 @@ export function PointPicker({
       {!onPick && (
         <PointDescription targetDescription={targetDescription} picked={picked} percent={percent} />
       )}
-      <PointOverlay target={target} radius={r} picked={picked} hover={hover} />
+      <PointOverlay
+        target={target}
+        radius={r}
+        picked={picked}
+        hover={hover}
+        editing={!!onPick && !!target}
+      />
       <PointMarkers markers={markers} percent={percent} />
     </div>
   );
+}
+
+function describePointTarget(
+  target: PointTarget | null | undefined,
+  radius: number,
+  percent: (value: number) => string,
+  dimensions: { width: number; height: number } | null,
+  t: TFunction,
+): string | undefined {
+  if (!target) return undefined;
+  return [
+    t(target.sourceGeometry ? "point.sourceTargetDescription" : "point.targetDescription", {
+      x: percent(target.x),
+      y: percent(target.y),
+      radius: percent(radius),
+      rx: percent(radius / (target.sourceGeometry?.aspectRatio ?? 1)),
+      ry: percent(radius),
+    }),
+    dimensions ? t("point.imageDimensions", dimensions) : t("point.imageDimensionsUnavailable"),
+  ].join(" ");
 }
 
 function PointDescription({
@@ -188,11 +202,13 @@ function PointOverlay({
   radius,
   picked,
   hover,
+  editing,
 }: {
-  target?: Spot | null;
+  target?: PointTarget | null;
   radius: number;
   picked?: Spot | null;
   hover: Spot | null;
+  editing: boolean;
 }) {
   const cursor = picked ?? hover;
   return (
@@ -200,11 +216,12 @@ function PointOverlay({
       {target && (
         <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
           <span
-            className={questionStyles.correctPoint}
+            className={cn(questionStyles.correctPoint, editing && "point-target-editor")}
             style={{
               left: `${target.x * 100}%`,
               top: `${target.y * 100}%`,
-              width: `${radius * 200}%`,
+              width: `${(radius / (target.sourceGeometry?.aspectRatio ?? 1)) * 200}%`,
+              ...(target.sourceGeometry ? { height: `${radius * 200}%`, aspectRatio: "auto" } : {}),
             }}
             data-testid="point-target"
           />

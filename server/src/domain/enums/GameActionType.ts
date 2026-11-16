@@ -28,7 +28,7 @@ export enum GameActionType {
   SKIP_QUESTION_FORCE = "skip-question-force",
   SKIP_SHOW_ANSWER = "skip-show-answer",
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
-  /** The receiver selects a package-defined question price, independent of their score. */
+  /** The current chooser selects a package-defined secret price, independent of their score. */
   SECRET_QUESTION_PRICE_SELECT = "secret-question-price",
   EVERYONE_STAKE_SUBMIT = "all-play-stake",
   /** The showman removes a board question or restores it. */

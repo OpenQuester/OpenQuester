@@ -102,7 +102,12 @@ it("measures the first image by question order and replaces stale metadata", asy
   vi.stubGlobal("Image", TestImage);
   const q = newQuestion(100, {
     answerType: "point",
-    answerPoint: { x: 0.5, y: 0.5, imageAspectRatio: 2 },
+    answerPoint: {
+      x: 0.5,
+      y: 0.5,
+      imageAspectRatio: 2,
+      sourceGeometry: { kind: "sigame", aspectRatio: 1 },
+    },
     questionFiles: [
       { md5: "landscape", type: "image", displayTime: 1000 },
       { md5: "portrait", type: "image", displayTime: 1000 },
@@ -136,6 +141,10 @@ it("measures the first image by question order and replaces stale metadata", asy
   expect(selected.content.rounds[0]!.themes[0]!.questions[0]!.answerPoint?.imageAspectRatio).toBe(
     2,
   );
+  expect(selected.content.rounds[0]!.themes[0]!.questions[0]!.answerPoint?.sourceGeometry).toEqual({
+    kind: "sigame",
+    aspectRatio: 1,
+  });
   content.rounds[0]!.themes[0]!.questions[0]!.pointImageOrder = 999;
   await expect(
     withPointImageDimensions({ format: "oq", content, files, warnings: [] }),

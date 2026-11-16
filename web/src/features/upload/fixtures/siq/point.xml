@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Authored regression fixture. SI point semantics: revision 0c2167728f9eb66117b4c3576a05d91f9509cd8a,
+     SIQuester PointAnswerViewModel and SICore AnswerChecker. No upstream assets copied. -->
+<package name="Point compatibility" version="5"><rounds><round name="Points"><themes><theme name="Targets"><questions>
+  <question price="100"><params>
+    <param name="question" type="content"><item>Two images</item><item type="image" isRef="True">point-other.png</item><item type="image" isRef="True">point-wide.png</item></param>
+    <param name="answerType">point</param><param name="answerDeviation">0.05</param>
+    <param name="answer" type="content"><item type="image" isRef="True">point-other.png</item></param>
+  </params><right><answer>0.5,0.5,2</answer></right></question>
+  <question price="200"><params>
+    <param name="question" type="content"><item type="image" isRef="True">point-wide.png</item><item>Between duplicate occurrences</item><item type="image" isRef="True">point-wide.png</item></param>
+    <param name="answerType">point</param><param name="answerDeviation">0.05</param>
+  </params><right><answer>0.5,0.5,2</answer></right></question>
+  <question price="300"><params>
+    <param name="question" type="content"><item type="image" isRef="True">point-wide.png</item></param>
+    <param name="answerType">point</param>
+  </params><right><answer>0.5,0.5</answer></right></question>
+  <question price="400"><params>
+    <param name="question" type="content"><item type="image" isRef="True">point-wide.png</item></param>
+    <param name="answerType">point</param><param name="answerDeviation">0</param>
+  </params><right><answer>0.5,0.5,2</answer></right></question>
+  <question price="500"><params>
+    <param name="question" type="content"><item type="image" isRef="True">point-wide.png</item><item type="image" isRef="True">missing.png</item></param>
+    <param name="answerType">point</param>
+  </params><right><answer>0.5,0.5,2</answer></right></question>
+  <question price="600"><params>
+    <param name="question" type="content"><item type="image" isRef="True">point-wide.png</item><item>Last source item is not an image</item></param>
+    <param name="answerType">point</param>
+  </params><right><answer>0.5,0.5,2</answer></right></question>
+</questions></theme></themes></round></rounds></package>

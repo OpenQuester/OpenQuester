@@ -8,3 +8,21 @@ export function pointImage<T extends { order: number; file: { type: string } }>(
   const matches = images.filter((item) => item.order === order);
   return matches.length === 1 ? matches[0] : undefined;
 }
+
+/** Script targets are authored occurrences. -1 keeps legacy first-image fallback off. */
+export function scriptPointImageOrder(
+  files: readonly { order: number; file: { type: string } }[] | null | undefined,
+  texts: readonly { order: number }[] | null | undefined,
+  orders?: readonly number[],
+): number {
+  const order = Math.max(
+    -1,
+    ...(orders ?? [...(files ?? []), ...(texts ?? [])].map((item) => item.order)),
+  );
+  const matches = files?.filter((item) => item.order === order);
+  return matches?.length === 1 &&
+    matches[0]!.file.type === "image" &&
+    !texts?.some((item) => item.order === order)
+    ? order
+    : -1;
+}

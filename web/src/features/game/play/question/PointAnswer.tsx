@@ -16,7 +16,7 @@ export function PointAnswer({ src }: { src: string }) {
   const online = useGameState((s) => s.connection === "connected");
   const questionId =
     session.state.currentQuestion?.id ?? session.state.finalRoundData?.questionData?.question.id;
-  const scope = `${session.gameId}:${session.state.currentRound?.id}:${questionId}`;
+  const scope = `${session.gameId}:${session.state.currentRound?.id}:${questionId}${session.state.scriptView ? `:${session.state.scriptView.programCounter}` : ""}`;
   const picked = useGameState((s) =>
     s.pointSelections.scope === scope ? (s.pointSelections.byPlayer[myId] ?? null) : null,
   );

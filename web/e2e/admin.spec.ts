@@ -121,7 +121,8 @@ test("an admin makes a moderator, who removes a player, closes a live game and d
   // Remove Pat: Pat is sent home and told why, Hana sees Pat leave.
   await game.getByRole("button", { name: "Remove Pat" }).click();
   await game.getByRole("button", { name: "Confirm remove" }).click();
-  await expect(pat.page.getByText("You were removed from the game.")).toBeVisible();
+  await expect(pat.page.getByText(`You were kicked from “${title}”.`)).toBeVisible();
+  await expect(pat.page.getByText(/You're still in/)).toHaveCount(0);
   const patRow = people.filter({ hasText: "Pat" });
   await expect(patRow).toContainText("Left or offline");
   await expect(patRow.getByRole("button")).toHaveCount(0);

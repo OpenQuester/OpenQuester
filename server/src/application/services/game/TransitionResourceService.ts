@@ -46,7 +46,15 @@ export class TransitionResourceService {
   ): Promise<TransitionResources | undefined> {
     const questionWithTheme = await this.packageStore.getQuestionWithTheme(game.id, questionId);
 
-    return this.fromQuestionWithTheme(questionWithTheme);
+    const live = game.gameState.currentQuestion;
+    return this.fromQuestionWithTheme(
+      questionWithTheme && live?.id === questionId && live.realPrice != null
+        ? {
+            ...questionWithTheme,
+            question: { ...questionWithTheme.question, realPrice: live.realPrice }
+          }
+        : questionWithTheme
+    );
   }
 
   public fromQuestionWithTheme(
@@ -63,7 +71,7 @@ export class TransitionResourceService {
   }
 
   public fromSimpleQuestion(question: PackageQuestionDTO | null): TransitionResources | undefined {
-    const simpleQuestion = this.mapSimpleQuestion(question);
+    const simpleQuestion = question ? GameQuestionMapper.mapToSimpleQuestion(question, true) : null;
     if (!simpleQuestion) {
       return undefined;
     }
@@ -149,7 +157,7 @@ export class TransitionResourceService {
       questionData: {
         themeId: remainingTheme.id,
         themeName: remainingTheme.name,
-        question: GameQuestionMapper.mapToSimpleQuestion(questionWithTheme.question)
+        question: GameQuestionMapper.mapToSimpleQuestion(questionWithTheme.question, false)
       },
       fullQuestion: questionWithTheme.question
     };

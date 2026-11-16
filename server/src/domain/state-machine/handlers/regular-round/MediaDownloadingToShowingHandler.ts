@@ -29,7 +29,7 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
  */
 export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.MEDIA_DOWNLOADING;
-  public readonly toPhase = GamePhase.SHOWING;
+  public readonly toPhase: GamePhase = GamePhase.SHOWING;
 
   /**
    * Eligible when:
@@ -39,6 +39,13 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
    */
   public canTransition(ctx: TransitionContext): boolean {
     const { game, trigger } = ctx;
+
+    if (
+      game.gameState.isPaused ||
+      Boolean(game.gameState.answeringPlayer) !== (this.toPhase === GamePhase.ANSWERING)
+    ) {
+      return false;
+    }
 
     if (getGamePhase(game) !== this.fromPhase) {
       return false;
@@ -75,7 +82,9 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
     }
 
     const gated = !!game.gameState.questionTransition;
-    game.setQuestionState(QuestionState.SHOWING);
+    game.setQuestionState(
+      this.toPhase === GamePhase.ANSWERING ? QuestionState.ANSWERING : QuestionState.SHOWING
+    );
     QuestionContentPlanLogic.applyToGame(game);
 
     return {

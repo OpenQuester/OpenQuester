@@ -5,7 +5,13 @@ import { newId, type DraftMedia, type DraftQuestion } from "../packageDraft";
 import * as ops from "../packageOperations";
 import { usePackageEditor } from "../packageEditorStore";
 import { automaticPointTarget, type MediaChange, type MediaUndo } from "./questionMediaHistory";
-import { questionSteps, syncQuestionFiles, withQuestionSteps } from "./questionTimeline";
+import {
+  answerSteps,
+  questionSteps,
+  syncAnswerFiles,
+  syncQuestionFiles,
+  withQuestionSteps,
+} from "./questionTimeline";
 export function useQuestionForm(at: ops.QuestionPath, onClose: () => void) {
   const { t } = useTranslation();
   const apply = usePackageEditor((s) => s.apply);
@@ -53,13 +59,20 @@ export function useQuestionForm(at: ops.QuestionPath, onClose: () => void) {
       if (!raw) return prev;
       const result = automaticPointTarget(prev.q, raw);
       const previousSteps = questionSteps(prev.q);
+      const previousAnswerSteps = answerSteps(prev.q);
       return {
         ...prev,
-        q: timeline ? result.question : syncQuestionFiles(prev.q, result.question),
+        q: timeline
+          ? result.question
+          : syncAnswerFiles(prev.q, syncQuestionFiles(prev.q, result.question)),
         undo: (current) =>
           timeline
             ? result.undo(current)
-            : syncQuestionFiles(current, result.undo(current), previousSteps),
+            : syncAnswerFiles(
+                current,
+                syncQuestionFiles(current, result.undo(current), previousSteps),
+                previousAnswerSteps,
+              ),
       };
     });
   const applyMedia = (change: MediaChange) => applyChange(change, false);

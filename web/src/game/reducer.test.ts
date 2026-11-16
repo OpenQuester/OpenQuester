@@ -397,8 +397,10 @@ describe("reducer: special questions", () => {
     expect(s.state.answeringPlayer).toBe(ALICE);
   });
 
-  it("hands a secret question to the chosen player", () => {
-    let s = reduce(choosing(), {
+  it.each([false, true])("hands a secret question to the chosen player (media: %s)", (hasMedia) => {
+    const previous = choosing();
+    previous.players = previous.players.map((p) => ({ ...p, mediaDownloaded: true }));
+    let s = reduce(previous, {
       type: "secret-question-picked",
       payload: { pickerPlayerId: ALICE, transferType: "any", questionId: 101 },
     });
@@ -411,9 +413,24 @@ describe("reducer: special questions", () => {
       },
       {
         type: "question-data",
-        payload: { data: question(101, { type: "secret" }), timer: timer() },
+        payload: {
+          data: question(101, { type: "secret" }),
+          questionState: hasMedia ? "media_downloading" : undefined,
+          timer: timer(),
+        },
       },
     );
+    if (hasMedia) {
+      expect(phaseOf(s)).toBe("media");
+      expect(s.state.answeringPlayer).toBe(BOB);
+      expect(s.players.every((p) => !p.mediaDownloaded)).toBe(true);
+      const clock = timer(20000);
+      s = reduce(s, {
+        type: "media-download-status",
+        payload: { playerId: BOB, mediaDownloaded: true, allPlayersReady: true, timer: clock },
+      });
+      expect(s.state.timer).toEqual(clock);
+    }
     expect(phaseOf(s)).toBe("answering");
     expect(s.state.answeringPlayer).toBe(BOB);
   });

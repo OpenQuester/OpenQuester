@@ -70,7 +70,8 @@ export class PackageService {
     }
 
     return pack.toDTO(this.fileUrlBuilder, {
-      fetchIds: true
+      fetchIds: true,
+      includeAuthoringMetadata: true
     });
   }
 

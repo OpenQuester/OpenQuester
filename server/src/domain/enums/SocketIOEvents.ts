@@ -21,6 +21,7 @@ export enum SocketIOGameEvents {
   BUZZER_FALSE_START = "buzzer-false-start",
   BUZZER_OPEN = "buzzer-open",
   QUESTION_DATA = "question-data",
+  QUESTION_SCRIPT_STATE = "question-script-state",
   QUESTION_FINISH = "question-finish",
   ANSWER_SUBMITTED = "answer-submitted",
   ANSWER_RESULT = "answer-result",
@@ -61,6 +62,7 @@ export enum SocketIOGameEvents {
   SECRET_QUESTION_PICKED = "secret-question-picked",
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
   SECRET_QUESTION_PRICE = "secret-question-price",
+  SECRET_QUESTION_AWARDED = "secret-question-awarded",
 
   // "Everyone answers" questions
   ALL_PLAY_START = "all-play-start",

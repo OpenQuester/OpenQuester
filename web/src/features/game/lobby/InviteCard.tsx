@@ -24,10 +24,9 @@ export function InviteCard({ gameId, password }: { gameId: string; password: str
     }
   }
   return (
-    <section className={cn("flex flex-col gap-3", lobbyStyles.panel)}>
-      <h2 className={lobbyStyles.actionTitle}>{t("lobby.invite")}</h2>
-      <div className="flex gap-2">
-        <label htmlFor="invite-link" className="sr-only">
+    <section className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-line bg-surface px-3 py-2">
+      <div className="flex min-w-0 flex-[1_1_400px] flex-wrap items-center gap-2">
+        <label htmlFor="invite-link" className="text-sm font-semibold">
           {t("lobby.inviteLink")}
         </label>
         <input
@@ -35,9 +34,10 @@ export function InviteCard({ gameId, password }: { gameId: string; password: str
           readOnly
           value={link}
           onFocus={(e) => e.currentTarget.select()}
-          className={lobbyStyles.inviteCode}
+          className={cn(lobbyStyles.inviteCode, "min-h-10 basis-40")}
         />
         <Button
+          size="sm"
           onClick={() => void copy()}
           icon={copied ? <CheckIcon size={16} /> : <CopyIcon size={16} />}
         >

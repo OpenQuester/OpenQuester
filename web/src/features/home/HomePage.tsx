@@ -11,7 +11,12 @@ export function HomePage() {
   return (
     <PageContainer>
       {(notice === "kicked" || notice === "deleted" || notice === "closed") && (
-        <HomeNotice key={notice} reason={notice} onDismiss={home.dismissNotice} />
+        <HomeNotice
+          key={`${notice}:${home.gameTitle ?? ""}`}
+          reason={notice}
+          title={home.gameTitle}
+          onDismiss={home.dismissNotice}
+        />
       )}
       <div className="flex flex-col gap-10">
         {mine && <RejoinGame game={mine} onHide={() => home.hideGame(mine.id)} />}

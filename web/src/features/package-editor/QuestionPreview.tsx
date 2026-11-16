@@ -1,3 +1,4 @@
+import { answerFormat } from "@/game/answerFormat";
 import { packageEditorStyles } from "./packageEditorStyles";
 import { layoutStyles } from "@/ui/layoutStyles";
 import { useTranslation } from "react-i18next";
@@ -10,7 +11,7 @@ import { questionTypeDetail } from "./questionPresentation";
 import { useMediaFile } from "./packageEditorStore";
 import { numericAnswerText } from "./numericAnswer";
 import { correctChoice } from "./choiceCorrectness";
-import { DEFAULT_POINT_RADIUS } from "@/features/game/play/PointPicker";
+import { pointAnswerRadius } from "@/lib/pointGeometry";
 
 /** Everything a question shows, read-only: used in the inspector and full previews. */
 export function QuestionPreview({
@@ -45,8 +46,8 @@ function QuestionPreviewContent({
   const previewText = q.text.trim() || q.textItems?.find((item) => item.text.trim())?.text || "";
   const type = final ? "simple" : q.type;
   const detail = final ? "" : questionTypeDetail(q, t);
-  const pointAnswer = type !== "choice" && q.answerType === "point";
-  const selectedChoice = type === "choice" ? correctChoice(q) : undefined;
+  const pointAnswer = answerFormat(q) !== "select" && q.answerType === "point";
+  const selectedChoice = answerFormat(q) === "select" ? correctChoice(q) : undefined;
   const image = draftPointImage(q);
   const imageIndex = image ? q.questionFiles.indexOf(image) : -1;
   const imageFile = useMediaFile(pointAnswer ? image?.md5 : undefined);
@@ -63,11 +64,17 @@ function QuestionPreviewContent({
   );
   let pointDescription: string | undefined;
   if (format && target) {
-    pointDescription = t("point.targetDescription", {
-      x: format.format(target.x * 100),
-      y: format.format(target.y * 100),
-      radius: format.format((q.answerDeviation ?? DEFAULT_POINT_RADIUS) * 100),
-    });
+    const radius = pointAnswerRadius(target, q.answerDeviation);
+    pointDescription = t(
+      target.sourceGeometry ? "point.sourceTargetDescription" : "point.targetDescription",
+      {
+        x: format.format(target.x * 100),
+        y: format.format(target.y * 100),
+        radius: format.format(radius * 100),
+        rx: format.format((radius / (target.sourceGeometry?.aspectRatio ?? 1)) * 100),
+        ry: format.format(radius * 100),
+      },
+    );
   }
   return (
     <div className="flex flex-col gap-4">
@@ -98,7 +105,7 @@ function QuestionPreviewContent({
           ))}
         </div>
       )}
-      {type === "choice" && q.options.length > 0 && (
+      {answerFormat(q) === "select" && q.options.length > 0 && (
         <ol className={packageEditorStyles.previewChoices}>
           {q.options.map((o, i) => {
             const correct = o.id === selectedChoice?.id;
@@ -171,7 +178,6 @@ type PointPreviewControl = {
 /** Answer content keeps its original media keys while hover/focus state stays with the image. */
 function QuestionPreviewAnswer({
   question: q,
-  final,
   point,
 }: {
   question: DraftQuestion;
@@ -179,11 +185,10 @@ function QuestionPreviewAnswer({
   point: PointPreviewControl;
 }) {
   const { t } = useTranslation();
-  const type = final ? "simple" : q.type;
-  const pointAnswer = type !== "choice" && q.answerType === "point";
-  const numberAnswer = type !== "choice" && q.answerType === "number";
+  const pointAnswer = answerFormat(q) !== "select" && q.answerType === "point";
+  const numberAnswer = answerFormat(q) !== "select" && q.answerType === "number";
   const numberText = numberAnswer ? numericAnswerText(q.answerNumber) : null;
-  const selectedChoice = type === "choice" ? correctChoice(q) : undefined;
+  const selectedChoice = answerFormat(q) === "select" ? correctChoice(q) : undefined;
   return (
     <div className={packageEditorStyles.previewAnswer}>
       <span className="text-xs font-bold tracking-wider text-success uppercase">

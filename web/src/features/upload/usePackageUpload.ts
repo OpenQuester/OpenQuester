@@ -20,6 +20,7 @@ import {
 } from "./upload";
 import { PackageImportCancelledError } from "./htmlRemoval";
 import { useHtmlRemovalConfirmation } from "./HtmlRemovalDialog";
+import { COMPATIBILITY_NEEDS_REPAIR } from "./siqCompatibility";
 import { useUploadWarning } from "./useUploadWarning";
 
 export type UploadStep =
@@ -159,6 +160,8 @@ function uploadError(err: unknown, t: TFunction): string {
     if (err.status === 413 || err.status === 507 || err.status === 409) return err.message;
     return t("upload.serverRejected", { message: err.message });
   }
+  if (err instanceof Error && err.message === COMPATIBILITY_NEEDS_REPAIR)
+    return t("upload.errors.compatibilityNeedsRepair");
   if (err instanceof Error && err.message === RESUME_OTHER_SOURCE)
     return t("upload.readErrors.otherSource");
   return err instanceof Error ? err.message : String(err);

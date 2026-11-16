@@ -13,8 +13,10 @@ const SHOWN_WARNINGS = 6;
 export function ImportWarnings({
   warnings,
   onDismiss,
+  needsRepair = false,
 }: {
   warnings: ImportWarning[];
+  needsRepair?: boolean;
   /** Shown as "Hide" in the editor, where the report stays until dismissed. */
   onDismiss?: () => void;
 }) {
@@ -24,18 +26,28 @@ export function ImportWarnings({
   return (
     <Card tone="raised" data-testid="upload-warnings">
       <div className="flex flex-col gap-3">
-        <p className="m-0 font-semibold text-warning">
-          {t("upload.warningsTitle", { count: warnings.length })}
+        <p
+          className={
+            needsRepair ? "m-0 font-semibold text-danger" : "m-0 font-semibold text-warning"
+          }
+        >
+          {needsRepair
+            ? t("upload.repairTitle")
+            : t("upload.warningsTitle", { count: warnings.length })}
         </p>
-        <p className="m-0 text-sm text-soft">{t("upload.warningsHelp")}</p>
-        <ul className={layoutStyles.list}>
-          {shown.map((w, i) => (
-            <li key={i} className="text-sm [overflow-wrap:anywhere]">
-              {w.where && <span className="text-muted">{w.where} · </span>}
-              {t(`upload.warnings.${w.code}`, { detail: w.detail ?? "", context: w.phase })}
-            </li>
-          ))}
-        </ul>
+        <p className="m-0 text-sm text-soft">
+          {needsRepair ? t("upload.errors.compatibilityNeedsRepair") : t("upload.warningsHelp")}
+        </p>
+        {shown.length > 0 && (
+          <ul className={layoutStyles.list}>
+            {shown.map((w, i) => (
+              <li key={i} className="text-sm [overflow-wrap:anywhere]">
+                {w.where && <span className="text-muted">{w.where} · </span>}
+                {t(`upload.warnings.${w.code}`, { detail: w.detail ?? "", context: w.phase })}
+              </li>
+            ))}
+          </ul>
+        )}
         {onDismiss && (
           <Button size="sm" variant="ghost" className="self-start" onClick={onDismiss}>
             {t("editor.importReportHide")}

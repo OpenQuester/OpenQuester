@@ -1,3 +1,4 @@
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { QuestionTransitionDTO } from "domain/types/dto/game/state/QuestionTransitionDTO";
 import { QuestionContentPlanDTO } from "domain/types/dto/game/state/QuestionContentPlanDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
@@ -7,6 +8,8 @@ import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackage
 export interface GameQuestionDataEventPayload {
   data: PackageQuestionDTO | SimplePackageQuestionDTO;
   timer: GameStateTimerDTO | null;
+  /** Actual phase also distinguishes direct-answer media preparation from its answer clock. */
+  questionState?: QuestionState | null;
   questionTransition?: QuestionTransitionDTO | null;
   /** Players eligible to participate in the current question */
   questionEligiblePlayers?: number[] | null;

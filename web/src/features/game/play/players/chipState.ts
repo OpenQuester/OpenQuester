@@ -14,8 +14,7 @@ export function chipState(
   session: GameSession,
   p: Player,
   t: (k: string, o?: Record<string, unknown>) => string,
-  finalContentPlaying = false,
-  pointWaiting = false,
+  answerWaiting = false,
 ): ChipState {
   const id = p.meta.id;
   const s = session.state;
@@ -31,7 +30,9 @@ export function chipState(
       if (s.answeringPlayer === id)
         return session.hasAnswerSubmission
           ? { tag: t("chips.answered"), hot: false, dim: false, submitted: true }
-          : { tag: t("chips.answering"), hot: true, dim: false };
+          : answerWaiting
+            ? { tag: t("stake.waiting"), hot: false, dim: false }
+            : { tag: t("chips.answering"), hot: true, dim: false };
       const answer = (s.answeredPlayers ?? []).find((a) => a.player === id);
       if (answer) return { tag: formatSigned(answer.result), hot: false, dim: true };
       if (hasSkipped(session, id)) return { tag: t("chips.passed"), hot: false, dim: true };
@@ -71,7 +72,7 @@ export function chipState(
             dim: false,
             submitted: true,
           }
-        : pointWaiting && phaseOf(session) === "all_play_answering"
+        : answerWaiting && phaseOf(session) === "all_play_answering"
           ? { tag: t("stake.waiting"), hot: false, dim: false }
           : {
               tag: t(phaseOf(session) === "all_play_bidding" ? "chips.bidding" : "chips.answering"),
@@ -95,7 +96,7 @@ export function chipState(
     case "final_answering":
       return session.finalSubmitted.includes(id)
         ? { tag: t("chips.answered"), hot: false, dim: false, submitted: true }
-        : finalContentPlaying
+        : answerWaiting
           ? { tag: t("stake.waiting"), hot: false, dim: false }
           : {
               tag: t("chips.answering"),

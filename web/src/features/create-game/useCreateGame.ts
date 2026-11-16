@@ -8,7 +8,7 @@ import { displayName, useMe } from "@/features/auth/useMe";
 import { setJoinIntent } from "@/features/game/joinIntent";
 import { refreshGames } from "@/features/home/refreshGames";
 import { usePackage } from "@/features/packages/usePackages";
-import { DEFAULT_GAME_SETTINGS } from "./gameSettings";
+import { DEFAULT_GAME_SETTINGS, MAX_GAME_SLOTS, MIN_GAME_SLOTS } from "./gameSettings";
 
 export function useCreateGame() {
   const { t } = useTranslation();
@@ -18,7 +18,7 @@ export function useCreateGame() {
   const me = useMe();
   const pkg = usePackage(packageId);
   const [title, setTitle] = useState("");
-  const [maxPlayers, setMaxPlayers] = useState(6);
+  const [maxPlayers, setMaxPlayers] = useState("6");
   const [isPrivate, setIsPrivate] = useState(false);
   const [password, setPassword] = useState("");
   const [age, setAge] = useState<AgeRestriction>("NONE");
@@ -30,15 +30,23 @@ export function useCreateGame() {
   const unfinished = pkg.data?.uploadStatus === "uploading";
   const defaultTitle = me.data ? t("create.defaultTitle", { name: displayName(me.data) }) : "";
 
-  async function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent, showGeneral: () => void) {
     e.preventDefault();
     if (!packageId) return;
     const finalTitle = (title.trim() || defaultTitle).slice(0, 100);
     if (finalTitle.length < 3) {
+      showGeneral();
       setError(t("create.titleTooShort"));
       return;
     }
+    const slots = Number(maxPlayers);
+    if (!Number.isInteger(slots) || slots < MIN_GAME_SLOTS || slots > MAX_GAME_SLOTS) {
+      showGeneral();
+      setError(t("create.playerRange", { min: MIN_GAME_SLOTS, max: MAX_GAME_SLOTS }));
+      return;
+    }
     if (isPrivate && password && !/^[A-Za-z0-9_-]{1,16}$/.test(password)) {
+      showGeneral();
       setError(t("create.passwordInvalid"));
       return;
     }
@@ -52,7 +60,7 @@ export function useCreateGame() {
             packageId,
             isPrivate,
             ageRestriction: age,
-            maxPlayers,
+            maxPlayers: slots,
             settings,
             // An empty password is left out: the server generates one
             ...(isPrivate && password ? { password } : {}),

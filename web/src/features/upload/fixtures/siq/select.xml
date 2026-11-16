@@ -1,0 +1,13 @@
+<!-- Original regression fixture. SIEngine at 0c2167728f9eb66117b4c3576a05d91f9509cd8a:
+     select uses the first item per option and the first right label. -->
+<package name="Select fixture" version="5"><rounds><round name="R"><themes><theme name="T"><questions>
+  <question price="300" type="stake"><params>
+    <param name="question" type="content"><item>Choose</item></param>
+    <param name="answerType">select</param>
+    <param name="answerOptions" type="group">
+      <param name="A" type="content"><item>Same</item><item>Ignored second item</item></param>
+      <param name="B" type="content"><item>Same</item></param>
+      <param name="C" type="content"><item>Chosen</item></param>
+    </param>
+  </params><right><answer>C</answer><answer>B</answer></right></question>
+</questions></theme></themes></round></rounds></package>
