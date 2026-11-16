@@ -86,14 +86,15 @@ export class PackageRepository {
     return result.affected === 1;
   }
 
-  /** Ids of packages still uploading that started after `since`, newest first. */
-  public async getUploadingSince(since: Date, limit: number): Promise<number[]> {
+  /** Walk recent unfinished uploads by ID so each pass advances past pending files. */
+  public async getUploadingSince(since: Date, limit: number, afterId: number): Promise<number[]> {
     const rows = await this.repository
       .createQueryBuilder("package")
       .select("package.id", "id")
       .where("package.upload_status = :status", { status: PackageUploadStatus.UPLOADING })
       .andWhere("package.upload_started_at > :since", { since })
-      .orderBy("package.upload_started_at", "DESC")
+      .andWhere("package.id > :afterId", { afterId })
+      .orderBy("package.id", "ASC")
       .limit(limit)
       .getRawMany<{ id: number }>();
 

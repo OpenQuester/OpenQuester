@@ -6,6 +6,7 @@ import { useMe } from "@/features/auth/useMe";
 import { usePackage } from "@/features/packages/usePackages";
 import { loadStash } from "./stash";
 import {
+  PackageMediaLimitError,
   getUploadState,
   resumeFromFile,
   resumeUpload,
@@ -31,7 +32,7 @@ export function useResumeUpload(id: number) {
   const state = useQuery({
     queryKey: ["package-upload", id],
     enabled: me.data != null,
-    queryFn: () => getUploadState(id),
+    queryFn: ({ signal }) => getUploadState(id, signal),
     retry: false,
   });
   const missing = state.data?.missing ?? [];
@@ -71,15 +72,17 @@ export function useResumeUpload(id: number) {
       setRun({
         kind: "idle",
         error:
-          err instanceof ApiError && err.status === 0
-            ? t("upload.networkError")
-            : err instanceof Error
-              ? err.message === RESUME_OTHER_SOURCE
-                ? t("upload.readErrors.otherSource")
-                : err.message === COMPATIBILITY_NEEDS_REPAIR
-                  ? t("upload.errors.compatibilityNeedsRepair")
-                  : err.message
-              : String(err),
+          err instanceof PackageMediaLimitError
+            ? t("upload.mediaFileLimit", { actual: err.actual, max: err.max })
+            : err instanceof ApiError && err.status === 0
+              ? t("upload.networkError")
+              : err instanceof Error
+                ? err.message === RESUME_OTHER_SOURCE
+                  ? t("upload.readErrors.otherSource")
+                  : err.message === COMPATIBILITY_NEEDS_REPAIR
+                    ? t("upload.errors.compatibilityNeedsRepair")
+                    : err.message
+                : String(err),
       });
     }
   }

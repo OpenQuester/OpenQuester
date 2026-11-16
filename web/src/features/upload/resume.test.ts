@@ -11,7 +11,13 @@ const fetchMock = vi.hoisted(() => {
 });
 
 import type { ParsedPackage } from "./types";
-import { contentHash, RESUME_OTHER_SOURCE, resumeFromFile } from "./upload";
+import {
+  contentHash,
+  getUploadState,
+  RESUME_OTHER_SOURCE,
+  resumeFromFile,
+  uploadPackage,
+} from "./upload";
 import { optimizePackage } from "./optimize/index";
 
 vi.mock("./optimize/index", () => ({ optimizePackage: vi.fn() }));
@@ -24,8 +30,81 @@ const json = (body: unknown) =>
 
 describe("resuming an upload from a picked file", () => {
   afterEach(() => {
+    vi.useRealTimers();
     fetchMock.mockReset();
     vi.mocked(optimizePackage).mockReset();
+  });
+
+  it("waits for the upload status retry and confirms the upload", async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 429, headers: { "Retry-After": "2" } }))
+      .mockResolvedValueOnce(json({ id: 7, status: "ready" }));
+
+    const state = getUploadState(7);
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(state).resolves.toMatchObject({ status: "ready" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.every(([request]) => (request as Request).method === "GET")).toBe(
+      true,
+    );
+  });
+
+  it("stops retrying upload status after two retries", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(async () => new Response(null, { status: 503 }));
+
+    const failed = expect(getUploadState(7)).rejects.toMatchObject({ status: 503 });
+    await vi.advanceTimersByTimeAsync(4000);
+    await failed;
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("rejects media above the package limit before sending the package", async () => {
+    const files = Array.from({ length: 1001 }, (_, order) => ({
+      file: { md5: order.toString(16).padStart(32, "0"), type: "image" as const },
+      displayTime: null,
+      order,
+    }));
+    const parsed: ParsedPackage = {
+      format: "oq",
+      warnings: [],
+      files: new Map(),
+      content: {
+        title: "Large package",
+        ageRestriction: "NONE",
+        tags: [],
+        logo: { file: files[0]!.file },
+        rounds: [
+          {
+            name: "Round",
+            order: 0,
+            type: "simple",
+            themes: [
+              {
+                name: "Theme",
+                order: 0,
+                questions: Array.from({ length: 51 }, (_, order) => ({
+                  type: "simple",
+                  order,
+                  price: 100,
+                  showAnswerDuration: 0,
+                  questionFiles: files.slice(order * 20, (order + 1) * 20),
+                })),
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    await expect(uploadPackage(parsed, () => {})).rejects.toMatchObject({
+      actual: 1001,
+      max: 1000,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("prepares a replacement once when encoded hashes differ, preserving the source fingerprint", async () => {

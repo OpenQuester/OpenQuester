@@ -379,7 +379,7 @@ it.each([
               missing: [],
               uploadLinks: {},
             })
-          : json({ error: "status unavailable" }, 503);
+          : json({ error: "status unavailable" }, 500);
       throw new Error(`unexpected request ${request.method} ${url}`);
     });
     const client = new QueryClient({

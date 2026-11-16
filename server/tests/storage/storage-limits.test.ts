@@ -81,6 +81,7 @@ describe("Storage limits", () => {
   });
 
   afterEach(async () => {
+    jest.restoreAllMocks();
     await deleteAll(dataSource.getRepository(PlayerGameStats));
     await deleteAll(dataSource.getRepository(GameStatistics));
     await deleteAll(packageRepo);
@@ -330,7 +331,7 @@ describe("Storage limits", () => {
           ageRestriction: AgeRestriction.NONE,
           maxPlayers: 5
         });
-        expect(game.status).toBe(status);
+        expect(game.status).toBe(409);
       } finally {
         head.mockRestore();
         environment.S3_BUCKET_QUOTA_BYTES = previousBucketQuota;
@@ -556,6 +557,9 @@ describe("Storage limits", () => {
   });
 
   it("deletes media an edit drops, but keeps media another package still uses", async () => {
+    const storage = container.resolve(S3ObjectStorage);
+    jest.spyOn(storage, "headObject").mockResolvedValue(null);
+    const deleteObjects = jest.spyOn(storage, "deleteObjects").mockResolvedValue({ errors: [] });
     const { user, cookie } = await testUtils.createAndLoginUser(`storage_edit_${Date.now()}`);
     const first = await upload(cookie, packageWith(user, [md5(7), md5(8)]), {
       [md5(7)]: 100,
@@ -573,6 +577,8 @@ describe("Storage limits", () => {
     expect(await fileRepo.count({ where: { filename: md5(7) } })).toBe(0);
     expect(await fileRepo.count({ where: { filename: md5(8) } })).toBeGreaterThan(0);
     expect(await fileRepo.count({ where: { filename: md5(9) } })).toBeGreaterThan(0);
+    expect(deleteObjects).toHaveBeenCalledTimes(1);
+    expect(deleteObjects.mock.calls[0][1]).toEqual([expect.stringContaining(md5(7))]);
     const me = await http.get("/v1/me/storage").set("Cookie", cookie);
     expect(me.body.usedBytes).toBe(200);
   });

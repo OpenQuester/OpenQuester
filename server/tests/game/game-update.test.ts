@@ -1,11 +1,13 @@
-import { afterAll, beforeAll, afterEach, describe, expect, it } from "@jest/globals";
+import { afterAll, beforeAll, afterEach, describe, expect, it, jest } from "@jest/globals";
 import { type Express } from "express";
+import { container } from "tsyringe";
 import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
 
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameEvent, GameEventDTO } from "domain/types/dto/game/GameEventDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { S3ObjectStorage } from "infrastructure/storage/S3ObjectStorage";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { PackageUtils } from "tests/utils/PackageUtils";
@@ -29,6 +31,7 @@ describe("Game REST update", () => {
   });
 
   afterEach(async () => {
+    jest.restoreAllMocks();
     await suite?.reset();
   });
 
@@ -233,7 +236,7 @@ describe("Game REST update", () => {
       expect(updateRes.status).toBe(400);
     }));
 
-  it("should update package data before game start", () =>
+  it("updates the game package before start once its upload is confirmed", () =>
     suite.scenario(async () => {
       const userRepo = suite.userRepo;
 
@@ -261,7 +264,8 @@ describe("Game REST update", () => {
       const packageData2 = packageUtils.createTestPackageData(
         { id: showmanUser.id, username: showmanUser.username },
         false,
-        3
+        3,
+        true
       );
       packageData2.title = "Replacement Test Package";
 
@@ -271,6 +275,7 @@ describe("Game REST update", () => {
         .send({ content: packageData2 });
 
       expect(packageRes2.status).toBe(200);
+      expect(packageRes2.body.uploadStatus).toBe("uploading");
 
       const gameRes = await http.post("/v1/games").set("Cookie", showmanCookie).send({
         title: "Package Update Test",
@@ -284,6 +289,25 @@ describe("Game REST update", () => {
       gameId = gameRes.body.id;
 
       await utils.joinGame(showmanSocket, gameId, PlayerRole.SHOWMAN);
+
+      const head = jest
+        .spyOn(container.resolve(S3ObjectStorage), "headObject")
+        .mockResolvedValue({ size: 100 });
+      await http
+        .patch(`/v1/games/${gameId}`)
+        .set("Cookie", showmanCookie)
+        .send({ packageId: packageRes2.body.id })
+        .expect(409);
+      expect(head).not.toHaveBeenCalled();
+
+      const original = await http.get(`/v1/games/${gameId}`).expect(200);
+      expect(original.body.package.id).toBe(packageRes1.body.id);
+      const upload = await http
+        .get(`/v1/packages/${packageRes2.body.id}/upload`)
+        .set("Cookie", showmanCookie)
+        .expect(200);
+      expect(upload.body.status).toBe("ready");
+      expect(head).toHaveBeenCalledTimes(1);
 
       const updateRes = await http.patch(`/v1/games/${gameId}`).set("Cookie", showmanCookie).send({
         packageId: packageRes2.body.id

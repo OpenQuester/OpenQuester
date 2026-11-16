@@ -977,6 +977,7 @@
     "tryAgain": "Try again",
     "networkError": "Lost connection while uploading. Check your network and try again.",
     "serverRejected": "The server didn't accept this package: {{message}}",
+    "mediaFileLimit": "This package references {{actual}} distinct media files. Use at most {{max}} files, then try again.",
     "editFirst": "Edit before uploading",
     "compress": {
       "label": "Media is automatically prepared for upload",

@@ -14,7 +14,7 @@ import { assertOqContentLimits, parseOq } from "./oq";
 import { parseSiq, scanSiqContentLimits } from "./siq";
 import type { OptimizeProgress } from "./optimize/index";
 import { clearStash, loadStash, stashFiles, unstashFile } from "./stash";
-import type { MediaFile, ParsedPackage, UploadQuestion } from "./types";
+import type { MediaFile, ParsedPackage, UploadContent, UploadQuestion } from "./types";
 import { answerFormat } from "@/game/answerFormat";
 import { withPointImageDimensions } from "./pointImageDimensions";
 import { withFinalMediaDurations } from "./finalMediaDuration";
@@ -151,6 +151,37 @@ export interface PendingFile {
 
 const PARALLEL = 3;
 const DUPLICATES_PAGE_SIZE = 5;
+const MAX_PACKAGE_MEDIA_FILES = 1000;
+const UPLOAD_CHECK_RETRIES = 2;
+const UPLOAD_CHECK_FALLBACK_SECONDS = 2;
+
+export class PackageMediaLimitError extends Error {
+  readonly max = MAX_PACKAGE_MEDIA_FILES;
+
+  constructor(readonly actual: number) {
+    super("Package references too many media files");
+  }
+}
+
+function assertPackageMediaLimit(content: UploadContent): void {
+  const names = new Set<string>();
+  if (content.logo?.file.md5) names.add(content.logo.file.md5);
+
+  for (const round of content.rounds) {
+    for (const theme of round.themes) {
+      for (const question of theme.questions) {
+        for (const { file } of [
+          ...(question.questionFiles ?? []),
+          ...(question.answerFiles ?? []),
+          ...(question.answers ?? []),
+        ]) {
+          if (file?.md5) names.add(file.md5);
+        }
+      }
+    }
+  }
+  if (names.size > MAX_PACKAGE_MEDIA_FILES) throw new PackageMediaLimitError(names.size);
+}
 
 const idle = (phase: UploadProgress["phase"]): UploadProgress => ({
   phase,
@@ -187,8 +218,19 @@ export async function findDuplicates(hash: string, offset = 0) {
   return res.data;
 }
 
-export function getUploadState(id: number): Promise<UploadState> {
-  return unwrap(api.GET("/v1/packages/{id}/upload", { params: { path: { id } } }));
+export async function getUploadState(id: number, signal?: AbortSignal): Promise<UploadState> {
+  for (let attempt = 0; ; attempt++) {
+    signal?.throwIfAborted();
+    const result = await api.GET("/v1/packages/{id}/upload", { params: { path: { id } }, signal });
+    const { response } = result;
+    if (attempt === UPLOAD_CHECK_RETRIES || (response.status !== 429 && response.status !== 503)) {
+      return unwrap(Promise.resolve(result));
+    }
+    const seconds = Number(response.headers.get("Retry-After")) || UPLOAD_CHECK_FALLBACK_SECONDS;
+    // Leave long server-directed delays to the existing manual retry.
+    if (seconds < 0 || seconds > 5) return unwrap(Promise.resolve(result));
+    await new Promise<void>((resolve) => setTimeout(resolve, seconds * 1000));
+  }
 }
 
 /**
@@ -240,6 +282,7 @@ async function uploadPreparedPackage(
   sourceHash?: string | null,
   savings?: UploadResult["savings"],
 ): Promise<UploadResult> {
+  assertPackageMediaLimit(parsed.content);
   parsed = await withPointImageDimensions(parsed);
   parsed = await withFinalMediaDurations(parsed);
   onProgress(idle("creating"));

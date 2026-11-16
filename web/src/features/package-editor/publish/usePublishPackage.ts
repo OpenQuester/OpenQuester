@@ -4,7 +4,11 @@ import type { TFunction } from "i18next";
 import { ApiError } from "@/api/client";
 import { useDiscordClientId } from "@/features/auth/discord";
 import { useMe } from "@/features/auth/useMe";
-import { uploadPackage, type UploadProgress } from "@/features/upload/upload";
+import {
+  PackageMediaLimitError,
+  uploadPackage,
+  type UploadProgress,
+} from "@/features/upload/upload";
 import { PointImageDimensionsError } from "@/features/upload/pointImageDimensions";
 import { FinalMediaDurationError } from "@/features/upload/finalMediaDuration";
 import { toParsed } from "../packageMedia";
@@ -18,6 +22,8 @@ export type PublishStep =
   | { kind: "failed"; error: string };
 
 function publishError(err: unknown, replace: boolean, t: TFunction): string {
+  if (err instanceof PackageMediaLimitError)
+    return t("upload.mediaFileLimit", { actual: err.actual, max: err.max });
   if (err instanceof FinalMediaDurationError)
     return t(`upload.finalMedia.${err.reason}`, { name: err.fileName });
   if (err instanceof PointImageDimensionsError) return t("upload.pointImageDimensions");

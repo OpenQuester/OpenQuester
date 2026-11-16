@@ -12,12 +12,19 @@ import { container } from "tsyringe";
 import { type DataSource, type Repository } from "typeorm";
 
 import { PackageUploadCheckJob } from "application/jobs/PackageUploadCheckJob";
+import { PackageUploadRefreshGate } from "application/services/package/PackageUploadRefreshGate";
 import { PackageUploadService } from "application/services/package/PackageUploadService";
+import { RedisService } from "application/services/redis/RedisService";
+import { StorageQuotaService } from "application/services/storage/StorageQuotaService";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { PackageUploadStatus } from "domain/enums/package/PackageUploadStatus";
+import { Permissions } from "domain/enums/Permissions";
 import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
+import { UserCacheStore } from "infrastructure/cache/UserCacheStore";
 import { File } from "infrastructure/database/models/File";
 import { Package } from "infrastructure/database/models/package/Package";
 import { User } from "infrastructure/database/models/User";
+import { Permission } from "infrastructure/database/models/Permission";
 import { S3ObjectStorage } from "infrastructure/storage/S3ObjectStorage";
 import { PackageRepository } from "infrastructure/database/repositories/PackageRepository";
 import { DI_TOKENS } from "shared/di/tokens";
@@ -134,50 +141,203 @@ describe("Package upload state", () => {
     });
     expect(Object.keys(half.body.uploadLinks)).toEqual([files[1]]);
 
-    // The last file arrives without the client reporting back: starting a game checks again.
-    stored.add(files[1]);
-    const game = await createGame(cookie, id);
-    expect(game.status).toBe(200);
+    const head = jest.mocked(container.resolve(S3ObjectStorage).headObject);
+    head.mockClear();
+    const deferred = await http.get(`/v1/packages/${id}/upload`).set("Cookie", cookie);
+    expect(deferred.status).toBe(429);
+    expect(deferred.headers["retry-after"]).toBe("2");
+    expect(head).not.toHaveBeenCalled();
   });
 
-  it("checks storage again when an uploading package is opened", async () => {
+  it("reads the saved status until the author confirms the uploaded file", async () => {
     const { user, cookie } = await testUtils.createAndLoginUser(`upload_view_${Date.now()}`);
     const file = md5(7);
     const created = await http
       .post("/v1/packages")
       .set("Cookie", cookie)
       .send({ content: packageWith(user, [file]) });
-    expect((await http.get(`/v1/packages/${created.body.id}`)).body.uploadStatus).toBe("uploading");
-    stored.add(file);
-    expect((await http.get(`/v1/packages/${created.body.id}`)).body.uploadStatus).toBe("ready");
-  });
-
-  it("starts a game once storage holds every file, with no report from the client", async () => {
-    const { user, cookie } = await testUtils.createAndLoginUser(`upload_after_${Date.now()}`);
-    const files = [md5(8)];
-    stored.add(files[0]);
-    const created = await http
-      .post("/v1/packages")
-      .set("Cookie", cookie)
-      .send({ content: packageWith(user, files) });
+    expect(created.status).toBe(200);
     const id = created.body.id as number;
-    const game = await createGame(cookie, id);
-    expect(game.status).toBe(200);
+    stored.add(file);
+    const head = jest.mocked(container.resolve(S3ObjectStorage).headObject);
+    head.mockClear();
+    const meta = await http.get(`/v1/packages/${id}`);
+    expect(meta.status).toBe(200);
+    expect(meta.body.uploadStatus).toBe("uploading");
+    expect((await createGame(cookie, id)).status).toBe(409);
+    expect(head).not.toHaveBeenCalled();
+
+    const upload = await http.get(`/v1/packages/${id}/upload`).set("Cookie", cookie);
+    expect(upload.status).toBe(200);
+    expect(upload.body).toMatchObject({ status: "ready", uploadedFiles: 1, missing: [] });
+    expect(head).toHaveBeenCalledTimes(1);
+    expect((await createGame(cookie, id)).status).toBe(200);
     expect((await http.get(`/v1/packages/${id}`)).body.uploadStatus).toBe("ready");
+    expect(head).toHaveBeenCalledTimes(1);
   });
 
   it("only lets the author or an editor see the upload state", async () => {
     const { user, cookie } = await testUtils.createAndLoginUser(`upload_owner_${Date.now()}`);
     const other = await testUtils.createAndLoginUser(`upload_other_${Date.now()}`);
+    const file = md5(3);
     const created = await http
       .post("/v1/packages")
       .set("Cookie", cookie)
-      .send({ content: packageWith(user, [md5(3)]) });
+      .send({ content: packageWith(user, [file]) });
+    const path = `/v1/packages/${created.body.id}/upload`;
+    stored.add(file);
 
-    const res = await http
-      .get(`/v1/packages/${created.body.id}/upload`)
-      .set("Cookie", other.cookie);
-    expect(res.status).toBe(403);
+    const head = jest.mocked(container.resolve(S3ObjectStorage).headObject);
+    head.mockClear();
+    await http.get(path).expect(401);
+    await http.get(path).set("Cookie", other.cookie).expect(403);
+    expect(head).not.toHaveBeenCalled();
+
+    const permissions = dataSource.getRepository(Permission);
+    const editPackage =
+      (await permissions.findOneBy({ name: Permissions.EDIT_PACKAGE })) ??
+      (await permissions.save({ name: Permissions.EDIT_PACKAGE }));
+    await userRepo.save({ ...other.user, permissions: [editPackage] });
+    await container.resolve(UserCacheStore).delete(other.user.id);
+
+    const confirmed = await http.get(path).set("Cookie", other.cookie).expect(200);
+    expect(confirmed.body.status).toBe("ready");
+    expect(head).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares upload check slots and cooldowns between independent gates", async () => {
+    const redis = container.resolve(RedisService);
+    const logger = container.resolve<ILogger>(DI_TOKENS.Logger);
+    const first = new PackageUploadRefreshGate(redis, logger);
+    const second = new PackageUploadRefreshGate(redis, logger);
+    const releaseFirst = await first.acquire(1, 1);
+    const releaseSecond = await second.acquire(2, 1);
+    try {
+      await expect(second.acquire(1, 2)).rejects.toMatchObject({ code: 429 });
+      await expect(first.acquire(3, 1)).rejects.toMatchObject({ code: 503 });
+    } finally {
+      await releaseFirst(true);
+      await releaseSecond(false);
+    }
+    await expect(second.acquire(1, 1)).rejects.toMatchObject({ code: 429 });
+    const releaseNewVersion = await second.acquire(1, 2);
+    await releaseNewVersion(false);
+  });
+
+  it("fails closed when Redis admission does not respond", async () => {
+    const redis = container.resolve(RedisService);
+    const gate = new PackageUploadRefreshGate(redis, container.resolve<ILogger>(DI_TOKENS.Logger));
+    jest.spyOn(redis, "eval").mockImplementationOnce(() => new Promise(() => {}));
+    jest.useFakeTimers();
+    try {
+      const denied = expect(gate.acquire(1, 1)).rejects.toMatchObject({ code: 503 });
+      await jest.advanceTimersByTimeAsync(1000);
+      await denied;
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("keeps a replacement lease when the expired owner releases it", async () => {
+    const redis = container.resolve(RedisService);
+    const gate = container.resolve(PackageUploadRefreshGate);
+    const releaseExpired = await gate.acquire(1, 1);
+    const leaseKeys = await redis.scan("{package-upload-check}:*");
+    expect(leaseKeys).toHaveLength(2);
+    await Promise.all(leaseKeys.map((key) => redis.expire(key, 0)));
+
+    const releaseCurrent = await gate.acquire(1, 1);
+    try {
+      await releaseExpired(true);
+      await expect(gate.acquire(1, 1)).rejects.toMatchObject({ code: 429 });
+    } finally {
+      await releaseCurrent(false);
+    }
+
+    const releaseNext = await gate.acquire(1, 1);
+    await releaseNext(false);
+  });
+
+  it("does not contact storage when upload check admission is unavailable", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`upload_gate_${Date.now()}`);
+    const created = await http
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content: packageWith(user, [md5(9)]) });
+    const head = jest.mocked(container.resolve(S3ObjectStorage).headObject);
+    head.mockClear();
+    jest.spyOn(container.resolve(RedisService), "eval").mockRejectedValueOnce(new Error("Redis unavailable"));
+    const unavailable = await http.get(`/v1/packages/${created.body.id}/upload`).set("Cookie", cookie);
+    expect(unavailable.status).toBe(503);
+    expect(unavailable.headers["retry-after"]).toBe("2");
+    expect(head).not.toHaveBeenCalled();
+  });
+
+  it("leaves timed-out files unconfirmed and stops at the current batch", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`upload_timeout_${Date.now()}`);
+    const files = [10, 11, 12, 13, 14].map(md5);
+    const created = await http
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content: packageWith(user, files) });
+    expect(created.status).toBe(200);
+
+    const check = new AbortController();
+    jest.spyOn(AbortSignal, "timeout").mockReturnValueOnce(check.signal);
+    const head = jest.mocked(container.resolve(S3ObjectStorage).headObject);
+    head.mockClear().mockImplementation(async (_bucket, _key, signal) => {
+      if (signal !== check.signal) return null;
+      return new Promise((_, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+        if (head.mock.calls.length === 4) check.abort();
+      });
+    });
+
+    const res = await http.get(`/v1/packages/${created.body.id}/upload`).set("Cookie", cookie);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: "uploading", uploadedFiles: 0 });
+    expect(new Set(res.body.missing)).toEqual(new Set(files));
+    expect(head).toHaveBeenCalledTimes(4);
+    expect(head.mock.calls.every(([, , signal]) => signal === check.signal)).toBe(true);
+  });
+
+  it("limits distinct media names on both create and replacement", async () => {
+    const { user, cookie } = await testUtils.createAndLoginUser(`upload_cap_${Date.now()}`);
+    const created = await http.post("/v1/packages").set("Cookie", cookie)
+      .send({ content: packageWith(user, []) });
+    expect(created.status).toBe(200);
+    const content = packageWith(user, [md5(1)]);
+    const template = content.rounds[0].themes[0].questions[0];
+    const file = template.questionFiles![0];
+    const mediaName = (n: number) => n.toString(16).padStart(32, "0");
+    const media = (offset: number) => Array.from({ length: 25 }, (_, order) => ({
+      ...file,
+      order,
+      file: { ...file.file, md5: mediaName(offset + order + 1) }
+    }));
+    content.rounds[0].themes[0].questions = Array.from({ length: 20 }, (_, order) => ({
+      ...template,
+      order,
+      questionFiles: media(order * 50),
+      answerFiles: media(order * 50 + 25)
+    }));
+    content.logo = { file: { ...file.file, md5: mediaName(1) } };
+    await expect(container.resolve(StorageQuotaService).assertPackageFits(user, content, undefined))
+      .resolves.toEqual(new Map());
+    content.logo.file.md5 = mediaName(1_001);
+    const { author: _author, createdAt: _createdAt, ...packageInput } = content;
+    const body = JSON.stringify({ content: packageInput });
+    expect(Buffer.byteLength(body)).toBeLessThan(100 * 1024);
+    const head = jest.mocked(container.resolve(S3ObjectStorage).headObject);
+    head.mockClear();
+    for (const request of [http.post("/v1/packages"), http.put(`/v1/packages/${created.body.id}`)]) {
+      const refused = await request.set("Cookie", cookie).type("json").send(body);
+      expect(refused.status).toBe(413);
+      expect(refused.body.error).toContain("1001 distinct media files");
+    }
+    expect(await packageRepo.count()).toBe(1);
+    expect((await packageRepo.findOneByOrFail({ id: created.body.id })).upload_status).toBe("ready");
+    expect(head).not.toHaveBeenCalled();
   });
 
   it("is ready at once when every file is already stored", async () => {
@@ -249,12 +409,38 @@ describe("Package upload state", () => {
     const job = new PackageUploadCheckJob(
       container.resolve<ILogger>(DI_TOKENS.Logger),
       container.resolve(PackageUploadService),
+      container.resolve(RedisService),
       "0 */5 * * * *"
     );
     await job.execute();
 
     const pack = await packageRepo.findOneByOrFail({ id: created.body.id });
     expect(pack.upload_status).toBe("ready");
+    expect((await createGame(cookie, created.body.id)).status).toBe(200);
+  });
+
+  it("continues background checks from the last attempted package", async () => {
+    const uploads = container.resolve(PackageUploadService);
+    const list = jest.spyOn(uploads, "getUploadingSince")
+      .mockResolvedValueOnce([41, 42])
+      .mockResolvedValueOnce([43])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([41]);
+    const refresh = jest.spyOn(uploads, "refresh").mockResolvedValue({
+      status: PackageUploadStatus.UPLOADING, files: [], pending: new Set(), startedAt: null
+    });
+    const job = new PackageUploadCheckJob(
+      container.resolve<ILogger>(DI_TOKENS.Logger), uploads,
+      container.resolve(RedisService), "0 */5 * * * *"
+    );
+    await job.execute();
+    await job.execute();
+    await job.execute();
+    expect(list).toHaveBeenNthCalledWith(1, expect.any(Date), 50, 0);
+    expect(list).toHaveBeenNthCalledWith(2, expect.any(Date), 50, 42);
+    expect(list).toHaveBeenNthCalledWith(3, expect.any(Date), 50, 43);
+    expect(list).toHaveBeenNthCalledWith(4, expect.any(Date), 50, 0);
+    expect(refresh.mock.calls).toEqual([[41], [42], [43], [41]]);
   });
 
   it("keeps an unconfirmed package unplayable during a storage outage", async () => {
@@ -268,6 +454,8 @@ describe("Package upload state", () => {
       .mocked(container.resolve(S3ObjectStorage).headObject)
       .mockRejectedValue(new Error("storage unavailable"));
 
+    const upload = await http.get(`/v1/packages/${created.body.id}/upload`).set("Cookie", cookie);
+    expect(upload.body).toMatchObject({ status: "uploading", missing: [md5(80)] });
     expect((await createGame(cookie, created.body.id)).status).toBe(409);
     expect((await packageRepo.findOneByOrFail({ id: created.body.id })).upload_status).toBe(
       "uploading"
@@ -303,9 +491,9 @@ describe("Package upload state", () => {
     const staleCheck = await http
       .get(`/v1/packages/${created.body.id}/upload`)
       .set("Cookie", cookie);
-    expect(staleCheck.status).toBe(200);
+    expect(staleCheck.status).toBe(429);
+    expect(staleCheck.headers["retry-after"]).toBe("2");
     expect(replaced).toBe(true);
-    expect(staleCheck.body.status).toBe("uploading");
     expect((await packageRepo.findOneByOrFail({ id: created.body.id })).upload_status).toBe(
       "uploading"
     );
@@ -325,20 +513,16 @@ describe("Package upload state", () => {
     const markReady = repository.markUploadReady.bind(repository);
     const newHash = "b".repeat(32);
     jest.spyOn(repository, "markUploadReady").mockImplementationOnce(async (id, startedAt) => {
-      const replacement = await http
-        .put(`/v1/packages/${id}`)
-        .set("Cookie", cookie)
-        .send({ content: packageWith(user, [md5(84)]), sourceHash: newHash });
-      expect(replacement.status).toBe(200);
-      expect(replacement.body.uploadStatus).toBe("uploading");
+      const { pack } = await repository.create(packageWith(user, [md5(84)]), user, id, newHash);
+      expect(pack.upload_status).toBe(PackageUploadStatus.UPLOADING);
       return markReady(id, startedAt);
     });
 
     const staleCheck = await http
       .get(`/v1/packages/${created.body.id}/upload`)
       .set("Cookie", cookie);
-    expect(staleCheck.status).toBe(200);
-    expect(staleCheck.body.status).toBe("uploading");
+    expect(staleCheck.status).toBe(429);
+    expect(staleCheck.headers["retry-after"]).toBe("2");
     expect(await packageRepo.findOneByOrFail({ id: created.body.id })).toMatchObject({
       upload_status: "uploading",
       source_hash: newHash

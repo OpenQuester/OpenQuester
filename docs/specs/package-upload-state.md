@@ -24,19 +24,23 @@ be played, and its author can finish the upload later.
   confirmed and its measured sizes pass the file, package, author and bucket
   limits. Already confirmed files need no new upload. The response carries
   `uploadStatus`.
-- `PackageUploadService.refresh` asks storage about each unconfirmed file and
-  saves the result. It runs on `GET /v1/packages/{id}/upload`, before a game
-  is created with the package, and every 5 minutes for packages that started
-  uploading in the last 2 days (`PackageUploadCheckJob`), so clients that
-  never report back can still reach `ready` once storage confirms every file.
+- Public package reads and game creation or package changes use the saved
+  status. Verification runs through the author/editor-only
+  `GET /v1/packages/{id}/upload` and the five-minute `PackageUploadCheckJob`.
+  The job walks recent uploads (started within two days) by ID in batches of
+  up to 50, so clients that never report back can still reach `ready`.
+- Redis admits one verification per package and two across all API replicas.
+  Each verification has a 20-second storage check budget and up to four
+  concurrent HEADs. Incomplete checks pause two seconds for that upload
+  version. A timeout leaves the remaining files unconfirmed.
 
 ## Rules
 
 - `POST /v1/games` and changing a game's package refuse an `uploading`
-  package with **409** `package_upload_unfinished`, naming how many files are
-  missing or unconfirmed. Storage errors keep unconfirmed uploads unplayable;
-  ready packages keep working. Measured quota violations return **413**, or
-  **507** for the bucket, and keep the package `uploading`.
+  package with **409** `package_upload_unfinished`, using the saved counts
+  of unconfirmed files. Storage errors keep unconfirmed uploads unplayable.
+  The upload endpoint returns **413** for measured quota violations or
+  **507** for the bucket. The saved status remains `uploading`.
 - Games snapshot the package when created, so a ready package can't become
   unplayable under a running game.
 - `GET /v1/packages?uploadStatus=ready` lists only playable packages. The web
@@ -59,7 +63,10 @@ Estimates are advisory; server limits use actual prepared sizes.
 
 `GET /v1/packages/{id}/upload` (author or `edit_package`) returns
 `{ status, totalFiles, uploadedFiles, missing, uploadLinks }` with fresh links
-for the missing MD5s. The web app resumes in this order:
+for unconfirmed MD5s. A check already in progress, cooling down, or made
+stale by a replacement returns **429**. If the shared verification slots or
+Redis are unavailable it returns **503**. Both responses set `Retry-After: 2`.
+The web app retries the status request up to twice and resumes in this order:
 
 1. Files of an unfinished upload are kept in IndexedDB (`oq-uploads`) per
    package until each is uploaded, so the same browser resumes with one tap
